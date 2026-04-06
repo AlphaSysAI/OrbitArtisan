@@ -1,0 +1,20 @@
+-- Stripe Connect Express (onboarding + paiement destination + payout)
+-- Exécuter après supabase/schema.sql et après les scripts factures/devis.
+
+-- Identifiant du compte Connect (Express) associé à l'artisan
+alter table public.profiles
+  add column if not exists stripe_account_id text;
+
+alter table public.profiles
+  add constraint profiles_stripe_account_unique unique (stripe_account_id);
+
+-- Flags mis à jour via webhook Stripe (account.updated / capabilities)
+alter table public.profiles
+  add column if not exists stripe_transfers_enabled boolean not null default false;
+
+alter table public.profiles
+  add column if not exists stripe_payouts_enabled boolean not null default false;
+
+alter table public.profiles
+  add column if not exists stripe_account_updated_at timestamptz;
+
