@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ContactSettingsForm } from "@/components/settings/contact-settings-form";
+import { VoiceNumberForm } from "@/components/settings/voice-number-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -16,12 +17,13 @@ const TABS = [
   { id: "activite", label: "Mon activité" },
   { id: "coordonnees", label: "Coordonnées" },
   { id: "prestations", label: "Prestations" },
+  { id: "vocal", label: "IA Vocale" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
 function parseTab(raw: string | undefined): TabId {
-  if (raw === "coordonnees" || raw === "prestations" || raw === "activite") return raw;
+  if (raw === "coordonnees" || raw === "prestations" || raw === "activite" || raw === "vocal") return raw;
   return "activite";
 }
 
@@ -76,6 +78,14 @@ export default async function ArtisanSettingsPage({
         .eq("artisan_id", profile.id)
         .order("title", { ascending: true })
     : { data: [] as { id: string; title: string; duration: number; price: number | null }[] };
+
+  const { data: voiceNumber } = profile?.id
+    ? await supabase
+        .from("artisan_voice_numbers")
+        .select("phone_e164")
+        .eq("artisan_id", profile.id)
+        .maybeSingle()
+    : { data: null };
 
   const profileInitial = profile ?? {
     name: null,
@@ -211,6 +221,31 @@ export default async function ArtisanSettingsPage({
                   </ul>
                 )}
               </div>
+            </>
+          )}
+        </section>
+      ) : null}
+
+      {tab === "vocal" ? (
+        <section className="space-y-4">
+          {!profile ? (
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4 text-sm">
+              <p className="font-medium text-amber-950 dark:text-amber-100">
+                Enregistre d'abord ton activité dans l'onglet « Mon activité ».
+              </p>
+              <Link
+                href="/app/reglages?tab=activite"
+                className="mt-2 inline-block font-medium underline underline-offset-4"
+              >
+                Aller à Mon activité
+              </Link>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Active l'IA vocale pour recevoir des appels et des demandes de RDV.
+              </p>
+              <VoiceNumberForm initialPhone={voiceNumber?.phone_e164 ?? null} />
             </>
           )}
         </section>
