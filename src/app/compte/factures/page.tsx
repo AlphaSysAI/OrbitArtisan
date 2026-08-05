@@ -7,16 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { invoiceStatusLabel } from "@/lib/status-labels";
 import { isStripeConfigured } from "@/lib/stripe/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { PaymentErrorAlert } from "./payment-alerts";
-
-function statusLabel(status: string) {
-  if (status === "sent") return "Envoyée";
-  if (status === "paid") return "Payée";
-  return status;
-}
 
 export default async function ClientInvoicesPage({
   searchParams,
@@ -87,7 +82,7 @@ export default async function ClientInvoicesPage({
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-mono text-sm font-semibold">{inv.invoice_number ?? inv.id.slice(0, 8)}</p>
-                    <Badge variant={inv.status === "paid" ? "default" : "secondary"}>{statusLabel(inv.status)}</Badge>
+                    <Badge variant={inv.status === "paid" ? "default" : "secondary"}>{invoiceStatusLabel(inv.status)}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">{artisanName(inv.artisan_id)}</p>
                   <p className="text-xs text-muted-foreground">

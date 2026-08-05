@@ -6,12 +6,14 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveVitrineAccent } from "@/lib/vitrine-theme";
 
+import { getOrCreateArtisanCustomerConversation } from "@/lib/contacts/actions";
+
 import { QuoteForm } from "../quote-form";
 
 export default async function NewQuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ conversationId?: string }>;
+  searchParams: Promise<{ conversationId?: string; customerUserId?: string; aiDraft?: string }>;
 }) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return <SupabaseMissing title="Devis indisponibles" />;
@@ -20,6 +22,9 @@ export default async function NewQuotePage({
   const sp = await searchParams;
   const conversationIdParam =
     typeof sp.conversationId === "string" && sp.conversationId.length > 0 ? sp.conversationId : undefined;
+  const customerUserIdParam =
+    typeof sp.customerUserId === "string" && sp.customerUserId.length > 0 ? sp.customerUserId : undefined;
+  const loadAiDraft = sp.aiDraft === "1" && !!conversationIdParam;
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -37,7 +42,7 @@ export default async function NewQuotePage({
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">Devis</h1>
         <p className="text-sm text-muted-foreground">Renseigne d’abord ton activité.</p>
-        <Link href="/app/profile" className={buttonVariants({ variant: "outline" })}>
+        <Link href="/app/reglages?tab=activite" className={buttonVariants({ variant: "outline" })}>
           Mon activité
         </Link>
       </div>
@@ -85,6 +90,21 @@ export default async function NewQuotePage({
         customerEmail: String((cp as { email?: string | null } | null)?.email ?? ""),
       };
     }
+  } else if (customerUserIdParam) {
+    const convRes = await getOrCreateArtisanCustomerConversation(customerUserIdParam);
+    const { data: cp } = await supabase
+      .from("customer_profiles")
+      .select("display_name, email")
+      .eq("user_id", customerUserIdParam)
+      .maybeSingle();
+    if (cp && convRes.ok) {
+      conversationPrefill = {
+        conversationId: convRes.conversationId,
+        customerUserId: customerUserIdParam,
+        customerName: cp.display_name ?? "",
+        customerEmail: String(cp.email ?? ""),
+      };
+    }
   }
 
   if (!safeServices.length) {
@@ -98,7 +118,7 @@ export default async function NewQuotePage({
           <p className="text-sm text-muted-foreground">
             Ajoute d’abord des prestations dans <code>Mes prestations</code>.
           </p>
-          <Link href="/app/services" className={buttonVariants()}>
+          <Link href="/app/reglages?tab=prestations" className={buttonVariants()}>
             Aller à mes prestations
           </Link>
         </CardContent>
@@ -112,6 +132,7 @@ export default async function NewQuotePage({
       profileLaborRatePerHourCents={profile.labor_rate_per_hour ?? null}
       services={safeServices}
       conversationPrefill={conversationPrefill}
+      loadAiDraft={loadAiDraft}
     />
   );
 }

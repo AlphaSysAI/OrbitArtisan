@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getOpenAI } from "@/lib/openai/server";
+import { mistralChatText } from "@/lib/ai/mistral";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -28,7 +28,6 @@ export async function POST(request: Request) {
 
   if (!user) return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
 
-  // Artisan requis.
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name, description, labor_rate_per_hour")
@@ -45,7 +44,6 @@ export async function POST(request: Request) {
 
   if (!conv || conv.artisan_id !== profile.id) return NextResponse.json({ error: "conversation_forbidden" }, { status: 403 });
 
-  // Contexte messages (limité).
   const { data: messages } = await supabase
     .from("messages")
     .select("sender_user_id, body, created_at")
@@ -70,17 +68,16 @@ export async function POST(request: Request) {
 
   const servicesText = selectedServices
     .slice(0, 10)
-    .map((s: any) => `${String(s.title ?? "")} (${s.duration ?? ""} min)`)
+    .map((s: { title?: string; duration?: number }) => `${String(s.title ?? "")} (${s.duration ?? ""} min)`)
     .filter(Boolean)
     .join(", ");
 
   const materialsText = materials
     .slice(0, 20)
-    .map((m: any) => `${String(m.label ?? "")} x${m.quantity ?? 1}`)
+    .map((m: { label?: string; quantity?: number }) => `${String(m.label ?? "")} x${m.quantity ?? 1}`)
     .filter(Boolean)
     .join(", ");
 
-  const openai = getOpenAI();
   const prompt = `
 Tu es un assistant pour un artisan français.
 Objectif: rédiger une section "Notes" (texte libre) pour un devis.
@@ -106,18 +103,22 @@ Historique (extrait):
 ${contextText}
 `.trim();
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.4,
-    messages: [
-      { role: "system", content: "Génération de notes pour devis." },
-      { role: "user", content: prompt },
-    ],
-  });
+  try {
+    const notes = safeTrim(
+      await mistralChatText(
+        [
+          { role: "system", content: "Génération de notes pour devis." },
+          { role: "user", content: prompt },
+        ],
+        0.4,
+      ),
+      2500,
+    );
 
-  const notes = safeTrim(completion.choices[0]?.message?.content ?? "", 2500);
-  if (!notes) return NextResponse.json({ error: "empty_response" }, { status: 500 });
-
-  return NextResponse.json({ notes });
+    if (!notes) return NextResponse.json({ error: "empty_response" }, { status: 500 });
+    return NextResponse.json({ notes });
+  } catch (err) {
+    console.error("[suggest-quote-notes] mistral error", err);
+    return NextResponse.json({ error: "ai_failed" }, { status: 500 });
+  }
 }
-

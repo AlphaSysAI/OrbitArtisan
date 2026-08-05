@@ -23,7 +23,7 @@ export function SupabaseMissing({
           <p>Crée un fichier <code>.env.local</code> à la racine (ou copie <code>.env.example</code>) :</p>
           <pre className="overflow-x-auto rounded-xl border bg-muted/30 p-3 text-xs">
 {`NEXT_PUBLIC_SUPABASE_URL="https://xxxxxxxxxxxx.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-public-key"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="votre-clé-anon-publique"
 NEXT_PUBLIC_SITE_URL="http://localhost:3000"`}
           </pre>
           <p>
@@ -33,7 +33,7 @@ NEXT_PUBLIC_SITE_URL="http://localhost:3000"`}
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <Link className={buttonVariants({ variant: "secondary" })} href="/">
-            Retour à la landing
+            Retour à l’accueil
           </Link>
           {showLoginLink && (
             <Link className={buttonVariants()} href="/login">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { finalizePendingVitrineAppointment } from "@/app/site/[slug]/actions";
+import { acceptPlatformInvitation } from "@/lib/invitations/actions";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function translateAuthError(message: string, code?: string): string {
@@ -17,7 +18,7 @@ function translateAuthError(message: string, code?: string): string {
     m.includes("already registered") ||
     m.includes("user already")
   ) {
-    return "Cet email est déjà utilisé. Connecte-toi ou choisis un autre email.";
+    return "Cette adresse e-mail est déjà utilisée. Connecte-toi ou choisis une autre adresse.";
   }
   if (m.includes("password") && (m.includes("at least") || m.includes("least") || m.includes("weak"))) {
     return "Mot de passe trop court ou trop faible (selon les règles du compte).";
@@ -28,17 +29,19 @@ function translateAuthError(message: string, code?: string): string {
   if (m.includes("signup") && m.includes("disabled")) {
     return "Les inscriptions par email sont désactivées sur ce projet (réglages Supabase).";
   }
-  return message;
+  return "Une erreur est survenue. Réessaie.";
 }
 
 export function InscriptionClientForm({
   next,
   pendingAppointmentId,
   prefillEmail,
+  inviteToken,
 }: {
   next: string;
   pendingAppointmentId?: string | null;
   prefillEmail?: string;
+  inviteToken?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -58,14 +61,18 @@ export function InscriptionClientForm({
     const displayName = String(fd.get("display_name") ?? "").trim();
 
     if (!email || !password) {
-      setError("Email et mot de passe sont obligatoires.");
+      setError("L’adresse e-mail et le mot de passe sont obligatoires.");
       setLoading(false);
       return;
     }
 
     const supabase = createSupabaseBrowserClient();
     const origin = window.location.origin;
-    const callbackNext = pendingAppointmentId ? `/compte?pending=${pendingAppointmentId}` : next;
+    const callbackNext = inviteToken
+      ? `/compte/contacts?invite=${encodeURIComponent(inviteToken)}`
+      : pendingAppointmentId
+        ? `/compte?pending=${pendingAppointmentId}`
+        : next;
     const { data, error: signErr } = await supabase.auth.signUp({
       email,
       password,
@@ -93,6 +100,14 @@ export function InscriptionClientForm({
         setLoading(false);
         return;
       }
+      if (inviteToken) {
+        const acc = await acceptPlatformInvitation(inviteToken);
+        if (!acc.ok && acc.error === "email_mismatch") {
+          setError("L’email du compte doit correspondre à celui de l’invitation.");
+          setLoading(false);
+          return;
+        }
+      }
       if (pendingAppointmentId) {
         const fin = await finalizePendingVitrineAppointment(pendingAppointmentId);
         if (!fin.ok) {
@@ -105,6 +120,8 @@ export function InscriptionClientForm({
           return;
         }
         router.push("/compte?success=rdv");
+      } else if (inviteToken) {
+        router.push("/compte/contacts?success=invite");
       } else {
         router.push(next);
       }
@@ -139,7 +156,7 @@ export function InscriptionClientForm({
         <Alert>
           <AlertTitle>Demande de RDV en attente</AlertTitle>
           <AlertDescription>
-            Utilise la même adresse email que celle indiquée sur la demande pour finaliser le rendez-vous après
+            Utilise la même adresse e-mail que celle indiquée sur la demande pour finaliser le rendez-vous après
             inscription.
           </AlertDescription>
         </Alert>
@@ -151,7 +168,7 @@ export function InscriptionClientForm({
           <Input id="display_name" name="display_name" placeholder="Camille" autoComplete="nickname" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Adresse e-mail</Label>
           <Input
             id="email"
             name="email"

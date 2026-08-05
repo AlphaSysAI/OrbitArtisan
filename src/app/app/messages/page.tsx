@@ -26,7 +26,7 @@ export default async function ArtisanMessagesPage() {
     return (
       <div className="rounded-2xl border bg-card p-8 text-center">
         <p className="text-muted-foreground">Crée d’abord ton activité pour recevoir des messages clients.</p>
-        <Link href="/app/profile" className={buttonVariants({ className: "mt-4 inline-flex" })}>
+        <Link href="/app/reglages?tab=activite" className={buttonVariants({ className: "mt-4 inline-flex" })}>
           Mon activité
         </Link>
       </div>
@@ -56,7 +56,7 @@ export default async function ArtisanMessagesPage() {
             <li key={item.id}>
               <Link
                 href={`/app/messages/${item.id}`}
-                className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/50"
+                className="flex flex-1 items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/50"
               >
                 <div>
                   <p className="font-medium">{item.customer_label}</p>

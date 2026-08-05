@@ -3,12 +3,18 @@
 import { revalidatePath } from "next/cache";
 
 import { sendMessage } from "@/lib/messages/actions";
+import { buildQuoteNotificationMessage } from "@/lib/quotes/supplier-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type ParsedMaterial = {
   label: string;
-  quantity: number; // integer
-  unitPriceCents: number; // integer
+  quantity: number;
+  unitPriceCents: number;
+  supplierProductId?: string | null;
+  supplierUrl?: string | null;
+  supplierSku?: string | null;
+  isSupplierCatalog?: boolean;
+  excludeFromInvoice?: boolean;
 };
 
 function parseEurToCents(raw: string): number | null {
@@ -49,8 +55,20 @@ export async function createQuote(formData: FormData) {
     .map((m) => {
       const label = String(m?.label ?? "").trim();
       const quantity = Number(m?.quantity ?? 0);
-      const unitPriceCents = parseEurToCents(String(m?.unit_price_eur ?? ""));
-      return { label, quantity, unitPriceCents: unitPriceCents ?? NaN };
+      const excludeFromInvoice = Boolean(m?.exclude_from_invoice);
+      const parsedPrice = parseEurToCents(String(m?.unit_price_eur ?? ""));
+      return {
+        label,
+        quantity,
+        // Achat direct : le client paie la fourniture lui-même, le prix est facultatif.
+        // La colonne unit_price étant NOT NULL, on retombe sur 0.
+        unitPriceCents: parsedPrice ?? (excludeFromInvoice ? 0 : NaN),
+        supplierProductId: m?.supplier_product_id ? String(m.supplier_product_id) : null,
+        supplierUrl: m?.supplier_url ? String(m.supplier_url).trim() || null : null,
+        supplierSku: m?.supplier_sku ? String(m.supplier_sku).trim() || null : null,
+        isSupplierCatalog: Boolean(m?.is_supplier_catalog),
+        excludeFromInvoice,
+      };
     })
     .filter((m) => m.label);
 
@@ -111,7 +129,11 @@ export async function createQuote(formData: FormData) {
   // Centimes = taux (cents/h) * minutes / 60, arrondi.
   const laborTotalCents = Math.round((laborRateCents * laborDurationMinutes) / 60);
 
-  const materialsTotalCents = materials.reduce((acc, m) => acc + m.quantity * m.unitPriceCents, 0);
+  const materialsTotalCents = materials.reduce((acc, m) => {
+    if (m.excludeFromInvoice) return acc;
+    return acc + m.quantity * m.unitPriceCents;
+  }, 0);
+
   const grandTotalCents = laborTotalCents + materialsTotalCents;
 
   const conversationIdRaw = String(formData.get("conversation_id") ?? "").trim();
@@ -183,6 +205,11 @@ export async function createQuote(formData: FormData) {
       quantity: m.quantity,
       unit_price: m.unitPriceCents,
       line_total: m.quantity * m.unitPriceCents,
+      supplier_product_id: m.supplierProductId ?? null,
+      supplier_url: m.supplierUrl ?? null,
+      supplier_sku: m.supplierSku ?? null,
+      is_supplier_catalog: m.isSupplierCatalog ?? false,
+      exclude_from_invoice: m.excludeFromInvoice ?? false,
     }));
 
   if (quoteMaterialRows.length) {
@@ -198,7 +225,18 @@ export async function createQuote(formData: FormData) {
     const totalFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
       grandTotalCents / 100,
     );
-    const body = `📋 J’ai préparé un devis pour toi — Total : ${totalFmt}. Consulte-le ici : ${siteUrl}/mes-devis/${createdQuote.id}`;
+    const body = buildQuoteNotificationMessage({
+      totalFormatted: totalFmt,
+      quoteUrl: `${siteUrl}/mes-devis/${createdQuote.id}`,
+      directPurchaseItems: materials
+        .filter((m) => m.excludeFromInvoice)
+        .map((m) => ({
+          label: m.label,
+          quantity: m.quantity,
+          supplierUrl: m.supplierUrl ?? null,
+          supplierSku: m.supplierSku ?? null,
+        })),
+    });
     const sent = await sendMessage(linkedConversationId, body);
     if (!sent.ok) notifyFailed = true;
   }

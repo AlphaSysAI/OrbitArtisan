@@ -31,6 +31,7 @@ export default async function InscriptionClientPage({
   const success = typeof sp.success === "string" ? sp.success : undefined;
   const pendingAppointmentId = typeof sp.pending === "string" ? sp.pending : null;
   const prefillEmail = typeof sp.email === "string" ? sp.email : "";
+  const inviteToken = typeof sp.invite === "string" ? sp.invite : undefined;
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -62,13 +63,14 @@ export default async function InscriptionClientPage({
           <Card>
             <CardHeader>
               <CardTitle>Inscription</CardTitle>
-              <CardDescription>Email, mot de passe et prénom ou pseudo affiché.</CardDescription>
+              <CardDescription>Adresse e-mail, mot de passe et prénom ou pseudo affiché.</CardDescription>
             </CardHeader>
             <CardContent>
               <InscriptionClientForm
                 next={next}
                 pendingAppointmentId={pendingAppointmentId}
                 prefillEmail={prefillEmail || undefined}
+                inviteToken={inviteToken}
               />
             </CardContent>
           </Card>

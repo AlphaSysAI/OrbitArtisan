@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
+import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
+
 import { ClientNav } from "./client-nav";
 import { signOut } from "@/app/login/actions";
 
@@ -13,14 +15,15 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/compte" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
-              α
+              O
             </div>
             <div className="leading-tight">
-              <p className="text-base font-semibold tracking-tight">AlphaSys</p>
+              <p className="text-base font-semibold tracking-tight">Orbit Artisan</p>
               <p className="text-xs text-muted-foreground">Espace client</p>
             </div>
           </Link>
           <div className="flex items-center gap-2">
+            <InviteSomeoneDialog contextLabel="Je" />
             <ThemeToggle />
             <form action={signOut}>
               <Button variant="outline" size="sm" type="submit" className="text-muted-foreground">

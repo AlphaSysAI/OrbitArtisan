@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getOpenAI } from "@/lib/openai/server";
+import { mistralChatText } from "@/lib/ai/mistral";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -28,7 +28,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
   }
 
-  // Vérifie qu’on est bien côté artisan.
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name, description")
@@ -49,7 +48,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "conversation_forbidden" }, { status: 403 });
   }
 
-  // Récupère un extrait du fil (limité pour coût et robustesse).
   const { data: messages } = await supabase
     .from("messages")
     .select("sender_user_id, body, created_at")
@@ -73,7 +71,6 @@ export async function POST(request: Request) {
 
   const customerName = cp?.display_name ?? "le client";
 
-  const openai = getOpenAI();
   const prompt = `
 Tu es un assistant de rédaction pour un artisan français.
 Objectif: proposer une réponse professionnelle, chaleureuse et rassurante à partir du contexte ci-dessous.
@@ -100,23 +97,28 @@ Produis uniquement le texte de la réponse (pas de JSON, pas de titres).
 Longueur max recommandée: 500 caractères.
 `.trim();
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.4,
-    messages: [
-      {
-        role: "system",
-        content: "Génération de réponse pour messagerie client-artisan.",
-      },
-      { role: "user", content: prompt },
-    ],
-  });
+  try {
+    const suggestion = safeTrim(
+      await mistralChatText(
+        [
+          {
+            role: "system",
+            content: "Génération de réponse pour messagerie client-artisan.",
+          },
+          { role: "user", content: prompt },
+        ],
+        0.4,
+      ),
+      2000,
+    );
 
-  const suggestion = safeTrim(completion.choices[0]?.message?.content ?? "", 2000);
-  if (!suggestion) {
-    return NextResponse.json({ error: "empty_response" }, { status: 500 });
+    if (!suggestion) {
+      return NextResponse.json({ error: "empty_response" }, { status: 500 });
+    }
+
+    return NextResponse.json({ suggestion });
+  } catch (err) {
+    console.error("[suggest-reply] mistral error", err);
+    return NextResponse.json({ error: "ai_failed" }, { status: 500 });
   }
-
-  return NextResponse.json({ suggestion });
 }
-

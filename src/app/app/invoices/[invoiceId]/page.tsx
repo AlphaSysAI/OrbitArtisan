@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+import { invoiceLineKindLabel } from "@/lib/status-labels";
+
 import { updateInvoice } from "../actions";
 
 export default async function InvoiceEditPage({ params }: { params: Promise<{ invoiceId: string }> }) {
@@ -83,7 +85,7 @@ export default async function InvoiceEditPage({ params }: { params: Promise<{ in
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="invoice_number">Numéro de facture</Label>
-                <Input id="invoice_number" name="invoice_number" defaultValue={invoice.invoice_number ?? ""} placeholder="INV-…" />
+                <Input id="invoice_number" name="invoice_number" defaultValue={invoice.invoice_number ?? ""} placeholder="FAC-…" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Statut</Label>
@@ -118,7 +120,7 @@ export default async function InvoiceEditPage({ params }: { params: Promise<{ in
               <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <div>
                   <span className="font-medium">{line.label}</span>
-                  <span className="ml-2 text-xs uppercase text-muted-foreground">{line.line_kind}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{invoiceLineKindLabel(line.line_kind)}</span>
                 </div>
                 <span className="font-medium">
                   {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((line.line_total ?? 0) / 100)}

@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { quoteStatusLabel } from "@/lib/status-labels";
 import { cn } from "@/lib/utils";
 
 export default async function QuotesPage() {
@@ -31,7 +32,7 @@ export default async function QuotesPage() {
         <p className="text-sm text-muted-foreground">
           Commence par renseigner ton activité (Étape 1), puis tes prestations (Étape 2).
         </p>
-        <Link href="/app/profile" className={buttonVariants({ variant: "outline" })}>
+        <Link href="/app/reglages?tab=activite" className={buttonVariants({ variant: "outline" })}>
           Aller à l’étape 1
         </Link>
       </div>
@@ -98,9 +99,9 @@ export default async function QuotesPage() {
                     {q.customer_name || q.customer_email || "Client"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Statut: {q.status}
+                    Statut : {quoteStatusLabel(q.status)}
                     {" · "}
-                    Total:{" "}
+                    Total :{" "}
                     {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
                       (q.grand_total ?? 0) / 100,
                     )}

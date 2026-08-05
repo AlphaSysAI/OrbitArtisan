@@ -7,9 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { invoiceStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
+import { withdrawErrorMessage } from "@/lib/stripe/user-messages";
 
 import { createInvoiceFromQuoteForm } from "./actions";
 import { startStripeExpressOnboarding, withdrawStripeFunds } from "./actions";
@@ -44,7 +46,7 @@ export default async function InvoicesPage({
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">Factures</h1>
         <p className="text-sm text-muted-foreground">Configure d’abord ton activité.</p>
-        <Link href="/app/profile" className={buttonVariants({ variant: "outline" })}>
+        <Link href="/app/reglages?tab=activite" className={buttonVariants({ variant: "outline" })}>
           Mon activité
         </Link>
       </div>
@@ -85,43 +87,37 @@ export default async function InvoicesPage({
     <div className="space-y-10">
       <section className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Stripe Connect</h2>
+          <h2 className="text-lg font-semibold">Paiements en ligne</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Solde disponible sur ton compte Express et retrait vers ton compte bancaire.
+            Solde disponible sur ton compte de paiement et retrait vers ton compte bancaire.
           </p>
         </div>
 
         {withdrawSuccess ? (
           <Alert>
             <AlertTitle>Retrait déclenché</AlertTitle>
-            <AlertDescription>Stripe a bien reçu ta demande de payout.</AlertDescription>
+            <AlertDescription>La demande de versement a bien été envoyée.</AlertDescription>
           </Alert>
         ) : null}
 
         {withdrawError ? (
           <Alert variant="destructive">
             <AlertTitle>Retrait impossible</AlertTitle>
-            <AlertDescription>
-              {withdrawError === "payouts_not_enabled"
-                ? "Ton compte Connect n’a pas encore l’autorisation de payout."
-                : withdrawError === "stripe_not_configured"
-                  ? "Stripe n’est pas configuré côté serveur."
-                  : "Réessaie dans quelques instants."}
-            </AlertDescription>
+            <AlertDescription>{withdrawErrorMessage(withdrawError)}</AlertDescription>
           </Alert>
         ) : null}
 
         {stripeOnboarding === "return" ? (
           <Alert>
-            <AlertTitle>Onboarding terminé</AlertTitle>
-            <AlertDescription>Le compte Connect peut encore nécessiter un peu de temps avant d’être prêt.</AlertDescription>
+            <AlertTitle>Configuration terminée</AlertTitle>
+            <AlertDescription>Ton compte de paiement peut encore nécessiter un peu de temps avant d’être pleinement actif.</AlertDescription>
           </Alert>
         ) : null}
 
         {!stripeEnabled ? (
           <Card>
             <CardContent className="py-6 text-sm text-muted-foreground">
-              Stripe n’est pas activé (variable serveur STRIPE_SECRET_KEY manquante).
+              Les paiements en ligne ne sont pas activés sur ce site.
             </CardContent>
           </Card>
         ) : (
@@ -137,8 +133,8 @@ export default async function InvoicesPage({
                 {profile.stripe_account_id
                   ? profile.stripe_payouts_enabled
                     ? "Tu peux retirer tes fonds."
-                    : "Retrait en attente de validation Stripe."
-                  : "Active ton compte Connect pour encaisser et retirer."}
+                    : "Retrait en attente de validation du compte de paiement."
+                  : "Active les paiements en ligne pour encaisser et retirer."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -234,7 +230,7 @@ export default async function InvoicesPage({
                   <div>
                     <p className="font-mono text-sm font-medium">{inv.invoice_number ?? inv.id.slice(0, 8)}</p>
                     <p className="text-sm text-muted-foreground">
-                      {inv.status}
+                      {invoiceStatusLabel(inv.status)}
                       {" · "}
                       {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((inv.grand_total ?? 0) / 100)}
                     </p>

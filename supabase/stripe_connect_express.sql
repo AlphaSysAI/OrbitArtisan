@@ -5,6 +5,11 @@
 alter table public.profiles
   add column if not exists stripe_account_id text;
 
+-- Contrainte retiree puis reposee, pour que le script reste rejouable
+-- (un simple `add constraint` echoue en 42P07 si elle existe deja).
+alter table public.profiles
+  drop constraint if exists profiles_stripe_account_unique;
+
 alter table public.profiles
   add constraint profiles_stripe_account_unique unique (stripe_account_id);
 

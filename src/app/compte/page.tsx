@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { CalendarHeart, FileText, MessageSquare, Receipt } from "lucide-react";
+import { CalendarHeart, FileText, MessageSquare, Receipt, Users } from "lucide-react";
 
 import { finalizePendingVitrineAppointment } from "@/app/site/[slug]/actions";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { appointmentStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function CompteHomePage({
@@ -122,12 +123,7 @@ export default async function CompteHomePage({
                   const artisan = prof?.business_name ?? "Artisan";
                   const slug = prof?.slug;
                   const service = svc?.title;
-                  const statusFr =
-                    r.status === "confirmed"
-                      ? "Confirmé"
-                      : r.status === "cancelled"
-                        ? "Annulé"
-                        : "En attente";
+                  const statusFr = appointmentStatusLabel(r.status);
                   return (
                     <li
                       key={r.id}
@@ -199,6 +195,21 @@ export default async function CompteHomePage({
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Users className="h-5 w-5" />
+              Mes artisans
+            </CardTitle>
+            <CardDescription>Pages vitrine et artisans avec qui tu es en relation.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/compte/contacts" className={buttonVariants({ variant: "secondary", className: "w-full sm:w-auto" })}>
+              Voir mes contacts
+            </Link>
+          </CardContent>
+        </Card>
+
         <Card className="sm:col-span-2 lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -217,7 +228,7 @@ export default async function CompteHomePage({
 
       <p className="text-center text-xs text-muted-foreground">
         <Link className="underline-offset-4 hover:underline" href="/">
-          Retour au site AlphaSys
+          Retour au site Orbit Artisan
         </Link>
       </p>
     </div>

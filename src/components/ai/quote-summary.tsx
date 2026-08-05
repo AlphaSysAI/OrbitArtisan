@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+import { aiErrorMessage } from "@/lib/ai/error-messages";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -22,17 +23,17 @@ export function QuoteSummary({ quoteId }: { quoteId: string }) {
 
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(json?.error ? `IA: ${json.error}` : "IA: erreur");
+        toast.error(aiErrorMessage(json?.error));
         return;
       }
       if (!json?.summary) {
-        toast.error("IA: réponse vide");
+        toast.error("Réponse IA vide");
         return;
       }
       setSummary(String(json.summary));
       toast.success("Résumé généré.");
     } catch {
-      toast.error("IA: impossible de générer le résumé.");
+      toast.error("Impossible de générer le résumé par IA.");
     } finally {
       setLoading(false);
     }

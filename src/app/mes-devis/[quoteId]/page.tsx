@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { quoteStatusLabel } from "@/lib/status-labels";
 import { cn } from "@/lib/utils";
 
 import { QuoteSummary } from "@/components/ai/quote-summary";
@@ -79,7 +80,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
             <FileText className="h-5 w-5" />
             {artisan?.business_name ?? "Artisan"}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Statut : {quote.status}</p>
+          <p className="mt-1 text-sm text-muted-foreground">Statut : {quoteStatusLabel(quote.status)}</p>
         </div>
         <Link href="/mes-devis" className={buttonVariants({ variant: "outline", size: "sm" })}>
           <ArrowLeft className="mr-2 h-4 w-4" />

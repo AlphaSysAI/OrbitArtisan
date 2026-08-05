@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Clock, Mail, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { appointmentStatusLabel } from "@/lib/status-labels";
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -51,18 +52,6 @@ function getCalendarWeeks(year: number, month: number): (Date | null)[][] {
     weeks.push(week);
   }
   return weeks;
-}
-
-function statusLabel(status: VitrineOwnerAppointment["status"]) {
-  switch (status) {
-    case "confirmed":
-      return "Confirmé";
-    case "cancelled":
-      return "Annulé";
-    case "pending":
-    default:
-      return "En attente";
-  }
 }
 
 export function VitrineOwnerCalendar({
@@ -244,7 +233,7 @@ export function VitrineOwnerCalendar({
                               a.status === "cancelled" && "bg-neutral-200 text-neutral-600",
                             )}
                           >
-                            {statusLabel(a.status)}
+                            {appointmentStatusLabel(a.status)}
                           </span>
                         </div>
                         <p className="mt-2 flex items-center gap-2 text-neutral-800">

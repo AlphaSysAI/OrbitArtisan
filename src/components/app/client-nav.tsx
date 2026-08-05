@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Home, MessageSquare, Receipt } from "lucide-react";
+import { FileText, Home, MapPin, MessageSquare, Receipt, Settings, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/compte", label: "Accueil", icon: Home, exact: true as boolean },
+  { href: "/compte/recherche", label: "Trouver un artisan", icon: MapPin, exact: false as boolean },
+  { href: "/compte/contacts", label: "Mes artisans", icon: Users, exact: false as boolean },
   { href: "/mes-devis", label: "Mes devis", icon: FileText, exact: false as boolean },
   { href: "/compte/factures", label: "Factures", icon: Receipt, exact: false as boolean },
   { href: "/compte/messages", label: "Messages", icon: MessageSquare, exact: false as boolean },
+  { href: "/compte/reglages", label: "Réglages", icon: Settings, exact: false as boolean },
 ];
 
 export function ClientNav() {

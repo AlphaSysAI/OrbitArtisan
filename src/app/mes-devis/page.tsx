@@ -6,6 +6,7 @@ import { FileText } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { quoteStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function MesDevisPage() {
@@ -66,7 +67,7 @@ export default async function MesDevisPage() {
                       dateStyle: "short",
                       timeStyle: "short",
                     })}{" "}
-                    · Statut : {q.status}
+                    · Statut : {quoteStatusLabel(q.status)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">

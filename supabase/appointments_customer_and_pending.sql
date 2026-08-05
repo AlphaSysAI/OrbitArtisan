@@ -21,6 +21,7 @@ using (customer_user_id = auth.uid());
 drop policy if exists "appointments_public_insert" on public.appointments;
 
 -- Invité anonyme : uniquement sans lien compte (rétrocompat / secours sans service role)
+drop policy if exists "appointments_anon_insert_guest" on public.appointments;
 create policy "appointments_anon_insert_guest"
 on public.appointments
 for insert
@@ -28,6 +29,7 @@ to anon
 with check (customer_user_id is null);
 
 -- Client connecté : doit renseigner son propre user id
+drop policy if exists "appointments_authenticated_insert_own" on public.appointments;
 create policy "appointments_authenticated_insert_own"
 on public.appointments
 for insert

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isValidTradeSelection } from "@/lib/trades/taxonomy";
 
 function normalizeSlug(input: string) {
   return input
@@ -55,12 +56,28 @@ export async function upsertProfile(formData: FormData) {
     return { ok: false as const, error: "invalid_slug" as const };
   }
 
+  // Métier facultatif, mais s'il est renseigné il doit être cohérent :
+  // le métier doit appartenir au secteur choisi.
+  const tradeCategoryRaw = String(formData.get("trade_category") ?? "").trim();
+  const tradeRaw = String(formData.get("trade") ?? "").trim();
+
+  let trade_category: string | null = null;
+  let trade: string | null = null;
+
+  if (tradeCategoryRaw || tradeRaw) {
+    if (!isValidTradeSelection(tradeCategoryRaw, tradeRaw)) {
+      return { ok: false as const, error: "invalid_trade" as const };
+    }
+    trade_category = tradeCategoryRaw;
+    trade = tradeRaw;
+  }
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login?next=/app/profile");
+  if (!user) redirect("/login?next=/app/reglages?tab=activite");
 
   const { data: existing } = await supabase
     .from("profiles")
@@ -86,6 +103,8 @@ export async function upsertProfile(formData: FormData) {
     accent_color,
     labor_rate_per_hour,
     slug,
+    trade_category,
+    trade,
   };
 
   if (existing?.id) {
@@ -103,7 +122,7 @@ export async function upsertProfile(formData: FormData) {
   }
 
   revalidatePath("/app");
-  revalidatePath("/app/profile");
+  revalidatePath("/app/reglages");
   revalidatePath(`/site/${slug}`);
 
   return { ok: true as const, slug };

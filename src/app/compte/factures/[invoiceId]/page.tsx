@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 import { isStripeConfigured } from "@/lib/stripe/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -18,13 +19,6 @@ import {
   PaymentPaidAlert,
   PaymentPendingAlert,
 } from "../payment-alerts";
-
-function statusLabel(status: string) {
-  if (status === "sent") return "Envoyée";
-  if (status === "paid") return "Payée";
-  if (status === "draft") return "Brouillon";
-  return status;
-}
 
 export default async function ClientInvoiceDetailPage({
   params,
@@ -115,7 +109,7 @@ export default async function ClientInvoiceDetailPage({
           <h1 className="mt-1 flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
             <Receipt className="h-7 w-7" />
             {invoice.invoice_number ?? "Facture"}
-            <Badge variant={invoice.status === "paid" ? "default" : "secondary"}>{statusLabel(invoice.status)}</Badge>
+            <Badge variant={invoice.status === "paid" ? "default" : "secondary"}>{invoiceStatusLabel(invoice.status)}</Badge>
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {artisan?.business_name ?? "Artisan"}
@@ -156,7 +150,7 @@ export default async function ClientInvoiceDetailPage({
                 <PayInvoiceForm invoiceId={invoice.id} />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Paiement en ligne indisponible (validation Stripe Connect en cours ?).
+                  Paiement en ligne indisponible (activation des paiements en cours ?).
                 </p>
               )}
             </div>
@@ -183,7 +177,7 @@ export default async function ClientInvoiceDetailPage({
               <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <div>
                   <span className="font-medium">{line.label}</span>
-                  <span className="ml-2 text-xs uppercase text-muted-foreground">{line.line_kind}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{invoiceLineKindLabel(line.line_kind)}</span>
                 </div>
                 <span className="font-medium tabular-nums">
                   {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(

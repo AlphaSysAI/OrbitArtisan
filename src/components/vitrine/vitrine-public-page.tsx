@@ -189,7 +189,7 @@ export function VitrinePublicPage({
           <p>
             Page proposée avec{" "}
             <Link href="/" className="font-medium underline-offset-4 hover:underline" style={{ color: accentDark }}>
-              AlphaSys‑Artisan
+              Orbit Artisan
             </Link>
           </p>
         </footer>

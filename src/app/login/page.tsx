@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SupabaseMissing } from "@/components/supabase-missing";
 
 import { signInWithPassword, signUpWithPassword } from "./actions";
+
+type Role = "artisan" | "particulier";
 
 export default async function LoginPage({
   searchParams,
@@ -25,10 +28,13 @@ export default async function LoginPage({
   }
 
   const sp = await searchParams;
-  const next = typeof sp.next === "string" ? sp.next : "/app";
+  const role: Role = sp.role === "particulier" ? "particulier" : "artisan";
+  const isParticulier = role === "particulier";
+  const next = typeof sp.next === "string" ? sp.next : isParticulier ? "/compte" : "/app";
   const error = typeof sp.error === "string" ? sp.error : undefined;
   const success = typeof sp.success === "string" ? sp.success : undefined;
   const prefillEmail = typeof sp.email === "string" ? sp.email : "";
+  const inviteToken = typeof sp.invite === "string" ? sp.invite : "";
   const info = typeof sp.info === "string" ? sp.info : undefined;
 
   const supabase = await createSupabaseServerClient();
@@ -42,14 +48,14 @@ export default async function LoginPage({
       <div className="container mx-auto flex min-h-screen max-w-xl items-center px-6 py-16">
         <div className="w-full space-y-6">
           <div className="space-y-2 text-center">
-            <p className="text-sm text-muted-foreground">AlphaSys‑Artisan</p>
-            <h1 className="text-2xl font-semibold tracking-tight">Connexion</h1>
+            <p className="text-sm text-muted-foreground">Orbit Artisan</p>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {isParticulier ? "Espace client" : "Espace artisan"}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Espace pro : devis, factures, vitrine. Compte client :{" "}
-              <Link className="font-medium text-foreground underline-offset-4 hover:underline" href="/login?next=/compte">
-                connexion dédiée
-              </Link>
-              .
+              {isParticulier
+                ? "Vos devis, vos factures et vos échanges avec votre artisan."
+                : "Vos devis, vos factures, votre planning et votre site vitrine."}
             </p>
           </div>
 
@@ -58,7 +64,7 @@ export default async function LoginPage({
               <AlertTitle>Impossible de se connecter</AlertTitle>
               <AlertDescription>
                 {error === "invalid_credentials"
-                  ? "Email ou mot de passe invalide."
+                  ? "Adresse e-mail ou mot de passe invalide."
                   : "Une erreur est survenue. Réessaie."}
               </AlertDescription>
             </Alert>
@@ -77,7 +83,7 @@ export default async function LoginPage({
             <Alert>
               <AlertTitle>Demande de RDV enregistrée</AlertTitle>
               <AlertDescription>
-                Connecte-toi avec cet email pour retrouver ton rendez-vous dans ton espace client.
+                Connecte-toi avec cette adresse e-mail pour retrouver ton rendez-vous dans ton espace client.
               </AlertDescription>
             </Alert>
           )}
@@ -85,13 +91,14 @@ export default async function LoginPage({
           <Card>
             <CardHeader>
               <CardTitle>Se connecter</CardTitle>
-              <CardDescription>Avec email + mot de passe (simple pour démarrer).</CardDescription>
+              <CardDescription>Avec adresse e-mail et mot de passe (simple pour démarrer).</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <form action={signInWithPassword} className="space-y-4">
                 <input type="hidden" name="next" value={next} />
+                <input type="hidden" name="role" value={role} />
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Adresse e-mail</Label>
                   <Input
                     id="email"
                     name="email"
@@ -126,43 +133,60 @@ export default async function LoginPage({
                 </div>
               </div>
 
-              <form action={signUpWithPassword} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email2">Créer un compte</Label>
-                  <Input
-                    id="email2"
-                    name="email"
-                    type="email"
-                    placeholder="toi@entreprise.fr"
-                    autoComplete="email"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password2">Mot de passe</Label>
-                  <Input
-                    id="password2"
-                    name="password"
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={8}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum 8 caractères. Tu pourras activer des options plus avancées plus tard.
+              {isParticulier ? (
+                <div className="space-y-3 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Pas encore de compte client ?
                   </p>
+                  <Link
+                    className={buttonVariants({ variant: "secondary", className: "w-full" })}
+                    href={`/inscription-client?next=${encodeURIComponent(next)}${
+                      inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : ""
+                    }`}
+                  >
+                    Créer mon compte client
+                  </Link>
                 </div>
-                <Button className="w-full" variant="secondary" type="submit">
-                  Créer mon compte
-                </Button>
-              </form>
+              ) : (
+                <form action={signUpWithPassword} className="space-y-4">
+                  <input type="hidden" name="next" value={next} />
+                  {inviteToken ? <input type="hidden" name="invite" value={inviteToken} /> : null}
+                  <div className="space-y-2">
+                    <Label htmlFor="email2">Créer un compte artisan</Label>
+                    <Input
+                      id="email2"
+                      name="email"
+                      type="email"
+                      placeholder="toi@entreprise.fr"
+                      autoComplete="email"
+                      required
+                      defaultValue={prefillEmail}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password2">Mot de passe</Label>
+                    <Input
+                      id="password2"
+                      name="password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Minimum 8 caractères. Tu pourras activer des options plus avancées plus tard.
+                    </p>
+                  </div>
+                  <Button className="w-full" variant="secondary" type="submit">
+                    Créer mon compte
+                  </Button>
+                </form>
+              )}
 
               <p className="text-center text-sm text-muted-foreground">
-                Retour à la{" "}
                 <Link className="text-foreground underline-offset-4 hover:underline" href="/">
-                  page d’accueil
+                  Retour au choix du profil
                 </Link>
-                .
               </p>
             </CardContent>
           </Card>

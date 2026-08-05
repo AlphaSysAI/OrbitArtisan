@@ -10,6 +10,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Textarea } from "@/components/ui/textarea";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
+  findConversation,
   getOrCreateConversation,
   sendMessage,
   type MessageRow,
@@ -65,14 +66,17 @@ export function VitrineMessages({
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const res = await getOrCreateConversation(artisanId);
+      // Consultation seule : aucune conversation n'est créée tant que le visiteur n'écrit pas.
+      const res = await findConversation(artisanId);
       if (cancelled) return;
       setLoading(false);
-      if (!res.ok || !("conversationId" in res) || !res.conversationId) {
-        if (res.ok === false && "error" in res && res.error === "own_page") return;
-        toast.error("Impossible d’ouvrir la conversation.");
+      if (!res.ok) {
+        if (res.error === "own_page") return;
+        toast.error("Impossible de charger la conversation.");
         return;
       }
+      if (!res.conversationId) return;
+
       setConversationId(res.conversationId);
       const listed = await refreshMessages(res.conversationId);
       if (listed.ok) {
@@ -139,18 +143,37 @@ export function VitrineMessages({
     };
   }, [conversationId, demoMode, refreshMessages]);
 
+  /** La conversation naît du premier message envoyé, pas de la visite de la page. */
+  async function resolveConversationId(): Promise<string | null> {
+    if (conversationId) return conversationId;
+
+    const created = await getOrCreateConversation(artisanId);
+    if (!created.ok || !("conversationId" in created) || !created.conversationId) return null;
+
+    setConversationId(created.conversationId);
+    return created.conversationId;
+  }
+
   async function onSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!conversationId || !draft.trim()) return;
+    if (!draft.trim() || sending) return;
     setSending(true);
-    const res = await sendMessage(conversationId, draft, slug);
+
+    const convId = await resolveConversationId();
+    if (!convId) {
+      setSending(false);
+      toast.error("Impossible d’ouvrir la conversation.");
+      return;
+    }
+
+    const res = await sendMessage(convId, draft, slug);
     setSending(false);
     if (!res.ok) {
       toast.error("Envoi impossible. Réessaie.");
       return;
     }
     setDraft("");
-    const listed = await refreshMessages(conversationId);
+    const listed = await refreshMessages(convId);
     if (listed.ok) {
       setMessages(listed.messages);
       lastMessageIdRef.current = listed.messages.at(-1)?.id ?? null;

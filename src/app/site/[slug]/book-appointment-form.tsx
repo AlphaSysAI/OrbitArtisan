@@ -172,7 +172,7 @@ export function BookAppointmentForm({
         res.error === "missing_fields"
           ? "Merci de remplir tous les champs."
           : res.error === "pending_failed"
-            ? "Impossible d’enregistrer ta demande. Réessaie ou contacte le support."
+            ? "Impossible d’enregistrer ta demande. Réessaie ou contacte l’assistance."
             : "Impossible de créer le RDV. Réessaie.",
       );
       return;
@@ -373,7 +373,7 @@ export function BookAppointmentForm({
                 <Input id="customer_name" name="customer_name" placeholder="Prénom Nom" required />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="customer_email">Email</Label>
+                <Label htmlFor="customer_email">Adresse e-mail</Label>
                 <Input
                   id="customer_email"
                   name="customer_email"
@@ -381,6 +381,22 @@ export function BookAppointmentForm({
                   placeholder="toi@email.fr"
                   required
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="customer_phone">
+                  Téléphone <span className="text-muted-foreground">(facultatif)</span>
+                </Label>
+                <Input
+                  id="customer_phone"
+                  name="customer_phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="06 12 34 56 78"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Permet à l’artisan de te rappeler pour confirmer le créneau.
+                </p>
               </div>
               <Button
                 type="submit"

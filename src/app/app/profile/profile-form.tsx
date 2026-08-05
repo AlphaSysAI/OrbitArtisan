@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { TradeSelect } from "@/components/settings/trade-select";
 
 import { VITRINE_DEFAULT_ACCENT } from "@/lib/vitrine-theme";
 
@@ -31,6 +32,8 @@ export function ProfileForm({
     slug: string;
     accent_color: string | null;
     labor_rate_per_hour: number | null;
+    trade_category: string | null;
+    trade: string | null;
   };
 }) {
   const [slug, setSlug] = React.useState(initialValues.slug ?? "");
@@ -59,7 +62,9 @@ export function ProfileForm({
               ? "Cette adresse est déjà utilisée."
               : res.error === "invalid_accent"
                 ? "Couleur invalide (format #RRGGBB)."
-                : "Impossible d’enregistrer. Réessaie.",
+                : res.error === "invalid_trade"
+                  ? "Sélection de métier invalide : choisis un secteur puis un métier."
+                  : "Impossible d’enregistrer. Réessaie.",
       );
       return;
     }
@@ -80,7 +85,15 @@ export function ProfileForm({
           placeholder="Ex. Plomberie Martin"
           required
         />
+        <p className="text-sm text-muted-foreground">
+          Ton nom commercial, affiché sur ta vitrine et tes factures.
+        </p>
       </div>
+
+      <TradeSelect
+        initialCategoryId={initialValues.trade_category}
+        initialTradeId={initialValues.trade}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="slug" className="text-base">
@@ -212,7 +225,7 @@ export function ProfileForm({
                 value={accentHex}
                 onChange={(e) => setAccentHex(e.target.value)}
                 placeholder="#ea580c"
-                aria-label="Code couleur hex"
+                aria-label="Code couleur hexadécimal"
               />
             </div>
           </>

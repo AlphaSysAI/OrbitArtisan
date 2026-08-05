@@ -3,7 +3,11 @@
 import * as React from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { FileText, Loader2, Send } from "lucide-react";
+import { FileText, Loader2, Send, Sparkles } from "lucide-react";
+
+import { aiErrorMessage } from "@/lib/ai/error-messages";
+import { mapApiResponseToDraft, persistAiQuoteDraft } from "@/lib/ai/map-quote-draft";
+import type { GenerateQuoteFromChatResponse } from "@/lib/ai/quote-from-chat-schema";
 
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Button } from "@/components/ui/button";
@@ -28,6 +32,7 @@ export function ArtisanThreadClient({
   const [messages, setMessages] = React.useState<MessageRow[]>([]);
   const [draft, setDraft] = React.useState("");
   const [aiLoading, setAiLoading] = React.useState(false);
+  const [quoteAiLoading, setQuoteAiLoading] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const bottomRef = React.useRef<HTMLDivElement>(null);
@@ -146,20 +151,51 @@ export function ArtisanThreadClient({
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(json?.error ? `IA: ${json.error}` : "IA: erreur");
+        toast.error(aiErrorMessage(json?.error));
         return;
       }
       const suggestion = String(json?.suggestion ?? "");
       if (!suggestion.trim()) {
-        toast.error("IA: réponse vide");
+        toast.error("Réponse IA vide");
         return;
       }
       setDraft(suggestion);
       toast.success("Réponse IA proposée.");
     } catch {
-      toast.error("IA: impossible de proposer une réponse.");
+      toast.error("Impossible de proposer une réponse par IA.");
     } finally {
       setAiLoading(false);
+    }
+  }
+
+  async function onGenerateQuoteFromChat() {
+    setQuoteAiLoading(true);
+    try {
+      const res = await fetch("/api/ai/generate-quote-from-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      const json = (await res.json().catch(() => null)) as GenerateQuoteFromChatResponse & { error?: string };
+      if (!res.ok) {
+        toast.error(aiErrorMessage(json?.error));
+        return;
+      }
+
+      const draft = mapApiResponseToDraft(conversationId, json);
+      persistAiQuoteDraft(draft);
+
+      if (json.warnings?.length) {
+        toast.message("Brouillon prêt", { description: json.warnings[0] });
+      } else {
+        toast.success("Devis IA généré — vérifie le formulaire.");
+      }
+
+      window.location.href = `/app/quotes/new?conversationId=${encodeURIComponent(conversationId)}&aiDraft=1`;
+    } catch {
+      toast.error("Impossible de générer le devis par IA.");
+    } finally {
+      setQuoteAiLoading(false);
     }
   }
 
@@ -221,16 +257,31 @@ export function ArtisanThreadClient({
         </div>
       </form>
       {showQuoteShortcut && (
-        <div className="border-t bg-muted/20 p-3">
+        <div className="border-t bg-muted/20 p-3 space-y-2">
+          <Button
+            type="button"
+            className="w-full gap-2"
+            disabled={quoteAiLoading || loading}
+            onClick={onGenerateQuoteFromChat}
+          >
+            {quoteAiLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {quoteAiLoading
+              ? "L’IA analyse la discussion et prépare le panier de matériaux…"
+              : "Générer le devis par IA"}
+          </Button>
           <Link
             href={`/app/quotes/new?conversationId=${encodeURIComponent(conversationId)}`}
             className={buttonVariants({ variant: "outline", className: "w-full gap-2 justify-center" })}
           >
             <FileText className="h-4 w-4" />
-            Créer un devis
+            Créer un devis manuellement
           </Link>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Le nom et l&apos;email du client seront préremplis depuis son inscription.
+          <p className="text-center text-xs text-muted-foreground">
+            L’IA extrait prestations et matériaux fournisseur depuis la conversation.
           </p>
         </div>
       )}

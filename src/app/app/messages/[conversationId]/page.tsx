@@ -45,6 +45,12 @@ export default async function ArtisanConversationPage({
         <Link href="/app/messages" className={buttonVariants({ variant: "outline", size: "sm" })}>
           ← Toutes les conversations
         </Link>
+        <Link
+          href={`/app/contacts/${conv.customer_user_id}`}
+          className={buttonVariants({ variant: "secondary", size: "sm" })}
+        >
+          Fiche client
+        </Link>
       </div>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{cp?.display_name ?? "Client"}</h1>

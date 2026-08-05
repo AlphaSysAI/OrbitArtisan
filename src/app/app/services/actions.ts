@@ -42,7 +42,7 @@ export async function createService(formData: FormData) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/services");
+  if (!user) redirect("/login?next=/app/reglages?tab=prestations");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -61,7 +61,7 @@ export async function createService(formData: FormData) {
 
   if (error) return { ok: false as const, error: "insert_failed" as const };
 
-  revalidatePath("/app/services");
+  revalidatePath("/app/reglages");
   return { ok: true as const };
 }
 
@@ -76,7 +76,7 @@ export async function updateService(formData: FormData) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/services");
+  if (!user) redirect("/login?next=/app/reglages?tab=prestations");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -102,7 +102,7 @@ export async function updateService(formData: FormData) {
 
   if (error) return { ok: false as const, error: "update_failed" as const };
 
-  revalidatePath("/app/services");
+  revalidatePath("/app/reglages");
   return { ok: true as const };
 }
 
@@ -113,7 +113,7 @@ export async function deleteService(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   await supabase.from("services").delete().eq("id", serviceId);
 
-  revalidatePath("/app/services");
+  revalidatePath("/app/reglages");
   return;
 }
 

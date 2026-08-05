@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
 import { createQuote } from "./actions";
+import { aiErrorMessage } from "@/lib/ai/error-messages";
+import { loadAiQuoteDraft, clearAiQuoteDraft, type AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,7 +26,36 @@ type MaterialRow = {
   id: string;
   label: string;
   quantity: number;
-  unitPriceEur: string; // champ texte (ex "12,50")
+  unitPriceEur: string;
+  supplierUrl: string;
+  supplierSku: string;
+  excludeFromInvoice: boolean;
+};
+
+function emptyMaterialRow(): MaterialRow {
+  return {
+    id: uuid(),
+    label: "",
+    quantity: 1,
+    unitPriceEur: "",
+    supplierUrl: "",
+    supplierSku: "",
+    excludeFromInvoice: false,
+  };
+}
+
+type SupplierMaterialRow = {
+  id: string;
+  label: string;
+  quantity: number;
+  unitPriceEur: string;
+  supplierProductId: string | null;
+  supplierUrl: string | null;
+  supplierSku: string | null;
+  excludeFromInvoice: boolean;
+  similarity: number | null;
+  requestedName: string;
+  specifications: string | null;
 };
 
 function parseEurToCents(raw: string): number | null {
@@ -48,22 +80,27 @@ export function QuoteForm({
   accentColor,
   profileLaborRatePerHourCents,
   conversationPrefill,
+  loadAiDraft = false,
 }: {
   services: Service[];
   accentColor: string;
   profileLaborRatePerHourCents: number | null;
-  /** Depuis une conversation (ex. bouton sous le fil de discussion). */
   conversationPrefill?: {
     conversationId: string;
     customerUserId: string;
     customerName: string;
     customerEmail: string;
   } | null;
+  /** Charger le brouillon IA depuis sessionStorage (conversation liée). */
+  loadAiDraft?: boolean;
 }) {
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
   const [materials, setMaterials] = React.useState<MaterialRow[]>([
-    { id: uuid(), label: "", quantity: 1, unitPriceEur: "" },
+    emptyMaterialRow(),
   ]);
+  const [supplierMaterials, setSupplierMaterials] = React.useState<SupplierMaterialRow[]>([]);
+  const [aiDraftWarnings, setAiDraftWarnings] = React.useState<string[]>([]);
+  const [fromAiDraft, setFromAiDraft] = React.useState(false);
   const [customerName, setCustomerName] = React.useState(conversationPrefill?.customerName ?? "");
   const [customerEmail, setCustomerEmail] = React.useState(conversationPrefill?.customerEmail ?? "");
   const [notes, setNotes] = React.useState("");
@@ -77,6 +114,46 @@ export function QuoteForm({
   /** `auto` = somme des durées des prestations ; `custom` = saisie en heures (chantier réel). */
   const [laborDurationMode, setLaborDurationMode] = React.useState<"auto" | "custom">("auto");
   const [customLaborHoursStr, setCustomLaborHoursStr] = React.useState("");
+
+  function applyAiDraft(draft: AiQuoteDraft) {
+    setFromAiDraft(true);
+    setAiDraftWarnings(draft.warnings ?? []);
+    if (draft.matchedServiceIds.length) {
+      setSelectedServiceIds(draft.matchedServiceIds);
+    }
+    if (draft.laborDurationMinutes > 0) {
+      setLaborDurationMode("custom");
+      setCustomLaborHoursStr(formatHoursFromMinutes(draft.laborDurationMinutes));
+    }
+    if (draft.notes?.trim()) setNotes(draft.notes);
+    if (draft.supplierMaterials.length) {
+      setSupplierMaterials(
+        draft.supplierMaterials.map((m) => ({
+          id: m.id,
+          label: m.label,
+          quantity: m.quantity,
+          unitPriceEur: m.unitPriceEur,
+          supplierProductId: m.supplierProductId,
+          supplierUrl: m.supplierUrl,
+          supplierSku: m.supplierSku,
+          excludeFromInvoice: m.excludeFromInvoice,
+          similarity: m.similarity,
+          requestedName: m.requestedName,
+          specifications: m.specifications,
+        })),
+      );
+    }
+    toast.success("Brouillon IA chargé — vérifie les lignes avant d’envoyer.");
+  }
+
+  React.useEffect(() => {
+    if (!loadAiDraft || !conversationPrefill?.conversationId) return;
+    const draft = loadAiQuoteDraft(conversationPrefill.conversationId);
+    if (!draft) return;
+
+    applyAiDraft(draft);
+    clearAiQuoteDraft(conversationPrefill.conversationId);
+  }, [loadAiDraft, conversationPrefill?.conversationId]);
 
   const selectedServices = React.useMemo(() => {
     const set = new Set(selectedServiceIds);
@@ -105,12 +182,59 @@ export function QuoteForm({
   }, [laborRateCents, effectiveLaborMinutes]);
 
   const materialsTotalCents = React.useMemo(() => {
-    return materials.reduce((acc, m) => {
+    const custom = materials.reduce((acc, m) => {
+      if (m.excludeFromInvoice) return acc;
       const unit = parseEurToCents(m.unitPriceEur);
       if (!m.label.trim() || unit == null || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
       return acc + unit * m.quantity;
     }, 0);
-  }, [materials]);
+    const supplierBillable = supplierMaterials.reduce((acc, m) => {
+      if (m.excludeFromInvoice) return acc;
+      const unit = parseEurToCents(m.unitPriceEur);
+      if (!m.label.trim() || unit == null || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
+      return acc + unit * m.quantity;
+    }, 0);
+    return custom + supplierBillable;
+  }, [materials, supplierMaterials]);
+
+  const supplierDirectTotalCents = React.useMemo(() => {
+    // Prix indicatif : une ligne en achat direct peut ne pas en avoir, elle compte alors pour 0.
+    const sum = (rows: { label: string; quantity: number; unitPriceEur: string; excludeFromInvoice: boolean }[]) =>
+      rows.reduce((acc, m) => {
+        if (!m.excludeFromInvoice) return acc;
+        const unit = parseEurToCents(m.unitPriceEur) ?? 0;
+        if (!m.label.trim() || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
+        return acc + unit * m.quantity;
+      }, 0);
+    return sum(supplierMaterials) + sum(materials);
+  }, [supplierMaterials, materials]);
+
+  const allMaterialsJson = React.useMemo(() => {
+    const custom = materials
+      .filter((m) => m.label.trim())
+      .map((m) => ({
+        label: m.label.trim(),
+        quantity: m.quantity,
+        unit_price_eur: m.unitPriceEur,
+        supplier_url: m.supplierUrl.trim() || null,
+        supplier_sku: m.supplierSku.trim() || null,
+        is_supplier_catalog: false,
+        exclude_from_invoice: m.excludeFromInvoice,
+      }));
+    const supplier = supplierMaterials
+      .filter((m) => m.label.trim())
+      .map((m) => ({
+        label: m.label.trim(),
+        quantity: m.quantity,
+        unit_price_eur: m.unitPriceEur,
+        supplier_product_id: m.supplierProductId,
+        supplier_url: m.supplierUrl,
+        supplier_sku: m.supplierSku,
+        is_supplier_catalog: true,
+        exclude_from_invoice: m.excludeFromInvoice,
+      }));
+    return [...custom, ...supplier];
+  }, [materials, supplierMaterials]);
 
   const grandTotalCents = laborTotalCents + materialsTotalCents;
 
@@ -118,8 +242,8 @@ export function QuoteForm({
     selectedServiceIds.length > 0 &&
     laborRateCents != null &&
     laborRateCents >= 0 &&
-    referenceDurationMinutes > 0 &&
-    effectiveLaborMinutes > 0;
+    effectiveLaborMinutes > 0 &&
+    (referenceDurationMinutes > 0 || laborDurationMode === "custom");
 
   async function onAiSuggestNotes() {
     if (!conversationPrefill?.conversationId) return;
@@ -147,18 +271,18 @@ export function QuoteForm({
 
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(json?.error ? `IA: ${json.error}` : "IA: erreur");
+        toast.error(aiErrorMessage(json?.error));
         return;
       }
       const suggested = String(json?.notes ?? "");
       if (!suggested.trim()) {
-        toast.error("IA: texte vide");
+        toast.error("Texte IA vide");
         return;
       }
       setNotes(suggested);
       toast.success("Notes IA proposées.");
     } catch {
-      toast.error("IA: impossible de proposer les notes.");
+      toast.error("Impossible de proposer les notes par IA.");
     } finally {
       setAiNotesLoading(false);
     }
@@ -223,20 +347,23 @@ export function QuoteForm({
       </div>
 
       <form onSubmit={onSubmit} className="space-y-6">
+        {fromAiDraft && aiDraftWarnings.length > 0 && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+            <p className="font-medium">Brouillon généré par IA</p>
+            <ul className="mt-2 list-inside list-disc text-muted-foreground">
+              {aiDraftWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* JSON côté serveur */}
         <input type="hidden" name="service_ids_json" value={JSON.stringify(selectedServiceIds)} />
         <input
           type="hidden"
           name="materials_json"
-          value={JSON.stringify(
-            materials
-              .map((m) => ({
-                label: m.label.trim(),
-                quantity: m.quantity,
-                unit_price_eur: m.unitPriceEur,
-              }))
-              .filter((m) => m.label),
-          )}
+          value={JSON.stringify(allMaterialsJson)}
         />
         <input type="hidden" name="labor_rate_per_hour_eur" value={laborRateEur} />
         <input type="hidden" name="labor_duration_minutes" value={String(effectiveLaborMinutes)} />
@@ -295,8 +422,117 @@ export function QuoteForm({
           <div className="space-y-6">
             <Card className="border-0 shadow-none">
               <CardHeader>
-                <CardTitle className="text-xl">Fournitures / matériaux</CardTitle>
-                <CardDescription>Ajoute des lignes si tu dois facturer du matériel.</CardDescription>
+                <CardTitle className="text-xl">Matériaux fournisseur</CardTitle>
+                <CardDescription>
+                  Produits trouvés dans le catalogue (ex. Brico Dépôt) via recherche IA. Par défaut exclus de ta
+                  facture si le client achète en direct.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!supplierMaterials.length ? (
+                  <p className="text-sm text-muted-foreground">
+                    Aucun matériau fournisseur — utilisez « Générer le devis par IA » depuis la messagerie ou ajoutez
+                    des fournitures manuelles ci-dessous.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {supplierMaterials.map((m) => (
+                      <div
+                        key={m.id}
+                        className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-medium">{m.label}</p>
+                            {m.requestedName !== m.label && (
+                              <p className="text-xs text-muted-foreground">Demandé : {m.requestedName}</p>
+                            )}
+                            {m.specifications && (
+                              <p className="text-xs text-muted-foreground">{m.specifications}</p>
+                            )}
+                            {m.similarity != null && (
+                              <p className="text-xs text-muted-foreground">
+                                Correspondance catalogue : {Math.round(m.similarity * 100)} %
+                              </p>
+                            )}
+                          </div>
+                          {m.supplierUrl && (
+                            <a
+                              href={m.supplierUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                              Voir chez le fournisseur
+                            </a>
+                          )}
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-[1fr_100px_140px] sm:items-end">
+                          <div className="space-y-1">
+                            <Label>Réf. fournisseur</Label>
+                            <p className="text-sm text-muted-foreground">{m.supplierSku ?? "—"}</p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Qté</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={m.quantity}
+                              onChange={(e) => {
+                                const v = Number(e.target.value);
+                                setSupplierMaterials((prev) =>
+                                  prev.map((x) =>
+                                    x.id === m.id ? { ...x, quantity: Number.isFinite(v) ? v : 1 } : x,
+                                  ),
+                                );
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>
+                              Prix unit. (€){" "}
+                              {m.excludeFromInvoice && (
+                                <span className="font-normal text-muted-foreground">— facultatif</span>
+                              )}
+                            </Label>
+                            <Input
+                              inputMode="decimal"
+                              placeholder={m.excludeFromInvoice ? "Indicatif" : undefined}
+                              value={m.unitPriceEur}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setSupplierMaterials((prev) =>
+                                  prev.map((x) => (x.id === m.id ? { ...x, unitPriceEur: v } : x)),
+                                );
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={m.excludeFromInvoice}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setSupplierMaterials((prev) =>
+                                prev.map((x) => (x.id === m.id ? { ...x, excludeFromInvoice: checked } : x)),
+                              );
+                            }}
+                            className="rounded border"
+                          />
+                          Achat direct fournisseur (exclure de ma facture)
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-none">
+              <CardHeader>
+                <CardTitle className="text-xl">Fournitures / matériaux (manuel)</CardTitle>
+                <CardDescription>Lignes hors catalogue fournisseur, facturées par toi.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
@@ -329,10 +565,15 @@ export function QuoteForm({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Prix unitaire (€)</Label>
+                        <Label>
+                          Prix unitaire (€){" "}
+                          {m.excludeFromInvoice && (
+                            <span className="font-normal text-muted-foreground">— facultatif</span>
+                          )}
+                        </Label>
                         <Input
                           inputMode="decimal"
-                          placeholder="Ex. 12,50"
+                          placeholder={m.excludeFromInvoice ? "Indicatif" : "Ex. 12,50"}
                           value={m.unitPriceEur}
                           onChange={(e) => {
                             const v = e.target.value;
@@ -340,6 +581,60 @@ export function QuoteForm({
                           }}
                         />
                       </div>
+
+                      <div className="space-y-3 sm:col-span-3">
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={m.excludeFromInvoice}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setMaterials((prev) =>
+                                prev.map((x) => (x.id === m.id ? { ...x, excludeFromInvoice: checked } : x)),
+                              );
+                            }}
+                            className="rounded border"
+                          />
+                          Achat direct fournisseur (exclure de ma facture)
+                        </label>
+
+                        {m.excludeFromInvoice && (
+                          <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
+                            <div className="space-y-2">
+                              <Label>Lien fournisseur</Label>
+                              <Input
+                                type="url"
+                                inputMode="url"
+                                placeholder="https://www.bricomarche.com/p/..."
+                                value={m.supplierUrl}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setMaterials((prev) =>
+                                    prev.map((x) => (x.id === m.id ? { ...x, supplierUrl: v } : x)),
+                                  );
+                                }}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Envoyé au client avec le devis pour qu’il commande lui-même.
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Référence</Label>
+                              <Input
+                                placeholder="Ex. 1234567"
+                                value={m.supplierSku}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setMaterials((prev) =>
+                                    prev.map((x) => (x.id === m.id ? { ...x, supplierSku: v } : x)),
+                                  );
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       <div className="sm:col-span-4 flex justify-end">
                         <Button
                           type="button"
@@ -364,7 +659,7 @@ export function QuoteForm({
                   variant="outline"
                   className={cn("w-full justify-center", "gap-2")}
                   onClick={() =>
-                    setMaterials((prev) => [...prev, { id: uuid(), label: "", quantity: 1, unitPriceEur: "" }])
+                    setMaterials((prev) => [...prev, emptyMaterialRow()])
                   }
                 >
                   <Plus className="h-4 w-4" />
@@ -385,7 +680,7 @@ export function QuoteForm({
                     <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Prénom Nom" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email</Label>
+                    <Label>Adresse e-mail</Label>
                     <Input
                       type="email"
                       value={customerEmail}
@@ -522,13 +817,24 @@ export function QuoteForm({
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span>Fournitures</span>
+                    <span>Fournitures (facturées)</span>
                     <span className="font-medium">
                       {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(materialsTotalCents / 100)}
                     </span>
                   </div>
+                  {supplierDirectTotalCents > 0 && (
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Matériaux achat direct fournisseur</span>
+                      <span>
+                        {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
+                          supplierDirectTotalCents / 100,
+                        )}{" "}
+                        (hors facture)
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-2 text-base font-semibold">
-                    <span>Total devis</span>
+                    <span>Total facturé par toi</span>
                     <span>
                       {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(grandTotalCents / 100)}
                     </span>
@@ -539,7 +845,11 @@ export function QuoteForm({
                   <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
                     <span className="font-medium">Taux horaire manquant.</span>
                     {" "}
-                    Renseigne-le dans <code>/app/profile</code> pour activer le calcul.
+                    Renseigne-le dans les{" "}
+                    <Link href="/app/reglages?tab=activite" className="font-medium underline underline-offset-4">
+                      réglages
+                    </Link>{" "}
+                    pour activer le calcul.
                   </div>
                 )}
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getOpenAI } from "@/lib/openai/server";
+import { mistralChatText } from "@/lib/ai/mistral";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -24,7 +24,6 @@ export async function POST(request: Request) {
 
   if (!user) return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
 
-  // Peut être soit artisan (via profiles), soit client (via customer_user_id).
   const { data: quote } = await supabase
     .from("quotes")
     .select(
@@ -45,7 +44,6 @@ export async function POST(request: Request) {
   const viewerIsClient = quote.customer_user_id === user.id;
   if (!viewerIsArtisan && !viewerIsClient) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  // Fournit une image du contexte via les messages de la conversation si possible.
   const conversationId = quote.conversation_id;
   let contextText = "";
   if (conversationId) {
@@ -57,7 +55,13 @@ export async function POST(request: Request) {
       .limit(16);
     contextText = (messages ?? [])
       .map((m) => {
-        const who = viewerIsClient ? (m.sender_user_id === user.id ? "Client (toi)" : "Artisan") : m.sender_user_id === user.id ? "Artisan (toi)" : "Client";
+        const who = viewerIsClient
+          ? m.sender_user_id === user.id
+            ? "Client (toi)"
+            : "Artisan"
+          : m.sender_user_id === user.id
+            ? "Artisan (toi)"
+            : "Client";
         return `${who}: ${m.body}`;
       })
       .join("\n");
@@ -75,7 +79,6 @@ export async function POST(request: Request) {
     .eq("quote_id", quoteId)
     .order("created_at", { ascending: true });
 
-  const openai = getOpenAI();
   const artisanName = (artisanProfile?.business_name ?? "").toString() || "Artisan";
   const artisanDescription = artisanProfile?.description ?? "";
   const customerName = quote.customer_name || quote.customer_email || "Client";
@@ -106,31 +109,35 @@ Devis:
 Prestations:
 ${(serviceLines ?? [])
   .slice(0, 10)
-  .map((s: any) => `- ${s.service_title} (${s.duration_minutes} min)`)
+  .map((s) => `- ${s.service_title} (${s.duration_minutes} min)`)
   .join("\n") || "—"}
 
 Fournitures:
 ${(materialLines ?? [])
   .slice(0, 10)
-  .map((m: any) => `- ${m.label} x${m.quantity}`)
+  .map((m) => `- ${m.label} x${m.quantity}`)
   .join("\n") || "—"}
 
 Contexte messages (extrait):
 ${contextText || "—"}
 `.trim();
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.3,
-    messages: [
-      { role: "system", content: "Résumé de devis pour AlphaSys-Artisan." },
-      { role: "user", content: prompt },
-    ],
-  });
+  try {
+    const summary = safeTrim(
+      await mistralChatText(
+        [
+          { role: "system", content: "Résumé de devis pour Orbit Artisan." },
+          { role: "user", content: prompt },
+        ],
+        0.3,
+      ),
+      4000,
+    );
 
-  const summary = safeTrim(completion.choices[0]?.message?.content ?? "", 4000);
-  if (!summary) return NextResponse.json({ error: "empty_response" }, { status: 500 });
-
-  return NextResponse.json({ summary });
+    if (!summary) return NextResponse.json({ error: "empty_response" }, { status: 500 });
+    return NextResponse.json({ summary });
+  } catch (err) {
+    console.error("[summarize-quote] mistral error", err);
+    return NextResponse.json({ error: "ai_failed" }, { status: 500 });
+  }
 }
-

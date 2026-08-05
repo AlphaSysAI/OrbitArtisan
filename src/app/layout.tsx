@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { PwaRootClient } from "@/components/pwa/pwa-root-client";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -15,9 +17,29 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AlphaSys‑Artisan",
+  metadataBase: new URL(getPublicSiteUrl()),
+  applicationName: "Orbit Artisan",
+  title: "Orbit Artisan",
   description:
     "Le SaaS tout‑en‑un pour artisans : devis, factures, planning, et site vitrine avec prise de RDV.",
+  appleWebApp: {
+    capable: true,
+    title: "Orbit",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({
@@ -37,6 +59,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <PwaRootClient />
           <Toaster richColors />
         </ThemeProvider>
       </body>

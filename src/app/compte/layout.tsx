@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { ClientShell } from "@/components/app/client-shell";
+import { AcceptPendingInvite } from "@/components/invitations/accept-pending-invite";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -18,5 +20,12 @@ export default async function CompteLayout({ children }: { children: React.React
   const { data: artisanProfile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
   if (artisanProfile) redirect("/app");
 
-  return <ClientShell>{children}</ClientShell>;
+  return (
+    <ClientShell>
+      <Suspense fallback={null}>
+        <AcceptPendingInvite />
+      </Suspense>
+      {children}
+    </ClientShell>
+  );
 }

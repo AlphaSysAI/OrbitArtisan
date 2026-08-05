@@ -32,6 +32,31 @@ export async function ensureCustomerProfile(displayName?: string) {
   return { ok: true as const };
 }
 
+/**
+ * Lecture seule : retourne la conversation existante, sans jamais en créer.
+ * Consulter une vitrine ne doit pas inscrire le visiteur chez l'artisan —
+ * la création est réservée à un acte explicite (premier message, prise de RDV).
+ */
+export async function findConversation(artisanId: string) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "auth" as const };
+
+  const { data: own } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  if (own?.id === artisanId) return { ok: false as const, error: "own_page" as const };
+
+  const { data: existing } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("artisan_id", artisanId)
+    .eq("customer_user_id", user.id)
+    .maybeSingle();
+
+  return { ok: true as const, conversationId: existing?.id ?? null };
+}
+
 export async function getOrCreateConversation(artisanId: string) {
   const supabase = await createSupabaseServerClient();
   const {

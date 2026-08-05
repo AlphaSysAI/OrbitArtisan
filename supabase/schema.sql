@@ -1,4 +1,4 @@
--- AlphaSys-Artisan — Schéma de base (Supabase / Postgres)
+-- Orbit Artisan — Schéma de base (Supabase / Postgres)
 -- À exécuter dans l'éditeur SQL Supabase.
 
 create extension if not exists pgcrypto;

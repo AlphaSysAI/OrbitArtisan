@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Home, MessageSquare, Receipt, Scissors, UserRound } from "lucide-react";
+import { CalendarClock, FileText, Home, MessageSquare, Receipt, Settings, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/app", label: "Accueil", icon: Home, exact: true as boolean },
-  { href: "/app/profile", label: "Mon activité", icon: UserRound, exact: false as boolean },
-  { href: "/app/services", label: "Mes prestations", icon: Scissors, exact: false as boolean },
+  { href: "/app/rdv", label: "Mes RDV", icon: CalendarClock, exact: false as boolean },
+  { href: "/app/contacts", label: "Contacts", icon: Users, exact: false as boolean },
   { href: "/app/messages", label: "Messages", icon: MessageSquare, exact: false as boolean },
   { href: "/app/quotes", label: "Devis", icon: FileText, exact: false as boolean },
   { href: "/app/invoices", label: "Factures", icon: Receipt, exact: false as boolean },
+  { href: "/app/reglages", label: "Réglages", icon: Settings, exact: false as boolean },
 ];
 
 export function AppNav() {
