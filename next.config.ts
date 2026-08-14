@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@stafyniaksacha/facturx", "libxmljs", "saxon-js"],
+  serverExternalPackages: ["@stafyniaksacha/facturx", "libxmljs", "saxon-js", "twilio"],
   async headers() {
     return [
       {

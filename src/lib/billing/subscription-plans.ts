@@ -57,6 +57,15 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   },
 ];
 
+export function getPlanVoiceMinutes(planId: SubscriptionPlanId): number {
+  const plan = SUBSCRIPTION_PLANS.find((item) => item.id === planId);
+  return plan?.solineMinutesIncluded ?? 0;
+}
+
+export function findSubscriptionPlan(planId: string): SubscriptionPlan | undefined {
+  return SUBSCRIPTION_PLANS.find((item) => item.id === planId);
+}
+
 export const SOLINE_RECHARGE_PACKS: SolineRechargePack[] = [
   {
     id: "60",
