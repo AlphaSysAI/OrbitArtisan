@@ -148,8 +148,8 @@ export async function embedFacturXInPdf(options: EmbedFacturXOptions): Promise<U
   pdf.setSubject(options.meta.subject);
   pdf.setAuthor(options.meta.author);
   pdf.setKeywords(["Invoice", "Factur-X"]);
-  pdf.setCreator("OrbitArtisan");
-  pdf.setProducer("OrbitArtisan Factur-X");
+  pdf.setCreator("Soline");
+  pdf.setProducer("Soline Factur-X");
 
   setPdfA3FacturXMetadata(pdf, {
     documentId,
@@ -159,8 +159,8 @@ export async function embedFacturXInPdf(options: EmbedFacturXOptions): Promise<U
     title: options.meta.title,
     subject: options.meta.subject,
     date: options.meta.date,
-    producer: "OrbitArtisan Factur-X",
-    creator: "OrbitArtisan",
+    producer: "Soline Factur-X",
+    creator: "Soline",
   });
 
   return pdf.save();

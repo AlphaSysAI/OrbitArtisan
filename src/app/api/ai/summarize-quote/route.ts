@@ -126,7 +126,7 @@ ${contextText || "—"}
     const summary = safeTrim(
       await mistralChatText(
         [
-          { role: "system", content: "Résumé de devis pour Orbit Artisan." },
+          { role: "system", content: "Résumé de devis pour Soline." },
           { role: "user", content: prompt },
         ],
         0.3,

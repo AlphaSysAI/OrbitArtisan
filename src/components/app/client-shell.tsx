@@ -18,7 +18,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               O
             </div>
             <div className="leading-tight">
-              <p className="text-base font-semibold tracking-tight">Orbit Artisan</p>
+              <p className="text-base font-semibold tracking-tight">Soline</p>
               <p className="text-xs text-muted-foreground">Espace client</p>
             </div>
           </Link>

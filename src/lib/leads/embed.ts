@@ -1,6 +1,6 @@
 /** Contrat partagé entre la page /embed/[slug], public/embed.js et les réglages. */
 
-export const EMBED_MESSAGE_NAMESPACE = "orbit-embed";
+export const EMBED_MESSAGE_NAMESPACE = "soline-embed";
 
 export type EmbedTheme = "light" | "dark" | "auto";
 

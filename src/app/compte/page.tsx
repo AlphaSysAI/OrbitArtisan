@@ -228,7 +228,7 @@ export default async function CompteHomePage({
 
       <p className="text-center text-xs text-muted-foreground">
         <Link className="underline-offset-4 hover:underline" href="/">
-          Retour au site Orbit Artisan
+          Retour au site Soline
         </Link>
       </p>
     </div>

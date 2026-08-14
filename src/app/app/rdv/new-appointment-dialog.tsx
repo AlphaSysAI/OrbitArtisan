@@ -150,7 +150,7 @@ export function NewAppointmentDialog({
         {prefill?.fromAssistant ? (
           <Alert>
             <Sparkles className="size-4" />
-            <AlertTitle>Prérempli par Orbit IA</AlertTitle>
+            <AlertTitle>Prérempli par Soline</AlertTitle>
             <AlertDescription>
               {missingEmail
                 ? "Je n’ai pas retrouvé ce client dans tes contacts : complète son e-mail avant d’enregistrer."

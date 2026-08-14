@@ -1,22 +1,22 @@
 /**
- * Orbit Artisan — loader du widget d'estimation.
+ * Soline — loader du widget d'estimation.
  *
  * À coller sur n'importe quel site :
- *   <script src="https://orbitartisan.com/embed.js" data-artisan="mon-slug" defer></script>
+ *   <script src="https://solinebtp.fr/embed.js" data-artisan="mon-slug" defer></script>
  *
  * Attributs facultatifs :
  *   data-theme="light|dark|auto"   thème du widget (défaut : light)
  *   data-position="right|left"     coin d'affichage (défaut : right)
  *   data-label="Devis en 2 min"    texte du bouton flottant
  *   data-color="#1c2a3a"           couleur du bouton
- *   data-button="false"            n'injecte pas de bouton (pilotage via window.OrbitArtisan)
+ *   data-button="false"            n'injecte pas de bouton (pilotage via window.Soline)
  *
- * API : window.OrbitArtisan.open() / .close() / .toggle()
+ * API : window.Soline.open() / .close() / .toggle()
  */
 (function () {
   "use strict";
 
-  if (window.__orbitArtisanEmbed) return;
+  if (window.__solineEmbed) return;
 
   var script = document.currentScript;
   if (!script) {
@@ -27,11 +27,11 @@
 
   var slug = (script.getAttribute("data-artisan") || "").trim();
   if (!slug) {
-    console.warn("[orbit-artisan] attribut data-artisan manquant sur le script d'intégration.");
+    console.warn("[soline] attribut data-artisan manquant sur le script d'intégration.");
     return;
   }
 
-  var NS = "orbit-embed";
+  var NS = "soline-embed";
   var origin = new URL(script.src, window.location.href).origin;
   var theme = script.getAttribute("data-theme") || "light";
   var position = script.getAttribute("data-position") === "left" ? "left" : "right";
@@ -67,7 +67,7 @@
 
   function createPanel() {
     panel = document.createElement("div");
-    panel.setAttribute("data-orbit-artisan", "panel");
+    panel.setAttribute("data-soline", "panel");
     panel.style.cssText = [
       "position:fixed",
       "z-index:" + Z,
@@ -102,7 +102,7 @@
   function createButton() {
     button = document.createElement("button");
     button.type = "button";
-    button.setAttribute("data-orbit-artisan", "launcher");
+    button.setAttribute("data-soline", "launcher");
     button.setAttribute("aria-label", label);
     button.setAttribute("aria-expanded", "false");
     button.style.cssText = [
@@ -207,6 +207,6 @@
     boot();
   }
 
-  window.__orbitArtisanEmbed = true;
-  window.OrbitArtisan = api;
+  window.__solineEmbed = true;
+  window.Soline = api;
 })();

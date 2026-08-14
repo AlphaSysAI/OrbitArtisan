@@ -42,7 +42,7 @@ const FAQ_ITEMS = [
   {
     question: "Les factures générées sont-elles conformes ?",
     answer:
-      "Oui. SolineBTP génère des factures PDF conformes aux obligations françaises, avec mentions légales, TVA et préparation Factur-X pour la facturation électronique B2B à venir.",
+      "Oui. Soline génère des factures PDF conformes aux obligations françaises, avec mentions légales, TVA et préparation Factur-X pour la facturation électronique B2B à venir.",
   },
 ] as const;
 
@@ -83,9 +83,7 @@ export function SolineBtpLanding() {
             <span className="flex size-9 items-center justify-center rounded-xl bg-slate-900 text-orange-400">
               <Building2 className="size-5" strokeWidth={2.2} />
             </span>
-            <span className="text-lg font-bold tracking-tight text-slate-900">
-              Soline<span className="text-orange-500">BTP</span>
-            </span>
+            <span className="text-lg font-bold tracking-tight text-slate-900">Soline</span>
           </a>
 
           <nav className="hidden items-center gap-8 md:flex">
@@ -237,7 +235,7 @@ export function SolineBtpLanding() {
                   <PhoneIncoming className="size-4" />
                 </span>
                 <div>
-                  <p className="text-xs font-semibold text-emerald-700">Appel manqué traité par Soline IA</p>
+                  <p className="text-xs font-semibold text-emerald-700">Appel manqué traité par Soline</p>
                   <p className="mt-0.5 text-xs leading-snug text-slate-600">
                     RDV client confirmé — Jeudi 14h, dépannage fuite cuisine.
                   </p>
@@ -506,7 +504,7 @@ export function SolineBtpLanding() {
               "mt-6 border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
             )}
           >
-            Essayer SolineBTP gratuitement
+            Essayer Soline gratuitement
           </a>
         </div>
       </section>
@@ -516,7 +514,7 @@ export function SolineBtpLanding() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 sm:flex-row sm:px-6">
           <div className="flex items-center gap-2">
             <Building2 className="size-5 text-orange-400" />
-            <span className="font-semibold text-white">SolineBTP</span>
+            <span className="font-semibold text-white">Soline</span>
           </div>
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
             <a href="#" className="hover:text-white">
@@ -529,7 +527,7 @@ export function SolineBtpLanding() {
               Confidentialité
             </a>
           </nav>
-          <p className="text-xs">© {new Date().getFullYear()} SolineBTP. Tous droits réservés.</p>
+          <p className="text-xs">© {new Date().getFullYear()} Soline. Tous droits réservés.</p>
         </div>
       </footer>
     </div>

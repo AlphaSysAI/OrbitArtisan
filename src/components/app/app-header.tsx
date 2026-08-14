@@ -89,7 +89,7 @@ export function AppHeader() {
           </div>
           <div className="min-w-0 leading-tight">
             <p className="font-display truncate text-base font-semibold tracking-tight sm:text-lg">
-              Orbit Artisan
+              Soline
             </p>
             <p className="hidden text-xs text-muted-foreground sm:block">Espace pro</p>
           </div>

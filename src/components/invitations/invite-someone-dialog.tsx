@@ -88,8 +88,8 @@ export function InviteSomeoneDialog({
 
   const typeLabel = accountType === "client" ? "compte client" : "compte artisan (pro)";
   const mailto = inviteUrl
-    ? `mailto:?subject=${encodeURIComponent(`Invitation Orbit Artisan — ${typeLabel}`)}&body=${encodeURIComponent(
-        `Bonjour,\n\n${contextLabel} vous invite à rejoindre Orbit Artisan en tant que ${accountType === "client" ? "client" : "artisan professionnel"} :\n\n${inviteUrl}\n`,
+    ? `mailto:?subject=${encodeURIComponent(`Invitation Soline — ${typeLabel}`)}&body=${encodeURIComponent(
+        `Bonjour,\n\n${contextLabel} vous invite à rejoindre Soline en tant que ${accountType === "client" ? "client" : "artisan professionnel"} :\n\n${inviteUrl}\n`,
       )}`
     : null;
 

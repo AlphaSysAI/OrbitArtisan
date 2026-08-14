@@ -66,7 +66,7 @@ export default async function InscriptionClientPage({
 
           {leadToken && (
             <Alert>
-              <AlertTitle>Demande Orbit en cours</AlertTitle>
+              <AlertTitle>Demande Soline en cours</AlertTitle>
               <AlertDescription>
                 Utilise la même adresse e-mail que celle indiquée lors de l’estimation pour retrouver
                 tes messages avec les artisans.

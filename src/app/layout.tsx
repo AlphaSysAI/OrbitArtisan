@@ -23,13 +23,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(getPublicSiteUrl()),
-  applicationName: "Orbit Artisan",
-  title: "Orbit Artisan",
+  applicationName: "Soline",
+  title: "Soline",
   description:
     "Le SaaS tout‑en‑un pour artisans : devis, factures, planning, et site vitrine avec prise de RDV.",
   appleWebApp: {
     capable: true,
-    title: "Orbit",
+    title: "Soline",
     statusBarStyle: "default",
   },
   formatDetection: {

@@ -1,5 +1,5 @@
 -- =============================================================================
--- Orbit Artisan — init.sql
+-- Soline — init.sql
 -- =============================================================================
 -- Schéma complet pour une base Supabase vierge.
 -- Coller l'intégralité dans l'éditeur SQL Supabase et exécuter en une fois.
@@ -13,7 +13,7 @@
  01  schema.sql
  =============================================================================
 
--- Orbit Artisan — Schéma de base (Supabase / Postgres)
+-- Soline — Schéma de base (Supabase / Postgres)
 -- À exécuter dans l'éditeur SQL Supabase.
 
 create extension if not exists pgcrypto;
@@ -688,7 +688,7 @@ alter table public.pending_vitrine_appointments
  08  appointments_artisan_insert.sql
  =============================================================================
 
--- Création de RDV par l’artisan lui-même (app /app/rdv + assistant Orbit IA).
+-- Création de RDV par l’artisan lui-même (app /app/rdv + assistant Soline).
 -- Les policies existantes n’autorisent l’insert qu’au client (customer_user_id = auth.uid())
 -- ou à un invité anonyme. L’artisan doit pouvoir créer un RDV sur SON planning.
 
@@ -1593,7 +1593,7 @@ for each row execute procedure public.set_updated_at();
  18  lead_qualification.sql
  =============================================================================
 
--- Orbit Artisan — Tunnel de pré-qualification par chatbot IA (leads).
+-- Soline — Tunnel de pré-qualification par chatbot IA (leads).
 -- À exécuter dans l'éditeur SQL Supabase, après schema.sql, messages.sql et profiles_geolocation.sql.
 --
 -- Principe de sécurité : le prospect n'a pas de compte. Il n'écrit JAMAIS en direct

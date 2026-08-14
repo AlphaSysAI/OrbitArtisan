@@ -69,7 +69,7 @@ export default async function ArtisanMessagesPage() {
                 title={item.customer_label}
                 subtitle={
                   item.is_lead
-                    ? `Demande Orbit · ${new Date(item.updated_at).toLocaleString("fr-FR", {
+                    ? `Demande Soline · ${new Date(item.updated_at).toLocaleString("fr-FR", {
                         dateStyle: "short",
                         timeStyle: "short",
                       })}`

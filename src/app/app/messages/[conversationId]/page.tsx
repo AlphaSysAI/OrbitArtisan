@@ -41,7 +41,7 @@ export default async function ArtisanConversationPage({
       .select("contact_name")
       .eq("id", conv.lead_id)
       .maybeSingle();
-    displayName = lead?.contact_name?.trim() || "Demande Orbit";
+    displayName = lead?.contact_name?.trim() || "Demande Soline";
   } else if (conv.customer_user_id) {
     const { data: cp } = await supabase
       .from("customer_profiles")
@@ -79,7 +79,7 @@ export default async function ArtisanConversationPage({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{displayName}</h1>
         <p className="text-sm text-muted-foreground">
-          {conv.lead_id ? "Demande qualifiée reçue via Orbit" : "Conversation"}
+          {conv.lead_id ? "Demande qualifiée reçue via Soline" : "Conversation"}
         </p>
       </div>
       <ArtisanThreadClient

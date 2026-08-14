@@ -18,7 +18,7 @@ export type LeadRecapInput = {
 /** Premier message dans la messagerie artisan : récapitulatif structuré du lead. */
 export function buildLeadRecapMessage(input: LeadRecapInput): string {
   const lines: string[] = [
-    "📋 Demande qualifiée reçue via Orbit Artisan",
+    "📋 Demande qualifiée reçue via Soline",
     "",
     `Contact : ${input.contactName}`,
   ];

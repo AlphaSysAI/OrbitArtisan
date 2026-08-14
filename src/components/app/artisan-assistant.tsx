@@ -420,14 +420,14 @@ export function ArtisanAssistant() {
         )}
         style={{ marginBottom: "env(safe-area-inset-bottom)" }}
         aria-expanded={open}
-        aria-label={open ? "Fermer l’assistant Orbit IA" : "Ouvrir l’assistant Orbit IA"}
+        aria-label={open ? "Fermer l’assistant Soline" : "Ouvrir l’assistant Soline"}
       >
         {open ? (
           <X className="size-5 shrink-0" strokeWidth={2.5} />
         ) : (
           <Sparkles className="size-5 shrink-0" strokeWidth={2.5} />
         )}
-        <span>Orbit IA</span>
+        <span>Soline</span>
       </button>
 
       {mounted && open && panelRect
@@ -435,7 +435,7 @@ export function ArtisanAssistant() {
             <div
               ref={panelRef}
               role="dialog"
-              aria-label="Assistant Orbit IA"
+              aria-label="Assistant Soline"
               className="fixed z-[60] flex flex-col overflow-hidden rounded-3xl border border-brand/30 bg-background shadow-[0_20px_60px_rgb(0_0_0/0.22)]"
               style={{
                 top: panelRect.top,
@@ -454,7 +454,7 @@ export function ArtisanAssistant() {
                       Assistant
                     </p>
                   </div>
-                  <h2 className="font-display text-lg font-semibold tracking-tight">Orbit IA</h2>
+                  <h2 className="font-display text-lg font-semibold tracking-tight">Soline</h2>
                   <p className="text-xs text-muted-foreground">Voix ou texte · tu valides avant envoi</p>
                 </div>
                 <Button

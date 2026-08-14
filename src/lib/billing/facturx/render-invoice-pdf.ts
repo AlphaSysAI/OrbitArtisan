@@ -122,8 +122,8 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
   pdf.setTitle(`Facture ${doc.invoiceNumber}`);
   pdf.setAuthor(doc.seller.name);
   pdf.setSubject(`Facture ${doc.invoiceNumber}`);
-  pdf.setCreator("OrbitArtisan");
-  pdf.setProducer("OrbitArtisan Factur-X");
+  pdf.setCreator("Soline");
+  pdf.setProducer("Soline Factur-X");
   pdf.setCreationDate(doc.issueDate);
   pdf.setModificationDate(doc.issueDate);
 

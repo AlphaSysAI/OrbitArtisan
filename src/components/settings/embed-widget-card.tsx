@@ -130,7 +130,7 @@ export function EmbedWidgetCard({
           </li>
           <li>
             <code>data-button=&quot;false&quot;</code> — pas de bouton, tu l’ouvres toi-même avec{" "}
-            <code>OrbitArtisan.open()</code>.
+            <code>Soline.open()</code>.
           </li>
         </ul>
         <p className="pt-1">

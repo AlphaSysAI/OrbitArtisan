@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Orbit Artisan",
-    short_name: "Orbit",
+    name: "Soline",
+    short_name: "Soline",
     description:
       "Le SaaS tout‑en‑un pour artisans : devis, factures, planning, et site vitrine avec prise de RDV.",
     start_url: "/",

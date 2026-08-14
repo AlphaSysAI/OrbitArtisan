@@ -191,7 +191,7 @@ export function PwaRootClient() {
           <DialogHeader className="gap-2 text-left">
             <DialogTitle className="text-lg">
               {guide === "main"
-                ? "Installer Orbit Artisan sur votre téléphone"
+                ? "Installer Soline sur votre téléphone"
                 : guide === "ios"
                   ? "Installation sur iPhone ou iPad"
                   : "Installation sur Android"}

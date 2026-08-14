@@ -7,7 +7,7 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { EstimationWizard } from "./estimation-wizard";
 
 export const metadata: Metadata = {
-  title: "Estimer mes travaux gratuitement | Orbit Artisan",
+  title: "Estimer mes travaux gratuitement | Soline",
   description:
     "Décris ton projet en 2 minutes, obtiens une fourchette de prix indicative et les artisans disponibles près de chez toi. Sans inscription.",
 };
@@ -37,7 +37,7 @@ export default async function EstimationPage({
       <header className="border-b bg-background">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4 sm:px-6">
           <Link href="/" className="text-sm font-semibold tracking-tight">
-            Orbit Artisan
+            Soline
           </Link>
           <span className="text-xs text-muted-foreground">Gratuit · sans inscription</span>
         </div>

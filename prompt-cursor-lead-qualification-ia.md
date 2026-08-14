@@ -6,7 +6,7 @@ Copie tout ce qui suit dans Cursor (Agent mode / Composer), idéalement en plusi
 
 ## Contexte projet (à ne pas re-générer, à réutiliser)
 
-Tu travailles sur **OrbitArtisan**, une app Next.js 16 (App Router, React 19, TypeScript) avec Supabase (Postgres + Auth + RLS + pgvector), Tailwind v4 + shadcn/ui, Stripe (actuellement Connect Express pour les virements artisans, pas d'abonnement SaaS), et Mistral AI via `src/lib/ai/mistral.ts` (`mistralChat`, modèle par défaut `open-mistral-nemo`, texte uniquement — pas de vision pour l'instant).
+Tu travailles sur **Soline**, une app Next.js 16 (App Router, React 19, TypeScript) avec Supabase (Postgres + Auth + RLS + pgvector), Tailwind v4 + shadcn/ui, Stripe (actuellement Connect Express pour les virements artisans, pas d'abonnement SaaS), et Mistral AI via `src/lib/ai/mistral.ts` (`mistralChat`, modèle par défaut `open-mistral-nemo`, texte uniquement — pas de vision pour l'instant).
 
 Le produit a déjà deux côtés :
 - **Côté artisan** : `/app/*` (contacts, devis, factures, rdv, messages, services, réglages), assistant IA interne (`src/app/api/ai/assistant`), génération de devis depuis une conversation (`src/app/api/ai/generate-quote-from-chat`, `src/lib/ai/build-quote-from-text.ts`, `src/lib/ai/quote-from-chat-schema.ts`).
@@ -25,7 +25,7 @@ Briques existantes à réutiliser telles quelles, ne pas les recréer :
 ## Objectif de cette fonctionnalité
 
 Créer un tunnel de **pré-qualification par chatbot IA**, sans compte obligatoire, accessible :
-1. via un lien/QR code (page OrbitArtisan publique, non liée à un artisan précis au départ),
+1. via un lien/QR code (page Soline publique, non liée à un artisan précis au départ),
 2. et en **widget embarquable** sur le site vitrine existant d'un artisan (pour le cold-start : chaque artisan peut poser ce même chatbot sur son propre site externe).
 
 Le client décrit son besoin, envoie 2-3 photos ou une courte vidéo, reçoit une **fourchette de prix indicative**, puis est mis en relation avec **2 à 3 artisans maximum** (jamais plus, pas de logique d'enchères). Côté artisan, la demande arrive comme un lead qualifié (photos + description + budget + localisation) et se convertit en **brouillon de devis pré-rempli** en un clic.
@@ -56,7 +56,7 @@ Design mobile-first, mêmes composants shadcn/ui que le reste de l'app (`src/com
 
 ### Phase 2 — Widget embarquable (pour le cold-start artisan)
 - Route `/site/[slug]/widget` (ou `/embed/[slug]`) : version allégée de l'étape chat ci-dessus, pré-filtrée sur l'artisan propriétaire du slug (mais qui peut quand même proposer 1-2 confrères en complément si le créneau ne colle pas — à discuter).
-- Fichier statique `public/embed.js` : petit script loader que l'artisan colle sur son site externe (`<script src="https://orbitartisan.com/embed.js" data-artisan="slug"></script>`), qui injecte un `<iframe>` + bouton flottant, avec `postMessage` pour l'auto-resize.
+- Fichier statique `public/embed.js` : petit script loader que l'artisan colle sur son site externe (`<script src="https://solinebtp.fr/embed.js" data-artisan="slug"></script>`), qui injecte un `<iframe>` + bouton flottant, avec `postMessage` pour l'auto-resize.
 - Vérifier/adapter les headers (`X-Frame-Options` / CSP `frame-ancestors`) pour autoriser l'iframe cross-origin uniquement sur cette route précise.
 
 ### Phase 3 — API de qualification IA
@@ -79,7 +79,7 @@ Nouvelle route `src/app/api/ai/qualify-lead/route.ts`, sur le modèle de `genera
 - Toujours afficher "estimation indicative, non engageante" — jamais "devis" côté client tant que l'artisan n'a pas validé lui-même.
 - Jamais plus de 2-3 artisans proposés par lead. Pas de mode liste/enchères.
 - Aucune app mobile native : tout doit rester accessible en web/PWA depuis un simple lien ou QR code, sans installation obligatoire.
-- Le widget embarqué sur le site d'un artisan tiers doit rester utilisable même si l'artisan n'a pas (encore) de compte OrbitArtisan actif — dans ce cas, capturer le lead et l'inviter à s'inscrire plutôt que de bloquer le client (à confirmer avec moi comme comportement voulu).
+- Le widget embarqué sur le site d'un artisan tiers doit rester utilisable même si l'artisan n'a pas (encore) de compte Soline actif — dans ce cas, capturer le lead et l'inviter à s'inscrire plutôt que de bloquer le client (à confirmer avec moi comme comportement voulu).
 
 ## Méthode de travail attendue
 

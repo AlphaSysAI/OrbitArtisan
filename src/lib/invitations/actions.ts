@@ -173,7 +173,7 @@ export async function getInvitationByToken(token: string): Promise<InvitationPre
       .select("business_name")
       .eq("user_id", data.inviter_user_id)
       .maybeSingle();
-    inviterLabel = ap?.business_name ?? "Un membre Orbit Artisan";
+    inviterLabel = ap?.business_name ?? "Un membre Soline";
   }
 
   return {

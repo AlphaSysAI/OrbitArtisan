@@ -209,7 +209,7 @@ export async function listConversationsForArtisan() {
         return {
           id: c.id,
           updated_at: c.updated_at,
-          customer_label: lead?.contact_name?.trim() || "Demande Orbit",
+          customer_label: lead?.contact_name?.trim() || "Demande Soline",
           is_lead: true,
         };
       }

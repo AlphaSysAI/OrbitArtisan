@@ -1,4 +1,4 @@
-/* Orbit Artisan — service worker minimal pour critères d’installation PWA (réseau uniquement). */
+/* Soline — service worker minimal pour critères d’installation PWA (réseau uniquement). */
 self.addEventListener("install", () => {
   self.skipWaiting();
 });

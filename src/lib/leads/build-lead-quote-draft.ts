@@ -51,7 +51,7 @@ export async function buildLeadQuoteDraft(params: {
       : "";
 
   const instruction = [
-    `Demande qualifiée reçue via Orbit Artisan.`,
+    `Demande qualifiée reçue via Soline.`,
     category || trade ? `Métier : ${[category?.label, trade?.label].filter(Boolean).join(" · ")}.` : "",
     q?.need_summary ? `Besoin : ${q.need_summary}` : `Besoin : ${params.lead.description}`,
     q?.technical_elements?.length ? `Éléments techniques : ${q.technical_elements.join(", ")}.` : "",

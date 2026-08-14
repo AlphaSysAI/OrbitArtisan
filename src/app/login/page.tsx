@@ -48,7 +48,7 @@ export default async function LoginPage({
       <div className="container mx-auto flex min-h-screen max-w-xl items-center px-6 py-16">
         <div className="w-full space-y-6">
           <div className="space-y-2 text-center">
-            <p className="text-sm text-muted-foreground">Orbit Artisan</p>
+            <p className="text-sm text-muted-foreground">Soline</p>
             <h1 className="text-2xl font-semibold tracking-tight">
               {isParticulier ? "Espace client" : "Espace artisan"}
             </h1>

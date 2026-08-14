@@ -90,17 +90,17 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
 
   const title =
     invite.accountType === "artisan"
-      ? "Rejoindre Orbit Artisan en tant qu’artisan"
+      ? "Rejoindre Soline en tant qu’artisan"
       : invite.artisanName
         ? `Compte client — ${invite.artisanName}`
-        : "Rejoindre Orbit Artisan en tant que client";
+        : "Rejoindre Soline en tant que client";
 
   const description =
     invite.accountType === "artisan"
       ? `${invite.inviterLabel} vous invite à créer votre espace professionnel (devis, factures, vitrine).`
       : invite.artisanName
         ? `${invite.inviterLabel} vous invite à créer votre compte client pour échanger et suivre vos devis avec ${invite.artisanName}.`
-        : `${invite.inviterLabel} vous invite à créer votre compte client sur Orbit Artisan.`;
+        : `${invite.inviterLabel} vous invite à créer votre compte client sur Soline.`;
 
   return (
     <div className="min-h-screen bg-muted/30">
