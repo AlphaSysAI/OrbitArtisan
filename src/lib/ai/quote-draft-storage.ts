@@ -16,40 +16,64 @@ export type AiSupplierMaterialDraft = {
 
 export type AiQuoteDraft = {
   version: 1;
-  conversationId: string;
+  /** Clé sessionStorage (id conversation ou draftKey assistant). */
+  draftKey: string;
+  /** @deprecated alias de draftKey pour les brouillons messagerie. */
+  conversationId?: string;
   generatedAt: string;
   matchedServiceIds: string[];
   laborDurationMinutes: number;
   notes: string;
   supplierMaterials: AiSupplierMaterialDraft[];
   warnings: string[];
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerUserId?: string | null;
+  /** Origine du brouillon (assistant dictée vs lead qualifié). */
+  source?: "assistant" | "lead";
+  leadMatchId?: string | null;
+  estimateMin?: number | null;
+  estimateMax?: number | null;
 };
 
 const STORAGE_PREFIX = "alphasys-ai-quote-draft:";
 
-export function aiQuoteDraftKey(conversationId: string): string {
-  return `${STORAGE_PREFIX}${conversationId}`;
+export function resolveDraftKey(draft: Pick<AiQuoteDraft, "draftKey" | "conversationId">): string {
+  return draft.draftKey || draft.conversationId || "";
+}
+
+export function aiQuoteDraftKey(draftKey: string): string {
+  return `${STORAGE_PREFIX}${draftKey}`;
 }
 
 export function saveAiQuoteDraft(draft: AiQuoteDraft): void {
   if (typeof window === "undefined") return;
-  sessionStorage.setItem(aiQuoteDraftKey(draft.conversationId), JSON.stringify(draft));
+  const key = resolveDraftKey(draft);
+  if (!key) return;
+  const normalized: AiQuoteDraft = {
+    ...draft,
+    draftKey: key,
+    conversationId: draft.conversationId ?? key,
+  };
+  sessionStorage.setItem(aiQuoteDraftKey(key), JSON.stringify(normalized));
 }
 
-export function loadAiQuoteDraft(conversationId: string): AiQuoteDraft | null {
+export function loadAiQuoteDraft(draftKey: string): AiQuoteDraft | null {
   if (typeof window === "undefined") return null;
-  const raw = sessionStorage.getItem(aiQuoteDraftKey(conversationId));
+  const raw = sessionStorage.getItem(aiQuoteDraftKey(draftKey));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as AiQuoteDraft;
-    if (parsed?.version !== 1 || parsed.conversationId !== conversationId) return null;
-    return parsed;
+    if (parsed?.version !== 1) return null;
+    const key = resolveDraftKey(parsed);
+    if (key !== draftKey) return null;
+    return { ...parsed, draftKey: key };
   } catch {
     return null;
   }
 }
 
-export function clearAiQuoteDraft(conversationId: string): void {
+export function clearAiQuoteDraft(draftKey: string): void {
   if (typeof window === "undefined") return;
-  sessionStorage.removeItem(aiQuoteDraftKey(conversationId));
+  sessionStorage.removeItem(aiQuoteDraftKey(draftKey));
 }

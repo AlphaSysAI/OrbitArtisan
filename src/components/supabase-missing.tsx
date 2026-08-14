@@ -27,7 +27,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="votre-clé-anon-publique"
 NEXT_PUBLIC_SITE_URL="http://localhost:3000"`}
           </pre>
           <p>
-            Puis exécute le schéma SQL: <code>supabase/schema.sql</code> dans Supabase.
+            Puis exécute le schéma SQL : <code>supabase/init.sql</code> dans Supabase.
           </p>
         </div>
 

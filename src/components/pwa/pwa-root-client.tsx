@@ -38,16 +38,19 @@ export function PwaRootClient() {
   const [guide, setGuide] = useState<InstallGuide>("main");
   const deferredRef = useRef<BeforeInstallPromptEvent | null>(null);
 
+  /** Widget embarqué chez un tiers : ni service worker, ni invitation à installer. */
+  const embedded = pathname.startsWith("/embed");
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
   /** Enregistrement du service worker (critère d’éligibilité à l’installation sur Chrome). */
   useEffect(() => {
-    if (!mounted || typeof navigator === "undefined") return;
+    if (!mounted || embedded || typeof navigator === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
-  }, [mounted]);
+  }, [mounted, embedded]);
 
   /** beforeinstallprompt : conserver l’événement pour le bouton d’installation. */
   useEffect(() => {
@@ -119,7 +122,7 @@ export function PwaRootClient() {
 
   /** Affichage différé de la modale d’installation (mobile, navigateur, pas déjà installé). */
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || embedded) return;
     if (isStandaloneDisplay()) return;
     if (!isLikelyMobileDevice()) return;
     if (wasInstallPromptDismissedRecently()) return;
@@ -131,7 +134,7 @@ export function PwaRootClient() {
     }, 2000);
 
     return () => window.clearTimeout(t);
-  }, [mounted]);
+  }, [mounted, embedded]);
 
   const dismiss = useCallback(() => {
     rememberInstallPromptDismissed();

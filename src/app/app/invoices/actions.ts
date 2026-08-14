@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 
@@ -52,6 +53,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       customer_email: quote.customer_email,
       invoice_number: invoiceNumber,
       status: "draft",
+      ...DEFAULT_INVOICE_EINVOICING,
       labor_total: quote.labor_total,
       materials_total: quote.materials_total,
       grand_total: quote.grand_total,
@@ -70,6 +72,9 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     unit_price: number | null;
     line_total: number;
     sort_order: number;
+    vat_rate: number;
+    vat_exemption_reason: string | null;
+    vat_category_code: string;
   }[] = [];
 
   let sort = 0;
@@ -81,6 +86,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     unit_price: quote.labor_total,
     line_total: quote.labor_total,
     sort_order: sort++,
+    ...DEFAULT_INVOICE_LINE_VAT,
   });
 
   const { data: qServices } = await supabase
@@ -99,6 +105,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       unit_price: s.unit_price,
       line_total: lt,
       sort_order: sort++,
+      ...DEFAULT_INVOICE_LINE_VAT,
     });
   }
 
@@ -117,6 +124,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       unit_price: m.unit_price,
       line_total: m.line_total,
       sort_order: sort++,
+      ...DEFAULT_INVOICE_LINE_VAT,
     });
   }
 
@@ -169,6 +177,49 @@ export async function updateInvoice(formData: FormData): Promise<void> {
   revalidatePath("/compte");
   revalidatePath("/compte/factures");
   revalidatePath(`/compte/factures/${invoiceId}`);
+}
+
+const FINALIZE_ERROR_MESSAGES: Record<string, string> = {
+  not_found: "Facture introuvable.",
+  already_finalized: "Cette facture est déjà finalisée.",
+  not_draft: "Seul un brouillon peut être finalisé.",
+  no_lines: "Ajoute des lignes via le devis avant de finaliser.",
+  generation_failed: "Échec de génération du document.",
+  pa_submission_failed: "Échec d'envoi à la Plateforme Agréée.",
+  persist_failed: "Impossible d'enregistrer la finalisation.",
+};
+
+export async function finalizeInvoiceForm(formData: FormData): Promise<void> {
+  const invoiceId = String(formData.get("invoice_id") ?? "").trim();
+  if (!invoiceId) redirect("/app/invoices?error=missing");
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/app/invoices");
+
+  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  if (!profile?.id) redirect("/login");
+
+  const { createInvoiceService } = await import("@/lib/billing/invoicing");
+  const service = createInvoiceService(supabase);
+  const result = await service.finalize(invoiceId, profile.id);
+
+  if (!result.ok) {
+    const code = result.code in FINALIZE_ERROR_MESSAGES ? result.code : "persist_failed";
+    redirect(`/app/invoices/${invoiceId}?finalize_error=${encodeURIComponent(code)}`);
+  }
+
+  revalidatePath("/app/invoices");
+  revalidatePath(`/app/invoices/${invoiceId}`);
+  revalidatePath("/compte");
+  revalidatePath("/compte/factures");
+  revalidatePath(`/compte/factures/${invoiceId}`);
+
+  redirect(
+    `/app/invoices/${invoiceId}?finalized=1&flow=${encodeURIComponent(result.flow)}&download=1`,
+  );
 }
 
 export async function startStripeExpressOnboarding(): Promise<void> {

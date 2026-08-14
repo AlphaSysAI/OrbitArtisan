@@ -1,6 +1,19 @@
 import Link from "next/link";
-import { Clock, ExternalLink, Euro, FileText, Receipt, Users } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  Clock,
+  ExternalLink,
+  Euro,
+  FileText,
+  Plus,
+  Receipt,
+  Sparkles,
+  Store,
+  Users,
+} from "lucide-react";
 
+import { AppEmptyState } from "@/components/app/app-empty-state";
+import { AppPageHeader } from "@/components/app/app-page-header";
 import { DashboardStatCard } from "@/components/app/dashboard-stat-card";
 import { StepCard } from "@/components/app/step-card";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -81,50 +94,56 @@ export default async function AppHomePage() {
   }
 
   const showOnboarding = !hasProfile || !hasServices;
+  const greetingName = hasProfile ? profile!.business_name : "Bienvenue";
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          {hasProfile ? profile!.business_name : "Bienvenue"}
-        </h1>
-        <p className="mt-2 max-w-xl text-muted-foreground">
-          {hasProfile
-            ? "Vue d’ensemble de ton activité : clients, devis, factures et encaissements."
-            : "Trois étapes pour être en ligne : activité, prestations, puis ton lien à partager."}
-        </p>
-      </div>
+      <AppPageHeader
+        eyebrow="Tableau de bord"
+        title={greetingName}
+        description={
+          hasProfile
+            ? "Ce qui compte aujourd’hui : clients, devis, factures et encaissements."
+            : "Trois étapes pour être en ligne : activité, prestations, puis ton lien à partager."
+        }
+        action={
+          hasProfile ? (
+            <Link
+              href="/app/quotes/new"
+              className={buttonVariants({ size: "lg", className: "gap-2 shadow-sm" })}
+            >
+              <Plus className="size-4" />
+              Nouveau devis
+            </Link>
+          ) : (
+            <Link
+              href="/app/reglages?tab=activite"
+              className={buttonVariants({ size: "lg", className: "gap-2" })}
+            >
+              <Sparkles className="size-4" />
+              Commencer
+            </Link>
+          )
+        }
+      />
 
       {hasProfile ? (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold">Tableau de bord</h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <DashboardStatCard
-              icon={Users}
-              title="Contacts"
-              value={String(contactCount)}
-              description={
-                contactCount === 1 ? "Client lié à ton activité" : "Clients liés à ton activité"
-              }
-              href="/app/contacts"
-              actionLabel="Voir les contacts"
-            />
-            <DashboardStatCard
-              icon={Receipt}
-              title="Factures finalisées"
-              value={String(finalizedInvoiceCount)}
-              description="Envoyées ou payées (hors brouillon)"
-              href="/app/invoices"
-              actionLabel="Voir les factures"
-            />
+          <div className="flex items-end justify-between gap-3">
+            <h2 className="font-display text-xl font-semibold tracking-tight">Vue d’ensemble</h2>
+            <p className="text-sm text-muted-foreground">Touche une carte pour ouvrir</p>
+          </div>
+
+          <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-6">
             <DashboardStatCard
               icon={Euro}
               title="Revenus encaissés"
               value={formatEur(revenueCents)}
               description="Total des factures payées"
               href="/app/invoices"
-              actionLabel="Détail des factures"
+              actionLabel="Voir les factures"
               highlight="success"
+              className="sm:col-span-2 xl:col-span-2 xl:row-span-2 xl:min-h-[280px]"
             />
             <DashboardStatCard
               icon={FileText}
@@ -134,6 +153,7 @@ export default async function AppHomePage() {
               href="/app/quotes"
               actionLabel="Voir les devis"
               highlight={pendingQuoteCount > 0 ? "warning" : "default"}
+              className="xl:col-span-2"
             />
             <DashboardStatCard
               icon={Clock}
@@ -143,17 +163,48 @@ export default async function AppHomePage() {
               href="/app/invoices"
               actionLabel="Relancer le paiement"
               highlight={pendingPaymentCount > 0 ? "warning" : "default"}
+              className="xl:col-span-2"
+            />
+            <DashboardStatCard
+              icon={Users}
+              title="Contacts"
+              value={String(contactCount)}
+              description={contactCount === 1 ? "Client lié" : "Clients liés"}
+              href="/app/contacts"
+              actionLabel="Voir les contacts"
+              className="xl:col-span-2"
+            />
+            <DashboardStatCard
+              icon={Receipt}
+              title="Factures finalisées"
+              value={String(finalizedInvoiceCount)}
+              description="Envoyées ou payées"
+              href="/app/invoices"
+              actionLabel="Voir les factures"
+              className="xl:col-span-2"
             />
           </div>
         </section>
-      ) : null}
+      ) : (
+        <AppEmptyState
+          icon={BriefcaseBusiness}
+          title="Ton atelier n’est pas encore configuré"
+          description="Renseigne ton activité pour débloquer devis, factures, rendez-vous et vitrine."
+          action={
+            <Link href="/app/reglages?tab=activite" className={buttonVariants({ size: "lg" })}>
+              Configurer mon activité
+            </Link>
+          }
+        />
+      )}
 
       {showOnboarding ? (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold">Mise en route</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <h2 className="font-display text-xl font-semibold tracking-tight">Mise en route</h2>
+          <div className="grid gap-4 md:grid-cols-3">
             <StepCard
               step={1}
+              icon={BriefcaseBusiness}
               title="Mon activité"
               description="Nom, description et adresse web de ta page."
               done={hasProfile}
@@ -162,6 +213,7 @@ export default async function AppHomePage() {
             />
             <StepCard
               step={2}
+              icon={Store}
               title="Mes prestations"
               description="Durée et prix affichés sur ta vitrine."
               done={hasServices}
@@ -170,6 +222,7 @@ export default async function AppHomePage() {
             />
             <StepCard
               step={3}
+              icon={ExternalLink}
               title="Ma page publique"
               description="Le lien à envoyer à tes clients."
               done={hasProfile && hasServices}
@@ -180,28 +233,26 @@ export default async function AppHomePage() {
         </section>
       ) : null}
 
-      {hasProfile && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-dashed bg-muted/30 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium">Lien de ta vitrine</p>
-            <p className="mt-1 font-mono text-sm text-foreground">/site/{profile!.slug}</p>
+      {hasProfile ? (
+        <section className="app-surface flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Vitrine
+            </p>
+            <p className="font-display text-xl font-semibold tracking-tight">Lien de ta page</p>
+            <p className="font-mono text-sm text-muted-foreground">/site/{profile!.slug}</p>
           </div>
           <Link
             href={`/site/${profile!.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className={buttonVariants({ variant: "secondary", className: "gap-2 shrink-0" })}
+            className={buttonVariants({ variant: "secondary", size: "lg", className: "gap-2 shrink-0" })}
           >
-            Ouvrir <ExternalLink className="h-4 w-4" />
+            Ouvrir la vitrine
+            <ExternalLink className="size-4" />
           </Link>
-        </div>
-      )}
-
-      <p className="text-center text-xs text-muted-foreground">
-        <Link className="underline-offset-4 hover:underline" href="/">
-          Retour au site Orbit Artisan
-        </Link>
-      </p>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -52,18 +52,37 @@ function getCalendarWeeks(year: number, month: number): (Date | null)[][] {
 export function RdvCalendar({
   appointments,
   services,
+  initialDateIso,
 }: {
   appointments: ArtisanAppointment[];
   services: ServiceLite[];
+  /** Date ISO YYYY-MM-DD (ex. depuis ?date=) */
+  initialDateIso?: string | null;
 }) {
   const router = useRouter();
+  const initial = React.useMemo(() => {
+    if (initialDateIso && /^\d{4}-\d{2}-\d{2}$/.test(initialDateIso)) {
+      const [y, m, d] = initialDateIso.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+    return new Date();
+  }, [initialDateIso]);
+
   const [viewDate, setViewDate] = React.useState(() => {
-    const d = new Date();
+    const d = new Date(initial);
     d.setDate(1);
     return d;
   });
-  const [selectedDate, setSelectedDate] = React.useState<Date | null>(() => new Date());
+  const [selectedDate, setSelectedDate] = React.useState<Date | null>(() => initial);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!initialDateIso || !/^\d{4}-\d{2}-\d{2}$/.test(initialDateIso)) return;
+    const [y, m, d] = initialDateIso.split("-").map(Number);
+    const next = new Date(y, m - 1, d);
+    setSelectedDate(next);
+    setViewDate(new Date(y, m - 1, 1));
+  }, [initialDateIso]);
 
   const serviceTitleById = React.useMemo(() => {
     const m = new Map<string, string>();

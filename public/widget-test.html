@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Faux site d'artisan — test du widget Orbit</title>
+    <style>
+      body {
+        margin: 0;
+        font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: #1b2735;
+        background: #f6f4f0;
+      }
+      main { max-width: 720px; margin: 0 auto; padding: 64px 24px; }
+      h1 { font-size: 32px; margin: 0 0 8px; }
+      p { color: #55616f; }
+      code { background: #eae7e1; padding: 2px 6px; border-radius: 6px; font-size: 14px; }
+      .fake { margin-top: 32px; padding: 24px; background: #fff; border-radius: 16px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Elec &amp; Co</h1>
+      <p>
+        Page de test imitant le site externe d'un artisan. À ouvrir sur
+        <code>http://127.0.0.1:3000/widget-test.html</code> : le script pointe vers
+        <code>localhost</code>, donc le widget est bien chargé depuis une autre origine, comme chez un
+        vrai client.
+      </p>
+      <div class="fake">
+        <p>Contenu bidon, pour vérifier que le widget flotte au-dessus de la page.</p>
+      </div>
+    </main>
+
+    <script src="http://localhost:3000/embed.js" data-artisan="elecandco" defer></script>
+  </body>
+</html>

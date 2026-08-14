@@ -1,13 +1,18 @@
 import Link from "next/link";
-
 import { FileText, Plus } from "lucide-react";
 
+import { AppEmptyState } from "@/components/app/app-empty-state";
+import { AppListItem } from "@/components/app/app-list-item";
+import { AppPageHeader } from "@/components/app/app-page-header";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { quoteStatusLabel } from "@/lib/status-labels";
-import { cn } from "@/lib/utils";
+
+function formatEur(cents: number) {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+}
 
 export default async function QuotesPage() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -27,21 +32,31 @@ export default async function QuotesPage() {
 
   if (!profile?.id) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Devis</h1>
-        <p className="text-sm text-muted-foreground">
-          Commence par renseigner ton activité (Étape 1), puis tes prestations (Étape 2).
-        </p>
-        <Link href="/app/reglages?tab=activite" className={buttonVariants({ variant: "outline" })}>
-          Aller à l’étape 1
-        </Link>
+      <div className="space-y-8">
+        <AppPageHeader
+          eyebrow="Commercial"
+          title="Devis"
+          description="Configure ton activité pour créer des devis."
+        />
+        <AppEmptyState
+          icon={FileText}
+          title="Profil artisan requis"
+          description="Commence par renseigner ton activité, puis tes prestations."
+          action={
+            <Link href="/app/reglages?tab=activite" className={buttonVariants({ size: "lg" })}>
+              Aller aux réglages
+            </Link>
+          }
+        />
       </div>
     );
   }
 
   const { data: quotes, error } = await supabase
     .from("quotes")
-    .select("id, status, customer_name, customer_email, grand_total, labor_total, materials_total, created_at, updated_at")
+    .select(
+      "id, status, customer_name, customer_email, grand_total, labor_total, materials_total, created_at, updated_at",
+    )
     .eq("artisan_id", profile.id)
     .order("created_at", { ascending: false });
 
@@ -49,71 +64,55 @@ export default async function QuotesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">Section</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Devis</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Crée un devis en sélectionnant tes prestations, puis ajoute au besoin des fournitures.
-          </p>
-        </div>
-
-        <Link
-          href="/app/quotes/new"
-          className={buttonVariants({ className: "gap-2 inline-flex", size: "sm" })}
-        >
-          <Plus className="h-4 w-4" />
-          Nouveau devis
-        </Link>
-      </div>
+      <AppPageHeader
+        eyebrow="Commercial"
+        title="Devis"
+        description="Crée un devis en sélectionnant tes prestations, puis ajoute au besoin des fournitures."
+        action={
+          <Link href="/app/quotes/new" className={buttonVariants({ size: "lg", className: "gap-2" })}>
+            <Plus className="size-4" />
+            Nouveau devis
+          </Link>
+        }
+      />
 
       {!items.length ? (
-        <Card className="border-0 shadow-none">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Aucun devis
-            </CardTitle>
-            <CardDescription>Crée ton premier devis.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/app/quotes/new" className={buttonVariants()}>
+        <AppEmptyState
+          icon={FileText}
+          title="Aucun devis pour l’instant"
+          description="Ton premier devis part en deux minutes : client, prestations, envoi."
+          action={
+            <Link href="/app/quotes/new" className={buttonVariants({ size: "lg", className: "gap-2" })}>
+              <Plus className="size-4" />
               Créer un devis
             </Link>
-          </CardContent>
-        </Card>
+          }
+        />
       ) : (
         <ul className="space-y-3">
           {items.map((q) => (
-            <li
-              key={q.id}
-              className={cn(
-                "rounded-2xl border bg-card p-4",
-                q.status === "accepted" && "border-2 border-green-600/70",
-                q.status === "rejected" && "border-2 border-red-600/70",
-              )}
-            >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="font-medium">
-                    {q.customer_name || q.customer_email || "Client"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Statut : {quoteStatusLabel(q.status)}
-                    {" · "}
-                    Total :{" "}
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                      (q.grand_total ?? 0) / 100,
-                    )}
-                  </p>
-                </div>
-                <Link
-                  href={`/app/quotes/${q.id}`}
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
-                  Ouvrir
-                </Link>
-              </div>
+            <li key={q.id}>
+              <AppListItem
+                href={`/app/quotes/${q.id}`}
+                title={q.customer_name || q.customer_email || "Client"}
+                subtitle={`Total ${formatEur(q.grand_total ?? 0)}`}
+                meta={
+                  <Badge
+                    variant={
+                      q.status === "accepted"
+                        ? "default"
+                        : q.status === "rejected"
+                          ? "destructive"
+                          : "secondary"
+                    }
+                  >
+                    {quoteStatusLabel(q.status)}
+                  </Badge>
+                }
+                emphasis={
+                  q.status === "accepted" ? "success" : q.status === "rejected" ? "danger" : "default"
+                }
+              />
             </li>
           ))}
         </ul>
@@ -121,4 +120,3 @@ export default async function QuotesPage() {
     </div>
   );
 }
-

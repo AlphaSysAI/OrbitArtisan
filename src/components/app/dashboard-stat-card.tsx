@@ -1,8 +1,6 @@
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
+import { ArrowUpRight, type LucideIcon } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export function DashboardStatCard({
@@ -13,6 +11,7 @@ export function DashboardStatCard({
   href,
   actionLabel,
   highlight,
+  className,
 }: {
   icon: LucideIcon;
   title: string;
@@ -21,28 +20,39 @@ export function DashboardStatCard({
   href: string;
   actionLabel: string;
   highlight?: "default" | "warning" | "success";
+  className?: string;
 }) {
   return (
-    <Card
+    <Link
+      href={href}
+      aria-label={actionLabel}
       className={cn(
-        highlight === "warning" && "border-amber-500/40 bg-amber-500/[0.03]",
-        highlight === "success" && "border-emerald-500/40 bg-emerald-500/[0.03]",
+        "group app-surface relative flex min-h-[168px] flex-col justify-between overflow-hidden p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0_0_0/0.08)] sm:p-6",
+        highlight === "warning" && "border-warning/40 bg-warning/5",
+        highlight === "success" && "border-success/35 bg-success/5",
+        className,
       )}
     >
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base font-medium">
-          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-          {title}
-        </CardTitle>
-        <CardDescription className="sr-only">{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-3xl font-semibold tabular-nums tracking-tight">{value}</p>
-        <p className="text-sm text-muted-foreground">{description}</p>
-        <Link href={href} className={buttonVariants({ variant: "outline", size: "sm", className: "w-full" })}>
-          {actionLabel}
-        </Link>
-      </CardContent>
-    </Card>
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className={cn(
+            "flex size-11 items-center justify-center rounded-xl bg-muted text-foreground transition-colors group-hover:bg-brand/15 group-hover:text-brand",
+            highlight === "warning" && "bg-warning/15 text-warning-foreground",
+            highlight === "success" && "bg-success/15 text-success",
+          )}
+        >
+          <Icon className="size-5" />
+        </div>
+        <ArrowUpRight className="size-4 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <p className="font-display text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
+          {value}
+        </p>
+        <p className="text-sm leading-snug text-muted-foreground">{description}</p>
+      </div>
+    </Link>
   );
 }

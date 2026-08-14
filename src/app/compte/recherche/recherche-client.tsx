@@ -3,19 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ChevronLeft, Loader2, MapPin, Navigation, Search, Store } from "lucide-react";
+import { Loader2, MapPin, Navigation, Store } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { StepShell, TradePicker } from "@/components/trades/trade-picker";
 import { searchBanCities, type BanSuggestion } from "@/lib/geo/ban";
-import {
-  TRADE_DOMAINS,
-  categoriesForDomain,
-  findTradeDomain,
-  findTradeCategory,
-  type TradeCategory,
-} from "@/lib/trades/taxonomy";
 import { cn } from "@/lib/utils";
 
 import { searchArtisansNearby, type NearbyArtisan } from "./actions";
@@ -27,9 +21,7 @@ type Step =
   | { name: "start" }
   | { name: "locating" }
   | { name: "manual-location" }
-  | { name: "domain"; origin: Origin }
-  | { name: "category"; origin: Origin; domainId: string }
-  | { name: "trade"; origin: Origin; domainId: string; category: TradeCategory }
+  | { name: "trade"; origin: Origin }
   | { name: "results"; origin: Origin; categoryId: string; tradeId: string; tradeLabel: string };
 
 export function RechercheClient() {
@@ -44,7 +36,7 @@ export function RechercheClient() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setStep({
-          name: "domain",
+          name: "trade",
           origin: { lat: pos.coords.latitude, lng: pos.coords.longitude, label: "Ta position actuelle" },
         });
       },
@@ -74,74 +66,25 @@ export function RechercheClient() {
 
       {step.name === "manual-location" && (
         <ManualLocation
-          onPick={(o) => setStep({ name: "domain", origin: o })}
+          onPick={(o) => setStep({ name: "trade", origin: o })}
           onBack={() => setStep({ name: "start" })}
         />
       )}
 
-      {step.name === "domain" && (
-        <StepShell
-          title="Quel type d’artisan cherches-tu ?"
-          subtitle={step.origin.label}
-          onBack={() => setStep({ name: "start" })}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {TRADE_DOMAINS.map((d) => (
-              <ChoiceButton
-                key={d.id}
-                emoji={d.emoji}
-                label={d.label}
-                onClick={() => setStep({ name: "category", origin: step.origin, domainId: d.id })}
-              />
-            ))}
-          </div>
-        </StepShell>
-      )}
-
-      {step.name === "category" && (
-        <StepShell
-          title={findTradeDomain(step.domainId)?.label ?? "Choisis une spécialité"}
-          subtitle="Précise la spécialité"
-          onBack={() => setStep({ name: "domain", origin: step.origin })}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {categoriesForDomain(step.domainId).map((c) => (
-              <ChoiceButton
-                key={c.id}
-                label={c.label}
-                onClick={() =>
-                  setStep({ name: "trade", origin: step.origin, domainId: step.domainId, category: c })
-                }
-              />
-            ))}
-          </div>
-        </StepShell>
-      )}
-
       {step.name === "trade" && (
-        <StepShell
-          title={step.category.label}
-          subtitle="Choisis le métier exact"
-          onBack={() => setStep({ name: "category", origin: step.origin, domainId: step.domainId })}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {step.category.trades.map((t) => (
-              <ChoiceButton
-                key={t.id}
-                label={t.label}
-                onClick={() =>
-                  setStep({
-                    name: "results",
-                    origin: step.origin,
-                    categoryId: step.category.id,
-                    tradeId: t.id,
-                    tradeLabel: t.label,
-                  })
-                }
-              />
-            ))}
-          </div>
-        </StepShell>
+        <TradePicker
+          subtitle={step.origin.label}
+          onExit={() => setStep({ name: "start" })}
+          onSelect={(sel) =>
+            setStep({
+              name: "results",
+              origin: step.origin,
+              categoryId: sel.categoryId,
+              tradeId: sel.tradeId,
+              tradeLabel: sel.tradeLabel,
+            })
+          }
+        />
       )}
 
       {step.name === "results" && (
@@ -150,15 +93,7 @@ export function RechercheClient() {
           categoryId={step.categoryId}
           tradeId={step.tradeId}
           tradeLabel={step.tradeLabel}
-          onBack={() =>
-            setStep({
-              name: "trade",
-              origin: step.origin,
-              domainId: findTradeDomain(TRADE_DOMAINS.find((d) => d.categoryIds.includes(step.categoryId))?.id)?.id ?? "",
-              category: findTradeCategory(step.categoryId)!,
-            })
-          }
-          onRestart={() => setStep({ name: "domain", origin: step.origin })}
+          onBack={() => setStep({ name: "trade", origin: step.origin })}
         />
       )}
     </div>
@@ -265,14 +200,12 @@ function Results({
   tradeId,
   tradeLabel,
   onBack,
-  onRestart,
 }: {
   origin: Origin;
   categoryId: string;
   tradeId: string;
   tradeLabel: string;
   onBack: () => void;
-  onRestart: () => void;
 }) {
   const [state, setState] = React.useState<
     { status: "loading" } | { status: "error" } | { status: "done"; artisans: NearbyArtisan[] }
@@ -313,7 +246,7 @@ function Results({
             Aucun <span className="font-medium text-foreground">{tradeLabel.toLowerCase()}</span> trouvé dans un
             rayon de 50 km. Essaie un métier proche ou une autre localisation.
           </p>
-          <Button variant="outline" size="sm" onClick={onRestart}>
+          <Button variant="outline" size="sm" onClick={onBack}>
             Changer de métier
           </Button>
         </div>
@@ -346,54 +279,5 @@ function Results({
         </ul>
       )}
     </StepShell>
-  );
-}
-
-function StepShell({
-  title,
-  subtitle,
-  onBack,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  onBack: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-5">
-      <div className="flex items-start gap-3">
-        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onBack} aria-label="Retour">
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-          {subtitle && (
-            <p className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Search className="h-3.5 w-3.5" />
-              {subtitle}
-            </p>
-          )}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ChoiceButton({ emoji, label, onClick }: { emoji?: string; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-3 rounded-xl border bg-card px-4 py-4 text-left text-sm font-medium transition-all",
-        "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-      )}
-    >
-      {emoji && <span className="text-xl">{emoji}</span>}
-      <span>{label}</span>
-    </button>
   );
 }

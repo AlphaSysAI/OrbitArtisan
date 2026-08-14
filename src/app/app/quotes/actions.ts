@@ -157,7 +157,17 @@ export async function createQuote(formData: FormData) {
     return { ok: false as const, error: "invalid_conversation" as const };
   }
 
-  const quoteStatus = linkedConversationId && linkedCustomerUserId ? "sent" : "draft";
+  const saveMode = String(formData.get("save_mode") ?? "").trim();
+  const forceDraft = saveMode === "draft";
+  const forceSend = saveMode === "send";
+  const quoteStatus =
+    forceDraft
+      ? "draft"
+      : forceSend || (linkedConversationId && linkedCustomerUserId)
+        ? linkedConversationId && linkedCustomerUserId
+          ? "sent"
+          : "draft"
+        : "draft";
 
   const { data: createdQuote, error: quoteErr } = await supabase
     .from("quotes")
@@ -220,7 +230,8 @@ export async function createQuote(formData: FormData) {
   }
 
   let notifyFailed = false;
-  if (linkedConversationId) {
+  const shouldNotify = quoteStatus === "sent" && !!linkedConversationId;
+  if (shouldNotify) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
     const totalFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
       grandTotalCents / 100,
@@ -237,12 +248,12 @@ export async function createQuote(formData: FormData) {
           supplierSku: m.supplierSku ?? null,
         })),
     });
-    const sent = await sendMessage(linkedConversationId, body);
+    const sent = await sendMessage(linkedConversationId!, body);
     if (!sent.ok) notifyFailed = true;
   }
 
   revalidatePath("/app/quotes");
   revalidatePath("/mes-devis");
-  return { ok: true as const, quoteId: createdQuote.id, notifyFailed };
+  return { ok: true as const, quoteId: createdQuote.id, notifyFailed, status: quoteStatus };
 }
 

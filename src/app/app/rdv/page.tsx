@@ -1,17 +1,48 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CalendarClock } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AppEmptyState } from "@/components/app/app-empty-state";
+import { AppPageHeader } from "@/components/app/app-page-header";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { listArtisanContacts } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { type ArtisanAppointment } from "./actions";
+import { NewAppointmentDialog, type AppointmentContactOption } from "./new-appointment-dialog";
 import { RdvCalendar } from "./rdv-calendar";
 
-export default async function ArtisanRdvPage() {
+type RdvSearchParams = {
+  date?: string;
+  /** Ouvre le formulaire de création (assistant IA ou lien direct) */
+  new?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  /** "YYYY-MM-DDTHH:mm" */
+  start?: string;
+  service?: string;
+  ai?: string;
+};
+
+export default async function ArtisanRdvPage({
+  searchParams,
+}: {
+  searchParams: Promise<RdvSearchParams>;
+}) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return <SupabaseMissing title="Rendez-vous indisponibles" />;
   }
+
+  const sp = await searchParams;
+  const dateParam =
+    typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : null;
+  const openCreate = sp.new === "1";
+  const startParam =
+    typeof sp.start === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(sp.start)
+      ? sp.start
+      : null;
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -24,17 +55,17 @@ export default async function ArtisanRdvPage() {
   if (!profile?.id) {
     return (
       <div className="space-y-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Mes rendez-vous</h1>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Profil artisan requis</CardTitle>
-            <CardDescription>
-              Configure ton activité dans les réglages pour recevoir des demandes de rendez-vous.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <AppPageHeader eyebrow="Planning" title="Mes rendez-vous" />
+        <AppEmptyState
+          icon={CalendarClock}
+          title="Profil artisan requis"
+          description="Configure ton activité dans les réglages pour recevoir des demandes de rendez-vous."
+          action={
+            <Link href="/app/reglages?tab=activite" className={buttonVariants({ size: "lg" })}>
+              Ouvrir les réglages
+            </Link>
+          }
+        />
       </div>
     );
   }
@@ -53,8 +84,6 @@ export default async function ArtisanRdvPage() {
   type Row = ArtisanAppointment & { customer_user_id: string | null };
   const raw = (rows ?? []) as Row[];
 
-  // Repli téléphone : un RDV sans numéro (invité, ancienne réservation) peut
-  // hériter du téléphone renseigné par le client dans ses réglages de compte.
   const missingPhoneUserIds = [
     ...new Set(raw.filter((r) => !r.customer_phone && r.customer_user_id).map((r) => r.customer_user_id as string)),
   ];
@@ -80,29 +109,56 @@ export default async function ArtisanRdvPage() {
     service_id: r.service_id,
   }));
 
+  const contactsRes = await listArtisanContacts();
+  const contactOptions: AppointmentContactOption[] = contactsRes.ok
+    ? contactsRes.items
+        .filter((i) => i.kind === "linked")
+        .map((i) => ({ label: i.label, email: i.email }))
+    : [];
+
+  const createDialog = (
+    <NewAppointmentDialog
+      contacts={contactOptions}
+      services={services ?? []}
+      openOnMount={openCreate}
+      prefill={
+        openCreate
+          ? {
+              name: typeof sp.name === "string" ? sp.name : null,
+              email: typeof sp.email === "string" ? sp.email : null,
+              phone: typeof sp.phone === "string" ? sp.phone : null,
+              start: startParam,
+              serviceId: typeof sp.service === "string" ? sp.service : null,
+              fromAssistant: sp.ai === "1",
+            }
+          : undefined
+      }
+    />
+  );
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <CalendarClock className="h-6 w-6" />
-          Mes rendez-vous
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Valide ou refuse les demandes reçues depuis ta page vitrine.
-        </p>
-      </div>
+      <AppPageHeader
+        eyebrow="Planning"
+        title="Mes rendez-vous"
+        description="Valide les demandes reçues depuis ta vitrine, ou ajoute un rendez-vous toi-même."
+        action={createDialog}
+      />
 
       {appointments.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <CalendarClock className="h-12 w-12 text-muted-foreground/50" />
-            <p className="mt-4 max-w-sm text-muted-foreground">
-              Aucune demande pour l’instant. Les rendez-vous réservés sur ta page vitrine apparaîtront ici.
-            </p>
-          </CardContent>
-        </Card>
+        <AppEmptyState
+          icon={CalendarClock}
+          title="Aucun rendez-vous pour l’instant"
+          description="Les rendez-vous réservés sur ta page vitrine apparaîtront ici. Tu peux aussi en créer un directement."
+        />
       ) : (
-        <RdvCalendar appointments={appointments} services={services ?? []} />
+        <div className="app-surface p-4 sm:p-6">
+          <RdvCalendar
+            appointments={appointments}
+            services={services ?? []}
+            initialDateIso={dateParam}
+          />
+        </div>
       )}
     </div>
   );

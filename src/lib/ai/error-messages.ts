@@ -1,5 +1,6 @@
 const AI_ERROR_MESSAGES: Record<string, string> = {
   missing_conversation_id: "Conversation manquante.",
+  missing_message: "Écris ou dicte une demande.",
   not_authenticated: "Session expirée — reconnecte-toi.",
   not_artisan: "Réservé à l’espace artisan.",
   conversation_forbidden: "Accès à la conversation refusé.",

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { finalizePendingVitrineAppointment } from "@/app/site/[slug]/actions";
 import { acceptPlatformInvitation } from "@/lib/invitations/actions";
+import { claimLeadByToken } from "@/lib/leads/client-signup";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 function translateAuthError(message: string, code?: string): string {
@@ -36,12 +37,16 @@ export function InscriptionClientForm({
   next,
   pendingAppointmentId,
   prefillEmail,
+  prefillName,
   inviteToken,
+  leadToken,
 }: {
   next: string;
   pendingAppointmentId?: string | null;
   prefillEmail?: string;
+  prefillName?: string;
   inviteToken?: string;
+  leadToken?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -68,11 +73,13 @@ export function InscriptionClientForm({
 
     const supabase = createSupabaseBrowserClient();
     const origin = window.location.origin;
-    const callbackNext = inviteToken
-      ? `/compte/contacts?invite=${encodeURIComponent(inviteToken)}`
-      : pendingAppointmentId
-        ? `/compte?pending=${pendingAppointmentId}`
-        : next;
+    const callbackNext = leadToken
+      ? `/compte/messages?claimLead=${encodeURIComponent(leadToken)}`
+      : inviteToken
+        ? `/compte/contacts?invite=${encodeURIComponent(inviteToken)}`
+        : pendingAppointmentId
+          ? `/compte?pending=${pendingAppointmentId}`
+          : next;
     const { data, error: signErr } = await supabase.auth.signUp({
       email,
       password,
@@ -95,7 +102,7 @@ export function InscriptionClientForm({
       );
       if (profileErr) {
         setError(
-          "Compte créé, mais l’enregistrement du profil client a échoué. Vérifie que le script SQL `supabase/messages.sql` a bien été appliqué.",
+          "Compte créé, mais l'enregistrement du profil client a échoué. Vérifie que supabase/init.sql a bien été appliqué.",
         );
         setLoading(false);
         return;
@@ -104,6 +111,13 @@ export function InscriptionClientForm({
         const acc = await acceptPlatformInvitation(inviteToken);
         if (!acc.ok && acc.error === "email_mismatch") {
           setError("L’email du compte doit correspondre à celui de l’invitation.");
+          setLoading(false);
+          return;
+        }
+      } else if (leadToken) {
+        const claim = await claimLeadByToken(leadToken);
+        if (!claim.ok && claim.error === "email_mismatch") {
+          setError("Utilise la même adresse e-mail que celle indiquée lors de l’estimation.");
           setLoading(false);
           return;
         }
@@ -122,6 +136,8 @@ export function InscriptionClientForm({
         router.push("/compte?success=rdv");
       } else if (inviteToken) {
         router.push("/compte/contacts?success=invite");
+      } else if (leadToken) {
+        router.push("/compte/messages?success=lead");
       } else {
         router.push(next);
       }
@@ -165,7 +181,7 @@ export function InscriptionClientForm({
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="display_name">Comment vous appeler</Label>
-          <Input id="display_name" name="display_name" placeholder="Camille" autoComplete="nickname" />
+          <Input id="display_name" name="display_name" placeholder="Camille" autoComplete="nickname" defaultValue={prefillName ?? ""} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Adresse e-mail</Label>

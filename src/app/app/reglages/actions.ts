@@ -76,3 +76,24 @@ export async function updateArtisanSettings(formData: FormData) {
   revalidatePath("/app");
   return { ok: true as const };
 }
+
+/** Interrupteur « je reçois des demandes d'estimation » (widget, tunnel public). */
+export async function setLeadMatchingEnabled(enabled: boolean) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/app/reglages");
+
+  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  if (!profile?.id) return { ok: false as const, error: "save_failed" as const };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ lead_matching_enabled: enabled })
+    .eq("id", profile.id);
+  if (error) return { ok: false as const, error: "save_failed" as const };
+
+  revalidatePath("/app/reglages");
+  return { ok: true as const };
+}

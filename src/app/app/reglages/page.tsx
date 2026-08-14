@@ -1,9 +1,14 @@
 import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 
+import { AppPageHeader } from "@/components/app/app-page-header";
 import { ContactSettingsForm } from "@/components/settings/contact-settings-form";
+import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
 import { VoiceNumberForm } from "@/components/settings/voice-number-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { buildEmbedSnippet } from "@/lib/leads/embed";
+import { getPublicSiteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -17,14 +22,37 @@ const TABS = [
   { id: "activite", label: "Mon activité" },
   { id: "coordonnees", label: "Coordonnées" },
   { id: "prestations", label: "Prestations" },
+  { id: "widget", label: "Widget" },
   { id: "vocal", label: "IA Vocale" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
 function parseTab(raw: string | undefined): TabId {
-  if (raw === "coordonnees" || raw === "prestations" || raw === "activite" || raw === "vocal") return raw;
+  if (
+    raw === "coordonnees" ||
+    raw === "prestations" ||
+    raw === "activite" ||
+    raw === "widget" ||
+    raw === "vocal"
+  ) {
+    return raw;
+  }
   return "activite";
+}
+
+function SettingsGate() {
+  return (
+    <div className="rounded-2xl border border-warning/40 bg-warning/5 p-5 text-sm leading-relaxed">
+      <p className="font-medium">Enregistre d’abord ton activité dans l’onglet « Mon activité ».</p>
+      <Link
+        href="/app/reglages?tab=activite"
+        className="mt-3 inline-flex font-semibold underline underline-offset-4"
+      >
+        Aller à Mon activité
+      </Link>
+    </div>
+  );
 }
 
 export default async function ArtisanSettingsPage({
@@ -46,7 +74,9 @@ export default async function ArtisanSettingsPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, trade_category, trade")
+    .select(
+      "id, name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, trade_category, trade",
+    )
     .eq("user_id", user!.id)
     .maybeSingle();
 
@@ -68,6 +98,20 @@ export default async function ArtisanSettingsPage({
       .maybeSingle();
     if (!contactRes.error && contactRes.data) {
       contact = contactRes.data;
+    }
+  }
+
+  // Colonne ajoutée par lead_qualification.sql : on reste tolérant si la
+  // migration n'est pas encore passée.
+  let leadMatchingEnabled = true;
+  if (profile?.id) {
+    const matchingRes = await supabase
+      .from("profiles")
+      .select("lead_matching_enabled")
+      .eq("id", profile.id)
+      .maybeSingle();
+    if (!matchingRes.error && matchingRes.data) {
+      leadMatchingEnabled = matchingRes.data.lead_matching_enabled ?? true;
     }
   }
 
@@ -101,35 +145,37 @@ export default async function ArtisanSettingsPage({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">Compte</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Réglages</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Activité, coordonnées et prestations — tout au même endroit.
-          </p>
-        </div>
-        {profile?.slug ? (
-          <Link
-            href={`/site/${profile.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={buttonVariants({ variant: "secondary", size: "sm" })}
-          >
-            Voir ma page vitrine
-          </Link>
-        ) : null}
-      </div>
+      <AppPageHeader
+        eyebrow="Compte"
+        title="Réglages"
+        description="Activité, coordonnées, prestations et IA vocale — tout au même endroit."
+        action={
+          profile?.slug ? (
+            <Link
+              href={`/site/${profile.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ variant: "secondary", size: "lg", className: "gap-2" })}
+            >
+              Voir ma vitrine
+              <ExternalLink className="size-4" />
+            </Link>
+          ) : null
+        }
+      />
 
-      <nav className="flex flex-wrap gap-2 border-b pb-1" aria-label="Sections des réglages">
+      <nav
+        className="app-surface flex gap-1 overflow-x-auto p-2"
+        aria-label="Sections des réglages"
+      >
         {TABS.map((t) => (
           <Link
             key={t.id}
             href={`/app/reglages?tab=${t.id}`}
             className={cn(
-              "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+              "min-h-11 shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
               tab === t.id
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
@@ -138,118 +184,130 @@ export default async function ArtisanSettingsPage({
         ))}
       </nav>
 
-      {tab === "activite" ? (
-        <section className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Ce que les clients voient sur ta page vitrine : nom, description, couleur et taux horaire.
-          </p>
-          <ProfileForm initialValues={profileInitial} />
-        </section>
-      ) : null}
-
-      {tab === "coordonnees" ? (
-        <section className="space-y-4">
-          {!profile ? (
-            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4 text-sm">
-              <p className="font-medium text-amber-950 dark:text-amber-100">
-                Enregistre d’abord ton activité dans l’onglet « Mon activité ».
-              </p>
-              <Link
-                href="/app/reglages?tab=activite"
-                className="mt-2 inline-block font-medium underline underline-offset-4"
-              >
-                Aller à Mon activité
-              </Link>
-            </div>
-          ) : (
-            <>
+      <div className="app-surface p-5 sm:p-8">
+        {tab === "activite" ? (
+          <section className="space-y-5">
+            <div className="space-y-1">
+              <h2 className="font-display text-xl font-semibold tracking-tight">Mon activité</h2>
               <p className="text-sm text-muted-foreground">
-                Téléphone et adresse postale pour tes devis et factures (informations privées).
+                Ce que les clients voient sur ta page vitrine : nom, description, couleur et taux horaire.
               </p>
-              <ContactSettingsForm
-                initialValues={{
-                  displayName: profile.name ?? "",
-                  email: user!.email ?? null,
-                  phone: contact.phone,
-                  addressLine1: contact.address_line1,
-                  addressLine2: contact.address_line2,
-                  postalCode: contact.postal_code,
-                  city: contact.city,
-                  latitude: contact.latitude,
-                  longitude: contact.longitude,
-                }}
-                displayNameLabel="Nom du contact"
-                geocodeAddress
-                saveAction={updateArtisanSettings}
-              />
-            </>
-          )}
-        </section>
-      ) : null}
-
-      {tab === "prestations" ? (
-        <section className="space-y-8">
-          {!profile ? (
-            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4 text-sm">
-              <p className="font-medium text-amber-950 dark:text-amber-100">
-                Enregistre d’abord ton activité dans l’onglet « Mon activité ».
-              </p>
-              <Link
-                href="/app/reglages?tab=activite"
-                className="mt-2 inline-block font-medium underline underline-offset-4"
-              >
-                Aller à Mon activité
-              </Link>
             </div>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Chaque prestation apparaît sur ta vitrine pour que les clients puissent réserver.
-              </p>
-              <CreateServiceForm disabled={false} />
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold">Liste</h2>
-                {!services?.length ? (
-                  <p className="rounded-2xl border border-dashed bg-muted/30 px-6 py-12 text-center text-sm text-muted-foreground">
-                    Aucune prestation pour l’instant. Ajoute-en une ci-dessus.
+            <ProfileForm initialValues={profileInitial} />
+          </section>
+        ) : null}
+
+        {tab === "coordonnees" ? (
+          <section className="space-y-5">
+            {!profile ? (
+              <SettingsGate />
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <h2 className="font-display text-xl font-semibold tracking-tight">Coordonnées</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Téléphone et adresse postale pour tes devis et factures (informations privées).
                   </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {services.map((s) => (
-                      <ServiceRow key={s.id} service={s} />
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </>
-          )}
-        </section>
-      ) : null}
+                </div>
+                <ContactSettingsForm
+                  initialValues={{
+                    displayName: profile.name ?? "",
+                    email: user!.email ?? null,
+                    phone: contact.phone,
+                    addressLine1: contact.address_line1,
+                    addressLine2: contact.address_line2,
+                    postalCode: contact.postal_code,
+                    city: contact.city,
+                    latitude: contact.latitude,
+                    longitude: contact.longitude,
+                  }}
+                  displayNameLabel="Nom du contact"
+                  geocodeAddress
+                  saveAction={updateArtisanSettings}
+                />
+              </>
+            )}
+          </section>
+        ) : null}
 
-      {tab === "vocal" ? (
-        <section className="space-y-4">
-          {!profile ? (
-            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4 text-sm">
-              <p className="font-medium text-amber-950 dark:text-amber-100">
-                Enregistre d'abord ton activité dans l'onglet « Mon activité ».
-              </p>
-              <Link
-                href="/app/reglages?tab=activite"
-                className="mt-2 inline-block font-medium underline underline-offset-4"
-              >
-                Aller à Mon activité
-              </Link>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Active l'IA vocale pour recevoir des appels et des demandes de RDV.
-              </p>
-              <VoiceNumberForm initialPhone={voiceNumber?.phone_e164 ?? null} />
-            </>
-          )}
-        </section>
-      ) : null}
+        {tab === "prestations" ? (
+          <section className="space-y-8">
+            {!profile ? (
+              <SettingsGate />
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <h2 className="font-display text-xl font-semibold tracking-tight">Prestations</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Chaque prestation apparaît sur ta vitrine pour que les clients puissent réserver.
+                  </p>
+                </div>
+                <CreateServiceForm disabled={false} />
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    Liste
+                  </h3>
+                  {!services?.length ? (
+                    <p className="rounded-2xl border border-dashed bg-muted/40 px-6 py-12 text-center text-sm text-muted-foreground">
+                      Aucune prestation pour l’instant. Ajoute-en une ci-dessus.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {services.map((s) => (
+                        <ServiceRow key={s.id} service={s} />
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        ) : null}
+
+        {tab === "widget" ? (
+          <section className="space-y-5">
+            {!profile?.slug ? (
+              <SettingsGate />
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <h2 className="font-display text-xl font-semibold tracking-tight">
+                    Widget d’estimation
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Un bouton sur ton site web : le visiteur décrit ses travaux, obtient une fourchette
+                    de prix, et sa demande t’arrive directement.
+                  </p>
+                </div>
+                <EmbedWidgetCard
+                  slug={profile.slug}
+                  snippet={buildEmbedSnippet(getPublicSiteUrl(), profile.slug)}
+                  previewUrl={`/embed/${profile.slug}`}
+                  matchingEnabled={leadMatchingEnabled}
+                />
+              </>
+            )}
+          </section>
+        ) : null}
+
+        {tab === "vocal" ? (
+          <section className="space-y-5">
+            {!profile ? (
+              <SettingsGate />
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <h2 className="font-display text-xl font-semibold tracking-tight">IA Vocale</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Active l’IA vocale pour recevoir des appels et des demandes de RDV.
+                  </p>
+                </div>
+                <VoiceNumberForm initialPhone={voiceNumber?.phone_e164 ?? null} />
+              </>
+            )}
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

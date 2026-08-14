@@ -91,24 +91,71 @@ export async function getOrCreateConversation(artisanId: string) {
   return { ok: true as const, conversationId: created.id };
 }
 
+export type MessageAttachmentRow = {
+  id: string;
+  storage_bucket: string;
+  storage_path: string;
+  kind: string;
+  file_name: string | null;
+  signed_url?: string | null;
+};
+
 export type MessageRow = {
   id: string;
   conversation_id: string;
-  sender_user_id: string;
+  sender_user_id: string | null;
+  kind: string;
   body: string;
   created_at: string;
+  attachments?: MessageAttachmentRow[];
 };
 
 export async function listMessages(conversationId: string) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("messages")
-    .select("id, conversation_id, sender_user_id, body, created_at")
+    .select("id, conversation_id, sender_user_id, kind, body, created_at")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
   if (error) return { ok: false as const, error: "fetch_failed" as const, messages: [] as MessageRow[] };
-  return { ok: true as const, messages: (data ?? []) as MessageRow[] };
+
+  const messages = (data ?? []) as MessageRow[];
+  const messageIds = messages.map((m) => m.id);
+  if (!messageIds.length) return { ok: true as const, messages };
+
+  const { data: attachments } = await supabase
+    .from("message_attachments")
+    .select("id, message_id, storage_bucket, storage_path, kind, file_name")
+    .in("message_id", messageIds);
+
+  const byMessage = new Map<string, MessageAttachmentRow[]>();
+  for (const row of attachments ?? []) {
+    const list = byMessage.get(row.message_id as string) ?? [];
+    list.push({
+      id: row.id as string,
+      storage_bucket: row.storage_bucket as string,
+      storage_path: row.storage_path as string,
+      kind: row.kind as string,
+      file_name: (row.file_name as string | null) ?? null,
+    });
+    byMessage.set(row.message_id as string, list);
+  }
+
+  for (const message of messages) {
+    const rows = byMessage.get(message.id) ?? [];
+    if (!rows.length) continue;
+    message.attachments = await Promise.all(
+      rows.map(async (att) => {
+        const { data: signed } = await supabase.storage
+          .from(att.storage_bucket)
+          .createSignedUrl(att.storage_path, 3600);
+        return { ...att, signed_url: signed?.signedUrl ?? null };
+      }),
+    );
+  }
+
+  return { ok: true as const, messages };
 }
 
 export async function sendMessage(conversationId: string, body: string, vitrineSlug?: string) {
@@ -147,12 +194,26 @@ export async function listConversationsForArtisan() {
 
   const { data: convs } = await supabase
     .from("conversations")
-    .select("id, updated_at, customer_user_id")
+    .select("id, updated_at, customer_user_id, lead_id")
     .eq("artisan_id", profile.id)
     .order("updated_at", { ascending: false });
 
   const items = await Promise.all(
     (convs ?? []).map(async (c) => {
+      if (c.lead_id) {
+        const { data: lead } = await supabase
+          .from("leads")
+          .select("contact_name")
+          .eq("id", c.lead_id)
+          .maybeSingle();
+        return {
+          id: c.id,
+          updated_at: c.updated_at,
+          customer_label: lead?.contact_name?.trim() || "Demande Orbit",
+          is_lead: true,
+        };
+      }
+
       const { data: cp } = await supabase
         .from("customer_profiles")
         .select("display_name")
@@ -162,6 +223,7 @@ export async function listConversationsForArtisan() {
         id: c.id,
         updated_at: c.updated_at,
         customer_label: cp?.display_name ?? "Client",
+        is_lead: false,
       };
     }),
   );

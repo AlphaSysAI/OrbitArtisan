@@ -1,13 +1,13 @@
 import "server-only";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-import type { Database } from "@/types/database";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export type VoiceContext = {
   artisanId: string;
-  db: SupabaseClient<Database>;
+  db: SupabaseClient;
   body: Record<string, unknown>;
   callerNumber: string | null;
 };
@@ -15,13 +15,6 @@ export type VoiceContext = {
 export type VoiceResolveResult =
   | { ok: true; ctx: VoiceContext }
   | { ok: false; response: NextResponse };
-
-function serviceClient(): SupabaseClient<Database> | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient<Database>(url, key);
-}
 
 function unauthorized(message: string) {
   return NextResponse.json({ error: message }, { status: 401 });
@@ -59,7 +52,7 @@ export async function resolveVoiceContext(request: Request): Promise<VoiceResolv
     return { ok: false, response: NextResponse.json({ error: "Numéro appelé manquant" }, { status: 400 }) };
   }
 
-  const client = serviceClient();
+  const client = createSupabaseServiceRoleClient();
   if (!client) {
     return { ok: false, response: NextResponse.json({ error: "Configuration serveur manquante" }, { status: 500 }) };
   }

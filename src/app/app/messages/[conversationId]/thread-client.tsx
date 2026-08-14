@@ -13,7 +13,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { sendMessage, type MessageRow } from "@/lib/messages/actions";
+import { sendMessage, listMessages, type MessageRow } from "@/lib/messages/actions";
 import { cn } from "@/lib/utils";
 
 export function ArtisanThreadClient({
@@ -21,6 +21,8 @@ export function ArtisanThreadClient({
   viewerUserId,
   showQuoteShortcut = true,
   sentOnLeft = false,
+  leadMatchId,
+  leadQuoteReady = false,
 }: {
   conversationId: string;
   viewerUserId: string;
@@ -28,6 +30,8 @@ export function ArtisanThreadClient({
   showQuoteShortcut?: boolean;
   /** Si true, les messages envoyés par l'utilisateur courant s'affichent à gauche. */
   sentOnLeft?: boolean;
+  leadMatchId?: string;
+  leadQuoteReady?: boolean;
 }) {
   const [messages, setMessages] = React.useState<MessageRow[]>([]);
   const [draft, setDraft] = React.useState("");
@@ -40,14 +44,7 @@ export function ArtisanThreadClient({
   const supabaseRef = React.useRef(createSupabaseBrowserClient());
 
   const refreshMessages = React.useCallback(async () => {
-    const { data, error } = await supabaseRef.current
-      .from("messages")
-      .select("id, conversation_id, sender_user_id, body, created_at")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
-
-    if (error) return { ok: false as const, messages: [] as MessageRow[] };
-    return { ok: true as const, messages: (data ?? []) as MessageRow[] };
+    return listMessages(conversationId);
   }, [conversationId]);
 
   React.useEffect(() => {
@@ -217,17 +214,47 @@ export function ArtisanThreadClient({
         )}
         {!loading &&
           messages.map((m) => {
-            const mine = m.sender_user_id === viewerUserId;
+            const isRecap = m.kind === "lead_recap";
+            const mine = !isRecap && m.sender_user_id === viewerUserId;
             const isLeft = mine ? sentOnLeft : !sentOnLeft;
             return (
               <div key={m.id} className={cn("flex", isLeft ? "justify-start" : "justify-end")}>
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
-                    mine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap",
+                    isRecap
+                      ? "border border-amber-500/30 bg-amber-500/5 text-foreground"
+                      : mine
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground",
                   )}
                 >
                   {m.body}
+                  {m.attachments?.length ? (
+                    <ul className="mt-3 space-y-2">
+                      {m.attachments.map((att) =>
+                        att.signed_url ? (
+                          <li key={att.id}>
+                            {att.kind === "video" ? (
+                              <video
+                                src={att.signed_url}
+                                controls
+                                className="max-h-48 rounded-lg"
+                                preload="metadata"
+                              />
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={att.signed_url}
+                                alt={att.file_name ?? "Pièce jointe"}
+                                className="max-h-48 rounded-lg object-cover"
+                              />
+                            )}
+                          </li>
+                        ) : null,
+                      )}
+                    </ul>
+                  ) : null}
                 </div>
               </div>
             );
@@ -258,21 +285,31 @@ export function ArtisanThreadClient({
       </form>
       {showQuoteShortcut && (
         <div className="border-t bg-muted/20 p-3 space-y-2">
-          <Button
-            type="button"
-            className="w-full gap-2"
-            disabled={quoteAiLoading || loading}
-            onClick={onGenerateQuoteFromChat}
-          >
-            {quoteAiLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
+          {leadQuoteReady && leadMatchId ? (
+            <Link
+              href={`/app/quotes/new?leadMatchId=${encodeURIComponent(leadMatchId)}&aiDraft=1&conversationId=${encodeURIComponent(conversationId)}`}
+              className={buttonVariants({ className: "w-full gap-2 justify-center" })}
+            >
               <Sparkles className="h-4 w-4" />
-            )}
-            {quoteAiLoading
-              ? "L’IA analyse la discussion et prépare le panier de matériaux…"
-              : "Générer le devis par IA"}
-          </Button>
+              Voir le devis IA préparé
+            </Link>
+          ) : (
+            <Button
+              type="button"
+              className="w-full gap-2"
+              disabled={quoteAiLoading || loading}
+              onClick={onGenerateQuoteFromChat}
+            >
+              {quoteAiLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {quoteAiLoading
+                ? "L’IA analyse la discussion et prépare le panier de matériaux…"
+                : "Générer le devis par IA"}
+            </Button>
+          )}
           <Link
             href={`/app/quotes/new?conversationId=${encodeURIComponent(conversationId)}`}
             className={buttonVariants({ variant: "outline", className: "w-full gap-2 justify-center" })}

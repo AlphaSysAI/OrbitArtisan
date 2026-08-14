@@ -81,18 +81,24 @@ export function QuoteForm({
   profileLaborRatePerHourCents,
   conversationPrefill,
   loadAiDraft = false,
+  aiDraftKey,
+  serverAiDraft = null,
 }: {
   services: Service[];
   accentColor: string;
   profileLaborRatePerHourCents: number | null;
   conversationPrefill?: {
     conversationId: string;
-    customerUserId: string;
+    customerUserId?: string | null;
     customerName: string;
     customerEmail: string;
   } | null;
-  /** Charger le brouillon IA depuis sessionStorage (conversation liée). */
+  /** Charger le brouillon IA depuis sessionStorage. */
   loadAiDraft?: boolean;
+  /** Clé sessionStorage (draftKey assistant ou conversationId). */
+  aiDraftKey?: string;
+  /** Brouillon préchargé côté serveur (lead qualifié). */
+  serverAiDraft?: AiQuoteDraft | null;
 }) {
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
   const [materials, setMaterials] = React.useState<MaterialRow[]>([
@@ -101,10 +107,13 @@ export function QuoteForm({
   const [supplierMaterials, setSupplierMaterials] = React.useState<SupplierMaterialRow[]>([]);
   const [aiDraftWarnings, setAiDraftWarnings] = React.useState<string[]>([]);
   const [fromAiDraft, setFromAiDraft] = React.useState(false);
+  const [fromLeadDraft, setFromLeadDraft] = React.useState(false);
   const [customerName, setCustomerName] = React.useState(conversationPrefill?.customerName ?? "");
   const [customerEmail, setCustomerEmail] = React.useState(conversationPrefill?.customerEmail ?? "");
   const [notes, setNotes] = React.useState("");
   const [aiNotesLoading, setAiNotesLoading] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [pendingSaveMode, setPendingSaveMode] = React.useState<"draft" | "send">("draft");
 
   const [laborRateEur, setLaborRateEur] = React.useState(() => {
     if (profileLaborRatePerHourCents == null) return "";
@@ -117,6 +126,8 @@ export function QuoteForm({
 
   function applyAiDraft(draft: AiQuoteDraft) {
     setFromAiDraft(true);
+    setFromLeadDraft(draft.source === "lead");
+    setPendingSaveMode("draft");
     setAiDraftWarnings(draft.warnings ?? []);
     if (draft.matchedServiceIds.length) {
       setSelectedServiceIds(draft.matchedServiceIds);
@@ -126,6 +137,12 @@ export function QuoteForm({
       setCustomLaborHoursStr(formatHoursFromMinutes(draft.laborDurationMinutes));
     }
     if (draft.notes?.trim()) setNotes(draft.notes);
+    if (draft.customerName?.trim() && !conversationPrefill?.customerName) {
+      setCustomerName(draft.customerName);
+    }
+    if (draft.customerEmail?.trim() && !conversationPrefill?.customerEmail) {
+      setCustomerEmail(draft.customerEmail);
+    }
     if (draft.supplierMaterials.length) {
       setSupplierMaterials(
         draft.supplierMaterials.map((m) => ({
@@ -143,17 +160,23 @@ export function QuoteForm({
         })),
       );
     }
-    toast.success("Brouillon IA chargé — vérifie les lignes avant d’envoyer.");
+    toast.success("Brouillon IA chargé — vérifie puis enregistre. Rien n’est envoyé au client.");
   }
 
   React.useEffect(() => {
-    if (!loadAiDraft || !conversationPrefill?.conversationId) return;
-    const draft = loadAiQuoteDraft(conversationPrefill.conversationId);
+    if (serverAiDraft) {
+      applyAiDraft(serverAiDraft);
+      return;
+    }
+    const key = aiDraftKey || conversationPrefill?.conversationId;
+    if (!loadAiDraft || !key) return;
+    const draft = loadAiQuoteDraft(key);
     if (!draft) return;
 
     applyAiDraft(draft);
-    clearAiQuoteDraft(conversationPrefill.conversationId);
-  }, [loadAiDraft, conversationPrefill?.conversationId]);
+    clearAiQuoteDraft(key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- charge une seule fois au mount
+  }, [loadAiDraft, aiDraftKey, conversationPrefill?.conversationId, serverAiDraft]);
 
   const selectedServices = React.useMemo(() => {
     const set = new Set(selectedServiceIds);
@@ -290,38 +313,49 @@ export function QuoteForm({
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!canCreate) {
-      toast.error("Sélectionne au moins une prestation et renseigne le taux horaire.");
+    if (!canCreate || submitting) {
+      if (!canCreate) toast.error("Sélectionne au moins une prestation et renseigne le taux horaire.");
       return;
     }
 
-    const fd = new FormData(e.currentTarget);
-    const res = await createQuote(fd);
-    if (!res.ok) {
-      toast.error(
-        res.error === "missing_services"
-          ? "Sélectionne au moins une prestation."
-          : res.error === "missing_labor_rate"
-            ? "Renseigne le taux horaire dans ton profil."
-            : res.error === "invalid_materials"
-              ? "Vérifie les fournitures (quantité > 0 et prix valide)."
-              : res.error === "invalid_conversation"
-                ? "Conversation invalide."
-                : "Impossible de créer le devis. Réessaie.",
-      );
-      return;
-    }
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const mode =
+      submitter?.value === "send" || submitter?.getAttribute("value") === "send" ? "send" : pendingSaveMode;
 
-    if (res.notifyFailed) {
-      toast.message("Devis enregistré", {
-        description: "Le message dans la conversation n’a pas pu être envoyé. Copie le lien depuis la fiche devis.",
-      });
-    } else {
-      toast.success(
-        conversationPrefill ? "Devis enregistré et envoyé au client (message + lien)." : "Devis créé.",
-      );
+    setSubmitting(true);
+    try {
+      const fd = new FormData(e.currentTarget);
+      fd.set("save_mode", mode);
+      const res = await createQuote(fd);
+      if (!res.ok) {
+        toast.error(
+          res.error === "missing_services"
+            ? "Sélectionne au moins une prestation."
+            : res.error === "missing_labor_rate"
+              ? "Renseigne le taux horaire dans ton profil."
+              : res.error === "invalid_materials"
+                ? "Vérifie les fournitures (quantité > 0 et prix valide)."
+                : res.error === "invalid_conversation"
+                  ? "Conversation invalide."
+                  : "Impossible de créer le devis. Réessaie.",
+        );
+        return;
+      }
+
+      if (res.notifyFailed) {
+        toast.message("Devis enregistré", {
+          description:
+            "Le message dans la conversation n’a pas pu être envoyé. Copie le lien depuis la fiche devis.",
+        });
+      } else if (res.status === "sent") {
+        toast.success("Devis enregistré et envoyé au client (message + lien).");
+      } else {
+        toast.success("Brouillon enregistré — aucun envoi au client.");
+      }
+      window.location.href = `/app/quotes/${res.quoteId}`;
+    } finally {
+      setSubmitting(false);
     }
-    window.location.href = `/app/quotes/${res.quoteId}`;
   }
 
   const accentSelected = (active: boolean) =>
@@ -347,16 +381,32 @@ export function QuoteForm({
       </div>
 
       <form onSubmit={onSubmit} className="space-y-6">
-        {fromAiDraft && aiDraftWarnings.length > 0 && (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-            <p className="font-medium">Brouillon généré par IA</p>
-            <ul className="mt-2 list-inside list-disc text-muted-foreground">
-              {aiDraftWarnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
+        {fromAiDraft ? (
+          <div
+            className={cn(
+              "rounded-xl border p-4 text-sm",
+              fromLeadDraft ? "border-amber-500/40 bg-amber-500/5" : "border-brand/30 bg-brand/5",
+            )}
+          >
+            <p className="font-medium">
+              {fromLeadDraft
+                ? "Généré depuis une demande qualifiée IA"
+                : "Brouillon généré par l’assistant IA"}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              {fromLeadDraft
+                ? "Estimation indicative, à confirmer après visite ou diagnostic. Rien n’est envoyé au client tant que tu ne choisis pas « Envoyer »."
+                : "Vérifie chaque ligne. Rien n’est envoyé au client tant que tu ne choisis pas « Envoyer »."}
+            </p>
+            {aiDraftWarnings.length > 0 ? (
+              <ul className="mt-2 list-inside list-disc text-muted-foreground">
+                {aiDraftWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            ) : null}
           </div>
-        )}
+        ) : null}
 
         {/* JSON côté serveur */}
         <input type="hidden" name="service_ids_json" value={JSON.stringify(selectedServiceIds)} />
@@ -370,7 +420,9 @@ export function QuoteForm({
         {conversationPrefill ? (
           <>
             <input type="hidden" name="conversation_id" value={conversationPrefill.conversationId} />
-            <input type="hidden" name="customer_user_id" value={conversationPrefill.customerUserId} />
+            {conversationPrefill.customerUserId ? (
+              <input type="hidden" name="customer_user_id" value={conversationPrefill.customerUserId} />
+            ) : null}
           </>
         ) : null}
 
@@ -853,14 +905,42 @@ export function QuoteForm({
                   </div>
                 )}
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  style={accentColor ? { backgroundColor: accentColor, color: "#fff" } : undefined}
-                  disabled={!canCreate}
-                >
-                  {conversationPrefill ? "Créer le devis et l’envoyer au client" : "Créer le devis"}
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    type="submit"
+                    name="save_mode"
+                    value="draft"
+                    className="w-full"
+                    style={accentColor ? { backgroundColor: accentColor, color: "#fff" } : undefined}
+                    disabled={!canCreate || submitting}
+                    onClick={() => setPendingSaveMode("draft")}
+                  >
+                    {submitting && pendingSaveMode === "draft" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Enregistrer en brouillon
+                  </Button>
+                  {conversationPrefill ? (
+                    <Button
+                      type="submit"
+                      name="save_mode"
+                      value="send"
+                      variant="outline"
+                      className="w-full"
+                      disabled={!canCreate || submitting}
+                      onClick={() => setPendingSaveMode("send")}
+                    >
+                      {submitting && pendingSaveMode === "send" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Enregistrer et envoyer au client
+                    </Button>
+                  ) : (
+                    <p className="text-center text-xs text-muted-foreground">
+                      Lie un client (via contacts / messages) pour pouvoir envoyer le devis.
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>

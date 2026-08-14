@@ -2,6 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 
+import { AppEmptyState } from "@/components/app/app-empty-state";
+import { AppListItem } from "@/components/app/app-list-item";
+import { AppPageHeader } from "@/components/app/app-page-header";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { listConversationsForArtisan } from "@/lib/messages/actions";
@@ -24,11 +27,18 @@ export default async function ArtisanMessagesPage() {
   const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
   if (!profile) {
     return (
-      <div className="rounded-2xl border bg-card p-8 text-center">
-        <p className="text-muted-foreground">Crée d’abord ton activité pour recevoir des messages clients.</p>
-        <Link href="/app/reglages?tab=activite" className={buttonVariants({ className: "mt-4 inline-flex" })}>
-          Mon activité
-        </Link>
+      <div className="space-y-8">
+        <AppPageHeader eyebrow="Communication" title="Messages" />
+        <AppEmptyState
+          icon={MessageSquare}
+          title="Crée d’abord ton activité"
+          description="Une fois ton profil en place, les messages clients depuis la vitrine arriveront ici."
+          action={
+            <Link href="/app/reglages?tab=activite" className={buttonVariants({ size: "lg" })}>
+              Mon activité
+            </Link>
+          }
+        />
       </div>
     );
   }
@@ -38,37 +48,37 @@ export default async function ArtisanMessagesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Messages clients</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Les personnes qui t’écrivent depuis ta page vitrine apparaissent ici.
-        </p>
-      </div>
+      <AppPageHeader
+        eyebrow="Communication"
+        title="Messages"
+        description="Les personnes qui t’écrivent depuis ta page vitrine apparaissent ici."
+      />
 
       {!items.length ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-16 text-center">
-          <MessageSquare className="h-12 w-12 text-muted-foreground/50" />
-          <p className="mt-4 max-w-sm text-muted-foreground">Aucun message pour l’instant.</p>
-        </div>
+        <AppEmptyState
+          icon={MessageSquare}
+          title="Boîte vide"
+          description="Aucun message pour l’instant. Partage ta vitrine pour démarrer la conversation."
+        />
       ) : (
-        <ul className="divide-y rounded-2xl border bg-card">
+        <ul className="space-y-3">
           {items.map((item) => (
             <li key={item.id}>
-              <Link
+              <AppListItem
                 href={`/app/messages/${item.id}`}
-                className="flex flex-1 items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/50"
-              >
-                <div>
-                  <p className="font-medium">{item.customer_label}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(item.updated_at).toLocaleString("fr-FR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </p>
-                </div>
-                <span className="text-sm text-primary">Ouvrir →</span>
-              </Link>
+                title={item.customer_label}
+                subtitle={
+                  item.is_lead
+                    ? `Demande Orbit · ${new Date(item.updated_at).toLocaleString("fr-FR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}`
+                    : new Date(item.updated_at).toLocaleString("fr-FR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })
+                }
+              />
             </li>
           ))}
         </ul>

@@ -1,9 +1,8 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database";
 
-type Db = SupabaseClient<Database>;
+type Db = SupabaseClient;
 
 /**
  * Récupère les créneaux disponibles pour un artisan sur une période donnée.

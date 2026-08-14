@@ -9,14 +9,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { DownloadInvoicePdfButton } from "@/components/invoices/download-invoice-pdf-button";
+import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-badge";
+import { FinalizeInvoiceButton } from "@/components/invoices/finalize-invoice-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-import { invoiceLineKindLabel } from "@/lib/status-labels";
+import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
 import { updateInvoice } from "../actions";
 
-export default async function InvoiceEditPage({ params }: { params: Promise<{ invoiceId: string }> }) {
+const FINALIZE_ERROR_LABELS: Record<string, string> = {
+  not_found: "Facture introuvable.",
+  already_finalized: "Cette facture est déjà finalisée.",
+  not_draft: "Seul un brouillon peut être finalisé.",
+  no_lines: "La facture ne contient aucune ligne.",
+  generation_failed: "Échec de génération du document.",
+  pa_submission_failed: "Échec d'envoi à la Plateforme Agréée.",
+  persist_failed: "Impossible d'enregistrer la finalisation.",
+};
+
+const FLOW_LABELS: Record<string, string> = {
+  e_invoicing: "E-invoicing (B2B — Factur-X + PA)",
+  e_reporting: "E-reporting (B2C — PDF + file d'attente)",
+};
+
+export default async function InvoiceEditPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ invoiceId: string }>;
+  searchParams: Promise<{ finalized?: string; flow?: string; finalize_error?: string; download?: string }>;
+}) {
   const { invoiceId } = await params;
+  const query = await searchParams;
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return <SupabaseMissing title="Factures indisponibles" />;
@@ -32,7 +56,7 @@ export default async function InvoiceEditPage({ params }: { params: Promise<{ in
   const { data: invoice } = await supabase
     .from("invoices")
     .select(
-      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_name, created_at",
+      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_name, created_at, finalized_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, pa_submission_id",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -48,6 +72,8 @@ export default async function InvoiceEditPage({ params }: { params: Promise<{ in
     .order("sort_order", { ascending: true });
 
   const sortedLines = lines ?? [];
+  const isDraft = invoice.status === "draft" && !invoice.finalized_at;
+  const emissionFlow = invoice.emission_flow as "e_invoicing" | "e_reporting" | null;
 
   return (
     <div className="space-y-8">
@@ -62,10 +88,24 @@ export default async function InvoiceEditPage({ params }: { params: Promise<{ in
             {invoice.customer_name ?? "Client"} ·{" "}
             {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((invoice.grand_total ?? 0) / 100)}
           </p>
+          {invoice.finalized_at ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <EInvoicingStatusBadge
+                status={invoice.e_invoicing_status}
+                emissionFlow={emissionFlow}
+              />
+              <span className="text-sm text-muted-foreground">
+                Finalisée · {invoiceStatusLabel(invoice.status)}
+                {emissionFlow ? ` · ${FLOW_LABELS[emissionFlow] ?? emissionFlow}` : ""}
+              </span>
+            </div>
+          ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isDraft ? <FinalizeInvoiceButton invoiceId={invoiceId} /> : null}
+          <DownloadInvoicePdfButton invoiceId={invoiceId} emissionFlow={emissionFlow} />
           <Link href={`/app/quotes/${invoice.quote_id}`} className="text-sm text-primary underline-offset-4 hover:underline">
-            Voir le devis d’origine
+            Voir le devis d'origine
           </Link>
           <Link href="/app/invoices" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
@@ -74,10 +114,35 @@ export default async function InvoiceEditPage({ params }: { params: Promise<{ in
         </div>
       </div>
 
+      {invoice.e_invoicing_status === "REJECTED" && invoice.e_invoicing_rejection_reason ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <p className="font-medium">Facture refusée par le client ou la PA</p>
+          <p className="mt-1">{invoice.e_invoicing_rejection_reason}</p>
+        </div>
+      ) : null}
+
+      {query.finalized === "1" ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          Facture finalisée avec succès
+          {query.flow ? ` (${FLOW_LABELS[query.flow] ?? query.flow})` : ""}.
+          {query.download === "1" ? " Tu peux télécharger le PDF ci-dessus." : ""}
+        </div>
+      ) : null}
+
+      {query.finalize_error ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {FINALIZE_ERROR_LABELS[query.finalize_error] ?? "La finalisation a échoué."}
+        </div>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Éditer la facture</CardTitle>
-          <CardDescription>Numéro, statut et notes. Les lignes sont issues du devis (tu peux les retrouver sur le devis).</CardDescription>
+          <CardDescription>
+            {isDraft
+              ? "Finalise la facture pour déclencher le bon flux (B2B ou B2C). Tu peux encore ajuster le numéro et les notes."
+              : "Numéro, statut et notes. Les lignes sont issues du devis."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form action={updateInvoice} className="space-y-6">
@@ -93,7 +158,8 @@ export default async function InvoiceEditPage({ params }: { params: Promise<{ in
                   id="status"
                   name="status"
                   defaultValue={invoice.status ?? "draft"}
-                  className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm"
+                  disabled={isDraft}
+                  className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm disabled:opacity-60"
                 >
                   <option value="draft">Brouillon</option>
                   <option value="sent">Envoyée</option>

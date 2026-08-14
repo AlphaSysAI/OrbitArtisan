@@ -2,8 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AppEmptyState } from "@/components/app/app-empty-state";
+import { AppListItem } from "@/components/app/app-list-item";
+import { AppPageHeader } from "@/components/app/app-page-header";
+import { Badge } from "@/components/ui/badge";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { listArtisanContacts } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -30,68 +32,69 @@ export default async function ArtisanContactsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Contacts clients</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Clients liés à ton activité. Utilise le bouton <strong className="font-medium">Inviter</strong> en haut
-          de page pour inviter un client ou un autre artisan.
-        </p>
-      </div>
+      <AppPageHeader
+        eyebrow="Clients"
+        title="Contacts"
+        description="Clients liés à ton activité. Utilise Inviter en haut de page pour envoyer une invitation."
+      />
 
-      {!profile?.id && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Profil artisan</CardTitle>
-            <CardDescription>
-              Configure ton activité pour relier automatiquement les clients que tu invites.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      {!profile?.id ? (
+        <div className="app-surface border-warning/40 bg-warning/5 p-5 text-sm leading-relaxed">
+          Configure ton activité pour relier automatiquement les clients que tu invites.{" "}
+          <Link href="/app/reglages?tab=activite" className="font-semibold underline underline-offset-4">
+            Ouvrir les réglages
+          </Link>
+        </div>
+      ) : null}
+
+      {!linked.length && !pending.length ? (
+        <AppEmptyState
+          icon={Users}
+          title="Aucun contact pour l’instant"
+          description="Les clients qui acceptent une invitation ou t’écrivent depuis la vitrine apparaîtront ici."
+        />
+      ) : (
+        <div className="space-y-8">
+          {linked.length ? (
+            <section className="space-y-3">
+              <h2 className="font-display text-xl font-semibold tracking-tight">
+                Mes clients
+                <span className="ml-2 text-base font-normal text-muted-foreground">({linked.length})</span>
+              </h2>
+              <ul className="space-y-3">
+                {linked.map((item) => (
+                  <li key={item.customerUserId}>
+                    <AppListItem
+                      href={`/app/contacts/${item.customerUserId}`}
+                      title={item.label}
+                      subtitle={item.email}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {pending.length ? (
+            <section className="space-y-3">
+              <h2 className="font-display text-xl font-semibold tracking-tight">Invitations en attente</h2>
+              <ul className="space-y-3">
+                {pending.map((item) => (
+                  <li key={item.id}>
+                    <AppListItem
+                      title={item.invitedName ?? item.email}
+                      subtitle={`Invitation ${item.accountType === "artisan" ? "artisan" : "client"} · ${item.email}`}
+                      meta={<Badge variant="secondary">En attente</Badge>}
+                      trailing={<CancelInvitationButton invitationId={item.id} />}
+                      emphasis="warning"
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
       )}
-
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Mes clients</h2>
-
-        {!linked.length && !pending.length ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-16 text-center">
-            <Users className="h-12 w-12 text-muted-foreground/50" />
-            <p className="mt-4 max-w-sm text-muted-foreground">
-              Aucun contact pour l’instant. Les clients qui acceptent une invitation ou vous écrivent depuis la vitrine
-              apparaîtront ici.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y rounded-2xl border bg-card">
-            {linked.map((item) => (
-              <li key={item.customerUserId}>
-                <Link
-                  href={`/app/contacts/${item.customerUserId}`}
-                  className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/50"
-                >
-                  <div>
-                    <p className="font-medium">{item.label}</p>
-                    {item.email && <p className="text-xs text-muted-foreground">{item.email}</p>}
-                  </div>
-                  <span className="text-sm text-primary">Fiche client →</span>
-                </Link>
-              </li>
-            ))}
-            {pending.map((item) => (
-              <li key={item.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-medium">{item.invitedName ?? item.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Invitation {item.accountType === "artisan" ? "artisan" : "client"} en attente · {item.email}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <CancelInvitationButton invitationId={item.id} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   );
 }

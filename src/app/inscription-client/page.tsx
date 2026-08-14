@@ -31,7 +31,9 @@ export default async function InscriptionClientPage({
   const success = typeof sp.success === "string" ? sp.success : undefined;
   const pendingAppointmentId = typeof sp.pending === "string" ? sp.pending : null;
   const prefillEmail = typeof sp.email === "string" ? sp.email : "";
+  const prefillName = typeof sp.name === "string" ? sp.name : "";
   const inviteToken = typeof sp.invite === "string" ? sp.invite : undefined;
+  const leadToken = typeof sp.lead === "string" ? sp.lead : undefined;
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -47,7 +49,9 @@ export default async function InscriptionClientPage({
             <p className="text-sm font-medium text-primary">Compte client</p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">Créer un compte</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Pour échanger avec les artisans et prendre rendez-vous sur leurs pages — sans espace pro.
+              {leadToken
+                ? "Suis l’échange avec les artisans qui ont reçu ta demande — sans espace pro."
+                : "Pour échanger avec les artisans et prendre rendez-vous sur leurs pages — sans espace pro."}
             </p>
           </div>
 
@@ -56,6 +60,16 @@ export default async function InscriptionClientPage({
               <AlertTitle>Vérifie tes emails</AlertTitle>
               <AlertDescription>
                 Confirme ton compte si demandé, puis reviens sur la page de l’artisan.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {leadToken && (
+            <Alert>
+              <AlertTitle>Demande Orbit en cours</AlertTitle>
+              <AlertDescription>
+                Utilise la même adresse e-mail que celle indiquée lors de l’estimation pour retrouver
+                tes messages avec les artisans.
               </AlertDescription>
             </Alert>
           )}
@@ -70,7 +84,9 @@ export default async function InscriptionClientPage({
                 next={next}
                 pendingAppointmentId={pendingAppointmentId}
                 prefillEmail={prefillEmail || undefined}
+                prefillName={prefillName || undefined}
                 inviteToken={inviteToken}
+                leadToken={leadToken}
               />
             </CardContent>
           </Card>

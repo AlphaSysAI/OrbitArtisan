@@ -7,24 +7,36 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveVitrineAccent } from "@/lib/vitrine-theme";
 
 import { getOrCreateArtisanCustomerConversation } from "@/lib/contacts/actions";
+import { loadLeadMatchQuoteDraft } from "@/lib/leads/quote-draft-actions";
+import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 
 import { QuoteForm } from "../quote-form";
 
 export default async function NewQuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ conversationId?: string; customerUserId?: string; aiDraft?: string }>;
+  searchParams: Promise<{
+    conversationId?: string;
+    customerUserId?: string;
+    aiDraft?: string;
+    draftKey?: string;
+    leadMatchId?: string;
+  }>;
 }) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return <SupabaseMissing title="Devis indisponibles" />;
   }
 
   const sp = await searchParams;
-  const conversationIdParam =
+  let conversationIdParam =
     typeof sp.conversationId === "string" && sp.conversationId.length > 0 ? sp.conversationId : undefined;
   const customerUserIdParam =
     typeof sp.customerUserId === "string" && sp.customerUserId.length > 0 ? sp.customerUserId : undefined;
-  const loadAiDraft = sp.aiDraft === "1" && !!conversationIdParam;
+  const leadMatchIdParam =
+    typeof sp.leadMatchId === "string" && sp.leadMatchId.length > 0 ? sp.leadMatchId : undefined;
+  const draftKeyParam =
+    typeof sp.draftKey === "string" && sp.draftKey.length > 0 ? sp.draftKey : undefined;
+  const loadAiDraft = sp.aiDraft === "1" && !!(draftKeyParam || conversationIdParam || leadMatchIdParam);
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -66,10 +78,22 @@ export default async function NewQuotePage({
 
   let conversationPrefill: {
     conversationId: string;
-    customerUserId: string;
+    customerUserId?: string | null;
     customerName: string;
     customerEmail: string;
   } | null = null;
+
+  let serverAiDraft: AiQuoteDraft | null = null;
+
+  if (leadMatchIdParam && loadAiDraft) {
+    const draftRes = await loadLeadMatchQuoteDraft(leadMatchIdParam);
+    if (draftRes.ok) {
+      serverAiDraft = draftRes.draft;
+      if (draftRes.conversationId) {
+        conversationIdParam = draftRes.conversationId;
+      }
+    }
+  }
 
   if (conversationIdParam) {
     const { data: conv } = await supabase
@@ -78,17 +102,26 @@ export default async function NewQuotePage({
       .eq("id", conversationIdParam)
       .maybeSingle();
     if (conv && conv.artisan_id === profile.id) {
-      const { data: cp } = await supabase
-        .from("customer_profiles")
-        .select("display_name, email")
-        .eq("user_id", conv.customer_user_id)
-        .maybeSingle();
-      conversationPrefill = {
-        conversationId: conv.id,
-        customerUserId: conv.customer_user_id,
-        customerName: cp?.display_name ?? "",
-        customerEmail: String((cp as { email?: string | null } | null)?.email ?? ""),
-      };
+      if (conv.customer_user_id) {
+        const { data: cp } = await supabase
+          .from("customer_profiles")
+          .select("display_name, email")
+          .eq("user_id", conv.customer_user_id)
+          .maybeSingle();
+        conversationPrefill = {
+          conversationId: conv.id,
+          customerUserId: conv.customer_user_id,
+          customerName: cp?.display_name ?? "",
+          customerEmail: String((cp as { email?: string | null } | null)?.email ?? ""),
+        };
+      } else {
+        conversationPrefill = {
+          conversationId: conv.id,
+          customerUserId: null,
+          customerName: serverAiDraft?.customerName ?? "",
+          customerEmail: serverAiDraft?.customerEmail ?? "",
+        };
+      }
     }
   } else if (customerUserIdParam) {
     const convRes = await getOrCreateArtisanCustomerConversation(customerUserIdParam);
@@ -133,6 +166,8 @@ export default async function NewQuotePage({
       services={safeServices}
       conversationPrefill={conversationPrefill}
       loadAiDraft={loadAiDraft}
+      aiDraftKey={draftKeyParam ?? conversationIdParam ?? leadMatchIdParam}
+      serverAiDraft={serverAiDraft}
     />
   );
 }

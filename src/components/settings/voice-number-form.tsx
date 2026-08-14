@@ -1,11 +1,13 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { setArtisanVoiceNumber, getArtisanVoiceNumber } from "@/features/voice/actions";
+import { Phone } from "lucide-react";
+
+import { setArtisanVoiceNumber } from "@/features/voice/actions";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert } from "@/components/ui/alert";
 
 interface VoiceNumberFormProps {
   initialPhone?: string | null;
@@ -36,38 +38,43 @@ export function VoiceNumberForm({ initialPhone }: VoiceNumberFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-8">
       {message ? (
-        <Alert variant={message.type}>
+        <Alert variant={message.type === "error" ? "destructive" : "default"}>
           <p>{message.text}</p>
         </Alert>
       ) : null}
 
-      <div className="space-y-2">
-        <Label htmlFor="voice-phone">Numéro de téléphone (format E.164)</Label>
-        <Input
-          id="voice-phone"
-          type="tel"
-          placeholder="+33612345678"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          disabled={loading}
-          className="font-mono"
-        />
-        <p className="text-xs text-muted-foreground">
-          Format international requis (ex. +33 pour France). Laisse vide pour désactiver l'IA vocale.
+      <div className="space-y-3">
+        <Label htmlFor="voice-phone" className="text-base">
+          Numéro de téléphone (format E.164)
+        </Label>
+        <div className="relative">
+          <Phone className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="voice-phone"
+            type="tel"
+            placeholder="+33612345678"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            disabled={loading}
+            className="h-12 pl-10 font-mono text-base"
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Format international requis (ex. +33 pour France). Laisse vide pour désactiver l’IA vocale.
         </p>
       </div>
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" size="lg" disabled={loading} className="w-full sm:w-auto">
         {loading ? "Enregistrement..." : "Enregistrer le numéro vocal"}
       </Button>
 
-      <div className="space-y-3 rounded-lg bg-blue-50 p-4 text-sm text-blue-950 dark:bg-blue-950/20 dark:text-blue-50">
-        <p className="font-medium">💬 Comment ça marche ?</p>
-        <ul className="list-inside list-disc space-y-1 pl-2">
+      <div className="rounded-2xl border border-border/70 bg-muted/40 p-5">
+        <p className="font-display text-lg font-semibold tracking-tight">Comment ça marche ?</p>
+        <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
           <li>Les clients appellent ton numéro vocal</li>
-          <li>L'IA parle français et peut prendre des RDV</li>
+          <li>L’IA parle français et peut prendre des RDV</li>
           <li>Tu reçois les demandes dans « Rendez-vous »</li>
           <li>Tu confirmes ou annules depuis ton espace</li>
         </ul>
