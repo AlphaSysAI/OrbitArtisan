@@ -517,13 +517,13 @@ export function SolineBtpLanding() {
             <span className="font-semibold text-white">Soline</span>
           </div>
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
-            <a href="#" className="hover:text-white">
+            <a href="/cgu" className="hover:text-white">
               CGU
             </a>
-            <a href="#" className="hover:text-white">
+            <a href="/mentions-legales" className="hover:text-white">
               Mentions légales
             </a>
-            <a href="#" className="hover:text-white">
+            <a href="/confidentialite" className="hover:text-white">
               Confidentialité
             </a>
           </nav>
