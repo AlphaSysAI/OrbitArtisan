@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
+import { SOLINE_RECHARGE_PACKS, SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
 import { LEGAL_PUBLISHER } from "@/lib/legal/site-legal-info";
 
 export const metadata: Metadata = {
@@ -59,17 +60,27 @@ export default function CguPage() {
         <h2 className="text-lg font-semibold text-slate-900">3. Offres et tarification</h2>
         <p>Les offres en vigueur au moment de la souscription sont les suivantes :</p>
         <ul className="list-disc space-y-2 pl-5">
-          <li>
-            <strong>Plan Solo</strong> : 39 € HT / mois — accès au SaaS BTP, devis illimités, 1 utilisateur.
-          </li>
-          <li>
-            <strong>Option Secrétariat IA</strong> : +29 € HT / mois — agent vocal intelligent avec 60 minutes
-            d&apos;appels incluses par mois.
-          </li>
+          {SUBSCRIPTION_PLANS.map((plan) => (
+            <li key={plan.id}>
+              <strong>Plan {plan.name}</strong> : {plan.priceHtEur} € HT / mois —{" "}
+              {plan.solineMinutesIncluded > 0
+                ? `plan Base + Soline (${plan.solineMinutesIncluded} min d'appels incluses / mois).`
+                : "accès au SaaS BTP, devis illimités, 1 utilisateur."}
+            </li>
+          ))}
           <li>
             <strong>Essai gratuit</strong> : 14 jours sans carte bancaire, sous réserve des conditions
             affichées lors de l&apos;inscription.
           </li>
+        </ul>
+        <p>Des packs de recharge de minutes Soline sont également disponibles à l&apos;achat depuis l&apos;espace artisan :</p>
+        <ul className="list-disc space-y-2 pl-5">
+          {SOLINE_RECHARGE_PACKS.map((pack) => (
+            <li key={pack.id}>
+              <strong>{pack.label}</strong> : {pack.priceHtEur} € HT — {pack.minutes} minutes d&apos;appels
+              créditées sur le compte.
+            </li>
+          ))}
         </ul>
         <p>
           Les tarifs peuvent être modifiés. Toute modification sera notifiée à l&apos;utilisateur avant son
@@ -101,7 +112,7 @@ export default function CguPage() {
             contractuelles tant qu&apos;un devis formalisé n&apos;a pas été émis par l&apos;artisan.
           </li>
           <li>
-            L&apos;option Secrétariat IA implique le traitement de communications téléphoniques. L&apos;artisan
+            L&apos;option Soline (secrétariat vocal IA) implique le traitement de communications téléphoniques. L&apos;artisan
             doit informer ses interlocuteurs conformément à la réglementation applicable et s&apos;assurer
             d&apos;être habilité à mettre en place le renvoi d&apos;appel.
           </li>

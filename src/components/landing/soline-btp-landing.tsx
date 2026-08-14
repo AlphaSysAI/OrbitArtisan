@@ -17,6 +17,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { SOLINE_RECHARGE_PACKS, SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
 import { cn } from "@/lib/utils";
 
 const APP_LOGIN = "https://app.solinebtp.fr/login";
@@ -404,72 +405,93 @@ export function SolineBtpLanding() {
             <h2 className="font-display text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
               Tarifs clairs, sans surprise
             </h2>
-            <p className="mt-3 text-slate-600">Commencez seul, ajoutez la secrétaire IA quand vous êtes prêt.</p>
+            <p className="mt-3 text-slate-600">
+              Trois formules mensuelles. Soline incluse dès le plan Pro — rechargez vos minutes à la demande.
+            </p>
           </div>
 
-          <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
-            <article className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-              <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">Plan Solo</p>
-              <p className="mt-3 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-slate-900">39 €</span>
-                <span className="text-slate-500">HT / mois</span>
-              </p>
-              <ul className="mt-6 flex-1 space-y-3 text-sm text-slate-600">
-                <li className="flex gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  Tout le SaaS BTP
-                </li>
-                <li className="flex gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  Devis illimités
-                </li>
-                <li className="flex gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  1 utilisateur
-                </li>
-              </ul>
-              <a
-                href={APP_REGISTER}
-                className={cn(buttonVariants({ size: "lg" }), "mt-8 w-full border-slate-900 bg-slate-900 text-white")}
-              >
-                Démarrer l&apos;essai gratuit
-              </a>
-            </article>
-
-            <article className="relative flex flex-col rounded-3xl border-2 border-orange-400 bg-white p-6 shadow-lg shadow-orange-500/10 sm:p-8">
-              <span className="absolute -top-3 left-6 rounded-full bg-orange-500 px-3 py-1 text-xs font-semibold text-white">
-                Option populaire
-              </span>
-              <p className="text-sm font-semibold uppercase tracking-wider text-orange-600">Plan Secrétariat IA</p>
-              <p className="mt-3 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-slate-900">+29 €</span>
-                <span className="text-slate-500">HT / mois</span>
-              </p>
-              <p className="mt-1 text-xs text-slate-500">En complément du Plan Solo</p>
-              <ul className="mt-6 flex-1 space-y-3 text-sm text-slate-600">
-                <li className="flex gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  Agent vocal intelligent
-                </li>
-                <li className="flex gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  60 min d&apos;appels incluses / mois
-                </li>
-                <li className="flex gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  Prise de RDV automatique
-                </li>
-              </ul>
-              <a
-                href={APP_REGISTER}
+          <div className="grid gap-6 lg:grid-cols-3">
+            {SUBSCRIPTION_PLANS.map((plan) => (
+              <article
+                key={plan.id}
                 className={cn(
-                  buttonVariants({ size: "lg" }),
-                  "mt-8 w-full border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
+                  "relative flex flex-col rounded-3xl border bg-white p-6 sm:p-8",
+                  plan.popular
+                    ? "border-2 border-orange-400 shadow-lg shadow-orange-500/10"
+                    : "border-slate-200",
                 )}
               >
-                Ajouter la secrétaire IA
-              </a>
-            </article>
+                {plan.popular ? (
+                  <span className="absolute -top-3 left-6 rounded-full bg-orange-500 px-3 py-1 text-xs font-semibold text-white">
+                    Le plus populaire
+                  </span>
+                ) : null}
+                <p
+                  className={cn(
+                    "text-sm font-semibold uppercase tracking-wider",
+                    plan.popular ? "text-orange-600" : "text-slate-500",
+                  )}
+                >
+                  Plan {plan.name}
+                </p>
+                <p className="mt-3 flex items-baseline gap-1">
+                  <span className="text-4xl font-bold text-slate-900">{plan.priceHtEur} €</span>
+                  <span className="text-slate-500">HT / mois</span>
+                </p>
+                <p className="mt-2 text-sm text-slate-600">{plan.description}</p>
+                <ul className="mt-6 flex-1 space-y-3 text-sm text-slate-600">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex gap-2">
+                      <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href={APP_REGISTER}
+                  className={cn(
+                    buttonVariants({ size: "lg" }),
+                    "mt-8 w-full",
+                    plan.popular
+                      ? "border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
+                      : plan.id === "premium"
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
+                  )}
+                >
+                  {plan.id === "base" ? "Démarrer l'essai gratuit" : `Choisir ${plan.name}`}
+                </a>
+              </article>
+            ))}
+          </div>
+
+          <div className="mx-auto mt-16 max-w-3xl">
+            <div className="mb-8 text-center">
+              <h3 className="font-display text-2xl font-semibold tracking-tight text-slate-900">
+                Rechargez vos minutes Soline
+              </h3>
+              <p className="mt-2 text-sm text-slate-600 sm:text-base">
+                Besoin de plus d&apos;appels ? Achetez des packs de minutes depuis votre espace artisan, sans
+                changer de plan.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {SOLINE_RECHARGE_PACKS.map((pack) => (
+                <article
+                  key={pack.id}
+                  className="flex flex-col items-center rounded-2xl border border-dashed border-orange-200 bg-orange-50/50 p-6 text-center"
+                >
+                  <Phone className="mb-3 size-8 text-orange-500" />
+                  <p className="text-sm font-semibold uppercase tracking-wider text-orange-700">{pack.label}</p>
+                  <p className="mt-2 flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-slate-900">{pack.priceHtEur} €</span>
+                    <span className="text-slate-500">HT</span>
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">{pack.minutes} minutes d&apos;appels Soline</p>
+                  <p className="mt-3 text-xs text-slate-500">Crédit ajouté instantanément à votre compte</p>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </section>
