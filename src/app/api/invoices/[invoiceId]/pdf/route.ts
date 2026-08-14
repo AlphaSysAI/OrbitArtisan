@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { loadFacturXDocumentFromDb } from "@/lib/billing/facturx";
+import { loadFacturXDocumentFromDb } from "@/lib/billing/facturx/load-from-db";
 import { renderInvoicePdf } from "@/lib/billing/facturx/render-invoice-pdf";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 

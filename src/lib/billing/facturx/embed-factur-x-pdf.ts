@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 
-import { check } from "@stafyniaksacha/facturx";
 import { AFRelationship, PDFDocument, PDFHexString, PDFName } from "pdf-lib";
 
 import { FacturXValidationError } from "./types";
@@ -113,6 +112,7 @@ export type EmbedFacturXOptions = {
  */
 export async function embedFacturXInPdf(options: EmbedFacturXOptions): Promise<Uint8Array> {
   if (options.validateXml !== false) {
+    const { check } = await import("@stafyniaksacha/facturx");
     const result = await check({
       xml: options.xml,
       flavor: "facturx",

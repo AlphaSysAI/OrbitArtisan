@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   FacturXValidationError,
-  generateFacturX,
   loadFacturXDocumentFromDb,
 } from "@/lib/billing/facturx";
+import { generateFacturX } from "@/lib/billing/facturx/generate-factur-x";
 import type { FacturXProfile } from "@/lib/billing/facturx/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 

@@ -1,5 +1,3 @@
-import { invoiceToXml } from "@stafyniaksacha/facturx";
-
 import { buildCrossIndustryInvoice } from "./build-cii-invoice";
 import { embedFacturXInPdf, FACTURX_XML_FILENAME } from "./embed-factur-x-pdf";
 import { renderInvoicePdf } from "./render-invoice-pdf";
@@ -24,6 +22,7 @@ export async function generateFacturX(
   const language = options.language ?? "fr-FR";
 
   const cii = buildCrossIndustryInvoice(document, profile);
+  const { invoiceToXml } = await import("@stafyniaksacha/facturx");
   const xmlDocument = await invoiceToXml(cii);
   const xml = xmlDocument.toString();
 

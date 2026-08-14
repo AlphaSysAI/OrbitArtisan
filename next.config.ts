@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["@stafyniaksacha/facturx", "libxmljs", "saxon-js"],
   async headers() {
     return [
       {

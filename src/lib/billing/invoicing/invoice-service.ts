@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { generateFacturX, loadFacturXDocumentFromDb } from "@/lib/billing/facturx";
+import { loadFacturXDocumentFromDb } from "@/lib/billing/facturx/load-from-db";
+import { generateFacturX } from "@/lib/billing/facturx/generate-factur-x";
 import { renderInvoicePdf } from "@/lib/billing/facturx/render-invoice-pdf";
 import type { FacturXInvoiceDocument } from "@/lib/billing/facturx/types";
 
