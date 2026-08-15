@@ -10,6 +10,9 @@ export function parseEmbedTheme(raw: string | string[] | undefined): EmbedTheme 
 }
 
 /** Extrait à coller sur un site externe (WordPress, Wix, site fait main…). */
-export function buildEmbedSnippet(siteUrl: string, slug: string): string {
-  return `<script src="${siteUrl}/embed.js" data-artisan="${slug}" defer></script>`;
+export function buildEmbedSnippet(appUrl: string, slug: string, marketingUrl?: string): string {
+  const scriptBase = (marketingUrl ?? appUrl).replace(/\/$/, "");
+  const appBase = appUrl.replace(/\/$/, "");
+  const appAttr = scriptBase !== appBase ? ` data-app-url="${appBase}"` : "";
+  return `<script src="${scriptBase}/embed.js" data-artisan="${slug}"${appAttr} defer></script>`;
 }

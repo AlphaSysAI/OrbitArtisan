@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CalendarHeart, Handshake, Heart, Sparkles } from "lucide-react";
 
 import { BookAppointmentForm } from "@/app/site/[slug]/book-appointment-form";
+import { getMarketingHomeHref } from "@/lib/site-url";
 import { type VitrineOwnerAppointment, VitrineOwnerCalendar } from "@/components/vitrine/vitrine-owner-calendar";
 import { VitrineMessages } from "@/components/vitrine/vitrine-messages";
 import { heroGradientTop, shadeAccent } from "@/lib/vitrine-theme";
@@ -188,7 +189,7 @@ export function VitrinePublicPage({
         <footer className="border-t border-neutral-200 pt-10 text-center text-sm text-neutral-500">
           <p>
             Page proposée avec{" "}
-            <Link href="/" className="font-medium underline-offset-4 hover:underline" style={{ color: accentDark }}>
+            <Link href={getMarketingHomeHref()} className="font-medium underline-offset-4 hover:underline" style={{ color: accentDark }}>
               Soline
             </Link>
           </p>

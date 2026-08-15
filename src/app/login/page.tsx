@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { PasswordInput } from "@/components/auth/password-input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -8,9 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getMarketingHomeHref } from "@/lib/site-url";
 import { SupabaseMissing } from "@/components/supabase-missing";
 
-import { signInWithPassword, signUpWithPassword } from "./actions";
+import { signInWithPassword } from "./actions";
 
 type Role = "artisan" | "particulier";
 
@@ -43,6 +45,14 @@ export default async function LoginPage({
   } = await supabase.auth.getUser();
   if (user) redirect(next);
 
+  const registerHref = isParticulier
+    ? `/inscription-client?next=${encodeURIComponent(next)}${
+        inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : ""
+      }`
+    : `/register?next=${encodeURIComponent(next)}${
+        inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : ""
+      }${prefillEmail ? `&email=${encodeURIComponent(prefillEmail)}` : ""}`;
+
   return (
     <div className="min-h-[calc(100vh-0px)] bg-background">
       <div className="container mx-auto flex min-h-screen max-w-xl items-center px-6 py-16">
@@ -74,7 +84,7 @@ export default async function LoginPage({
             <Alert>
               <AlertTitle>Inscription créée</AlertTitle>
               <AlertDescription>
-                Vérifie tes emails pour confirmer ton compte si nécessaire.
+                Vérifie tes emails pour confirmer ton compte si nécessaire, puis connecte-toi ci-dessous.
               </AlertDescription>
             </Alert>
           )}
@@ -91,7 +101,7 @@ export default async function LoginPage({
           <Card>
             <CardHeader>
               <CardTitle>Se connecter</CardTitle>
-              <CardDescription>Avec adresse e-mail et mot de passe (simple pour démarrer).</CardDescription>
+              <CardDescription>Avec adresse e-mail et mot de passe.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <form action={signInWithPassword} className="space-y-4">
@@ -103,7 +113,7 @@ export default async function LoginPage({
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="toi@entreprise.fr"
+                    placeholder={isParticulier ? "vous@exemple.fr" : "toi@entreprise.fr"}
                     autoComplete="email"
                     required
                     defaultValue={prefillEmail}
@@ -111,10 +121,9 @@ export default async function LoginPage({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Mot de passe</Label>
-                  <Input
+                  <PasswordInput
                     id="password"
                     name="password"
-                    type="password"
                     autoComplete="current-password"
                     required
                   />
@@ -124,68 +133,38 @@ export default async function LoginPage({
                 </Button>
               </form>
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">ou</span>
-                </div>
+              <div className="space-y-3 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {isParticulier ? "Pas encore de compte client ?" : "Pas encore de compte artisan ?"}
+                </p>
+                <Link className={buttonVariants({ variant: "secondary", className: "w-full" })} href={registerHref}>
+                  {isParticulier ? "Créer mon compte client" : "Créer mon compte artisan"}
+                </Link>
               </div>
 
-              {isParticulier ? (
-                <div className="space-y-3 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Pas encore de compte client ?
-                  </p>
+              {!isParticulier ? (
+                <p className="text-center text-sm text-muted-foreground">
                   <Link
-                    className={buttonVariants({ variant: "secondary", className: "w-full" })}
-                    href={`/inscription-client?next=${encodeURIComponent(next)}${
-                      inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : ""
-                    }`}
+                    className="underline-offset-4 hover:underline"
+                    href={`/login?role=particulier&next=${encodeURIComponent("/compte")}`}
                   >
-                    Créer mon compte client
+                    Accéder à l&apos;espace client
                   </Link>
-                </div>
+                </p>
               ) : (
-                <form action={signUpWithPassword} className="space-y-4">
-                  <input type="hidden" name="next" value={next} />
-                  {inviteToken ? <input type="hidden" name="invite" value={inviteToken} /> : null}
-                  <div className="space-y-2">
-                    <Label htmlFor="email2">Créer un compte artisan</Label>
-                    <Input
-                      id="email2"
-                      name="email"
-                      type="email"
-                      placeholder="toi@entreprise.fr"
-                      autoComplete="email"
-                      required
-                      defaultValue={prefillEmail}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password2">Mot de passe</Label>
-                    <Input
-                      id="password2"
-                      name="password"
-                      type="password"
-                      autoComplete="new-password"
-                      minLength={8}
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Minimum 8 caractères. Tu pourras activer des options plus avancées plus tard.
-                    </p>
-                  </div>
-                  <Button className="w-full" variant="secondary" type="submit">
-                    Créer mon compte
-                  </Button>
-                </form>
+                <p className="text-center text-sm text-muted-foreground">
+                  <Link
+                    className="underline-offset-4 hover:underline"
+                    href={`/login?role=artisan&next=${encodeURIComponent("/app")}`}
+                  >
+                    Accéder à l&apos;espace artisan
+                  </Link>
+                </p>
               )}
 
               <p className="text-center text-sm text-muted-foreground">
-                <Link className="text-foreground underline-offset-4 hover:underline" href="/">
-                  Retour au choix du profil
+                <Link className="text-foreground underline-offset-4 hover:underline" href={getMarketingHomeHref()}>
+                  Retour au site Soline
                 </Link>
               </p>
             </CardContent>
@@ -195,4 +174,3 @@ export default async function LoginPage({
     </div>
   );
 }
-

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Camera, ShieldCheck, Timer } from "lucide-react";
 
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { getMarketingHomeHref } from "@/lib/site-url";
 
 import { EstimationWizard } from "./estimation-wizard";
 
@@ -36,7 +37,7 @@ export default async function EstimationPage({
     <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-background">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/" className="text-sm font-semibold tracking-tight">
+          <Link href={getMarketingHomeHref()} className="text-sm font-semibold tracking-tight">
             Soline
           </Link>
           <span className="text-xs text-muted-foreground">Gratuit · sans inscription</span>

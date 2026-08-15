@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getMarketingHomeHref } from "@/lib/site-url";
 
 export function SupabaseMissing({
   title = "Configurer Supabase",
@@ -24,7 +25,8 @@ export function SupabaseMissing({
           <pre className="overflow-x-auto rounded-xl border bg-muted/30 p-3 text-xs">
 {`NEXT_PUBLIC_SUPABASE_URL="https://xxxxxxxxxxxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="votre-clé-anon-publique"
-NEXT_PUBLIC_SITE_URL="http://localhost:3000"`}
+NEXT_PUBLIC_SITE_URL="http://localhost:3000"
+NEXT_PUBLIC_MARKETING_URL="http://localhost:3000"`}
           </pre>
           <p>
             Puis exécute le schéma SQL : <code>supabase/init.sql</code> dans Supabase.
@@ -32,7 +34,7 @@ NEXT_PUBLIC_SITE_URL="http://localhost:3000"`}
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Link className={buttonVariants({ variant: "secondary" })} href="/">
+          <Link className={buttonVariants({ variant: "secondary" })} href={getMarketingHomeHref()}>
             Retour à l’accueil
           </Link>
           {showLoginLink && (

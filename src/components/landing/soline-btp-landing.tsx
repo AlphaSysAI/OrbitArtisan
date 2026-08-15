@@ -20,9 +20,6 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { SOLINE_RECHARGE_PACKS, SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
 import { cn } from "@/lib/utils";
 
-const APP_LOGIN = "https://app.solinebtp.fr/login";
-const APP_REGISTER = "https://app.solinebtp.fr/register";
-
 const NAV_LINKS = [
   { href: "#fonctionnalites", label: "Fonctionnalités" },
   { href: "#tarifs", label: "Tarifs" },
@@ -72,7 +69,12 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
   );
 }
 
-export function SolineBtpLanding() {
+type SolineBtpLandingProps = {
+  appLoginUrl: string;
+  appRegisterUrl: string;
+};
+
+export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandingProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -100,11 +102,11 @@ export function SolineBtpLanding() {
           </nav>
 
           <div className="hidden items-center gap-2 sm:flex">
-            <a href={APP_LOGIN} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <a href={appLoginUrl} className={buttonVariants({ variant: "outline", size: "sm" })}>
               Connexion
             </a>
             <a
-              href={APP_REGISTER}
+              href={appRegisterUrl}
               className={cn(
                 buttonVariants({ size: "sm" }),
                 "border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
@@ -138,11 +140,11 @@ export function SolineBtpLanding() {
                 </a>
               ))}
               <div className="mt-2 flex flex-col gap-2">
-                <a href={APP_LOGIN} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                <a href={appLoginUrl} className={buttonVariants({ variant: "outline", size: "sm" })}>
                   Connexion
                 </a>
                 <a
-                  href={APP_REGISTER}
+                  href={appRegisterUrl}
                   className={cn(
                     buttonVariants({ size: "sm" }),
                     "border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
@@ -180,7 +182,7 @@ export function SolineBtpLanding() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <a
-                href={APP_REGISTER}
+                href={appRegisterUrl}
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   "h-13 w-full border-orange-500 bg-orange-500 px-6 text-base text-white hover:bg-orange-600 sm:w-auto",
@@ -448,7 +450,7 @@ export function SolineBtpLanding() {
                   ))}
                 </ul>
                 <a
-                  href={APP_REGISTER}
+                  href={appRegisterUrl}
                   className={cn(
                     buttonVariants({ size: "lg" }),
                     "mt-8 w-full",
@@ -520,7 +522,7 @@ export function SolineBtpLanding() {
           </h2>
           <p className="mt-3 text-slate-300">14 jours gratuits. Sans carte bancaire. Configuration en 3 minutes.</p>
           <a
-            href={APP_REGISTER}
+            href={appRegisterUrl}
             className={cn(
               buttonVariants({ size: "lg" }),
               "mt-6 border-orange-500 bg-orange-500 text-white hover:bg-orange-600",

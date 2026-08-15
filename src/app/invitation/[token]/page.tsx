@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { acceptPlatformInvitation, getInvitationByToken } from "@/lib/invitations/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getMarketingHomeHref } from "@/lib/site-url";
 
 export default async function InvitationPage({ params }: { params: Promise<{ token: string }> }) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -27,7 +28,7 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
           <AlertTitle>Invitation introuvable</AlertTitle>
           <AlertDescription>Ce lien n’est plus valide ou a déjà été utilisé.</AlertDescription>
         </Alert>
-        <Link href="/" className={buttonVariants({ variant: "outline", className: "mt-6 inline-flex" })}>
+        <Link href={getMarketingHomeHref()} className={buttonVariants({ variant: "outline", className: "mt-6 inline-flex" })}>
           Retour à l’accueil
         </Link>
       </div>
@@ -52,7 +53,7 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
 
   const isArtisanInvite = invite.accountType === "artisan";
   const signupUrl = isArtisanInvite
-    ? `/login?invite=${encodeURIComponent(token)}&email=${encodeURIComponent(invite.email)}&next=${encodeURIComponent("/app/reglages?tab=activite&success=invite")}`
+    ? `/register?invite=${encodeURIComponent(token)}&email=${encodeURIComponent(invite.email)}&next=${encodeURIComponent("/app/reglages?tab=activite&success=invite")}`
     : `/inscription-client?invite=${encodeURIComponent(token)}&email=${encodeURIComponent(invite.email)}`;
   const loginUrl = isArtisanInvite
     ? `/login?invite=${encodeURIComponent(token)}&email=${encodeURIComponent(invite.email)}&next=${encodeURIComponent("/app")}`

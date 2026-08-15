@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { appointmentStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getMarketingHomeHref } from "@/lib/site-url";
 
 export default async function CompteHomePage({
   searchParams,
@@ -227,7 +228,7 @@ export default async function CompteHomePage({
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        <Link className="underline-offset-4 hover:underline" href="/">
+        <Link className="underline-offset-4 hover:underline" href={getMarketingHomeHref()}>
           Retour au site Soline
         </Link>
       </p>

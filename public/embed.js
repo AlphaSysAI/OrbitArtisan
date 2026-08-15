@@ -2,7 +2,7 @@
  * Soline — loader du widget d'estimation.
  *
  * À coller sur n'importe quel site :
- *   <script src="https://solinebtp.fr/embed.js" data-artisan="mon-slug" defer></script>
+ *   <script src="https://solinebtp.fr/embed.js" data-artisan="mon-slug" data-app-url="https://app.solinebtp.fr" defer></script>
  *
  * Attributs facultatifs :
  *   data-theme="light|dark|auto"   thème du widget (défaut : light)
@@ -32,7 +32,9 @@
   }
 
   var NS = "soline-embed";
-  var origin = new URL(script.src, window.location.href).origin;
+  var scriptOrigin = new URL(script.src, window.location.href).origin;
+  var appOriginRaw = (script.getAttribute("data-app-url") || "").trim();
+  var appOrigin = appOriginRaw ? appOriginRaw.replace(/\/$/, "") : scriptOrigin;
   var theme = script.getAttribute("data-theme") || "light";
   var position = script.getAttribute("data-position") === "left" ? "left" : "right";
   var label = script.getAttribute("data-label") || "Estimer mes travaux";
@@ -84,7 +86,7 @@
     iframe = document.createElement("iframe");
     iframe.title = "Estimation de travaux";
     iframe.src =
-      origin + "/embed/" + encodeURIComponent(slug) + "?theme=" + encodeURIComponent(theme);
+      appOrigin + "/embed/" + encodeURIComponent(slug) + "?theme=" + encodeURIComponent(theme);
     iframe.allow = "geolocation; camera";
     iframe.style.cssText = [
       "width:100%",
@@ -173,7 +175,7 @@
   };
 
   window.addEventListener("message", function (event) {
-    if (event.origin !== origin) return;
+    if (event.origin !== appOrigin) return;
     if (!iframe || event.source !== iframe.contentWindow) return;
 
     var data = event.data;

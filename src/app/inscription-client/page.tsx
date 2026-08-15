@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getMarketingHomeHref } from "@/lib/site-url";
 import { SupabaseMissing } from "@/components/supabase-missing";
 
 import { InscriptionClientForm } from "./inscription-client-form";
@@ -100,7 +101,7 @@ export default async function InscriptionClientPage({
               Se connecter
             </Link>
             {" · "}
-            <Link className="underline-offset-4 hover:underline" href="/">
+            <Link className="underline-offset-4 hover:underline" href={getMarketingHomeHref()}>
               Accueil
             </Link>
           </p>

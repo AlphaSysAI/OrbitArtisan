@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+import { resolveAppRootRedirect, resolveDomainRouting } from "@/lib/domain-routing";
+
 export async function middleware(request: NextRequest) {
+  const domainRedirect = resolveDomainRouting(request);
+  if (domainRedirect) return domainRedirect;
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -10,7 +15,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
-  let response = NextResponse.next({ request });
+  const response = NextResponse.next({ request });
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -33,6 +38,19 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let isArtisan = false;
+  if (user) {
+    const { data: artisanProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    isArtisan = !!artisanProfile;
+  }
+
+  const appRootRedirect = resolveAppRootRedirect(request, !!user, isArtisan);
+  if (appRootRedirect) return appRootRedirect;
+
   const pathname = request.nextUrl.pathname;
   const needsAuth =
     pathname.startsWith("/app") || pathname.startsWith("/mes-devis") || pathname.startsWith("/compte");
@@ -45,10 +63,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const { data: artisanProfile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-    const isArtisan = !!artisanProfile;
-
-    const { data: customerProfile } = await supabase.from("customer_profiles").select("id").eq("user_id", user.id).maybeSingle();
+    const { data: customerProfile } = await supabase
+      .from("customer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
     const isClientOnly = !!customerProfile && !isArtisan;
 
     if (isClientOnly && pathname.startsWith("/app")) {
@@ -74,4 +93,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon\\.ico|sw\\.js$|manifest\\.webmanifest$|pwa-icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
-

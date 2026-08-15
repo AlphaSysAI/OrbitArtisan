@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { PasswordInput } from "@/components/auth/password-input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,10 +64,23 @@ export function InscriptionClientForm({
     const fd = new FormData(form);
     const email = String(fd.get("email") ?? "").trim();
     const password = String(fd.get("password") ?? "");
+    const passwordConfirm = String(fd.get("password_confirm") ?? "");
     const displayName = String(fd.get("display_name") ?? "").trim();
 
     if (!email || !password) {
       setError("L’adresse e-mail et le mot de passe sont obligatoires.");
+      setLoading(false);
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Le mot de passe doit contenir au moins 8 caractères.");
+      setLoading(false);
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      setError("Les mots de passe ne correspondent pas.");
       setLoading(false);
       return;
     }
@@ -196,12 +210,22 @@ export function InscriptionClientForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Mot de passe</Label>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             required
-            minLength={6}
+            minLength={8}
+            autoComplete="new-password"
+          />
+          <p className="text-xs text-muted-foreground">Minimum 8 caractères.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password_confirm">Confirmer le mot de passe</Label>
+          <PasswordInput
+            id="password_confirm"
+            name="password_confirm"
+            required
+            minLength={8}
             autoComplete="new-password"
           />
         </div>

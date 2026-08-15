@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { sendMessage } from "@/lib/messages/actions";
 import { buildQuoteNotificationMessage } from "@/lib/quotes/supplier-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 type ParsedMaterial = {
   label: string;
@@ -232,7 +233,7 @@ export async function createQuote(formData: FormData) {
   let notifyFailed = false;
   const shouldNotify = quoteStatus === "sent" && !!linkedConversationId;
   if (shouldNotify) {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    const siteUrl = getPublicSiteUrl();
     const totalFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
       grandTotalCents / 100,
     );

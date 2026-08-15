@@ -4,6 +4,7 @@ import { CheckCircle2, MessageSquare, UserPlus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { LeadSignupOffer } from "@/lib/leads/client-signup-types";
 import { buildLeadLoginHref, buildLeadSignupHref } from "@/lib/leads/client-signup-urls";
+import { getMarketingHomeHref } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 
 export function LeadSentPanel({
@@ -73,7 +74,7 @@ export function LeadSentPanel({
         </p>
       )}
 
-      <Link href="/" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-2")}>
+      <Link href={getMarketingHomeHref()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-2")}>
         Revenir à l’accueil
       </Link>
     </div>

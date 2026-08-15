@@ -8,7 +8,7 @@ import { VoiceNumberForm } from "@/components/settings/voice-number-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { buildEmbedSnippet } from "@/lib/leads/embed";
-import { getPublicSiteUrl } from "@/lib/site-url";
+import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -281,7 +281,7 @@ export default async function ArtisanSettingsPage({
                 </div>
                 <EmbedWidgetCard
                   slug={profile.slug}
-                  snippet={buildEmbedSnippet(getPublicSiteUrl(), profile.slug)}
+                  snippet={buildEmbedSnippet(getPublicSiteUrl(), profile.slug, getMarketingSiteUrl())}
                   previewUrl={`/embed/${profile.slug}`}
                   matchingEnabled={leadMatchingEnabled}
                 />
