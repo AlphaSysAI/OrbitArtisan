@@ -19,7 +19,8 @@ import {
   isLikelyMobileDevice,
   isStandaloneDisplay,
   rememberInstallPromptDismissed,
-  wasInstallPromptDismissedRecently,
+  rememberPwaInstalled,
+  shouldSuppressInstallPrompt,
 } from "@/lib/pwa/client-detect";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -37,6 +38,7 @@ export function PwaRootClient() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [guide, setGuide] = useState<InstallGuide>("main");
   const deferredRef = useRef<BeforeInstallPromptEvent | null>(null);
+  const promptScheduledRef = useRef(false);
 
   /** Widget embarqué chez un tiers : ni service worker, ni invitation à installer. */
   const embedded = pathname.startsWith("/embed");
@@ -44,6 +46,14 @@ export function PwaRootClient() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  /** Mode appli ou installation passée : mémoriser pour ne plus proposer l’ajout. */
+  useEffect(() => {
+    if (!mounted) return;
+    if (isStandaloneDisplay()) {
+      rememberPwaInstalled();
+    }
+  }, [mounted]);
 
   /** Enregistrement du service worker (critère d’éligibilité à l’installation sur Chrome). */
   useEffect(() => {
@@ -66,6 +76,7 @@ export function PwaRootClient() {
   useEffect(() => {
     if (!mounted) return;
     const onInstalled = () => {
+      rememberPwaInstalled();
       setDialogOpen(false);
       deferredRef.current = null;
     };
@@ -122,14 +133,14 @@ export function PwaRootClient() {
 
   /** Affichage différé de la modale d’installation (mobile, navigateur, pas déjà installé). */
   useEffect(() => {
-    if (!mounted || embedded) return;
-    if (isStandaloneDisplay()) return;
+    if (!mounted || embedded || promptScheduledRef.current) return;
     if (!isLikelyMobileDevice()) return;
-    if (wasInstallPromptDismissedRecently()) return;
 
-    const t = window.setTimeout(() => {
-      if (isStandaloneDisplay()) return;
+    promptScheduledRef.current = true;
+
+    const t = window.setTimeout(async () => {
       if (!isLikelyMobileDevice()) return;
+      if (await shouldSuppressInstallPrompt()) return;
       setDialogOpen(true);
     }, 2000);
 
@@ -150,6 +161,7 @@ export function PwaRootClient() {
         const choice = await deferred.userChoice;
         deferredRef.current = null;
         if (choice.outcome === "accepted") {
+          rememberPwaInstalled();
           setDialogOpen(false);
         }
       } catch {
@@ -177,7 +189,13 @@ export function PwaRootClient() {
         dismiss();
         return;
       }
-      setDialogOpen(true);
+      void shouldSuppressInstallPrompt().then((suppress) => {
+        if (suppress) {
+          setDialogOpen(false);
+          return;
+        }
+        setDialogOpen(true);
+      });
     },
     [dismiss],
   );
