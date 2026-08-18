@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Soline">
-  <!-- Zone centrale r�duite pour d�coupe maskable (cercles / coins arrondis OS) -->
-  <rect width="512" height="512" fill="#171717"/>
-  <rect x="48" y="48" width="416" height="416" rx="88" fill="#262626"/>
+  <rect width="512" height="512" fill="#243447"/>
+  <rect x="56" y="56" width="400" height="400" rx="144" fill="#243447"/>
   <text
     x="256"
-    y="318"
+    y="300"
     text-anchor="middle"
-    font-family="ui-sans-serif, system-ui, sans-serif"
-    font-size="180"
-    font-weight="700"
-    fill="#fafafa"
+    font-family="Georgia, serif"
+    font-size="190"
+    font-weight="600"
+    fill="#faf9f7"
   >O</text>
+  <rect x="56" y="404" width="400" height="40" fill="#c96b2e"/>
 </svg>

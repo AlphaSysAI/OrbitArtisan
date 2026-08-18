@@ -1,12 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Soline">
-  <rect width="512" height="512" rx="112" fill="#171717"/>
+  <rect width="512" height="512" rx="184" fill="#243447"/>
   <text
     x="256"
-    y="330"
+    y="310"
     text-anchor="middle"
-    font-family="ui-sans-serif, system-ui, sans-serif"
-    font-size="220"
-    font-weight="700"
-    fill="#fafafa"
+    font-family="Georgia, serif"
+    font-size="230"
+    font-weight="600"
+    fill="#faf9f7"
   >O</text>
+  <rect x="0" y="460" width="512" height="52" fill="#c96b2e"/>
 </svg>
