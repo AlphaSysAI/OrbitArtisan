@@ -17,6 +17,7 @@ type ParsedMaterial = {
   supplierSku?: string | null;
   isSupplierCatalog?: boolean;
   excludeFromInvoice?: boolean;
+  vat_rate?: number;
 };
 
 function parseEurToCents(raw: string): number | null {
@@ -59,17 +60,18 @@ export async function createQuote(formData: FormData) {
       const quantity = Number(m?.quantity ?? 0);
       const excludeFromInvoice = Boolean(m?.exclude_from_invoice);
       const parsedPrice = parseEurToCents(String(m?.unit_price_eur ?? ""));
+      const vatRateRaw = Number(String(m?.vat_rate ?? "20").replace(",", "."));
+      const vat_rate = vatRateRaw === 5.5 || vatRateRaw === 10 || vatRateRaw === 20 ? vatRateRaw : 20;
       return {
         label,
         quantity,
-        // Achat direct : le client paie la fourniture lui-même, le prix est facultatif.
-        // La colonne unit_price étant NOT NULL, on retombe sur 0.
         unitPriceCents: parsedPrice ?? (excludeFromInvoice ? 0 : NaN),
         supplierProductId: m?.supplier_product_id ? String(m.supplier_product_id) : null,
         supplierUrl: m?.supplier_url ? String(m.supplier_url).trim() || null : null,
         supplierSku: m?.supplier_sku ? String(m.supplier_sku).trim() || null : null,
         isSupplierCatalog: Boolean(m?.is_supplier_catalog),
         excludeFromInvoice,
+        vat_rate,
       };
     })
     .filter((m) => m.label);
@@ -164,6 +166,15 @@ export async function createQuote(formData: FormData) {
   const saveMode = String(formData.get("save_mode") ?? "").trim();
   const forceDraft = saveMode === "draft";
   const forceSend = saveMode === "send";
+
+  const reducedVatRaw = String(formData.get("reduced_vat_rate") ?? "").trim();
+  const reduced_vat_rate =
+    reducedVatRaw === "5.5" || reducedVatRaw === "10" || reducedVatRaw === "20" ? Number(reducedVatRaw) : null;
+  const generate_vat_attestation = String(formData.get("generate_vat_attestation") ?? "") === "1";
+  const work_site_address = String(formData.get("work_site_address") ?? "").trim() || null;
+  const work_site_city = String(formData.get("work_site_city") ?? "").trim() || null;
+  const work_site_postal_code = String(formData.get("work_site_postal_code") ?? "").trim() || null;
+
   const quoteStatus =
     forceDraft
       ? "draft"
@@ -188,6 +199,11 @@ export async function createQuote(formData: FormData) {
       labor_total: laborTotalCents,
       materials_total: materialsTotalCents,
       grand_total: grandTotalCents,
+      reduced_vat_rate,
+      generate_vat_attestation: generate_vat_attestation && (reduced_vat_rate === 5.5 || reduced_vat_rate === 10),
+      work_site_address,
+      work_site_city,
+      work_site_postal_code,
     })
     .select("id")
     .single();
@@ -224,6 +240,7 @@ export async function createQuote(formData: FormData) {
       supplier_sku: m.supplierSku ?? null,
       is_supplier_catalog: m.isSupplierCatalog ?? false,
       exclude_from_invoice: m.excludeFromInvoice ?? false,
+      vat_rate: m.vat_rate ?? 20,
     }));
 
   if (quoteMaterialRows.length) {

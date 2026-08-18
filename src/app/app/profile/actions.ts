@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { computeTrialEndsAt } from "@/lib/billing/subscription-access";
 import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
+import { seedDefaultWorkLibraryForUser } from "@/lib/work-library/actions";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
 
 function normalizeSlug(input: string) {
@@ -127,6 +128,8 @@ export async function upsertProfile(formData: FormData) {
       }
       return { ok: false as const, error: "insert_failed" as const };
     }
+
+    await seedDefaultWorkLibraryForUser(user.id);
   }
 
   revalidatePath("/app");

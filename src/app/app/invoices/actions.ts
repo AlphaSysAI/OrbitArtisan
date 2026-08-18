@@ -6,6 +6,13 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
+import {
+  computeDepositForQuote,
+  computeProgressForQuote,
+  createTypedInvoiceFromQuote,
+  sumInvoicedOnQuote,
+} from "@/lib/billing/create-btp-invoice";
+import { computeRemainingBillableCents, invoiceNumberPrefix } from "@/lib/billing/invoice-types";
 import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
@@ -41,10 +48,16 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     redirect(`/app/quotes/${quoteId}?error=invoice`);
   }
 
-  const { data: existing } = await supabase.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();
-  if (existing?.id) redirect(`/app/invoices/${existing.id}`);
+  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
+  const remaining = computeRemainingBillableCents(quote.grand_total, alreadyInvoiced);
+  if (remaining <= 0) redirect(`/app/quotes/${quoteId}?error=fully_invoiced`);
 
-  const invoiceNumber = `INV-${quoteId.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+  const invoiceType = alreadyInvoiced > 0 ? "final" : "standard";
+  const prefix = invoiceNumberPrefix(invoiceType);
+  const invoiceNumber = `${prefix}-${quoteId.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+
+  const laborShare = quote.grand_total > 0 ? Math.round((quote.labor_total * remaining) / quote.grand_total) : 0;
+  const materialsShare = remaining - laborShare;
 
   const { data: invoice, error: invErr } = await supabase
     .from("invoices")
@@ -56,10 +69,13 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       customer_email: quote.customer_email,
       invoice_number: invoiceNumber,
       status: "draft",
+      invoice_type: invoiceType,
+      quote_reference_total: quote.grand_total,
+      progress_percentage: alreadyInvoiced > 0 ? null : 100,
       ...DEFAULT_INVOICE_EINVOICING,
-      labor_total: quote.labor_total,
-      materials_total: quote.materials_total,
-      grand_total: quote.grand_total,
+      labor_total: laborShare,
+      materials_total: materialsShare,
+      grand_total: remaining,
       notes: quote.notes,
     })
     .select("id")
@@ -81,16 +97,18 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   }[] = [];
 
   let sort = 0;
-  lines.push({
-    invoice_id: invoice.id,
-    line_kind: "labor",
-    label: `Main d'œuvre (${quote.labor_duration_minutes} min)`,
-    quantity: 1,
-    unit_price: quote.labor_total,
-    line_total: quote.labor_total,
-    sort_order: sort++,
-    ...DEFAULT_INVOICE_LINE_VAT,
-  });
+  if (laborShare > 0) {
+    lines.push({
+      invoice_id: invoice.id,
+      line_kind: "labor",
+      label: `Main d'œuvre (${quote.labor_duration_minutes} min)${alreadyInvoiced > 0 ? " — solde" : ""}`,
+      quantity: 1,
+      unit_price: laborShare,
+      line_total: laborShare,
+      sort_order: sort++,
+      ...DEFAULT_INVOICE_LINE_VAT,
+    });
+  }
 
   const { data: qServices } = await supabase
     .from("quote_services")
@@ -99,14 +117,17 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     .order("created_at", { ascending: true });
 
   for (const s of qServices ?? []) {
+    if (materialsShare <= 0 && laborShare <= 0) break;
     const lt = s.line_total ?? s.unit_price ?? 0;
+    const scaled = quote.grand_total > 0 ? Math.round((lt * remaining) / quote.grand_total) : 0;
+    if (scaled <= 0) continue;
     lines.push({
       invoice_id: invoice.id,
       line_kind: "service",
       label: `${s.service_title} (${s.duration_minutes} min)`,
       quantity: 1,
-      unit_price: s.unit_price,
-      line_total: lt,
+      unit_price: scaled,
+      line_total: scaled,
       sort_order: sort++,
       ...DEFAULT_INVOICE_LINE_VAT,
     });
@@ -119,14 +140,30 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     .order("created_at", { ascending: true });
 
   for (const m of qMaterials ?? []) {
+    const lt = m.line_total ?? m.unit_price * m.quantity;
+    const scaled = quote.grand_total > 0 ? Math.round((lt * remaining) / quote.grand_total) : 0;
+    if (scaled <= 0) continue;
     lines.push({
       invoice_id: invoice.id,
       line_kind: "material",
       label: m.label,
       quantity: m.quantity,
-      unit_price: m.unit_price,
-      line_total: m.line_total,
+      unit_price: Math.round(scaled / m.quantity),
+      line_total: scaled,
       sort_order: sort++,
+      ...DEFAULT_INVOICE_LINE_VAT,
+    });
+  }
+
+  if (lines.length === 0) {
+    lines.push({
+      invoice_id: invoice.id,
+      line_kind: "service",
+      label: alreadyInvoiced > 0 ? "Solde sur devis accepté" : "Prestations et fournitures",
+      quantity: 1,
+      unit_price: remaining,
+      line_total: remaining,
+      sort_order: 0,
       ...DEFAULT_INVOICE_LINE_VAT,
     });
   }
@@ -315,4 +352,90 @@ export async function withdrawStripeFunds(): Promise<void> {
   // Le solde peut mettre un peu de temps à refluer.
   revalidatePath("/app/invoices");
   redirect(`/app/invoices?withdraw_success=${encodeURIComponent(payout.id)}`);
+}
+
+export async function createDepositInvoice(
+  quoteId: string,
+  percent: number,
+): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+
+  await redirectIfCannotCreateDocuments(supabase, user.id);
+
+  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  if (!profile?.id) return { ok: false, error: "profile" };
+
+  const { data: quote } = await supabase
+    .from("quotes")
+    .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes")
+    .eq("id", quoteId)
+    .eq("artisan_id", profile.id)
+    .maybeSingle();
+
+  if (!quote) return { ok: false, error: "not_found" };
+
+  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
+  const amount = computeDepositForQuote(quote.grand_total, percent, alreadyInvoiced);
+  if (amount <= 0) return { ok: false, error: "zero_amount" };
+
+  const result = await createTypedInvoiceFromQuote(supabase, profile.id, quote, {
+    invoiceType: "deposit",
+    amountCents: amount,
+    progressPercentage: percent,
+    label: `Acompte ${percent} % sur devis accepté`,
+    notes: `Facture d'acompte — ${percent} % du montant total du devis.`,
+  });
+
+  if (!result.ok) return result;
+
+  revalidatePath("/app/invoices");
+  revalidatePath(`/app/quotes/${quoteId}`);
+  return result;
+}
+
+export async function createProgressInvoice(
+  quoteId: string,
+  cumulativePercent: number,
+): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+
+  await redirectIfCannotCreateDocuments(supabase, user.id);
+
+  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  if (!profile?.id) return { ok: false, error: "profile" };
+
+  const { data: quote } = await supabase
+    .from("quotes")
+    .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes")
+    .eq("id", quoteId)
+    .eq("artisan_id", profile.id)
+    .maybeSingle();
+
+  if (!quote) return { ok: false, error: "not_found" };
+
+  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
+  const amount = computeProgressForQuote(quote.grand_total, cumulativePercent, alreadyInvoiced);
+  if (amount <= 0) return { ok: false, error: "zero_amount" };
+
+  const result = await createTypedInvoiceFromQuote(supabase, profile.id, quote, {
+    invoiceType: "progress",
+    amountCents: amount,
+    progressPercentage: cumulativePercent,
+    label: `Situation d'avancement — ${cumulativePercent} % cumulé`,
+    notes: `Facture de situation — avancement cumulé ${cumulativePercent} % du devis.`,
+  });
+
+  if (!result.ok) return result;
+
+  revalidatePath("/app/invoices");
+  revalidatePath(`/app/quotes/${quoteId}`);
+  return result;
 }

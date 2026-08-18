@@ -12,6 +12,8 @@ import { quoteStatusLabel } from "@/lib/status-labels";
 import { cn } from "@/lib/utils";
 
 import { QuoteSummary } from "@/components/ai/quote-summary";
+import { BtpInvoiceActions } from "@/components/quotes/btp-invoice-actions";
+import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 
 import { createInvoiceFromQuoteForm } from "../../invoices/actions";
 
@@ -28,7 +30,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id,status,customer_user_id,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at",
+      "id,status,customer_user_id,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,reduced_vat_rate,generate_vat_attestation,work_site_address",
     )
     .eq("id", quoteId)
     .maybeSingle();
@@ -81,7 +83,15 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
     email: quote.customer_email,
   });
 
-  const { data: linkedInvoice } = await supabase.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();
+  const { data: linkedInvoices } = await supabase
+    .from("invoices")
+    .select("id, invoice_number, invoice_type, grand_total, progress_percentage, status, created_at")
+    .eq("quote_id", quoteId)
+    .order("created_at", { ascending: true });
+
+  const alreadyInvoicedCents = (linkedInvoices ?? [])
+    .filter((inv) => inv.invoice_type !== "credit_note")
+    .reduce((acc, inv) => acc + (inv.grand_total ?? 0), 0);
 
   const q = quote as typeof quote & {
     signed_at?: string | null;
@@ -255,18 +265,53 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
               )}
 
               {q.status === "accepted" ? (
-                linkedInvoice?.id ? (
-                  <Link href={`/app/invoices/${linkedInvoice.id}`} className={buttonVariants({ className: "w-full justify-center" })}>
-                    Éditer la facture
-                  </Link>
-                ) : (
-                  <form action={createInvoiceFromQuoteForm}>
-                    <input type="hidden" name="quote_id" value={quoteId} />
-                    <Button type="submit" className="w-full">
-                      Créer la facture à partir du devis
-                    </Button>
-                  </form>
-                )
+                <>
+                  {(linkedInvoices ?? []).length > 0 ? (
+                    <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Factures liées</p>
+                      <ul className="space-y-2 text-sm">
+                        {(linkedInvoices ?? []).map((inv) => (
+                          <li key={inv.id} className="flex items-center justify-between gap-2">
+                            <Link href={`/app/invoices/${inv.id}`} className="font-medium underline-offset-4 hover:underline">
+                              {invoiceTypeLabel(inv.invoice_type)}
+                              {inv.progress_percentage != null ? ` (${inv.progress_percentage} %)` : ""}
+                            </Link>
+                            <span className="tabular-nums">
+                              {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
+                                (inv.grand_total ?? 0) / 100,
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  <BtpInvoiceActions
+                    quoteId={quoteId}
+                    quoteGrandTotalCents={quote.grand_total ?? 0}
+                    alreadyInvoicedCents={alreadyInvoicedCents}
+                  />
+
+                  {alreadyInvoicedCents < (quote.grand_total ?? 0) ? (
+                    <form action={createInvoiceFromQuoteForm}>
+                      <input type="hidden" name="quote_id" value={quoteId} />
+                      <Button type="submit" className="w-full" variant="default">
+                        {alreadyInvoicedCents > 0 ? "Créer facture de solde" : "Créer la facture à partir du devis"}
+                      </Button>
+                    </form>
+                  ) : null}
+
+                  {(quote as { generate_vat_attestation?: boolean }).generate_vat_attestation ? (
+                    <a
+                      href={`/api/quotes/${quoteId}/vat-attestation`}
+                      className={buttonVariants({ variant: "outline", className: "w-full justify-center" })}
+                      download
+                    >
+                      Télécharger attestation TVA (PDF)
+                    </a>
+                  ) : null}
+                </>
               ) : null}
             </CardContent>
           </Card>

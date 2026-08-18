@@ -3,16 +3,20 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, BookMarked } from "lucide-react";
 
 import { createQuote } from "./actions";
 import { aiErrorMessage } from "@/lib/ai/error-messages";
+import { WorkItemCombobox } from "@/components/work-library/work-item-combobox";
+import { saveQuoteLineToLibrary } from "@/lib/work-library/actions";
+import { WORK_UNITS } from "@/lib/work-library/units";
 import { loadAiQuoteDraft, clearAiQuoteDraft, type AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { QuoteMarginBanner } from "@/components/quotes/quote-margin-banner";
 import { cn } from "@/lib/utils";
 
 type Service = {
@@ -25,6 +29,9 @@ type Service = {
 type MaterialRow = {
   id: string;
   label: string;
+  description: string;
+  unit: string;
+  vatRate: string;
   quantity: number;
   unitPriceEur: string;
   supplierUrl: string;
@@ -36,6 +43,9 @@ function emptyMaterialRow(): MaterialRow {
   return {
     id: uuid(),
     label: "",
+    description: "",
+    unit: "U",
+    vatRate: "20",
     quantity: 1,
     unitPriceEur: "",
     supplierUrl: "",
@@ -114,6 +124,11 @@ export function QuoteForm({
   const [aiNotesLoading, setAiNotesLoading] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [pendingSaveMode, setPendingSaveMode] = React.useState<"draft" | "send">("draft");
+  const [reducedVatRate, setReducedVatRate] = React.useState("20");
+  const [generateVatAttestation, setGenerateVatAttestation] = React.useState(false);
+  const [workSiteAddress, setWorkSiteAddress] = React.useState("");
+  const [workSiteCity, setWorkSiteCity] = React.useState("");
+  const [workSitePostalCode, setWorkSitePostalCode] = React.useState("");
 
   const [laborRateEur, setLaborRateEur] = React.useState(() => {
     if (profileLaborRatePerHourCents == null) return "";
@@ -239,6 +254,7 @@ export function QuoteForm({
         label: m.label.trim(),
         quantity: m.quantity,
         unit_price_eur: m.unitPriceEur,
+        vat_rate: m.vatRate,
         supplier_url: m.supplierUrl.trim() || null,
         supplier_sku: m.supplierSku.trim() || null,
         is_supplier_catalog: false,
@@ -417,6 +433,11 @@ export function QuoteForm({
         />
         <input type="hidden" name="labor_rate_per_hour_eur" value={laborRateEur} />
         <input type="hidden" name="labor_duration_minutes" value={String(effectiveLaborMinutes)} />
+        <input type="hidden" name="reduced_vat_rate" value={reducedVatRate} />
+        <input type="hidden" name="generate_vat_attestation" value={generateVatAttestation ? "1" : "0"} />
+        <input type="hidden" name="work_site_address" value={workSiteAddress} />
+        <input type="hidden" name="work_site_city" value={workSiteCity} />
+        <input type="hidden" name="work_site_postal_code" value={workSitePostalCode} />
         {conversationPrefill ? (
           <>
             <input type="hidden" name="conversation_id" value={conversationPrefill.conversationId} />
@@ -583,58 +604,140 @@ export function QuoteForm({
 
             <Card className="border-0 shadow-none">
               <CardHeader>
-                <CardTitle className="text-xl">Fournitures / matériaux (manuel)</CardTitle>
-                <CardDescription>Lignes hors catalogue fournisseur, facturées par toi.</CardDescription>
+                <CardTitle className="text-xl">Fournitures / ouvrages (manuel)</CardTitle>
+                <CardDescription>
+                  Recherche dans ta bibliothèque d&apos;ouvrages ou saisis une ligne libre.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  {materials.map((m, idx) => (
-                    <div key={m.id} className="grid gap-4 sm:grid-cols-[1fr_120px_160px] sm:items-end">
-                      <div className="space-y-2">
-                        <Label>Libellé</Label>
-                        <Input
-                          value={m.label}
-                          placeholder="Ex. Tuyau PVC 32mm"
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, label: v } : x)));
-                          }}
-                        />
+                <div className="space-y-4">
+                  {materials.map((m) => (
+                    <div key={m.id} className="rounded-xl border bg-muted/20 p-4 space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Désignation</Label>
+                          <WorkItemCombobox
+                            value={m.label}
+                            onSelect={(item) => {
+                              setMaterials((prev) =>
+                                prev.map((x) =>
+                                  x.id === m.id
+                                    ? {
+                                        ...x,
+                                        label: item.title,
+                                        description: item.description ?? "",
+                                        unit: item.unit,
+                                        unitPriceEur: String(item.unit_price_ht).replace(".", ","),
+                                        vatRate: String(item.default_vat_rate),
+                                      }
+                                    : x,
+                                ),
+                              );
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Description</Label>
+                          <Input
+                            value={m.description}
+                            placeholder="Détail technique (facultatif)"
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setMaterials((prev) =>
+                                prev.map((x) => (x.id === m.id ? { ...x, description: v } : x)),
+                              );
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Qté</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={m.quantity}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
-                            setMaterials((prev) =>
-                              prev.map((x) => (x.id === m.id ? { ...x, quantity: Number.isFinite(v) ? v : 1 } : x)),
-                            );
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>
-                          Prix unitaire (€){" "}
-                          {m.excludeFromInvoice && (
-                            <span className="font-normal text-muted-foreground">— facultatif</span>
-                          )}
-                        </Label>
-                        <Input
-                          inputMode="decimal"
-                          placeholder={m.excludeFromInvoice ? "Indicatif" : "Ex. 12,50"}
-                          value={m.unitPriceEur}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, unitPriceEur: v } : x)));
-                          }}
-                        />
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                        <div className="space-y-2">
+                          <Label>Unité</Label>
+                          <select
+                            className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
+                            value={m.unit}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, unit: v } : x)));
+                            }}
+                          >
+                            {WORK_UNITS.map((u) => (
+                              <option key={u} value={u}>
+                                {u}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Qté</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={m.quantity}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              setMaterials((prev) =>
+                                prev.map((x) => (x.id === m.id ? { ...x, quantity: Number.isFinite(v) ? v : 1 } : x)),
+                              );
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>
+                            Prix unit. HT (€){" "}
+                            {m.excludeFromInvoice && (
+                              <span className="font-normal text-muted-foreground">— facultatif</span>
+                            )}
+                          </Label>
+                          <Input
+                            inputMode="decimal"
+                            placeholder={m.excludeFromInvoice ? "Indicatif" : "Ex. 12,50"}
+                            value={m.unitPriceEur}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, unitPriceEur: v } : x)));
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>TVA (%)</Label>
+                          <Input
+                            inputMode="decimal"
+                            value={m.vatRate}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, vatRate: v } : x)));
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            disabled={!m.label.trim()}
+                            onClick={async () => {
+                              const price = parseEurToCents(m.unitPriceEur);
+                              const res = await saveQuoteLineToLibrary({
+                                title: m.label.trim(),
+                                description: m.description.trim() || undefined,
+                                unit: m.unit,
+                                unit_price_ht: price != null ? price / 100 : 0,
+                                default_vat_rate: Number(m.vatRate.replace(",", ".")) || 20,
+                              });
+                              if (res.ok) toast.success("Ouvrage enregistré dans ta bibliothèque.");
+                              else toast.error("Enregistrement impossible.");
+                            }}
+                          >
+                            <BookMarked className="mr-1 size-4" />
+                            Bibliothèque
+                          </Button>
+                        </div>
                       </div>
 
-                      <div className="space-y-3 sm:col-span-3">
+                      <div className="space-y-3">
                         <label className="flex items-center gap-2 text-sm">
                           <input
                             type="checkbox"
@@ -666,9 +769,6 @@ export function QuoteForm({
                                   );
                                 }}
                               />
-                              <p className="text-xs text-muted-foreground">
-                                Envoyé au client avec le devis pour qu’il commande lui-même.
-                              </p>
                             </div>
                             <div className="space-y-2">
                               <Label>Référence</Label>
@@ -687,7 +787,7 @@ export function QuoteForm({
                         )}
                       </div>
 
-                      <div className="sm:col-span-4 flex justify-end">
+                      <div className="flex justify-end">
                         <Button
                           type="button"
                           variant="ghost"
@@ -717,6 +817,68 @@ export function QuoteForm({
                   <Plus className="h-4 w-4" />
                   Ajouter une fourniture
                 </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-none">
+              <CardHeader>
+                <CardTitle className="text-xl">TVA réduite & attestation</CardTitle>
+                <CardDescription>
+                  Pour la rénovation (logement &gt; 2 ans) — génère une attestation PDF en annexe du devis.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reduced_vat_rate">Taux TVA principal du devis</Label>
+                  <select
+                    id="reduced_vat_rate"
+                    className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
+                    value={reducedVatRate}
+                    onChange={(e) => {
+                      setReducedVatRate(e.target.value);
+                      if (e.target.value !== "5.5" && e.target.value !== "10") {
+                        setGenerateVatAttestation(false);
+                      }
+                    }}
+                  >
+                    <option value="20">20 % (taux normal)</option>
+                    <option value="10">10 % (rénovation)</option>
+                    <option value="5.5">5,5 % (rénovation énergie)</option>
+                  </select>
+                </div>
+                {(reducedVatRate === "10" || reducedVatRate === "5.5") && (
+                  <>
+                    <label className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={generateVatAttestation}
+                        onChange={(e) => setGenerateVatAttestation(e.target.checked)}
+                        className="mt-1 rounded border"
+                      />
+                      <span>Générer l&apos;attestation TVA simplifiée (Cerfa 1301-SD) en PDF après création</span>
+                    </label>
+                    {generateVatAttestation && (
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="space-y-2 sm:col-span-3">
+                          <Label>Adresse du chantier *</Label>
+                          <Input
+                            value={workSiteAddress}
+                            onChange={(e) => setWorkSiteAddress(e.target.value)}
+                            placeholder="12 rue des Artisans"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Code postal</Label>
+                          <Input value={workSitePostalCode} onChange={(e) => setWorkSitePostalCode(e.target.value)} />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Ville</Label>
+                          <Input value={workSiteCity} onChange={(e) => setWorkSiteCity(e.target.value)} />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -946,6 +1108,11 @@ export function QuoteForm({
           </div>
         </div>
       </form>
+      <QuoteMarginBanner
+        grandTotalCents={grandTotalCents}
+        laborTotalCents={laborTotalCents}
+        materialsTotalCents={materialsTotalCents}
+      />
     </div>
   );
 }
