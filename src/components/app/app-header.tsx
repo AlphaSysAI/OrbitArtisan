@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Menu, X } from "lucide-react";
+import { LogOut, Menu, Shield, X } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { APP_NAV_ITEMS, isNavItemActive } from "@/components/app/nav-items";
@@ -14,7 +14,7 @@ import { signOut } from "@/app/login/actions";
 import { computeAnchoredPanelRect, type AnchorRect } from "@/lib/ui/anchor-panel";
 import { cn } from "@/lib/utils";
 
-export function AppHeader() {
+export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -119,6 +119,20 @@ export function AppHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          {isPlatformAdmin ? (
+            <Link
+              href="/admin"
+              className={cn(
+                "hidden items-center gap-1.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-colors sm:inline-flex",
+                pathname.startsWith("/admin")
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Shield className="size-4" />
+              <span className="hidden xl:inline">Admin</span>
+            </Link>
+          ) : null}
           <div className="hidden sm:block">
             <InviteSomeoneDialog
               contextLabel="Je"
@@ -198,6 +212,21 @@ export function AppHeader() {
               </nav>
 
               <div className="mt-2 space-y-2 border-t border-border/70 pt-2">
+                {isPlatformAdmin ? (
+                  <Link
+                    href="/admin"
+                    role="menuitem"
+                    className={cn(
+                      "flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                      pathname.startsWith("/admin")
+                        ? "bg-foreground text-background"
+                        : "text-foreground hover:bg-muted",
+                    )}
+                  >
+                    <Shield className="size-5 shrink-0 opacity-90" />
+                    Administration
+                  </Link>
+                ) : null}
                 <InviteSomeoneDialog
                   contextLabel="Je"
                   canLinkClientToArtisan

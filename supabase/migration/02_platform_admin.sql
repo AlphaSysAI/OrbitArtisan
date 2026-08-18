@@ -3,8 +3,9 @@
 -- =============================================================================
 -- À exécuter après init.sql (+ 01_voice_quota.sql si applicable).
 --
--- Premier super admin (remplacer l'UUID par votre auth.users.id) :
---   insert into public.platform_admins (user_id) values ('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+-- Premier super admin :
+--   1. Trouver votre UUID : select id, email from auth.users where email = 'vous@example.com';
+--   2. Puis : insert into public.platform_admins (user_id) values ('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
 
 -- ---------------------------------------------------------------------------
 -- Super administrateurs plateforme
