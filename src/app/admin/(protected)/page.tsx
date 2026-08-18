@@ -1,5 +1,6 @@
 import { Building2, FileText, Receipt, TrendingUp, Users } from "lucide-react";
 
+import { AdminSetupAlert } from "@/components/admin/admin-setup-alert";
 import { fetchAdminPlatformMetrics } from "@/lib/admin/tenants";
 
 function formatEur(cents: number) {
@@ -34,10 +35,11 @@ function MetricCard({
 }
 
 export default async function AdminOverviewPage() {
-  const metrics = await fetchAdminPlatformMetrics();
+  const { metrics, issue } = await fetchAdminPlatformMetrics();
 
   return (
     <div className="space-y-8">
+      {issue ? <AdminSetupAlert issue={issue} /> : null}
       <div>
         <p className="text-sm font-medium text-muted-foreground">Plateforme</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight">Vue d&apos;ensemble</h1>

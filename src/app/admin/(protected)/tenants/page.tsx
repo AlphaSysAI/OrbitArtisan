@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { TenantActions, TenantStatusBadges } from "@/components/admin/tenant-actions";
+import { AdminSetupAlert } from "@/components/admin/admin-setup-alert";
 import { TenantFilters } from "@/components/admin/tenant-filters";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { listAdminTenants, type ArtisanAccountStatus } from "@/lib/admin/tenants";
@@ -28,6 +29,7 @@ export default async function AdminTenantsPage({
 
   return (
     <div className="space-y-8">
+      {result.issue ? <AdminSetupAlert issue={result.issue} /> : null}
       <div>
         <p className="text-sm font-medium text-muted-foreground">Gestion</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight">Artisans</h1>

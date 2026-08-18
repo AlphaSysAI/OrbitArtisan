@@ -15,7 +15,7 @@ import {
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getAdminDb } from "@/lib/admin/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 async function guardAdmin() {
@@ -24,15 +24,18 @@ async function guardAdmin() {
     if (res.error === "auth") redirect("/login?next=/admin");
     redirect("/admin/forbidden");
   }
-  return res.user;
+  const admin = getAdminDb();
+  if (!admin) {
+    throw new Error("ADMIN_MISSING_SERVICE_ROLE");
+  }
+  return { user: res.user, admin };
 }
 
 export async function updateTenantProfile(
   profileId: string,
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const adminUser = await guardAdmin();
-  const sbAdmin = createSupabaseAdminClient();
+  const { user: adminUser, admin: sbAdmin } = await guardAdmin();
 
   const businessName = String(formData.get("business_name") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim() || null;
@@ -76,8 +79,7 @@ export async function updateTenantPlan(
   profileId: string,
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const adminUser = await guardAdmin();
-  const sbAdmin = createSupabaseAdminClient();
+  const { user: adminUser, admin: sbAdmin } = await guardAdmin();
 
   const plan = String(formData.get("subscription_plan") ?? "") as SubscriptionPlanId;
   const status = String(formData.get("subscription_status") ?? "") as ArtisanSubscriptionStatus;
@@ -116,8 +118,7 @@ export async function updateTenantPlan(
 }
 
 export async function suspendTenant(profileId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const adminUser = await guardAdmin();
-  const sbAdmin = createSupabaseAdminClient();
+  const { user: adminUser, admin: sbAdmin } = await guardAdmin();
   const tenant = await getAdminTenant(profileId);
   if (!tenant) return { ok: false, error: "not_found" };
 
@@ -141,8 +142,7 @@ export async function suspendTenant(profileId: string): Promise<{ ok: true } | {
 }
 
 export async function reactivateTenant(profileId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const adminUser = await guardAdmin();
-  const sbAdmin = createSupabaseAdminClient();
+  const { user: adminUser, admin: sbAdmin } = await guardAdmin();
   const tenant = await getAdminTenant(profileId);
   if (!tenant) return { ok: false, error: "not_found" };
 
@@ -170,8 +170,7 @@ export async function reactivateTenant(profileId: string): Promise<{ ok: true } 
 }
 
 export async function archiveTenant(profileId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const adminUser = await guardAdmin();
-  const sbAdmin = createSupabaseAdminClient();
+  const { user: adminUser, admin: sbAdmin } = await guardAdmin();
   const tenant = await getAdminTenant(profileId);
   if (!tenant) return { ok: false, error: "not_found" };
 
@@ -198,8 +197,7 @@ export async function archiveTenant(profileId: string): Promise<{ ok: true } | {
 }
 
 export async function resetTenantAccess(profileId: string): Promise<{ ok: true; url?: string } | { ok: false; error: string }> {
-  const adminUser = await guardAdmin();
-  const sbAdmin = createSupabaseAdminClient();
+  const { user: adminUser, admin: sbAdmin } = await guardAdmin();
   const tenant = await getAdminTenant(profileId);
   if (!tenant?.email) return { ok: false, error: "no_email" };
 
@@ -225,7 +223,7 @@ export async function startImpersonation(
   profileId: string,
   readOnly = false,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
-  const adminUser = await guardAdmin();
+  const { user: adminUser, admin: sbAdmin } = await guardAdmin();
   const tenant = await getAdminTenant(profileId);
   if (!tenant?.email) return { ok: false, error: "no_email" };
 
@@ -235,7 +233,6 @@ export async function startImpersonation(
   } = await supabase.auth.getSession();
   if (!session) return { ok: false, error: "auth" };
 
-  const sbAdmin = createSupabaseAdminClient();
   const { data, error } = await sbAdmin.auth.admin.generateLink({
     type: "magiclink",
     email: tenant.email,
@@ -320,8 +317,16 @@ export async function updateTenantPlanForm(profileId: string, formData: FormData
 }
 
 export async function listAdminAuditLogs(page = 1, pageSize = 30) {
-  await guardAdmin();
-  const admin = createSupabaseAdminClient();
+  const res = await requirePlatformAdminSafe();
+  if (!res.ok) {
+    return { items: [], total: 0, page, pageSize };
+  }
+
+  const admin = getAdminDb();
+  if (!admin) {
+    return { items: [], total: 0, page, pageSize };
+  }
+
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 

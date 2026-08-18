@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getAdminDb } from "@/lib/admin/db";
 
 export type AdminAuditAction =
   | "tenant.update"
@@ -21,7 +21,8 @@ export async function writeAdminAuditLog(input: {
   details?: Record<string, unknown> | null;
 }) {
   try {
-    const admin = createSupabaseAdminClient();
+    const admin = getAdminDb();
+    if (!admin) return;
     await admin.from("admin_audit_logs").insert({
       admin_user_id: input.adminUserId,
       target_user_id: input.targetUserId ?? null,

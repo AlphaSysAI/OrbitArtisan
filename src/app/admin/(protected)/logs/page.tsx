@@ -1,5 +1,6 @@
 import { listAdminAuditLogs } from "@/app/admin/actions";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { AdminSetupAlert } from "@/components/admin/admin-setup-alert";
+import { getAdminDb } from "@/lib/admin/db";
 
 export default async function AdminLogsPage({
   searchParams,
@@ -8,15 +9,28 @@ export default async function AdminLogsPage({
 }) {
   const sp = await searchParams;
   const page = typeof sp.page === "string" ? Number(sp.page) || 1 : 1;
+
+  const admin = getAdminDb();
+  if (!admin) {
+    return (
+      <div className="space-y-8">
+        <AdminSetupAlert issue="missing_service_role" />
+      </div>
+    );
+  }
+
   const { items, total, pageSize } = await listAdminAuditLogs(page, 40);
 
-  const admin = createSupabaseAdminClient();
   const adminEmails = new Map<string, string | null>();
   for (const row of items) {
     const id = row.admin_user_id as string;
     if (adminEmails.has(id)) continue;
-    const { data } = await admin.auth.admin.getUserById(id);
-    adminEmails.set(id, data.user?.email ?? null);
+    try {
+      const { data } = await admin.auth.admin.getUserById(id);
+      adminEmails.set(id, data.user?.email ?? null);
+    } catch {
+      adminEmails.set(id, null);
+    }
   }
 
   return (
