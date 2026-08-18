@@ -117,7 +117,7 @@ export async function middleware(request: NextRequest) {
     if (isArtisan && pathname.startsWith("/app") && !isSuperAdmin && pathname !== "/app/suspended") {
       const { data: artisanProfile } = await supabase
         .from("profiles")
-        .select("account_status, deleted_at")
+        .select("account_status, deleted_at, subscription_status, trial_ends_at")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -128,6 +128,21 @@ export async function middleware(request: NextRequest) {
         const url = request.nextUrl.clone();
         url.pathname = "/app/suspended";
         url.search = "";
+        return NextResponse.redirect(url);
+      }
+
+      const { evaluateSubscriptionAccess, isSubscriptionDocumentBlockedPath, subscriptionBlockRedirectReason } =
+        await import("@/lib/billing/subscription-access");
+
+      const access = evaluateSubscriptionAccess(artisanProfile ?? null);
+      if (
+        !access.allowed &&
+        isSubscriptionDocumentBlockedPath(pathname) &&
+        !pathname.startsWith("/app/abonnement")
+      ) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/app/abonnement";
+        url.search = `?reason=${subscriptionBlockRedirectReason(access.reason ?? "trial_expired")}`;
         return NextResponse.redirect(url);
       }
     }

@@ -47,7 +47,7 @@ const PLAN_MRR_CENTS: Record<SubscriptionPlanId, number> = {
 };
 
 const PROFILE_EXTENDED_SELECT =
-  "id, user_id, name, business_name, siret, siren, slug, subscription_plan, subscription_status, account_status, created_at, deleted_at";
+  "id, user_id, name, business_name, siret, siren, slug, subscription_plan, subscription_status, account_status, created_at, deleted_at, trial_ends_at";
 
 const PROFILE_LEGACY_SELECT =
   "id, user_id, name, business_name, siret, siren, slug, created_at";

@@ -69,7 +69,7 @@ export default function CguPage() {
             </li>
           ))}
           <li>
-            <strong>Essai gratuit</strong> : 14 jours sans carte bancaire, sous réserve des conditions
+            <strong>Essai gratuit</strong> : 15 jours sans carte bancaire, sous réserve des conditions
             affichées lors de l&apos;inscription.
           </li>
         </ul>

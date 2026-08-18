@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { sendMessage } from "@/lib/messages/actions";
+import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
 import { buildQuoteNotificationMessage } from "@/lib/quotes/supplier-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -84,6 +85,8 @@ export async function createQuote(formData: FormData) {
   if (!user) {
     return { ok: false as const, error: "auth" as const };
   }
+
+  await redirectIfCannotCreateDocuments(supabase, user.id);
 
   const { data: profile } = await supabase
     .from("profiles")

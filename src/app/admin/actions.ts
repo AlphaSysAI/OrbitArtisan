@@ -92,15 +92,20 @@ export async function updateTenantPlan(
   const tenant = await getAdminTenant(profileId);
   if (!tenant) return { ok: false, error: "not_found" };
 
-  const { error } = await sbAdmin
-    .from("profiles")
-    .update({
-      subscription_plan: plan,
-      subscription_status: status,
-      voice_minutes_included: getPlanVoiceMinutes(plan),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", profileId);
+  const updatePayload: Record<string, unknown> = {
+    subscription_plan: plan,
+    subscription_status: status,
+    voice_minutes_included: getPlanVoiceMinutes(plan),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (status === "active") {
+    updatePayload.trial_ends_at = null;
+  } else if (status === "trialing") {
+    updatePayload.trial_ends_at = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  const { error } = await sbAdmin.from("profiles").update(updatePayload).eq("id", profileId);
 
   if (error) return { ok: false, error: "update_failed" };
 

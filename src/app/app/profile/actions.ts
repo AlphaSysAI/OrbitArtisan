@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { computeTrialEndsAt } from "@/lib/billing/subscription-access";
+import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
 
 function normalizeSlug(input: string) {
@@ -111,7 +113,13 @@ export async function upsertProfile(formData: FormData) {
     const { error } = await supabase.from("profiles").update(payload).eq("id", existing.id);
     if (error) return { ok: false as const, error: "update_failed" as const };
   } else {
-    const { error } = await supabase.from("profiles").insert(payload);
+    const { error } = await supabase.from("profiles").insert({
+      ...payload,
+      subscription_plan: "base",
+      subscription_status: "trialing",
+      trial_ends_at: computeTrialEndsAt(),
+      voice_minutes_included: getPlanVoiceMinutes("base"),
+    });
     if (error) {
       // Cas courant: contrainte d'unicité du slug
       if (String(error.message).toLowerCase().includes("slug")) {

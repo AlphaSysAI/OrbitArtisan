@@ -112,7 +112,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                 "border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
               )}
             >
-              Essai gratuit 14 jours
+              Essai gratuit 15 jours
             </a>
           </div>
 
@@ -150,7 +150,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                     "border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
                   )}
                 >
-                  Essai gratuit 14 jours
+                  Essai gratuit 15 jours
                 </a>
               </div>
             </nav>
@@ -188,7 +188,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                   "h-13 w-full border-orange-500 bg-orange-500 px-6 text-base text-white hover:bg-orange-600 sm:w-auto",
                 )}
               >
-                Démarrer l&apos;essai gratuit de 14 jours
+                Démarrer l&apos;essai gratuit de 15 jours
               </a>
             </div>
             <p className="text-sm text-slate-500">Sans carte bancaire • Configuration en 3 minutes</p>
@@ -520,7 +520,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
           <h2 className="font-display text-2xl font-semibold sm:text-3xl">
             Prêt à quitter la paperasse du soir ?
           </h2>
-          <p className="mt-3 text-slate-300">14 jours gratuits. Sans carte bancaire. Configuration en 3 minutes.</p>
+          <p className="mt-3 text-slate-300">15 jours gratuits. Sans carte bancaire. Configuration en 3 minutes.</p>
           <a
             href={appRegisterUrl}
             className={cn(

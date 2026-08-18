@@ -417,7 +417,7 @@ Source : `src/lib/billing/subscription-plans.ts`
 | **Pro** | 69 € | 60 | Base + secrétaire vocale IA, prise RDV auto |
 | **Premium** | 99 € | 150 | Pro + plus de minutes, priorité nouveautés IA |
 
-Essai gratuit 14 jours (mentionné landing).
+Essai gratuit 15 jours (mentionné landing).
 
 ### 10.2 Recharges minutes Soline
 

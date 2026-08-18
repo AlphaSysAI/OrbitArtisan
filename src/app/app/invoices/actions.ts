@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
 import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
@@ -21,6 +22,8 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  await redirectIfCannotCreateDocuments(supabase, user.id);
 
   const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
   if (!profile?.id) redirect("/login");

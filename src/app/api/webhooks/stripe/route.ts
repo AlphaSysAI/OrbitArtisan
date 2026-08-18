@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 
 import { getStripe } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  getInvoiceSubscriptionId,
+  markProfileSubscriptionCanceled,
+  markProfileSubscriptionPastDue,
+  syncProfileFromStripeSubscription,
+} from "@/lib/billing/stripe-subscription-sync";
 
 export const runtime = "nodejs";
 
@@ -60,11 +66,16 @@ async function syncStripeConnectAccount(account: Stripe.Account) {
   const transfersStatus = capabilities?.transfers?.status;
 
   const stripeTransfersEnabled = transfersStatus === "active";
-  // Simplification: on considère "payouts" comme activé quand "transfers" est actif.
-  // (Stripe Connect Express autorise généralement le retrait quand la réception est active.)
   const stripePayoutsEnabled = stripeTransfersEnabled;
 
-  const admin = createSupabaseAdminClient();
+  let admin;
+  try {
+    admin = createSupabaseAdminClient();
+  } catch (e) {
+    console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
+    return;
+  }
+
   await admin
     .from("profiles")
     .update({
@@ -100,12 +111,78 @@ export async function POST(request: Request) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (session.payment_status === "paid" || session.payment_status === "no_payment_required") {
+      if (session.metadata?.checkout_kind === "saas_subscription" && session.mode === "subscription") {
+        let admin;
+        try {
+          admin = createSupabaseAdminClient();
+        } catch (e) {
+          console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
+        }
+        if (admin && session.subscription) {
+          const stripe = getStripe();
+          const subscriptionId =
+            typeof session.subscription === "string" ? session.subscription : session.subscription.id;
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          await syncProfileFromStripeSubscription(admin, subscription, session.metadata?.profile_id);
+        }
+      } else if (session.payment_status === "paid" || session.payment_status === "no_payment_required") {
         await markInvoicePaidFromSession(session);
       }
     } else if (event.type === "checkout.session.async_payment_succeeded") {
       const session = event.data.object as Stripe.Checkout.Session;
       await markInvoicePaidFromSession(session);
+    } else if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
+      const subscription = event.data.object as Stripe.Subscription;
+      let admin;
+      try {
+        admin = createSupabaseAdminClient();
+      } catch (e) {
+        console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
+      }
+      if (admin) await syncProfileFromStripeSubscription(admin, subscription);
+    } else if (event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
+      let admin;
+      try {
+        admin = createSupabaseAdminClient();
+      } catch (e) {
+        console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
+      }
+      if (admin) await markProfileSubscriptionCanceled(admin, subscription);
+    } else if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = getInvoiceSubscriptionId(invoice);
+      if (subscriptionId) {
+        let admin;
+        try {
+          admin = createSupabaseAdminClient();
+        } catch (e) {
+          console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
+        }
+        if (admin) {
+          const stripe = getStripe();
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          await markProfileSubscriptionPastDue(admin, subscription);
+        }
+      }
+    } else if (event.type === "invoice.paid") {
+      const invoice = event.data.object as Stripe.Invoice;
+      if (invoice.billing_reason?.includes("subscription")) {
+        const subscriptionId = getInvoiceSubscriptionId(invoice);
+        if (subscriptionId) {
+          let admin;
+          try {
+            admin = createSupabaseAdminClient();
+          } catch (e) {
+            console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
+          }
+          if (admin) {
+            const stripe = getStripe();
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            await syncProfileFromStripeSubscription(admin, subscription);
+          }
+        }
+      }
     } else if (event.type === "account.updated") {
       const account = event.data.object as Stripe.Account;
       await syncStripeConnectAccount(account);
