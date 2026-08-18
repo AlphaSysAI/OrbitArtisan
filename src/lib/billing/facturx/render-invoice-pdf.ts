@@ -119,6 +119,15 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
     }
   }
 
+  if (doc.legalMentions?.length) {
+    y = Math.min(y, 120);
+    for (const line of doc.legalMentions) {
+      if (y < 40) break;
+      page.drawText(line, { x: MARGIN, y, size: 7, font, color: rgb(0.4, 0.4, 0.4) });
+      y -= 10;
+    }
+  }
+
   pdf.setTitle(`Facture ${doc.invoiceNumber}`);
   pdf.setAuthor(doc.seller.name);
   pdf.setSubject(`Facture ${doc.invoiceNumber}`);

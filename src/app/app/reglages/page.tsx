@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { ProfileForm } from "../profile/profile-form";
+import { LegalSettingsForm } from "@/components/settings/legal-settings-form";
 import { CreateServiceForm } from "../services/create-service-form";
 import { ServiceRow } from "../services/service-row";
 
@@ -21,6 +22,7 @@ import { updateArtisanSettings } from "./actions";
 const TABS = [
   { id: "activite", label: "Mon activité" },
   { id: "coordonnees", label: "Coordonnées" },
+  { id: "facturation", label: "Facturation" },
   { id: "prestations", label: "Prestations" },
   { id: "widget", label: "Widget" },
   { id: "vocal", label: "IA Vocale" },
@@ -31,6 +33,7 @@ type TabId = (typeof TABS)[number]["id"];
 function parseTab(raw: string | undefined): TabId {
   if (
     raw === "coordonnees" ||
+    raw === "facturation" ||
     raw === "prestations" ||
     raw === "activite" ||
     raw === "widget" ||
@@ -143,6 +146,49 @@ export default async function ArtisanSettingsPage({
     trade: null as string | null,
   };
 
+  let legalInitial = {
+    siren: null as string | null,
+    siret: null as string | null,
+    vat_number: null as string | null,
+    trade_register_number: null as string | null,
+    decennale_insurer: null as string | null,
+    decennale_policy_number: null as string | null,
+    rc_pro_insurer: null as string | null,
+    rc_pro_number: null as string | null,
+    mediator_name: null as string | null,
+    mediator_url: null as string | null,
+    default_payment_terms_days: 30,
+    default_retention_rate: 5,
+    auto_reminder_enabled: true,
+  };
+
+  if (profile?.id) {
+    const legalRes = await supabase
+      .from("profiles")
+      .select(
+        "siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, default_retention_rate, auto_reminder_enabled",
+      )
+      .eq("id", profile.id)
+      .maybeSingle();
+    if (legalRes.data) {
+      legalInitial = {
+        siren: legalRes.data.siren,
+        siret: legalRes.data.siret,
+        vat_number: legalRes.data.vat_number,
+        trade_register_number: legalRes.data.trade_register_number,
+        decennale_insurer: legalRes.data.decennale_insurer,
+        decennale_policy_number: legalRes.data.decennale_policy_number,
+        rc_pro_insurer: legalRes.data.rc_pro_insurer,
+        rc_pro_number: legalRes.data.rc_pro_number,
+        mediator_name: legalRes.data.mediator_name,
+        mediator_url: legalRes.data.mediator_url,
+        default_payment_terms_days: legalRes.data.default_payment_terms_days ?? 30,
+        default_retention_rate: Number(legalRes.data.default_retention_rate ?? 5),
+        auto_reminder_enabled: legalRes.data.auto_reminder_enabled ?? true,
+      };
+    }
+  }
+
   return (
     <div className="space-y-8">
       <AppPageHeader
@@ -225,6 +271,24 @@ export default async function ArtisanSettingsPage({
                   geocodeAddress
                   saveAction={updateArtisanSettings}
                 />
+              </>
+            )}
+          </section>
+        ) : null}
+
+        {tab === "facturation" ? (
+          <section className="space-y-5">
+            {!profile ? (
+              <SettingsGate />
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <h2 className="font-display text-xl font-semibold tracking-tight">Facturation & mentions légales</h2>
+                  <p className="text-sm text-muted-foreground">
+                    SIREN, TVA, assurances et paramètres de relance — affichés sur tes PDF devis et factures.
+                  </p>
+                </div>
+                <LegalSettingsForm initialValues={legalInitial} />
               </>
             )}
           </section>

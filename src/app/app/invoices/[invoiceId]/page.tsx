@@ -12,11 +12,13 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { DownloadInvoicePdfButton } from "@/components/invoices/download-invoice-pdf-button";
 import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-badge";
 import { FinalizeInvoiceButton } from "@/components/invoices/finalize-invoice-button";
+import { InvoiceReminderButton } from "@/components/invoices/invoice-reminder-button";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
 import { updateInvoice } from "../actions";
+import { createCreditNoteForm, releaseRetentionForm } from "../btp-actions";
 
 const FINALIZE_ERROR_LABELS: Record<string, string> = {
   not_found: "Facture introuvable.",
@@ -57,7 +59,7 @@ export default async function InvoiceEditPage({
   const { data: invoice } = await supabase
     .from("invoices")
     .select(
-      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_user_id, customer_name, customer_email, created_at, finalized_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, pa_submission_id",
+      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_user_id, customer_name, customer_email, created_at, finalized_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, pa_submission_id, invoice_type, due_date, reminder_count, last_reminder_at, retention_amount, retention_rate, retention_released_at",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -116,6 +118,9 @@ export default async function InvoiceEditPage({
               />
               <span className="text-sm text-muted-foreground">
                 Finalisée · {invoiceStatusLabel(invoice.status)}
+                {(invoice as { due_date?: string | null }).due_date
+                  ? ` · Échéance ${new Date((invoice as { due_date: string }).due_date).toLocaleDateString("fr-FR")}`
+                  : ""}
                 {emissionFlow ? ` · ${FLOW_LABELS[emissionFlow] ?? emissionFlow}` : ""}
               </span>
             </div>
@@ -123,6 +128,9 @@ export default async function InvoiceEditPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isDraft ? <FinalizeInvoiceButton invoiceId={invoiceId} /> : null}
+          {!isDraft && (invoice.status === "sent" || invoice.status === "overdue") ? (
+            <InvoiceReminderButton invoiceId={invoiceId} />
+          ) : null}
           <DownloadInvoicePdfButton invoiceId={invoiceId} emissionFlow={emissionFlow} />
           <Link href={`/app/quotes/${invoice.quote_id}`} className="text-sm text-primary underline-offset-4 hover:underline">
             Voir le devis d'origine
@@ -183,6 +191,7 @@ export default async function InvoiceEditPage({
                 >
                   <option value="draft">Brouillon</option>
                   <option value="sent">Envoyée</option>
+                  <option value="overdue">En retard</option>
                   <option value="paid">Payée</option>
                 </select>
               </div>
@@ -195,6 +204,39 @@ export default async function InvoiceEditPage({
           </form>
         </CardContent>
       </Card>
+
+      {!isDraft &&
+      (invoice as { invoice_type?: string }).invoice_type !== "credit_note" &&
+      invoice.status !== "draft" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Actions BTP</CardTitle>
+            <CardDescription>Avoir, retenue de garantie</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <form action={createCreditNoteForm}>
+              <input type="hidden" name="invoice_id" value={invoiceId} />
+              <Button type="submit" variant="outline" size="sm">
+                Créer un avoir
+              </Button>
+            </form>
+            {(invoice as { retention_amount?: number }).retention_amount &&
+            (invoice as { retention_amount?: number }).retention_amount! > 0 &&
+            !(invoice as { retention_released_at?: string | null }).retention_released_at ? (
+              <form action={releaseRetentionForm}>
+                <input type="hidden" name="invoice_id" value={invoiceId} />
+                <Button type="submit" variant="outline" size="sm">
+                  Libérer retenue (
+                  {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
+                    ((invoice as { retention_amount?: number }).retention_amount ?? 0) / 100,
+                  )}
+                  )
+                </Button>
+              </form>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

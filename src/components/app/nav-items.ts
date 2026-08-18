@@ -2,11 +2,14 @@ import {
   BookOpen,
   CalendarClock,
   FileText,
+  Hammer,
   Home,
   MessageSquare,
   Receipt,
   Settings,
+  Truck,
   Users,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,7 +29,10 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
   { href: "/app/messages", label: "Messages", shortLabel: "Msgs", icon: MessageSquare, exact: false },
   { href: "/app/quotes", label: "Devis", shortLabel: "Devis", icon: FileText, exact: false },
   { href: "/app/ouvrages", label: "Ouvrages", shortLabel: "Ouvrages", icon: BookOpen, exact: false },
+  { href: "/app/chantiers", label: "Chantiers", shortLabel: "Chantiers", icon: Hammer, exact: false },
+  { href: "/app/interventions", label: "Interventions", shortLabel: "BI", icon: ClipboardList, exact: false },
   { href: "/app/invoices", label: "Factures", shortLabel: "Factures", icon: Receipt, exact: false },
+  { href: "/app/fournisseurs", label: "Fournisseurs", shortLabel: "Fourn.", icon: Truck, exact: false },
   { href: "/app/reglages", label: "Réglages", shortLabel: "Réglages", icon: Settings, exact: false },
 ];
 

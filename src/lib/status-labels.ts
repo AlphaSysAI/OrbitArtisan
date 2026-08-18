@@ -9,6 +9,7 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
   draft: "Brouillon",
   sent: "Envoyée",
   paid: "Payée",
+  overdue: "En retard",
   cancelled: "Annulée",
 };
 

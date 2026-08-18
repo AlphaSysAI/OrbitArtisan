@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
+import { buildLegalMentionLines } from "@/lib/billing/legal-mentions";
 
 import type { FacturXInvoiceDocument, FacturXLineInput } from "./types";
 
@@ -31,6 +32,12 @@ type ProfileRow = {
   vat_number: string | null;
   naf_code: string | null;
   trade_register_number: string | null;
+  decennale_insurer: string | null;
+  decennale_policy_number: string | null;
+  rc_pro_insurer: string | null;
+  rc_pro_number: string | null;
+  mediator_name: string | null;
+  mediator_url: string | null;
 };
 
 type CustomerProfileRow = {
@@ -80,7 +87,7 @@ export async function loadFacturXDocumentFromDb(
     supabase
       .from("profiles")
       .select(
-        "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number",
+        "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url",
       )
       .eq("id", inv.artisan_id)
       .maybeSingle(),
@@ -157,5 +164,18 @@ export async function loadFacturXDocumentFromDb(
     operationType: (inv.operation_type as FacturXInvoiceDocument["operationType"]) ?? undefined,
     vatOnDebits: inv.vat_on_debits ?? undefined,
     vatCollectionNature: (inv.vat_collection_nature as FacturXInvoiceDocument["vatCollectionNature"]) ?? undefined,
+    legalMentions: buildLegalMentionLines({
+      business_name: seller.business_name,
+      siren: seller.siren,
+      siret: seller.siret,
+      vat_number: seller.vat_number,
+      trade_register_number: seller.trade_register_number,
+      decennale_insurer: seller.decennale_insurer,
+      decennale_policy_number: seller.decennale_policy_number,
+      rc_pro_insurer: seller.rc_pro_insurer,
+      rc_pro_number: seller.rc_pro_number,
+      mediator_name: seller.mediator_name,
+      mediator_url: seller.mediator_url,
+    }),
   };
 }

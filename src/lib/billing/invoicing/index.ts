@@ -18,6 +18,7 @@ export type {
   PayloadSubmitterProvider,
 } from "./payload-submitter";
 export { NoopPayloadSubmitter } from "./adapters/noop-payload-submitter";
+export { HttpPayloadSubmitter } from "./adapters/http-payload-submitter";
 export { mapPaEventToFiscalStatus, normalizePaWebhookEvent, PaWebhookPayloadSchema } from "./pa-webhook-events";
 export type { PaWebhookEventType, PaWebhookPayload } from "./pa-webhook-events";
 export { verifyPaWebhookSignature } from "./pa-webhook-signature";

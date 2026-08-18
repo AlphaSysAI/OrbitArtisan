@@ -112,6 +112,11 @@ export default async function InvoicesPage({
         eyebrow="Encaissement"
         title="Factures"
         description="Transforme un devis accepté en facture, puis suis tes paiements."
+        action={
+          <a href="/api/invoices/export-accounting" className={buttonVariants({ variant: "outline", size: "lg" })}>
+            Export comptable (CSV)
+          </a>
+        }
       />
 
       <section className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">

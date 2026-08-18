@@ -155,11 +155,14 @@ export class InvoiceService {
     }
 
     const now = new Date().toISOString();
+    const dueDate = await this.computeDueDate(artisanId);
+
     const { error: updateError } = await this.supabase
       .from("invoices")
       .update({
         status: "sent",
         finalized_at: now,
+        due_date: dueDate,
         emission_flow: "e_invoicing",
         e_invoicing_status: "DEPOSITED",
         pa_submission_id: paResult.submissionId,
@@ -222,11 +225,14 @@ export class InvoiceService {
     }
 
     const now = new Date().toISOString();
+    const dueDate = await this.computeDueDate(artisanId);
+
     const { error: updateError } = await this.supabase
       .from("invoices")
       .update({
         status: "sent",
         finalized_at: now,
+        due_date: dueDate,
         emission_flow: "e_reporting",
       })
       .eq("id", invoiceId)
@@ -245,6 +251,19 @@ export class InvoiceService {
       pdfFilename: pdfFilename(document.invoiceNumber, "pdf"),
       eReportingQueueId: queueRow.id as string,
     };
+  }
+
+  private async computeDueDate(artisanId: string): Promise<string> {
+    const { data: profile } = await this.supabase
+      .from("profiles")
+      .select("default_payment_terms_days")
+      .eq("id", artisanId)
+      .maybeSingle();
+
+    const days = profile?.default_payment_terms_days ?? 30;
+    const due = new Date();
+    due.setDate(due.getDate() + days);
+    return due.toISOString().slice(0, 10);
   }
 }
 

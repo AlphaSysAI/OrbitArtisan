@@ -13,7 +13,10 @@ import { cn } from "@/lib/utils";
 
 import { QuoteSummary } from "@/components/ai/quote-summary";
 import { BtpInvoiceActions } from "@/components/quotes/btp-invoice-actions";
+import { QuotePublicLinkCard } from "@/components/quotes/quote-public-link-card";
+import { DuplicateQuoteButton } from "@/components/quotes/duplicate-quote-button";
 import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 import { createInvoiceFromQuoteForm } from "../../invoices/actions";
 
@@ -30,7 +33,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id,status,customer_user_id,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,reduced_vat_rate,generate_vat_attestation,work_site_address",
+      "id,status,customer_user_id,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,reduced_vat_rate,generate_vat_attestation,work_site_address,public_token,viewed_at,sent_at",
     )
     .eq("id", quoteId)
     .maybeSingle();
@@ -106,6 +109,9 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
         ? "border-2 border-red-600/70 shadow-sm shadow-red-600/10"
         : "border border-border";
 
+  const publicToken = (quote as { public_token?: string }).public_token;
+  const publicUrl = publicToken ? `${getPublicSiteUrl()}/devis/${publicToken}` : null;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -131,6 +137,14 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
             <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Link>
+          <a
+            href={`/api/quotes/${quoteId}/pdf`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+            download
+          >
+            PDF devis
+          </a>
+          <DuplicateQuoteButton quoteId={quoteId} />
         </div>
       </div>
 
@@ -214,6 +228,13 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
         </div>
 
         <div className="space-y-6">
+          {publicUrl ? (
+            <QuotePublicLinkCard
+              publicUrl={publicUrl}
+              viewedAt={(quote as { viewed_at?: string | null }).viewed_at ?? null}
+            />
+          ) : null}
+
           <Card className="border-0 shadow-none">
             <CardHeader>
               <CardTitle className="text-xl">Total</CardTitle>

@@ -33,4 +33,4 @@ export interface IPayloadSubmitter {
   submitEInvoice(payload: PaSubmissionPayload): Promise<PaSubmissionResult>;
 }
 
-export type PayloadSubmitterProvider = "noop" | "pennylane" | "docaposte" | "confactura";
+export type PayloadSubmitterProvider = "noop" | "http" | "pennylane" | "docaposte" | "confactura";

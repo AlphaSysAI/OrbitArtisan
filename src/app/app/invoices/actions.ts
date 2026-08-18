@@ -32,7 +32,11 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
 
   await redirectIfCannotCreateDocuments(supabase, user.id);
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, default_retention_rate")
+    .eq("user_id", user.id)
+    .maybeSingle();
   if (!profile?.id) redirect("/login");
 
   const { data: quote } = await supabase
@@ -57,7 +61,21 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   const invoiceNumber = `${prefix}-${quoteId.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
 
   const laborShare = quote.grand_total > 0 ? Math.round((quote.labor_total * remaining) / quote.grand_total) : 0;
-  const materialsShare = remaining - laborShare;
+  let materialsShare = remaining - laborShare;
+
+  const retentionRate =
+    invoiceType === "final" || alreadyInvoiced > 0 ? Number(profile.default_retention_rate ?? 0) : 0;
+  const retentionAmount =
+    retentionRate > 0 && remaining === computeRemainingBillableCents(quote.grand_total, alreadyInvoiced)
+      ? Math.round((remaining * retentionRate) / 100)
+      : 0;
+  const billableRemaining = remaining - retentionAmount;
+  if (retentionAmount > 0) {
+    materialsShare = billableRemaining - laborShare;
+    if (materialsShare < 0) {
+      materialsShare = 0;
+    }
+  }
 
   const { data: invoice, error: invErr } = await supabase
     .from("invoices")
@@ -72,11 +90,13 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       invoice_type: invoiceType,
       quote_reference_total: quote.grand_total,
       progress_percentage: alreadyInvoiced > 0 ? null : 100,
+      retention_rate: retentionRate > 0 ? retentionRate : 0,
+      retention_amount: retentionAmount,
       ...DEFAULT_INVOICE_EINVOICING,
       labor_total: laborShare,
       materials_total: materialsShare,
-      grand_total: remaining,
-      notes: quote.notes,
+      grand_total: billableRemaining,
+      notes: retentionAmount > 0 ? `${quote.notes ?? ""}\n\nRetenue de garantie ${retentionRate} % : ${(retentionAmount / 100).toFixed(2)} € retenus.`.trim() : quote.notes,
     })
     .select("id")
     .single();
@@ -119,7 +139,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   for (const s of qServices ?? []) {
     if (materialsShare <= 0 && laborShare <= 0) break;
     const lt = s.line_total ?? s.unit_price ?? 0;
-    const scaled = quote.grand_total > 0 ? Math.round((lt * remaining) / quote.grand_total) : 0;
+    const scaled = quote.grand_total > 0 ? Math.round((lt * billableRemaining) / quote.grand_total) : 0;
     if (scaled <= 0) continue;
     lines.push({
       invoice_id: invoice.id,
@@ -141,7 +161,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
 
   for (const m of qMaterials ?? []) {
     const lt = m.line_total ?? m.unit_price * m.quantity;
-    const scaled = quote.grand_total > 0 ? Math.round((lt * remaining) / quote.grand_total) : 0;
+    const scaled = quote.grand_total > 0 ? Math.round((lt * billableRemaining) / quote.grand_total) : 0;
     if (scaled <= 0) continue;
     lines.push({
       invoice_id: invoice.id,
@@ -161,8 +181,8 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       line_kind: "service",
       label: alreadyInvoiced > 0 ? "Solde sur devis accepté" : "Prestations et fournitures",
       quantity: 1,
-      unit_price: remaining,
-      line_total: remaining,
+      unit_price: billableRemaining,
+      line_total: billableRemaining,
       sort_order: 0,
       ...DEFAULT_INVOICE_LINE_VAT,
     });
@@ -187,7 +207,7 @@ export async function updateInvoice(formData: FormData): Promise<void> {
   const status = String(formData.get("status") ?? "draft").trim();
 
   if (!invoiceId) redirect("/app/invoices");
-  if (!["draft", "sent", "paid"].includes(status)) redirect(`/app/invoices/${invoiceId}?error=status`);
+  if (!["draft", "sent", "paid", "overdue"].includes(status)) redirect(`/app/invoices/${invoiceId}?error=status`);
 
   const supabase = await createSupabaseServerClient();
   const {

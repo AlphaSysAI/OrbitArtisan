@@ -43,6 +43,8 @@ export type FacturXInvoiceDocument = {
   operationType?: InvoiceOperationType;
   vatCollectionNature?: VatCollectionNature;
   vatOnDebits?: boolean;
+  /** Mentions légales artisan (bas de page PDF). */
+  legalMentions?: string[];
 };
 
 export type FacturXGenerationOptions = {
