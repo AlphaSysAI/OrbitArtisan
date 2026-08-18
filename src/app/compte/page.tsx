@@ -7,6 +7,7 @@ import { finalizePendingVitrineAppointment } from "@/app/site/[slug]/actions";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { appointmentStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getMarketingHomeHref } from "@/lib/site-url";
@@ -35,7 +36,7 @@ export default async function CompteHomePage({
 
   const { data: cp } = await supabase
     .from("customer_profiles")
-    .select("display_name")
+    .select("display_name, email")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -80,7 +81,11 @@ export default async function CompteHomePage({
 
   const rdvs = (rdvRows ?? []) as RdvRowRaw[];
 
-  const displayName = cp?.display_name ?? "toi";
+  const displayName = formatContactDisplayName({
+    profileName: cp?.display_name,
+    email: cp?.email,
+    fallback: "toi",
+  });
 
   return (
     <div className="space-y-10">

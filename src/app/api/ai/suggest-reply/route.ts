@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { mistralChatText } from "@/lib/ai/mistral";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -65,11 +66,15 @@ export async function POST(request: Request) {
 
   const { data: cp } = await supabase
     .from("customer_profiles")
-    .select("display_name")
+    .select("display_name, email")
     .eq("user_id", conv.customer_user_id)
     .maybeSingle();
 
-  const customerName = cp?.display_name ?? "le client";
+  const customerName = formatContactDisplayName({
+    profileName: cp?.display_name,
+    email: cp?.email,
+    fallback: "le client",
+  });
 
   const prompt = `
 Tu es un assistant de rédaction pour un artisan français.

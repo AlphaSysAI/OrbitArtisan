@@ -12,6 +12,7 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { DownloadInvoicePdfButton } from "@/components/invoices/download-invoice-pdf-button";
 import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-badge";
 import { FinalizeInvoiceButton } from "@/components/invoices/finalize-invoice-button";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
@@ -56,7 +57,7 @@ export default async function InvoiceEditPage({
   const { data: invoice } = await supabase
     .from("invoices")
     .select(
-      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_name, created_at, finalized_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, pa_submission_id",
+      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_user_id, customer_name, customer_email, created_at, finalized_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, pa_submission_id",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -64,6 +65,25 @@ export default async function InvoiceEditPage({
   if (!invoice || !profile?.id || invoice.artisan_id !== profile.id) {
     notFound();
   }
+
+  let profileDisplayName: string | null = null;
+  if (invoice.customer_user_id) {
+    const { data: cp } = await supabase
+      .from("customer_profiles")
+      .select("display_name, email")
+      .eq("user_id", invoice.customer_user_id)
+      .maybeSingle();
+    profileDisplayName = formatContactDisplayName({
+      profileName: cp?.display_name,
+      email: cp?.email,
+    });
+  }
+
+  const customerLabel = formatContactDisplayName({
+    profileName: profileDisplayName,
+    name: invoice.customer_name,
+    email: invoice.customer_email,
+  });
 
   const { data: lines } = await supabase
     .from("invoice_lines")
@@ -85,7 +105,7 @@ export default async function InvoiceEditPage({
             {invoice.invoice_number ?? "Brouillon"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {invoice.customer_name ?? "Client"} ·{" "}
+            {customerLabel} ·{" "}
             {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((invoice.grand_total ?? 0) / 100)}
           </p>
           {invoice.finalized_at ? (

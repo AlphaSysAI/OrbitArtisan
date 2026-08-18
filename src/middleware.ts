@@ -52,6 +52,36 @@ export async function middleware(request: NextRequest) {
   if (appRootRedirect) return appRootRedirect;
 
   const pathname = request.nextUrl.pathname;
+
+  let isSuperAdmin = false;
+  if (user) {
+    const { data: platformAdmin } = await supabase
+      .from("platform_admins")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    isSuperAdmin = !!platformAdmin?.user_id;
+  }
+
+  if (pathname.startsWith("/admin")) {
+    if (pathname.startsWith("/admin/forbidden")) {
+      return response;
+    }
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("next", pathname + request.nextUrl.search);
+      return NextResponse.redirect(url);
+    }
+    if (!isSuperAdmin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin/forbidden";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
+
   const needsAuth =
     pathname.startsWith("/app") || pathname.startsWith("/mes-devis") || pathname.startsWith("/compte");
 
@@ -82,6 +112,24 @@ export async function middleware(request: NextRequest) {
       url.pathname = "/app";
       url.search = "";
       return NextResponse.redirect(url);
+    }
+
+    if (isArtisan && pathname.startsWith("/app") && !isSuperAdmin && pathname !== "/app/suspended") {
+      const { data: artisanProfile } = await supabase
+        .from("profiles")
+        .select("account_status, deleted_at")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (
+        artisanProfile?.account_status === "suspended" ||
+        artisanProfile?.deleted_at
+      ) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/app/suspended";
+        url.search = "";
+        return NextResponse.redirect(url);
+      }
     }
   }
 

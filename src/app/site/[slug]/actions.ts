@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { getOrCreateConversation } from "@/lib/messages/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -231,7 +232,10 @@ export async function finalizePendingVitrineAppointment(pendingId: string): Prom
   await admin.from("customer_profiles").upsert(
     {
       user_id: user.id,
-      display_name: row.customer_name.trim() || user.email.split("@")[0] || "Client",
+      display_name: formatContactDisplayName({
+        name: row.customer_name.trim(),
+        email: user.email,
+      }),
       email: user.email,
     },
     { onConflict: "user_id" },

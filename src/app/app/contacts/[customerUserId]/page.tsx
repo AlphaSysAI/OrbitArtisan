@@ -5,6 +5,7 @@ import { FileText, Receipt } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { artisanCanViewCustomer, getCustomerDeletionCounts } from "@/lib/contacts/actions";
 import { invoiceStatusLabel, quoteStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -61,6 +62,11 @@ export default async function ArtisanCustomerPage({
   const formatEur = (cents: number) =>
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
 
+  const customerLabel = formatContactDisplayName({
+    profileName: cp?.display_name,
+    email: cp?.email,
+  });
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start gap-4">
@@ -71,14 +77,14 @@ export default async function ArtisanCustomerPage({
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{cp?.display_name ?? "Client"}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{customerLabel}</h1>
           {cp?.email && <p className="mt-1 text-sm text-muted-foreground">{cp.email}</p>}
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <MessageCustomerButton customerUserId={customerUserId} />
           <DeleteCustomerButton
             customerUserId={customerUserId}
-            customerLabel={cp?.display_name ?? "ce client"}
+            customerLabel={customerLabel}
             blockedReason={blockedReason}
             counts={deletionCounts}
           />

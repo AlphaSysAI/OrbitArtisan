@@ -3,6 +3,7 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveVitrineAccent } from "@/lib/vitrine-theme";
 
@@ -111,7 +112,10 @@ export default async function NewQuotePage({
         conversationPrefill = {
           conversationId: conv.id,
           customerUserId: conv.customer_user_id,
-          customerName: cp?.display_name ?? "",
+          customerName: formatContactDisplayName({
+            profileName: cp?.display_name,
+            email: cp?.email,
+          }),
           customerEmail: String((cp as { email?: string | null } | null)?.email ?? ""),
         };
       } else {
@@ -134,7 +138,10 @@ export default async function NewQuotePage({
       conversationPrefill = {
         conversationId: convRes.conversationId,
         customerUserId: customerUserIdParam,
-        customerName: cp.display_name ?? "",
+        customerName: formatContactDisplayName({
+          profileName: cp.display_name,
+          email: cp.email,
+        }),
         customerEmail: String(cp.email ?? ""),
       };
     }

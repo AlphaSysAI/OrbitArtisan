@@ -3,13 +3,18 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { joinPersonName, splitPersonName } from "@/lib/contacts/display-name";
+
 import { AddressAutocomplete } from "@/components/settings/address-autocomplete";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export type ContactSettingsInitial = {
-  displayName: string;
+  /** Legacy : utilisé si firstName / lastName absents */
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
   email: string | null;
   phone: string | null;
   addressLine1: string | null;
@@ -27,18 +32,28 @@ type SaveResult =
 export function ContactSettingsForm({
   initialValues,
   displayNameLabel,
+  splitName = false,
   emailEditable = false,
   geocodeAddress = false,
   saveAction,
 }: {
   initialValues: ContactSettingsInitial;
   displayNameLabel: string;
+  /** Deux champs Prénom + Nom (clients). Sinon un seul champ texte. */
+  splitName?: boolean;
   emailEditable?: boolean;
   /** Active l'autocomplétion d'adresse + géolocalisation (artisans, pour la recherche client). */
   geocodeAddress?: boolean;
   saveAction: (formData: FormData) => Promise<SaveResult>;
 }) {
-  const [displayName, setDisplayName] = React.useState(initialValues.displayName);
+  const parsedName =
+    initialValues.firstName !== undefined
+      ? { firstName: initialValues.firstName, lastName: initialValues.lastName ?? "" }
+      : splitPersonName(initialValues.displayName ?? "");
+
+  const [firstName, setFirstName] = React.useState(parsedName.firstName);
+  const [lastName, setLastName] = React.useState(parsedName.lastName);
+  const [displayName, setDisplayName] = React.useState(initialValues.displayName ?? "");
   const [email, setEmail] = React.useState(initialValues.email ?? "");
   const [phone, setPhone] = React.useState(initialValues.phone ?? "");
   const [addressLine1, setAddressLine1] = React.useState(initialValues.addressLine1 ?? "");
@@ -51,6 +66,9 @@ export function ContactSettingsForm({
     e.preventDefault();
     setSaving(true);
     const fd = new FormData(e.currentTarget);
+    if (splitName) {
+      fd.set("display_name", joinPersonName(firstName, lastName));
+    }
     const res = await saveAction(fd);
     setSaving(false);
 
@@ -80,18 +98,47 @@ export function ContactSettingsForm({
           <p className="text-sm text-muted-foreground">Comment tu apparais auprès des artisans ou des clients.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="display_name">{displayNameLabel}</Label>
-            <Input
-              id="display_name"
-              name="display_name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Prénom Nom"
-              autoComplete="name"
-              required
-            />
-          </div>
+          {splitName ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="first_name">Prénom</Label>
+                <Input
+                  id="first_name"
+                  name="first_name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Camille"
+                  autoComplete="given-name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last_name">Nom</Label>
+                <Input
+                  id="last_name"
+                  name="last_name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Martin"
+                  autoComplete="family-name"
+                  required
+                />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="display_name">{displayNameLabel}</Label>
+              <Input
+                id="display_name"
+                name="display_name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Prénom Nom"
+                autoComplete="name"
+                required
+              />
+            </div>
+          )}
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="email">Adresse e-mail</Label>
             {emailEditable ? (

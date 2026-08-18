@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function ensureCustomerProfile(displayName?: string) {
@@ -18,10 +19,10 @@ export async function ensureCustomerProfile(displayName?: string) {
     .maybeSingle();
   if (existing) return { ok: true as const };
 
-  const name =
-    displayName?.trim() ||
-    user.email?.split("@")[0] ||
-    "Client";
+  const name = formatContactDisplayName({
+    name: displayName,
+    fallback: "Client",
+  });
 
   const { error } = await supabase.from("customer_profiles").insert({
     user_id: user.id,
@@ -216,13 +217,16 @@ export async function listConversationsForArtisan() {
 
       const { data: cp } = await supabase
         .from("customer_profiles")
-        .select("display_name")
+        .select("display_name, email")
         .eq("user_id", c.customer_user_id)
         .maybeSingle();
       return {
         id: c.id,
         updated_at: c.updated_at,
-        customer_label: cp?.display_name ?? "Client",
+        customer_label: formatContactDisplayName({
+          profileName: cp?.display_name,
+          email: cp?.email,
+        }),
         is_lead: false,
       };
     }),

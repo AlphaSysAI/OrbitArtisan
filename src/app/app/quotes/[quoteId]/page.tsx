@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { quoteStatusLabel } from "@/lib/status-labels";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id,status,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at",
+      "id,status,customer_user_id,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at",
     )
     .eq("id", quoteId)
     .maybeSingle();
@@ -61,6 +62,25 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
   const materials = materialLines ?? [];
   const conversationId = (quote as { conversation_id?: string | null }).conversation_id ?? null;
 
+  let profileDisplayName: string | null = null;
+  if (quote.customer_user_id) {
+    const { data: cp } = await supabase
+      .from("customer_profiles")
+      .select("display_name, email")
+      .eq("user_id", quote.customer_user_id)
+      .maybeSingle();
+    profileDisplayName = formatContactDisplayName({
+      profileName: cp?.display_name,
+      email: cp?.email,
+    });
+  }
+
+  const customerLabel = formatContactDisplayName({
+    profileName: profileDisplayName,
+    name: quote.customer_name,
+    email: quote.customer_email,
+  });
+
   const { data: linkedInvoice } = await supabase.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();
 
   const q = quote as typeof quote & {
@@ -83,7 +103,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
           <p className="text-sm font-medium text-muted-foreground">Devis</p>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            {quote.customer_name || quote.customer_email || "Client"}
+            {customerLabel}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">Statut : {quoteStatusLabel(quote.status)}</p>
         </div>

@@ -7,6 +7,8 @@ import { AppPageHeader } from "@/components/app/app-page-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
+import { loadCustomerDisplayNames } from "@/lib/contacts/load-profile-display-names";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { quoteStatusLabel } from "@/lib/status-labels";
 
@@ -55,12 +57,16 @@ export default async function QuotesPage() {
   const { data: quotes, error } = await supabase
     .from("quotes")
     .select(
-      "id, status, customer_name, customer_email, grand_total, labor_total, materials_total, created_at, updated_at",
+      "id, status, customer_user_id, customer_name, customer_email, grand_total, labor_total, materials_total, created_at, updated_at",
     )
     .eq("artisan_id", profile.id)
     .order("created_at", { ascending: false });
 
   const items = error ? [] : (quotes ?? []);
+  const profileNames = await loadCustomerDisplayNames(
+    supabase,
+    items.map((q) => q.customer_user_id),
+  );
 
   return (
     <div className="space-y-8">
@@ -94,7 +100,11 @@ export default async function QuotesPage() {
             <li key={q.id}>
               <AppListItem
                 href={`/app/quotes/${q.id}`}
-                title={q.customer_name || q.customer_email || "Client"}
+                title={formatContactDisplayName({
+                  profileName: q.customer_user_id ? profileNames.get(q.customer_user_id) : null,
+                  name: q.customer_name,
+                  email: q.customer_email,
+                })}
                 subtitle={`Total ${formatEur(q.grand_total ?? 0)}`}
                 meta={
                   <Badge

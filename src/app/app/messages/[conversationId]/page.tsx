@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { findLeadMatchForConversation } from "@/lib/leads/quote-draft-actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -45,10 +46,13 @@ export default async function ArtisanConversationPage({
   } else if (conv.customer_user_id) {
     const { data: cp } = await supabase
       .from("customer_profiles")
-      .select("display_name")
+      .select("display_name, email")
       .eq("user_id", conv.customer_user_id)
       .maybeSingle();
-    displayName = cp?.display_name ?? "Client";
+    displayName = formatContactDisplayName({
+      profileName: cp?.display_name,
+      email: cp?.email,
+    });
   }
 
   const leadMatch = await findLeadMatchForConversation(conversationId);

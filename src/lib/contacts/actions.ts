@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -74,7 +75,10 @@ export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanC
     linkedByUser.set(c.customer_user_id, {
       kind: "linked",
       customerUserId: c.customer_user_id,
-      label: cp?.display_name ?? "Client",
+      label: formatContactDisplayName({
+        profileName: cp?.display_name,
+        email: cp?.email,
+      }),
       email: cp?.email ?? null,
       conversationId: c.id,
       lastActivityAt: c.updated_at,
@@ -102,7 +106,10 @@ export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanC
     linkedByUser.set(uid, {
       kind: "linked",
       customerUserId: uid,
-      label: cp?.display_name ?? "Client",
+      label: formatContactDisplayName({
+        profileName: cp?.display_name,
+        email: cp?.email,
+      }),
       email: cp?.email ?? null,
       conversationId: null,
       lastActivityAt: inv.accepted_at ?? new Date().toISOString(),

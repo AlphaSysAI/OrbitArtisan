@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { mistralChatText } from "@/lib/ai/mistral";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -81,7 +82,25 @@ export async function POST(request: Request) {
 
   const artisanName = (artisanProfile?.business_name ?? "").toString() || "Artisan";
   const artisanDescription = artisanProfile?.description ?? "";
-  const customerName = quote.customer_name || quote.customer_email || "Client";
+
+  let profileDisplayName: string | null = null;
+  if (quote.customer_user_id) {
+    const { data: cp } = await supabase
+      .from("customer_profiles")
+      .select("display_name, email")
+      .eq("user_id", quote.customer_user_id)
+      .maybeSingle();
+    profileDisplayName = formatContactDisplayName({
+      profileName: cp?.display_name,
+      email: cp?.email,
+    });
+  }
+
+  const customerName = formatContactDisplayName({
+    profileName: profileDisplayName,
+    name: quote.customer_name,
+    email: quote.customer_email,
+  });
 
   const prompt = `
 Tu es un assistant qui résume un devis et la discussion associée.

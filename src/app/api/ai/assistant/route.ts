@@ -27,6 +27,7 @@ import { mistralChatParse } from "@/lib/ai/mistral";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { resolveAppointmentDate } from "@/lib/ai/resolve-appointment-when";
 import { formatIsoDateFr, resolveFrenchDateQuery, toIsoDate } from "@/lib/ai/resolve-date";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { listArtisanContacts } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -233,8 +234,11 @@ async function buildAppointmentNamePool(
     .limit(200);
 
   for (const row of past ?? []) {
-    const label = String(row.customer_name ?? "").trim();
-    if (!label) continue;
+    const label = formatContactDisplayName({
+      name: row.customer_name as string | null,
+      email: row.customer_email as string | null,
+    });
+    if (label === "Client") continue;
     const key = label.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { joinPersonName } from "@/lib/contacts/display-name";
 import { finalizePendingVitrineAppointment } from "@/app/site/[slug]/actions";
 import { acceptPlatformInvitation } from "@/lib/invitations/actions";
 import { claimLeadByToken } from "@/lib/leads/client-signup";
@@ -65,10 +66,18 @@ export function InscriptionClientForm({
     const email = String(fd.get("email") ?? "").trim();
     const password = String(fd.get("password") ?? "");
     const passwordConfirm = String(fd.get("password_confirm") ?? "");
-    const displayName = String(fd.get("display_name") ?? "").trim();
+    const firstName = String(fd.get("first_name") ?? "").trim();
+    const lastName = String(fd.get("last_name") ?? "").trim();
+    const displayName = joinPersonName(firstName, lastName);
 
     if (!email || !password) {
       setError("L’adresse e-mail et le mot de passe sont obligatoires.");
+      setLoading(false);
+      return;
+    }
+
+    if (!displayName) {
+      setError("Le prénom et le nom sont obligatoires.");
       setLoading(false);
       return;
     }
@@ -109,9 +118,8 @@ export function InscriptionClientForm({
     }
 
     if (data.session && data.user) {
-      const name = displayName || email.split("@")[0] || "Client";
       const { error: profileErr } = await supabase.from("customer_profiles").upsert(
-        { user_id: data.user.id, display_name: name, email },
+        { user_id: data.user.id, display_name: displayName, email },
         { onConflict: "user_id" },
       );
       if (profileErr) {
@@ -193,9 +201,29 @@ export function InscriptionClientForm({
       )}
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="display_name">Comment vous appeler</Label>
-          <Input id="display_name" name="display_name" placeholder="Camille" autoComplete="nickname" defaultValue={prefillName ?? ""} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="first_name">Prénom</Label>
+            <Input
+              id="first_name"
+              name="first_name"
+              placeholder="Camille"
+              autoComplete="given-name"
+              required
+              defaultValue={prefillName ? prefillName.split(/\s+/)[0] : ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="last_name">Nom</Label>
+            <Input
+              id="last_name"
+              name="last_name"
+              placeholder="Martin"
+              autoComplete="family-name"
+              required
+              defaultValue={prefillName ? prefillName.split(/\s+/).slice(1).join(" ") : ""}
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Adresse e-mail</Label>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { joinPersonName } from "@/lib/contacts/display-name";
 import {
   normalizePhone,
   normalizePostalCode,
@@ -15,7 +16,10 @@ function isValidEmail(email: string): boolean {
 }
 
 export async function updateCustomerSettings(formData: FormData) {
-  const displayName = String(formData.get("display_name") ?? "").trim();
+  const displayName = joinPersonName(
+    String(formData.get("first_name") ?? formData.get("display_name") ?? "").trim(),
+    String(formData.get("last_name") ?? "").trim(),
+  );
   if (!displayName) return { ok: false as const, error: "missing_name" as const };
 
   const emailRaw = String(formData.get("email") ?? "").trim();

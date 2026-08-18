@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
+
 import type { FacturXInvoiceDocument, FacturXLineInput } from "./types";
 
 type InvoiceRow = {
@@ -132,7 +134,11 @@ export async function loadFacturXDocumentFromDb(
       phone: seller.phone,
     },
     buyer: {
-      name: customerProfile?.display_name ?? inv.customer_name ?? "Client",
+      name: formatContactDisplayName({
+        profileName: customerProfile?.display_name,
+        name: inv.customer_name,
+        email: customerProfile?.email ?? inv.customer_email,
+      }),
       siren: customerProfile?.siren ?? null,
       siret: customerProfile?.siret ?? null,
       vatNumber: customerProfile?.vat_number ?? null,

@@ -9,6 +9,7 @@ import {
   type MatchedSupplierMaterial,
 } from "@/lib/ai/quote-from-chat-schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -85,9 +86,14 @@ export async function POST(request: Request) {
 
   const { data: cp } = await supabase
     .from("customer_profiles")
-    .select("display_name")
+    .select("display_name, email")
     .eq("user_id", conv.customer_user_id)
     .maybeSingle();
+
+  const customerLabel = formatContactDisplayName({
+    profileName: cp?.display_name,
+    email: cp?.email,
+  });
 
   const laborRateEur =
     profile.labor_rate_per_hour != null ? (profile.labor_rate_per_hour / 100).toFixed(2) : "non renseigné";
@@ -101,7 +107,7 @@ notes : synthèse courte pour le devis (max 500 caractères).`;
 
   const userPrompt = `Artisan: ${profile.business_name}
 ${profile.description ? `Description: ${profile.description}` : ""}
-Client: ${cp?.display_name ?? "Client"}
+Client: ${customerLabel}
 Taux horaire artisan: ${laborRateEur} €/h
 
 Catalogue prestations disponibles:

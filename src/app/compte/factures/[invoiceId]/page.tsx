@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 import { isStripeConfigured } from "@/lib/stripe/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -46,7 +47,7 @@ export default async function ClientInvoiceDetailPage({
   const { data: invoice } = await supabase
     .from("invoices")
     .select(
-      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_name, created_at, updated_at, customer_user_id",
+      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_name, customer_email, created_at, updated_at, customer_user_id",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -54,6 +55,18 @@ export default async function ClientInvoiceDetailPage({
   if (!invoice || invoice.customer_user_id !== user.id) {
     notFound();
   }
+
+  const { data: cp } = await supabase
+    .from("customer_profiles")
+    .select("display_name, email")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const customerLabel = formatContactDisplayName({
+    profileName: cp?.display_name,
+    name: invoice.customer_name,
+    email: cp?.email ?? invoice.customer_email,
+  });
 
   const stripeEnabled = isStripeConfigured();
   const showPaidBanner = payment === "success" && invoice.status === "paid";
@@ -113,7 +126,7 @@ export default async function ClientInvoiceDetailPage({
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {artisan?.business_name ?? "Artisan"}
-            {invoice.customer_name ? ` · ${invoice.customer_name}` : null}
+            {customerLabel !== "Client" ? ` · ${customerLabel}` : null}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Émise le{" "}

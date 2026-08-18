@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
+import { loadCustomerDisplayNames } from "@/lib/contacts/load-profile-display-names";
 import { invoiceStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
@@ -80,7 +82,7 @@ export default async function InvoicesPage({
 
   const { data: acceptedQuotes } = await supabase
     .from("quotes")
-    .select("id, customer_name, customer_email, grand_total, created_at, signed_at")
+    .select("id, customer_user_id, customer_name, customer_email, grand_total, created_at, signed_at")
     .eq("artisan_id", profile.id)
     .eq("status", "accepted")
     .order("created_at", { ascending: false });
@@ -88,9 +90,14 @@ export default async function InvoicesPage({
   const { data: invoiceRows } = await supabase
     .from("invoices")
     .select(
-      "id, quote_id, invoice_number, grand_total, status, created_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, finalized_at",
+      "id, quote_id, customer_user_id, customer_name, customer_email, invoice_number, grand_total, status, created_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, finalized_at",
     )
     .eq("artisan_id", profile.id);
+
+  const profileNames = await loadCustomerDisplayNames(supabase, [
+    ...(acceptedQuotes ?? []).map((q) => q.customer_user_id),
+    ...(invoiceRows ?? []).map((inv) => inv.customer_user_id),
+  ]);
 
   const invoicedQuoteIds = new Set((invoiceRows ?? []).map((r) => r.quote_id).filter(Boolean));
   const toTransform = (acceptedQuotes ?? []).filter((q) => !invoicedQuoteIds.has(q.id));
@@ -213,7 +220,11 @@ export default async function InvoicesPage({
             {toTransform.map((q) => (
               <li key={q.id}>
                 <AppListItem
-                  title={q.customer_name || q.customer_email || "Client"}
+                  title={formatContactDisplayName({
+                    profileName: q.customer_user_id ? profileNames.get(q.customer_user_id) : null,
+                    name: q.customer_name,
+                    email: q.customer_email,
+                  })}
                   subtitle={
                     <>
                       Total {formatEur(q.grand_total ?? 0)}
@@ -268,6 +279,12 @@ export default async function InvoicesPage({
                   }
                   subtitle={
                     <>
+                      {formatContactDisplayName({
+                        profileName: inv.customer_user_id ? profileNames.get(inv.customer_user_id) : null,
+                        name: inv.customer_name,
+                        email: inv.customer_email,
+                      })}
+                      {" · "}
                       {invoiceStatusLabel(inv.status)} · {formatEur(inv.grand_total ?? 0)}
                       {inv.e_invoicing_rejection_reason ? (
                         <span className="mt-0.5 block text-destructive">

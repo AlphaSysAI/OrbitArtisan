@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { splitPersonName } from "@/lib/contacts/display-name";
 import { ContactSettingsForm } from "@/components/settings/contact-settings-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -23,6 +24,8 @@ export default async function ClientSettingsPage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
+  const { firstName, lastName } = splitPersonName(cp?.display_name ?? "");
+
   return (
     <div className="space-y-8">
       <div>
@@ -35,7 +38,8 @@ export default async function ClientSettingsPage() {
 
       <ContactSettingsForm
         initialValues={{
-          displayName: cp?.display_name ?? "",
+          firstName,
+          lastName,
           email: cp?.email ?? user.email ?? null,
           phone: cp?.phone ?? null,
           addressLine1: cp?.address_line1 ?? null,
@@ -44,6 +48,7 @@ export default async function ClientSettingsPage() {
           city: cp?.city ?? null,
         }}
         displayNameLabel="Comment tu t’appelles"
+        splitName
         emailEditable
         saveAction={updateCustomerSettings}
       />

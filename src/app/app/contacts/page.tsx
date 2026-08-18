@@ -7,6 +7,7 @@ import { AppListItem } from "@/components/app/app-list-item";
 import { AppPageHeader } from "@/components/app/app-page-header";
 import { Badge } from "@/components/ui/badge";
 import { SupabaseMissing } from "@/components/supabase-missing";
+import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { listArtisanContacts } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -82,7 +83,11 @@ export default async function ArtisanContactsPage() {
                 {pending.map((item) => (
                   <li key={item.id}>
                     <AppListItem
-                      title={item.invitedName ?? item.email}
+                      title={formatContactDisplayName({
+                        name: item.invitedName,
+                        email: item.email,
+                        fallback: item.email,
+                      })}
                       subtitle={`Invitation ${item.accountType === "artisan" ? "artisan" : "client"} · ${item.email}`}
                       meta={<Badge variant="secondary">En attente</Badge>}
                       trailing={<CancelInvitationButton invitationId={item.id} />}
