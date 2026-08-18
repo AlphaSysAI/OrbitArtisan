@@ -21,21 +21,32 @@ export type AppNavItem = {
   exact: boolean;
 };
 
-/** Navigation principale (header desktop + menu burger mobile). */
-export const APP_NAV_ITEMS: AppNavItem[] = [
+/** Liens visibles directement dans le header desktop. */
+export const APP_NAV_PRIMARY: AppNavItem[] = [
   { href: "/app", label: "Accueil", shortLabel: "Accueil", icon: Home, exact: true },
   { href: "/app/rdv", label: "Mes RDV", shortLabel: "RDV", icon: CalendarClock, exact: false },
   { href: "/app/contacts", label: "Contacts", shortLabel: "Clients", icon: Users, exact: false },
   { href: "/app/messages", label: "Messages", shortLabel: "Msgs", icon: MessageSquare, exact: false },
   { href: "/app/quotes", label: "Devis", shortLabel: "Devis", icon: FileText, exact: false },
-  { href: "/app/ouvrages", label: "Ouvrages", shortLabel: "Ouvrages", icon: BookOpen, exact: false },
-  { href: "/app/chantiers", label: "Chantiers", shortLabel: "Chantiers", icon: Hammer, exact: false },
-  { href: "/app/interventions", label: "Interventions", shortLabel: "BI", icon: ClipboardList, exact: false },
   { href: "/app/invoices", label: "Factures", shortLabel: "Factures", icon: Receipt, exact: false },
-  { href: "/app/fournisseurs", label: "Fournisseurs", shortLabel: "Fourn.", icon: Truck, exact: false },
   { href: "/app/reglages", label: "Réglages", shortLabel: "Réglages", icon: Settings, exact: false },
 ];
 
+/** Liens regroupés dans le menu « Plus » (header desktop). */
+export const APP_NAV_MORE: AppNavItem[] = [
+  { href: "/app/ouvrages", label: "Ouvrages", shortLabel: "Ouvrages", icon: BookOpen, exact: false },
+  { href: "/app/chantiers", label: "Chantiers", shortLabel: "Chantiers", icon: Hammer, exact: false },
+  { href: "/app/interventions", label: "Interventions", shortLabel: "BI", icon: ClipboardList, exact: false },
+  { href: "/app/fournisseurs", label: "Fournisseurs", shortLabel: "Fourn.", icon: Truck, exact: false },
+];
+
+/** Navigation complète (menu mobile). */
+export const APP_NAV_ITEMS: AppNavItem[] = [...APP_NAV_PRIMARY, ...APP_NAV_MORE];
+
 export function isNavItemActive(pathname: string, item: AppNavItem) {
   return item.exact ? pathname === item.href : pathname.startsWith(item.href);
+}
+
+export function isNavMoreActive(pathname: string) {
+  return APP_NAV_MORE.some((item) => isNavItemActive(pathname, item));
 }
