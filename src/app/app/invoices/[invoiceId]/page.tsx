@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ArrowLeft, Receipt } from "lucide-react";
 
@@ -14,6 +14,7 @@ import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-
 import { FinalizeInvoiceButton } from "@/components/invoices/finalize-invoice-button";
 import { InvoiceReminderButton } from "@/components/invoices/invoice-reminder-button";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
+import { loadInvoiceForEditPage } from "@/lib/billing/load-invoice-for-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
@@ -53,16 +54,11 @@ export default async function InvoiceEditPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect(`/login?next=/app/invoices/${invoiceId}`);
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user!.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
 
-  const { data: invoice } = await supabase
-    .from("invoices")
-    .select(
-      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_user_id, customer_name, customer_email, created_at, finalized_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, pa_submission_id, invoice_type, due_date, reminder_count, last_reminder_at, retention_amount, retention_rate, retention_released_at",
-    )
-    .eq("id", invoiceId)
-    .maybeSingle();
+  const invoice = await loadInvoiceForEditPage(supabase, invoiceId);
 
   if (!invoice || !profile?.id || invoice.artisan_id !== profile.id) {
     notFound();
@@ -118,8 +114,8 @@ export default async function InvoiceEditPage({
               />
               <span className="text-sm text-muted-foreground">
                 Finalisée · {invoiceStatusLabel(invoice.status)}
-                {(invoice as { due_date?: string | null }).due_date
-                  ? ` · Échéance ${new Date((invoice as { due_date: string }).due_date).toLocaleDateString("fr-FR")}`
+                {invoice.due_date
+                  ? ` · Échéance ${new Date(invoice.due_date).toLocaleDateString("fr-FR")}`
                   : ""}
                 {emissionFlow ? ` · ${FLOW_LABELS[emissionFlow] ?? emissionFlow}` : ""}
               </span>
@@ -205,9 +201,7 @@ export default async function InvoiceEditPage({
         </CardContent>
       </Card>
 
-      {!isDraft &&
-      (invoice as { invoice_type?: string }).invoice_type !== "credit_note" &&
-      invoice.status !== "draft" ? (
+      {!isDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft" ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Actions BTP</CardTitle>
@@ -220,15 +214,13 @@ export default async function InvoiceEditPage({
                 Créer un avoir
               </Button>
             </form>
-            {(invoice as { retention_amount?: number }).retention_amount &&
-            (invoice as { retention_amount?: number }).retention_amount! > 0 &&
-            !(invoice as { retention_released_at?: string | null }).retention_released_at ? (
+            {invoice.retention_amount > 0 && !invoice.retention_released_at ? (
               <form action={releaseRetentionForm}>
                 <input type="hidden" name="invoice_id" value={invoiceId} />
                 <Button type="submit" variant="outline" size="sm">
                   Libérer retenue (
                   {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                    ((invoice as { retention_amount?: number }).retention_amount ?? 0) / 100,
+                    invoice.retention_amount / 100,
                   )}
                   )
                 </Button>
