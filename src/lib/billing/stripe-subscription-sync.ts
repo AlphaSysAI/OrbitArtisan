@@ -36,18 +36,45 @@ function resolvePlanId(metadata: Stripe.Metadata | null | undefined): Subscripti
   return null;
 }
 
+async function resolveProfileIdByStripeSubscription(
+  admin: SupabaseClient,
+  stripeSubscriptionId: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("stripe_subscription_id", stripeSubscriptionId)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+async function resolveProfileIdFromSubscription(
+  admin: SupabaseClient,
+  subscription: Stripe.Subscription,
+  fallbackProfileId?: string | null,
+): Promise<string | null> {
+  const fromMetadata = subscription.metadata?.profile_id?.trim() || fallbackProfileId?.trim();
+  if (fromMetadata) return fromMetadata;
+  return resolveProfileIdByStripeSubscription(admin, subscription.id);
+}
+
 export async function syncProfileFromStripeSubscription(
   admin: SupabaseClient,
   subscription: Stripe.Subscription,
   fallbackProfileId?: string | null,
+  options?: { fallbackPlanId?: SubscriptionPlanId | null },
 ) {
-  const profileId = subscription.metadata?.profile_id?.trim() || fallbackProfileId?.trim();
+  const profileId =
+    subscription.metadata?.profile_id?.trim() ||
+    fallbackProfileId?.trim() ||
+    (await resolveProfileIdByStripeSubscription(admin, subscription.id));
+
   if (!profileId) {
     console.warn("[stripe subscription] profile_id manquant", subscription.id);
     return;
   }
 
-  const planId = resolvePlanId(subscription.metadata);
+  const planId = resolvePlanId(subscription.metadata) ?? options?.fallbackPlanId ?? null;
   const status = mapStripeSubscriptionStatus(subscription.status);
   const trialEndsAt =
     subscription.trial_end != null ? new Date(subscription.trial_end * 1000).toISOString() : null;
@@ -80,7 +107,7 @@ export async function syncProfileFromStripeSubscription(
 }
 
 export async function markProfileSubscriptionPastDue(admin: SupabaseClient, subscription: Stripe.Subscription) {
-  const profileId = subscription.metadata?.profile_id?.trim();
+  const profileId = await resolveProfileIdFromSubscription(admin, subscription);
   if (!profileId) return;
 
   await admin
@@ -93,7 +120,7 @@ export async function markProfileSubscriptionPastDue(admin: SupabaseClient, subs
 }
 
 export async function markProfileSubscriptionCanceled(admin: SupabaseClient, subscription: Stripe.Subscription) {
-  const profileId = subscription.metadata?.profile_id?.trim();
+  const profileId = await resolveProfileIdFromSubscription(admin, subscription);
   if (!profileId) return;
 
   await admin

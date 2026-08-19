@@ -11,6 +11,7 @@ import {
   markProfileSubscriptionPastDue,
   syncProfileFromStripeSubscription,
 } from "@/lib/billing/stripe-subscription-sync";
+import { syncSaasSubscriptionFromCheckoutSession } from "@/lib/billing/stripe-checkout-sync";
 
 export const runtime = "nodejs";
 
@@ -111,19 +112,15 @@ export async function POST(request: Request) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (session.metadata?.checkout_kind === "saas_subscription" && session.mode === "subscription") {
+      if (session.mode === "subscription" && session.subscription) {
         let admin;
         try {
           admin = createSupabaseAdminClient();
         } catch (e) {
           console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
         }
-        if (admin && session.subscription) {
-          const stripe = getStripe();
-          const subscriptionId =
-            typeof session.subscription === "string" ? session.subscription : session.subscription.id;
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          await syncProfileFromStripeSubscription(admin, subscription, session.metadata?.profile_id);
+        if (admin) {
+          await syncSaasSubscriptionFromCheckoutSession(admin, session);
         }
       } else if (session.payment_status === "paid" || session.payment_status === "no_payment_required") {
         await markInvoicePaidFromSession(session);

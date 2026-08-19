@@ -1,11 +1,13 @@
-/** Grille tarifaire Soline — source unique pour landing, CGU et futur billing. */
+/** Grille tarifaire Soline — source unique pour landing, CGU et billing. */
 
 export type SubscriptionPlanId = "base" | "pro" | "premium";
+export type BillingInterval = "monthly" | "annual";
 
 export type SubscriptionPlan = {
   id: SubscriptionPlanId;
   name: string;
-  priceHtEur: number;
+  priceMonthlyHtEur: number;
+  priceAnnualHtEur: number;
   solineMinutesIncluded: number;
   description: string;
   features: string[];
@@ -19,23 +21,31 @@ export type SolineRechargePack = {
   label: string;
 };
 
+const SHARED_SAAS_FEATURES = [
+  "Tout le SaaS BTP (devis, factures, RDV, chantiers…)",
+  "Devis illimités",
+  "1 utilisateur",
+] as const;
+
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "base",
     name: "Base",
-    priceHtEur: 39,
+    priceMonthlyHtEur: 29.9,
+    priceAnnualHtEur: 299.9,
     solineMinutesIncluded: 0,
     description: "Tout le SaaS BTP pour gérer votre activité au quotidien.",
-    features: ["Tout le SaaS BTP", "Devis illimités", "1 utilisateur"],
+    features: [...SHARED_SAAS_FEATURES, "Sans secrétaire vocale Soline"],
   },
   {
     id: "pro",
     name: "Pro",
-    priceHtEur: 69,
+    priceMonthlyHtEur: 69.9,
+    priceAnnualHtEur: 779.9,
     solineMinutesIncluded: 60,
     description: "Le plan Base avec Soline, votre secrétaire vocale IA.",
     features: [
-      "Tout le plan Base",
+      ...SHARED_SAAS_FEATURES,
       "Soline — secrétaire vocale IA",
       "60 min d'appels incluses / mois",
       "Prise de RDV automatique",
@@ -45,17 +55,41 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "premium",
     name: "Premium",
-    priceHtEur: 99,
+    priceMonthlyHtEur: 99.9,
+    priceAnnualHtEur: 999.9,
     solineMinutesIncluded: 150,
-    description: "Le plan Pro avec plus de minutes Soline pour les artisans très sollicités.",
+    description: "Le plan Base avec plus de minutes Soline pour les artisans très sollicités.",
     features: [
-      "Tout le plan Pro",
+      ...SHARED_SAAS_FEATURES,
       "Soline — secrétaire vocale IA",
       "150 min d'appels incluses / mois",
-      "Priorité sur les nouveautés IA",
+      "Prise de RDV automatique",
     ],
   },
 ];
+
+export function formatPriceHtEur(amount: number): string {
+  return amount.toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function getPlanPriceHtEur(planId: SubscriptionPlanId, interval: BillingInterval): number {
+  const plan = SUBSCRIPTION_PLANS.find((item) => item.id === planId);
+  if (!plan) return 0;
+  return interval === "annual" ? plan.priceAnnualHtEur : plan.priceMonthlyHtEur;
+}
+
+export function getPlanMrrCents(planId: SubscriptionPlanId): number {
+  return Math.round(getPlanPriceHtEur(planId, "monthly") * 100);
+}
+
+export function getPlanAnnualSavingsPercent(plan: SubscriptionPlan): number {
+  const monthlyTotal = plan.priceMonthlyHtEur * 12;
+  if (monthlyTotal <= 0) return 0;
+  return Math.round(((monthlyTotal - plan.priceAnnualHtEur) / monthlyTotal) * 100);
+}
 
 export function getPlanVoiceMinutes(planId: SubscriptionPlanId): number {
   const plan = SUBSCRIPTION_PLANS.find((item) => item.id === planId);

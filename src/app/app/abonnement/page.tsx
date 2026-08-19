@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { Check } from "lucide-react";
 
-import { SubscriptionPlanButton } from "@/app/app/abonnement/subscription-plan-button";
 import { AppPageHeader } from "@/components/app/app-page-header";
+import { SubscriptionPricingGrid } from "@/components/billing/subscription-pricing-grid";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
@@ -10,8 +9,8 @@ import {
   SUBSCRIPTION_STATUS_LABELS,
   type SubscriptionStatus,
 } from "@/lib/billing/subscription-access";
-import { SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
 import { isStripeConfigured } from "@/lib/stripe/server";
+import { isStripeSubscriptionPaymentLinksConfigured } from "@/lib/stripe/subscription-payment-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function reasonMessage(reason: string | undefined) {
@@ -48,7 +47,7 @@ export default async function AbonnementPage({
   const status = (profile?.subscription_status ?? "trialing") as SubscriptionStatus;
   const statusLabel = SUBSCRIPTION_STATUS_LABELS[status] ?? profile?.subscription_status ?? "—";
   const blockMessage = reasonMessage(sp.reason);
-  const stripeEnabled = isStripeConfigured();
+  const stripeEnabled = isStripeConfigured() && isStripeSubscriptionPaymentLinksConfigured();
 
   return (
     <div className="space-y-8">
@@ -126,48 +125,16 @@ export default async function AbonnementPage({
         <h2 className="font-display text-2xl font-semibold tracking-tight">Choisir une formule</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {stripeEnabled
-            ? "Paiement sécurisé par Stripe. Vous serez redirigé vers la page de paiement."
+            ? "Paiement sécurisé par Stripe. Mensuel ou annuel — la seule différence entre les formules, c'est Soline."
             : "Le paiement en ligne sera bientôt disponible. En attendant, contactez le support pour activer votre formule."}
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {SUBSCRIPTION_PLANS.map((plan) => (
-          <article
-            key={plan.id}
-            className={`relative flex flex-col rounded-2xl border bg-card p-6 shadow-sm ${
-              plan.popular ? "border-orange-300 ring-1 ring-orange-200" : ""
-            }`}
-          >
-            {plan.popular ? (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-orange-500 px-3 py-0.5 text-xs font-semibold text-white">
-                Populaire
-              </span>
-            ) : null}
-            <h3 className="font-display text-xl font-semibold">{plan.name}</h3>
-            <p className="mt-2 flex items-baseline gap-1">
-              <span className="text-4xl font-bold tabular-nums">{plan.priceHtEur} €</span>
-              <span className="text-muted-foreground">HT / mois</span>
-            </p>
-            <p className="mt-3 text-sm text-muted-foreground">{plan.description}</p>
-            <ul className="mt-6 flex-1 space-y-2 text-sm">
-              {plan.features.map((feature) => (
-                <li key={feature} className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-orange-500" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-8">
-              <SubscriptionPlanButton
-                plan={plan}
-                currentPlanId={profile?.subscription_plan ?? "base"}
-                stripeEnabled={stripeEnabled}
-              />
-            </div>
-          </article>
-        ))}
-      </div>
+      <SubscriptionPricingGrid
+        variant="checkout"
+        currentPlanId={profile?.subscription_plan ?? "base"}
+        stripeEnabled={stripeEnabled}
+      />
 
       {!stripeEnabled ? (
         <div className="flex flex-wrap gap-3">

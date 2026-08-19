@@ -1,7 +1,6 @@
 import "server-only";
 
-import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
-import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
+import { formatPriceHtEur, getPlanMrrCents, getPlanVoiceMinutes, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import {
   emptyAdminMetrics,
   getAdminDb,
@@ -41,9 +40,9 @@ export type AdminPlatformMetrics = {
 };
 
 const PLAN_MRR_CENTS: Record<SubscriptionPlanId, number> = {
-  base: 3900,
-  pro: 6900,
-  premium: 9900,
+  base: getPlanMrrCents("base"),
+  pro: getPlanMrrCents("pro"),
+  premium: getPlanMrrCents("premium"),
 };
 
 const PROFILE_EXTENDED_SELECT =

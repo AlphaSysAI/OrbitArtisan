@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
-import { SOLINE_RECHARGE_PACKS, SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
+import {
+  formatPriceHtEur,
+  SOLINE_RECHARGE_PACKS,
+  SUBSCRIPTION_PLANS,
+} from "@/lib/billing/subscription-plans";
 import { LEGAL_PUBLISHER } from "@/lib/legal/site-legal-info";
 
 export const metadata: Metadata = {
@@ -62,10 +66,11 @@ export default function CguPage() {
         <ul className="list-disc space-y-2 pl-5">
           {SUBSCRIPTION_PLANS.map((plan) => (
             <li key={plan.id}>
-              <strong>Plan {plan.name}</strong> : {plan.priceHtEur} € HT / mois —{" "}
+              <strong>Plan {plan.name}</strong> — {formatPriceHtEur(plan.priceMonthlyHtEur)} € HT / mois ou{" "}
+              {formatPriceHtEur(plan.priceAnnualHtEur)} € HT / an :{" "}
               {plan.solineMinutesIncluded > 0
-                ? `plan Base + Soline (${plan.solineMinutesIncluded} min d'appels incluses / mois).`
-                : "accès au SaaS BTP, devis illimités, 1 utilisateur."}
+                ? `SaaS BTP complet + Soline (${plan.solineMinutesIncluded} min d'appels incluses / mois).`
+                : "SaaS BTP complet, sans secrétaire vocale Soline."}
             </li>
           ))}
           <li>
@@ -84,8 +89,8 @@ export default function CguPage() {
         </ul>
         <p>
           Les tarifs peuvent être modifiés. Toute modification sera notifiée à l&apos;utilisateur avant son
-          application. L&apos;abonnement est conclu pour une durée mensuelle, renouvelable tacitement, et
-          résiliable à tout moment depuis l&apos;espace utilisateur ou par e-mail à{" "}
+          application.           L&apos;abonnement est conclu pour une durée mensuelle ou annuelle selon l&apos;offre choisie,
+          renouvelable tacitement, et résiliable à tout moment depuis l&apos;espace utilisateur ou par e-mail à{" "}
           <a href={`mailto:${LEGAL_PUBLISHER.email}`} className="text-orange-600 underline-offset-2 hover:underline">
             {LEGAL_PUBLISHER.email}
           </a>

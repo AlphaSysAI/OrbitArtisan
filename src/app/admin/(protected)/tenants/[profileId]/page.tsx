@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getAdminTenant } from "@/lib/admin/tenants";
-import { SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
+import { formatPriceHtEur, SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
 
 export default async function AdminTenantDetailPage({
   params,
@@ -84,7 +84,7 @@ export default async function AdminTenantDetailPage({
                 >
                   {SUBSCRIPTION_PLANS.map((plan) => (
                     <option key={plan.id} value={plan.id}>
-                      {plan.name} — {plan.priceHtEur} € HT/mois
+                      {plan.name} — {formatPriceHtEur(plan.priceMonthlyHtEur)} € HT/mois
                     </option>
                   ))}
                 </select>

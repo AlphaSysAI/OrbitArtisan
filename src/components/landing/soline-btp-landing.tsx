@@ -17,7 +17,8 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { SOLINE_RECHARGE_PACKS, SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
+import { SubscriptionPricingGrid } from "@/components/billing/subscription-pricing-grid";
+import { SOLINE_RECHARGE_PACKS } from "@/lib/billing/subscription-plans";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -408,64 +409,12 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
               Tarifs clairs, sans surprise
             </h2>
             <p className="mt-3 text-slate-600">
-              Trois formules mensuelles. Soline incluse dès le plan Pro — rechargez vos minutes à la demande.
+              Trois formules, mensuelles ou annuelles. Le SaaS BTP est identique sur tous les plans — seule
+              Soline diffère.
             </p>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            {SUBSCRIPTION_PLANS.map((plan) => (
-              <article
-                key={plan.id}
-                className={cn(
-                  "relative flex flex-col rounded-3xl border bg-white p-6 sm:p-8",
-                  plan.popular
-                    ? "border-2 border-orange-400 shadow-lg shadow-orange-500/10"
-                    : "border-slate-200",
-                )}
-              >
-                {plan.popular ? (
-                  <span className="absolute -top-3 left-6 rounded-full bg-orange-500 px-3 py-1 text-xs font-semibold text-white">
-                    Le plus populaire
-                  </span>
-                ) : null}
-                <p
-                  className={cn(
-                    "text-sm font-semibold uppercase tracking-wider",
-                    plan.popular ? "text-orange-600" : "text-slate-500",
-                  )}
-                >
-                  Plan {plan.name}
-                </p>
-                <p className="mt-3 flex items-baseline gap-1">
-                  <span className="text-4xl font-bold text-slate-900">{plan.priceHtEur} €</span>
-                  <span className="text-slate-500">HT / mois</span>
-                </p>
-                <p className="mt-2 text-sm text-slate-600">{plan.description}</p>
-                <ul className="mt-6 flex-1 space-y-3 text-sm text-slate-600">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex gap-2">
-                      <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <a
-                  href={appRegisterUrl}
-                  className={cn(
-                    buttonVariants({ size: "lg" }),
-                    "mt-8 w-full",
-                    plan.popular
-                      ? "border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
-                      : plan.id === "premium"
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-                  )}
-                >
-                  {plan.id === "base" ? "Démarrer l'essai gratuit" : `Choisir ${plan.name}`}
-                </a>
-              </article>
-            ))}
-          </div>
+          <SubscriptionPricingGrid variant="landing" registerUrl={appRegisterUrl} />
 
           <div className="mx-auto mt-16 max-w-3xl">
             <div className="mb-8 text-center">

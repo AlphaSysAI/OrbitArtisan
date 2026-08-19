@@ -409,13 +409,15 @@ Routes export :
 
 Source : `src/lib/billing/subscription-plans.ts`
 
-### 10.1 Abonnements mensuels HT
+### 10.1 Abonnements HT
 
-| Plan | Prix | Soline (min/mois) | Contenu |
-|------|------|-------------------|---------|
-| **Base** | 39 € | 0 | SaaS complet, devis illimités, 1 utilisateur |
-| **Pro** | 69 € | 60 | Base + secrétaire vocale IA, prise RDV auto |
-| **Premium** | 99 € | 150 | Pro + plus de minutes, priorité nouveautés IA |
+| Plan | Mensuel | Annuel | Soline (min/mois) | Différence |
+|------|---------|--------|-------------------|------------|
+| **Base** | 29,90 € | 299,90 € | 0 | SaaS complet, sans Soline |
+| **Pro** | 69,90 € | 779,90 € | 60 | SaaS + secrétaire vocale IA |
+| **Premium** | 99,90 € | 999,90 € | 150 | SaaS + plus de minutes Soline |
+
+Le SaaS BTP est identique sur les trois formules. Seule Soline (secrétaire vocale IA) diffère.
 
 Essai gratuit 15 jours (mentionné landing).
 
@@ -576,6 +578,12 @@ Bucket privé `lead-media` : photos/vidéos leads (max 50 Mo/fichier).
 | `MISTRAL_VISION_MODEL` | Modèle vision (prévu) |
 | `STRIPE_SECRET_KEY` | API Stripe |
 | `STRIPE_WEBHOOK_SECRET` | Validation webhooks Stripe |
+| `STRIPE_PAYMENT_LINK_BASE_MONTHLY` | Lien de paiement Stripe — Base mensuel |
+| `STRIPE_PAYMENT_LINK_BASE_ANNUAL` | Lien de paiement Stripe — Base annuel |
+| `STRIPE_PAYMENT_LINK_PRO_MONTHLY` | Lien de paiement Stripe — Pro mensuel |
+| `STRIPE_PAYMENT_LINK_PRO_ANNUAL` | Lien de paiement Stripe — Pro annuel |
+| `STRIPE_PAYMENT_LINK_PREMIUM_MONTHLY` | Lien de paiement Stripe — Premium mensuel |
+| `STRIPE_PAYMENT_LINK_PREMIUM_ANNUAL` | Lien de paiement Stripe — Premium annuel |
 | `TWILIO_AUTH_TOKEN` | Signature webhooks Twilio |
 | `TWILIO_STATUS_CALLBACK_URL` | Callback explicite |
 | `VOICE_AI_TOOL_SECRET` | Auth tools vocaux |

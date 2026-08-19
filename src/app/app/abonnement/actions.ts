@@ -2,17 +2,22 @@
 
 import { redirect } from "next/navigation";
 
-import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
-import { getPublicSiteUrl } from "@/lib/site-url";
-import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
+import { buildSubscriptionPaymentLinkUrl } from "@/lib/stripe/subscription-payment-links";
+import { isStripeConfigured } from "@/lib/stripe/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function startSubscriptionCheckout(
   planId: SubscriptionPlanId,
+  billingInterval: BillingInterval = "monthly",
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   if (!SUBSCRIPTION_PLANS.some((plan) => plan.id === planId)) {
     return { ok: false, error: "invalid_plan" };
+  }
+
+  if (billingInterval !== "monthly" && billingInterval !== "annual") {
+    return { ok: false, error: "invalid_interval" };
   }
 
   if (!isStripeConfigured()) {
@@ -27,7 +32,7 @@ export async function startSubscriptionCheckout(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, stripe_customer_id, business_name")
+    .select("id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -35,57 +40,14 @@ export async function startSubscriptionCheckout(
     return { ok: false, error: "missing_profile" };
   }
 
-  const plan = SUBSCRIPTION_PLANS.find((item) => item.id === planId)!;
-  const stripe = getStripe();
-  const siteUrl = getPublicSiteUrl();
-
-  let customerId = profile.stripe_customer_id?.trim() || null;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      name: profile.business_name ?? undefined,
-      metadata: { profile_id: profile.id, user_id: user.id },
-    });
-    customerId = customer.id;
-    await supabase.from("profiles").update({ stripe_customer_id: customerId }).eq("id", profile.id);
-  }
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [
-      {
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: `Soline — ${plan.name}`,
-            description: plan.description,
-          },
-          unit_amount: plan.priceHtEur * 100,
-          recurring: { interval: "month" },
-        },
-        quantity: 1,
-      },
-    ],
-    subscription_data: {
-      metadata: {
-        profile_id: profile.id,
-        plan_id: planId,
-        user_id: user.id,
-      },
-    },
-    metadata: {
-      profile_id: profile.id,
-      plan_id: planId,
-      checkout_kind: "saas_subscription",
-    },
-    success_url: `${siteUrl}/app/abonnement?success=1`,
-    cancel_url: `${siteUrl}/app/abonnement?canceled=1`,
+  const linkResult = buildSubscriptionPaymentLinkUrl(planId, billingInterval, {
+    email: user.email,
+    profileId: profile.id,
   });
 
-  if (!session.url) {
-    return { ok: false, error: "checkout_failed" };
+  if (!linkResult.ok) {
+    return { ok: false, error: linkResult.error };
   }
 
-  return { ok: true, url: session.url };
+  return { ok: true, url: linkResult.url };
 }

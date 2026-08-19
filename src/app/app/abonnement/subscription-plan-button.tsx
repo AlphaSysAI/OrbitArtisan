@@ -4,15 +4,17 @@ import { useTransition } from "react";
 
 import { startSubscriptionCheckout } from "@/app/app/abonnement/actions";
 import { buttonVariants } from "@/components/ui/button-variants";
-import type { SubscriptionPlan } from "@/lib/billing/subscription-plans";
+import type { BillingInterval, SubscriptionPlan } from "@/lib/billing/subscription-plans";
 import { cn } from "@/lib/utils";
 
 export function SubscriptionPlanButton({
   plan,
+  billingInterval,
   currentPlanId,
   stripeEnabled,
 }: {
   plan: SubscriptionPlan;
+  billingInterval: BillingInterval;
   currentPlanId: string;
   stripeEnabled: boolean;
 }) {
@@ -20,13 +22,17 @@ export function SubscriptionPlanButton({
 
   function handleClick() {
     startTransition(async () => {
-      const result = await startSubscriptionCheckout(plan.id);
+      const result = await startSubscriptionCheckout(plan.id, billingInterval);
       if (result.ok) {
         window.location.href = result.url;
         return;
       }
-      if (result.error === "stripe_not_configured") {
+      if (result.error === "stripe_not_configured" || result.error === "missing_env") {
         window.location.href = "mailto:support@solinebtp.fr?subject=Activation%20abonnement%20Soline";
+        return;
+      }
+      if (result.error === "invalid_payment_link") {
+        alert("Lien de paiement Stripe invalide. Contactez le support.");
       }
     });
   }
