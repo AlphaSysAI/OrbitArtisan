@@ -39,5 +39,5 @@ export async function redirectIfCannotCreateDocuments(supabase: SupabaseClient, 
   if (access.allowed) return;
 
   const reason = subscriptionBlockRedirectReason(access.reason ?? "trial_expired");
-  redirect(`/app/abonnement?reason=${reason}`);
+  redirect(`/app/reglages?tab=abonnement&reason=${reason}`);
 }

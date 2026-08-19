@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { AppPageHeader } from "@/components/app/app-page-header";
 import { ContactSettingsForm } from "@/components/settings/contact-settings-form";
 import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
+import { SubscriptionSettingsSection } from "@/components/settings/subscription-settings-section";
 import { VoiceNumberForm } from "@/components/settings/voice-number-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -23,6 +24,7 @@ const TABS = [
   { id: "activite", label: "Mon activité" },
   { id: "coordonnees", label: "Coordonnées" },
   { id: "facturation", label: "Facturation" },
+  { id: "abonnement", label: "Abonnement" },
   { id: "prestations", label: "Prestations" },
   { id: "widget", label: "Widget" },
   { id: "vocal", label: "IA Vocale" },
@@ -34,6 +36,7 @@ function parseTab(raw: string | undefined): TabId {
   if (
     raw === "coordonnees" ||
     raw === "facturation" ||
+    raw === "abonnement" ||
     raw === "prestations" ||
     raw === "activite" ||
     raw === "widget" ||
@@ -69,6 +72,11 @@ export default async function ArtisanSettingsPage({
 
   const sp = await searchParams;
   const tab = parseTab(typeof sp.tab === "string" ? sp.tab : undefined);
+  const subscriptionAlerts = {
+    reason: typeof sp.reason === "string" ? sp.reason : undefined,
+    success: typeof sp.success === "string" ? sp.success : undefined,
+    canceled: typeof sp.canceled === "string" ? sp.canceled : undefined,
+  };
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -189,6 +197,37 @@ export default async function ArtisanSettingsPage({
     }
   }
 
+  let subscriptionProfile = {
+    subscription_plan: "base" as string,
+    subscription_status: "trialing" as string,
+    trial_ends_at: null as string | null,
+    stripe_customer_id: null as string | null,
+    stripe_subscription_id: null as string | null,
+    voice_minutes_included: 0,
+    voice_minutes_used: 0,
+  };
+
+  if (profile?.id) {
+    const subscriptionRes = await supabase
+      .from("profiles")
+      .select(
+        "subscription_plan, subscription_status, trial_ends_at, stripe_customer_id, stripe_subscription_id, voice_minutes_included, voice_minutes_used",
+      )
+      .eq("id", profile.id)
+      .maybeSingle();
+    if (subscriptionRes.data) {
+      subscriptionProfile = {
+        subscription_plan: subscriptionRes.data.subscription_plan ?? "base",
+        subscription_status: subscriptionRes.data.subscription_status ?? "trialing",
+        trial_ends_at: subscriptionRes.data.trial_ends_at,
+        stripe_customer_id: subscriptionRes.data.stripe_customer_id,
+        stripe_subscription_id: subscriptionRes.data.stripe_subscription_id,
+        voice_minutes_included: subscriptionRes.data.voice_minutes_included ?? 0,
+        voice_minutes_used: subscriptionRes.data.voice_minutes_used ?? 0,
+      };
+    }
+  }
+
   return (
     <div className="space-y-8">
       <AppPageHeader
@@ -292,6 +331,14 @@ export default async function ArtisanSettingsPage({
               </>
             )}
           </section>
+        ) : null}
+
+        {tab === "abonnement" ? (
+          !profile ? (
+            <SettingsGate />
+          ) : (
+            <SubscriptionSettingsSection profile={subscriptionProfile} alerts={subscriptionAlerts} />
+          )
         ) : null}
 
         {tab === "prestations" ? (

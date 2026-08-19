@@ -137,12 +137,11 @@ export async function middleware(request: NextRequest) {
       const access = evaluateSubscriptionAccess(artisanProfile ?? null);
       if (
         !access.allowed &&
-        isSubscriptionDocumentBlockedPath(pathname) &&
-        !pathname.startsWith("/app/abonnement")
+        isSubscriptionDocumentBlockedPath(pathname)
       ) {
         const url = request.nextUrl.clone();
-        url.pathname = "/app/abonnement";
-        url.search = `?reason=${subscriptionBlockRedirectReason(access.reason ?? "trial_expired")}`;
+        url.pathname = "/app/reglages";
+        url.search = `?tab=abonnement&reason=${subscriptionBlockRedirectReason(access.reason ?? "trial_expired")}`;
         return NextResponse.redirect(url);
       }
     }

@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
 import { buildSubscriptionPaymentLinkUrl } from "@/lib/stripe/subscription-payment-links";
-import { isStripeConfigured } from "@/lib/stripe/server";
+import { getPublicSiteUrl } from "@/lib/site-url";
+import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function startSubscriptionCheckout(
@@ -28,7 +29,7 @@ export async function startSubscriptionCheckout(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user?.email) redirect("/login?next=/app/abonnement");
+  if (!user?.email) redirect("/login?next=/app/reglages?tab=abonnement");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -50,4 +51,41 @@ export async function startSubscriptionCheckout(
   }
 
   return { ok: true, url: linkResult.url };
+}
+
+export async function openStripeBillingPortal(): Promise<
+  { ok: true; url: string } | { ok: false; error: string }
+> {
+  if (!isStripeConfigured()) {
+    return { ok: false, error: "stripe_not_configured" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/app/reglages?tab=abonnement");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("stripe_customer_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const customerId = profile?.stripe_customer_id?.trim();
+  if (!customerId) {
+    return { ok: false, error: "no_stripe_customer" };
+  }
+
+  const stripe = getStripe();
+  const session = await stripe.billingPortal.sessions.create({
+    customer: customerId,
+    return_url: `${getPublicSiteUrl()}/app/reglages?tab=abonnement`,
+  });
+
+  if (!session.url) {
+    return { ok: false, error: "portal_failed" };
+  }
+
+  return { ok: true, url: session.url };
 }
