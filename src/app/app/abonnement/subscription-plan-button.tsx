@@ -1,8 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState } from "react";
 
 import { startSubscriptionCheckout } from "@/app/app/abonnement/actions";
+import { subscriptionCheckoutErrorMessage } from "@/lib/billing/stripe-checkout-errors";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { BillingInterval, SubscriptionPlan } from "@/lib/billing/subscription-plans";
 import { cn } from "@/lib/utils";
@@ -18,49 +19,54 @@ export function SubscriptionPlanButton({
   currentPlanId: string;
   stripeEnabled: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  function handleClick() {
-    startTransition(async () => {
+  async function handleClick() {
+    setPending(true);
+    setErrorMessage(null);
+
+    try {
       const result = await startSubscriptionCheckout(plan.id, billingInterval);
       if (result.ok) {
-        window.location.href = result.url;
+        window.location.assign(result.url);
         return;
       }
-      if (result.error === "stripe_not_configured" || result.error === "missing_env") {
-        window.location.href = "mailto:support@solinebtp.fr?subject=Activation%20abonnement%20Soline";
-        return;
-      }
-      if (result.error === "invalid_payment_link") {
-        alert("Lien de paiement Stripe invalide. Contactez le support.");
-      }
-    });
+      setErrorMessage(subscriptionCheckoutErrorMessage(result.error));
+    } catch {
+      setErrorMessage(subscriptionCheckoutErrorMessage(undefined));
+    } finally {
+      setPending(false);
+    }
   }
 
   const isCurrent = currentPlanId === plan.id;
 
   return (
-    <button
-      type="button"
-      disabled={pending || isCurrent}
-      onClick={handleClick}
-      className={cn(
-        buttonVariants({ size: "lg" }),
-        "w-full",
-        plan.popular
-          ? "border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
-          : plan.id === "premium"
-            ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-            : undefined,
-      )}
-    >
-      {pending
-        ? "Redirection…"
-        : isCurrent
-          ? "Formule actuelle"
-          : stripeEnabled
-            ? `Choisir ${plan.name}`
-            : `Demander ${plan.name}`}
-    </button>
+    <div className="space-y-2">
+      <button
+        type="button"
+        disabled={pending || isCurrent}
+        onClick={handleClick}
+        className={cn(
+          buttonVariants({ size: "lg" }),
+          "w-full",
+          plan.popular
+            ? "border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
+            : plan.id === "premium"
+              ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+              : undefined,
+        )}
+      >
+        {pending
+          ? "Redirection…"
+          : isCurrent
+            ? "Formule actuelle"
+            : stripeEnabled
+              ? `Choisir ${plan.name}`
+              : `Demander ${plan.name}`}
+      </button>
+      {errorMessage ? <p className="text-center text-xs text-destructive">{errorMessage}</p> : null}
+    </div>
   );
 }

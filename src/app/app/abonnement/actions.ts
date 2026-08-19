@@ -29,7 +29,9 @@ export async function startSubscriptionCheckout(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user?.email) redirect("/login?next=/app/reglages?tab=abonnement");
+  if (!user?.email) {
+    return { ok: false, error: "auth_required" };
+  }
 
   const { data: profile } = await supabase
     .from("profiles")

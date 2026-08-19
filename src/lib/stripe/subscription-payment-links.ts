@@ -74,7 +74,7 @@ export function buildSubscriptionPaymentLinkUrl(
   }
 
   try {
-    const url = new URL(rawUrl);
+    const url = new URL(rawUrl.trim());
     url.searchParams.set("prefilled_email", params.email);
     url.searchParams.set("client_reference_id", params.profileId);
     return { ok: true, url: url.toString() };

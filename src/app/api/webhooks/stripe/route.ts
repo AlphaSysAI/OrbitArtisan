@@ -6,14 +6,24 @@ import { revalidatePath } from "next/cache";
 import { getStripe } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
+  buildSaasBillingEventFromCheckoutSession,
+  syncSaasSubscriptionFromCheckoutSession,
+} from "@/lib/billing/stripe-checkout-sync";
+import { recordStripeBillingEvent } from "@/lib/billing/stripe-billing-events";
+import {
   getInvoiceSubscriptionId,
   markProfileSubscriptionCanceled,
   markProfileSubscriptionPastDue,
   syncProfileFromStripeSubscription,
 } from "@/lib/billing/stripe-subscription-sync";
-import { syncSaasSubscriptionFromCheckoutSession } from "@/lib/billing/stripe-checkout-sync";
 
 export const runtime = "nodejs";
+
+function revalidateSubscriptionPaths() {
+  revalidatePath("/app/reglages");
+  revalidatePath("/app/abonnement");
+  revalidatePath("/app");
+}
 
 function revalidateInvoicePaths(invoiceId: string) {
   revalidatePath("/compte");
@@ -120,7 +130,17 @@ export async function POST(request: Request) {
           console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
         }
         if (admin) {
+          const billingEvent = await buildSaasBillingEventFromCheckoutSession(
+            admin,
+            session,
+            event.id,
+            event.type,
+          );
+          if (billingEvent) {
+            await recordStripeBillingEvent(admin, billingEvent);
+          }
           await syncSaasSubscriptionFromCheckoutSession(admin, session);
+          revalidateSubscriptionPaths();
         }
       } else if (session.payment_status === "paid" || session.payment_status === "no_payment_required") {
         await markInvoicePaidFromSession(session);
@@ -136,7 +156,26 @@ export async function POST(request: Request) {
       } catch (e) {
         console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
       }
-      if (admin) await syncProfileFromStripeSubscription(admin, subscription);
+      if (admin) {
+        await syncProfileFromStripeSubscription(admin, subscription);
+        await recordStripeBillingEvent(admin, {
+          stripeEventId: event.id,
+          eventType: event.type,
+          profileId: subscription.metadata?.profile_id ?? null,
+          stripeCustomerId:
+            typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id ?? null,
+          stripeSubscriptionId: subscription.id,
+          subscriptionPlan:
+            subscription.metadata?.plan_id === "base" ||
+            subscription.metadata?.plan_id === "pro" ||
+            subscription.metadata?.plan_id === "premium"
+              ? subscription.metadata.plan_id
+              : null,
+          paymentStatus: subscription.status,
+          payload: { status: subscription.status },
+        });
+        revalidateSubscriptionPaths();
+      }
     } else if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
       let admin;
@@ -145,7 +184,18 @@ export async function POST(request: Request) {
       } catch (e) {
         console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante", e);
       }
-      if (admin) await markProfileSubscriptionCanceled(admin, subscription);
+      if (admin) {
+        await markProfileSubscriptionCanceled(admin, subscription);
+        await recordStripeBillingEvent(admin, {
+          stripeEventId: event.id,
+          eventType: event.type,
+          profileId: subscription.metadata?.profile_id ?? null,
+          stripeSubscriptionId: subscription.id,
+          paymentStatus: "canceled",
+          payload: { status: subscription.status },
+        });
+        revalidateSubscriptionPaths();
+      }
     } else if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = getInvoiceSubscriptionId(invoice);
@@ -160,6 +210,16 @@ export async function POST(request: Request) {
           const stripe = getStripe();
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           await markProfileSubscriptionPastDue(admin, subscription);
+          await recordStripeBillingEvent(admin, {
+            stripeEventId: event.id,
+            eventType: event.type,
+            stripeSubscriptionId: subscription.id,
+            paymentStatus: "past_due",
+            amountTotalCents: invoice.amount_due ?? null,
+            currency: invoice.currency ?? null,
+            payload: { invoice_id: invoice.id },
+          });
+          revalidateSubscriptionPaths();
         }
       }
     } else if (event.type === "invoice.paid") {
@@ -177,6 +237,24 @@ export async function POST(request: Request) {
             const stripe = getStripe();
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
             await syncProfileFromStripeSubscription(admin, subscription);
+            await recordStripeBillingEvent(admin, {
+              stripeEventId: event.id,
+              eventType: event.type,
+              stripeSubscriptionId: subscription.id,
+              stripeCustomerId:
+                typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id ?? null,
+              subscriptionPlan:
+                subscription.metadata?.plan_id === "base" ||
+                subscription.metadata?.plan_id === "pro" ||
+                subscription.metadata?.plan_id === "premium"
+                  ? subscription.metadata.plan_id
+                  : null,
+              amountTotalCents: invoice.amount_paid ?? null,
+              currency: invoice.currency ?? null,
+              paymentStatus: "paid",
+              payload: { invoice_id: invoice.id, billing_reason: invoice.billing_reason },
+            });
+            revalidateSubscriptionPaths();
           }
         }
       }

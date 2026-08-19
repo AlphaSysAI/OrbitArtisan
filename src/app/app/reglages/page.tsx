@@ -11,6 +11,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { buildEmbedSnippet } from "@/lib/leads/embed";
 import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
+import { listStripeBillingEventsForProfile } from "@/lib/billing/stripe-billing-events";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { ProfileForm } from "../profile/profile-form";
@@ -228,6 +229,11 @@ export default async function ArtisanSettingsPage({
     }
   }
 
+  let billingEvents: Awaited<ReturnType<typeof listStripeBillingEventsForProfile>> = [];
+  if (profile?.id && tab === "abonnement") {
+    billingEvents = await listStripeBillingEventsForProfile(supabase, profile.id, 8);
+  }
+
   return (
     <div className="space-y-8">
       <AppPageHeader
@@ -337,7 +343,11 @@ export default async function ArtisanSettingsPage({
           !profile ? (
             <SettingsGate />
           ) : (
-            <SubscriptionSettingsSection profile={subscriptionProfile} alerts={subscriptionAlerts} />
+            <SubscriptionSettingsSection
+              profile={subscriptionProfile}
+              alerts={subscriptionAlerts}
+              billingEvents={billingEvents}
+            />
           )
         ) : null}
 

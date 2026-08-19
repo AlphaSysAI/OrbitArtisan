@@ -7,8 +7,10 @@ import {
   SUBSCRIPTION_STATUS_LABELS,
   type SubscriptionStatus,
 } from "@/lib/billing/subscription-access";
+import type { StripeBillingEventRow } from "@/lib/billing/stripe-billing-events";
 import {
   findSubscriptionPlan,
+  formatPriceHtEur,
   getPlanVoiceMinutes,
   type SubscriptionPlanId,
 } from "@/lib/billing/subscription-plans";
@@ -38,9 +40,36 @@ function reasonMessage(reason: string | undefined) {
   }
 }
 
+function billingEventLabel(event: StripeBillingEventRow): string {
+  switch (event.event_type) {
+    case "checkout.session.completed":
+      return "Souscription confirmée";
+    case "invoice.paid":
+      return "Paiement reçu";
+    case "invoice.payment_failed":
+      return "Paiement échoué";
+    case "customer.subscription.updated":
+      return "Abonnement mis à jour";
+    case "customer.subscription.created":
+      return "Abonnement créé";
+    case "customer.subscription.deleted":
+      return "Abonnement résilié";
+    default:
+      return event.event_type;
+  }
+}
+
+function formatBillingAmount(event: StripeBillingEventRow): string | null {
+  if (event.amount_total_cents == null) return null;
+  const amount = event.amount_total_cents / 100;
+  const currency = (event.currency ?? "eur").toUpperCase();
+  return `${formatPriceHtEur(amount)} ${currency}`;
+}
+
 export function SubscriptionSettingsSection({
   profile,
   alerts,
+  billingEvents = [],
 }: {
   profile: SubscriptionProfile;
   alerts?: {
@@ -48,6 +77,7 @@ export function SubscriptionSettingsSection({
     success?: string;
     canceled?: string;
   };
+  billingEvents?: StripeBillingEventRow[];
 }) {
   const access = evaluateSubscriptionAccess(profile);
   const status = (profile.subscription_status ?? "trialing") as SubscriptionStatus;
@@ -149,6 +179,38 @@ export function SubscriptionSettingsSection({
           </div>
         ) : null}
       </div>
+
+      {billingEvents.length > 0 ? (
+        <div className="space-y-3">
+          <h3 className="font-display text-lg font-semibold tracking-tight">Historique des paiements</h3>
+          <ul className="divide-y rounded-2xl border bg-card">
+            {billingEvents.map((event) => {
+              const amount = formatBillingAmount(event);
+              const planLabel = event.subscription_plan
+                ? findSubscriptionPlan(event.subscription_plan)?.name ?? event.subscription_plan
+                : null;
+
+              return (
+                <li key={event.id} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium">{billingEventLabel(event)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(event.created_at).toLocaleString("fr-FR")}
+                      {planLabel ? ` · ${planLabel}` : null}
+                      {event.billing_interval === "annual"
+                        ? " · Annuel"
+                        : event.billing_interval === "monthly"
+                          ? " · Mensuel"
+                          : null}
+                    </p>
+                  </div>
+                  {amount ? <p className="font-semibold tabular-nums">{amount}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       <div>
         <h3 className="font-display text-lg font-semibold tracking-tight">
