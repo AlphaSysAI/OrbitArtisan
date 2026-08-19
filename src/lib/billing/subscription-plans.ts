@@ -41,7 +41,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: "pro",
     name: "Pro",
     priceMonthlyHtEur: 69.9,
-    priceAnnualHtEur: 779.9,
+    priceAnnualHtEur: 699.9,
     solineMinutesIncluded: 60,
     description: "Le plan Base avec Soline, votre secrétaire vocale IA.",
     features: [

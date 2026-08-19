@@ -414,7 +414,7 @@ Source : `src/lib/billing/subscription-plans.ts`
 | Plan | Mensuel | Annuel | Soline (min/mois) | Différence |
 |------|---------|--------|-------------------|------------|
 | **Base** | 29,90 € | 299,90 € | 0 | SaaS complet, sans Soline |
-| **Pro** | 69,90 € | 779,90 € | 60 | SaaS + secrétaire vocale IA |
+| **Pro** | 69,90 € | 699,90 € | 60 | SaaS + secrétaire vocale IA |
 | **Premium** | 99,90 € | 999,90 € | 150 | SaaS + plus de minutes Soline |
 
 Le SaaS BTP est identique sur les trois formules. Seule Soline (secrétaire vocale IA) diffère.
