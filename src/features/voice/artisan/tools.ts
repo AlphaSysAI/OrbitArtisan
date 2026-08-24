@@ -97,44 +97,19 @@ export async function artisanAvailability(
 }
 
 /**
- * Crée un RDV pour l'artisan (en statut "pending").
+ * Prise de RDV vocale — désactivée (Soline orientée devis).
  */
 export async function artisanScheduleAppointment(
-  db: Db,
-  artisanId: string,
-  body: Record<string, unknown>
+  _db: Db,
+  _artisanId: string,
+  _body: Record<string, unknown>
 ) {
-  const customerName = String(body.customer_name ?? "").trim();
-  const customerEmail = String(body.customer_email ?? "").trim();
-  const startTime = String(body.start_time ?? "").trim();
-  const serviceId = body.service_id ? String(body.service_id).trim() : null;
-
-  if (!customerName || !customerEmail || !startTime) {
-    return { error: "Champs manquants (customer_name, customer_email, start_time)." };
-  }
-
-  try {
-    const { data: appointment, error } = await db.from("appointments").insert({
-      artisan_id: artisanId,
-      customer_name: customerName,
-      customer_email: customerEmail,
-      service_id: serviceId,
-      start_time: startTime,
-      status: "pending",
-    } as any).select().single();
-
-    if (error) {
-      return { error: error.message || "Erreur lors de la création du RDV." };
-    }
-
-    return {
-      ok: true,
-      appointment_id: appointment?.id,
-      message: `RDV créé pour ${customerName} le ${new Date(startTime).toLocaleDateString("fr-FR")}.`,
-    };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Erreur serveur." };
-  }
+  return {
+    error: "appointment_booking_disabled",
+    message:
+      "La prise de rendez-vous par téléphone est temporairement désactivée. " +
+      "Propose plutôt d'établir un devis et de collecter nom, email et description des travaux.",
+  };
 }
 
 /**

@@ -1,9 +1,11 @@
 # Voice AI Integration for Artisans
 
 This module implements voice AI capabilities for artisans, allowing them to:
-- Check availability via phone
-- Schedule appointments
-- Retrieve appointment information
+- Receive phone calls via Soline (ElevenLabs + Twilio)
+- Generate quote proposals from call transcripts (artisan validates before sending)
+- Check availability (optional, legacy)
+
+**Note:** Appointment booking via voice is currently **disabled**. Use `create-quote-draft` instead.
 
 ## Architecture
 
@@ -23,8 +25,9 @@ features/voice/
 All routes require Bearer authentication with `VOICE_AI_TOOL_SECRET`.
 
 - `POST /api/voice/artisan/availability` - Check available slots
-- `POST /api/voice/artisan/schedule` - Schedule a new appointment
+- `POST /api/voice/artisan/schedule` - **Disabled** (returns `appointment_booking_disabled`)
 - `POST /api/voice/artisan/appointment-info` - Get appointment details
+- `POST /api/voice/artisan/create-quote-draft` - Register call summary + AI quote proposal
 
 ## How It Works
 
@@ -75,17 +78,24 @@ curl -X POST http://localhost:3000/api/voice/artisan/availability \
   }'
 ```
 
-### Schedule Appointment
+### Schedule Appointment (disabled)
 
 ```bash
-curl -X POST http://localhost:3000/api/voice/artisan/schedule \
+# Returns { "error": "appointment_booking_disabled", ... }
+```
+
+### Create quote draft from call
+
+```bash
+curl -X POST http://localhost:3000/api/voice/artisan/create-quote-draft \
   -H "Authorization: Bearer your-secret-key" \
   -H "Content-Type: application/json" \
   -d '{
     "called_number": "+33612345678",
+    "caller_number": "+33698765432",
     "customer_name": "Jean Dupont",
     "customer_email": "jean@example.com",
-    "start_time": "2026-08-15T10:00:00Z"
+    "transcript": "Le client souhaite refaire sa salle de bain, environ 8m2..."
   }'
 ```
 

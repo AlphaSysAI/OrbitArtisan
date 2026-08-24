@@ -276,9 +276,11 @@ Script de seed : `scripts/seed-supplier-embeddings.ts` (catalogue type Brico Dé
 Appel entrant (Twilio, numéro E.164)
     → Agent vocal ElevenLabs
     → Appels REST vers Soline (Bearer VOICE_AI_TOOL_SECRET)
-        POST /api/voice/artisan/availability  — créneaux libres
-        POST /api/voice/artisan/schedule      — prise de RDV
+        POST /api/voice/artisan/create-quote-draft — proposition de devis (résumé + brouillon IA)
+        POST /api/voice/artisan/availability  — créneaux libres (optionnel)
+        POST /api/voice/artisan/schedule      — désactivé (RDV vocal en pause)
         POST /api/voice/artisan/appointment-info — info RDV existant
+    → Artisan valide dans /app/appels (email client à la validation)
     → Twilio StatusCallback
         POST /api/webhooks/twilio/status
     → Décompte minutes + quota abonnement
@@ -558,8 +560,9 @@ Bucket privé `lead-media` : photos/vidéos leads (max 50 Mo/fichier).
 | POST | `/api/estimation/chat` | Chat qualification prospect |
 | GET | `/api/invoices/[id]/pdf` | PDF facture |
 | GET | `/api/invoices/[id]/factur-x` | Export Factur-X |
+| POST | `/api/voice/artisan/create-quote-draft` | Proposition de devis depuis appel |
 | POST | `/api/voice/artisan/availability` | Créneaux vocaux |
-| POST | `/api/voice/artisan/schedule` | Prise RDV vocale |
+| POST | `/api/voice/artisan/schedule` | Désactivé (RDV vocal) |
 | POST | `/api/voice/artisan/appointment-info` | Info RDV |
 | POST | `/api/webhooks/stripe` | Paiements Stripe |
 | POST | `/api/webhooks/twilio/status` | Quota vocal Twilio |

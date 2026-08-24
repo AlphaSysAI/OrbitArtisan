@@ -9,6 +9,7 @@ import { resolveVitrineAccent } from "@/lib/vitrine-theme";
 
 import { getOrCreateArtisanCustomerConversation } from "@/lib/contacts/actions";
 import { loadLeadMatchQuoteDraft } from "@/lib/leads/quote-draft-actions";
+import { loadVoiceIntakeQuoteDraft } from "@/app/app/appels/actions";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 
 import { QuoteForm } from "../quote-form";
@@ -22,6 +23,7 @@ export default async function NewQuotePage({
     aiDraft?: string;
     draftKey?: string;
     leadMatchId?: string;
+    voiceIntakeId?: string;
   }>;
 }) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -35,9 +37,13 @@ export default async function NewQuotePage({
     typeof sp.customerUserId === "string" && sp.customerUserId.length > 0 ? sp.customerUserId : undefined;
   const leadMatchIdParam =
     typeof sp.leadMatchId === "string" && sp.leadMatchId.length > 0 ? sp.leadMatchId : undefined;
+  const voiceIntakeIdParam =
+    typeof sp.voiceIntakeId === "string" && sp.voiceIntakeId.length > 0 ? sp.voiceIntakeId : undefined;
   const draftKeyParam =
     typeof sp.draftKey === "string" && sp.draftKey.length > 0 ? sp.draftKey : undefined;
-  const loadAiDraft = sp.aiDraft === "1" && !!(draftKeyParam || conversationIdParam || leadMatchIdParam);
+  const loadAiDraft =
+    sp.aiDraft === "1" &&
+    !!(draftKeyParam || conversationIdParam || leadMatchIdParam || voiceIntakeIdParam);
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -93,6 +99,13 @@ export default async function NewQuotePage({
       if (draftRes.conversationId) {
         conversationIdParam = draftRes.conversationId;
       }
+    }
+  }
+
+  if (voiceIntakeIdParam && loadAiDraft && !serverAiDraft) {
+    const draftRes = await loadVoiceIntakeQuoteDraft(voiceIntakeIdParam);
+    if (draftRes.ok) {
+      serverAiDraft = draftRes.draft;
     }
   }
 
@@ -173,8 +186,9 @@ export default async function NewQuotePage({
       services={safeServices}
       conversationPrefill={conversationPrefill}
       loadAiDraft={loadAiDraft}
-      aiDraftKey={draftKeyParam ?? conversationIdParam ?? leadMatchIdParam}
+      aiDraftKey={draftKeyParam ?? conversationIdParam ?? leadMatchIdParam ?? voiceIntakeIdParam}
       serverAiDraft={serverAiDraft}
+      voiceIntakeId={voiceIntakeIdParam ?? null}
     />
   );
 }

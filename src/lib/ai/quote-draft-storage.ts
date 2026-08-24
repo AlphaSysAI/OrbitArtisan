@@ -29,9 +29,10 @@ export type AiQuoteDraft = {
   customerName?: string | null;
   customerEmail?: string | null;
   customerUserId?: string | null;
-  /** Origine du brouillon (assistant dictée vs lead qualifié). */
-  source?: "assistant" | "lead";
+  /** Origine du brouillon (assistant dictée vs lead qualifié vs appel vocal). */
+  source?: "assistant" | "lead" | "voice";
   leadMatchId?: string | null;
+  voiceIntakeId?: string | null;
   estimateMin?: number | null;
   estimateMax?: number | null;
 };

@@ -16,6 +16,7 @@ import { BtpInvoiceActions } from "@/components/quotes/btp-invoice-actions";
 import { QuotePublicLinkCard } from "@/components/quotes/quote-public-link-card";
 import { DuplicateQuoteButton } from "@/components/quotes/duplicate-quote-button";
 import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
+import { loadInvoicesForQuote } from "@/lib/billing/load-invoice-for-page";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 import { createInvoiceFromQuoteForm } from "../../invoices/actions";
@@ -86,13 +87,9 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
     email: quote.customer_email,
   });
 
-  const { data: linkedInvoices } = await supabase
-    .from("invoices")
-    .select("id, invoice_number, invoice_type, grand_total, progress_percentage, status, created_at")
-    .eq("quote_id", quoteId)
-    .order("created_at", { ascending: true });
+  const linkedInvoices = await loadInvoicesForQuote(supabase, quoteId);
 
-  const alreadyInvoicedCents = (linkedInvoices ?? [])
+  const alreadyInvoicedCents = linkedInvoices
     .filter((inv) => inv.invoice_type !== "credit_note")
     .reduce((acc, inv) => acc + (inv.grand_total ?? 0), 0);
 
@@ -287,11 +284,11 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
 
               {q.status === "accepted" ? (
                 <>
-                  {(linkedInvoices ?? []).length > 0 ? (
+                  {linkedInvoices.length > 0 ? (
                     <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Factures liées</p>
                       <ul className="space-y-2 text-sm">
-                        {(linkedInvoices ?? []).map((inv) => (
+                        {linkedInvoices.map((inv) => (
                           <li key={inv.id} className="flex items-center justify-between gap-2">
                             <Link href={`/app/invoices/${inv.id}`} className="font-medium underline-offset-4 hover:underline">
                               {invoiceTypeLabel(inv.invoice_type)}

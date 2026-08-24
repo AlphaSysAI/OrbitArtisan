@@ -5,6 +5,7 @@ import {
   Hammer,
   Home,
   MessageSquare,
+  Phone,
   Receipt,
   Settings,
   Truck,
@@ -33,6 +34,7 @@ export const APP_NAV_PRIMARY: AppNavItem[] = [
 /** Liens regroupés dans le menu « Plus » (header desktop). */
 export const APP_NAV_MORE: AppNavItem[] = [
   { href: "/app/rdv", label: "Mes RDV", shortLabel: "RDV", icon: CalendarClock, exact: false },
+  { href: "/app/appels", label: "Appels Soline", shortLabel: "Appels", icon: Phone, exact: false },
   { href: "/app/ouvrages", label: "Ouvrages", shortLabel: "Ouvrages", icon: BookOpen, exact: false },
   { href: "/app/chantiers", label: "Chantiers", shortLabel: "Chantiers", icon: Hammer, exact: false },
   { href: "/app/interventions", label: "Interventions", shortLabel: "BI", icon: ClipboardList, exact: false },

@@ -93,6 +93,7 @@ export function QuoteForm({
   loadAiDraft = false,
   aiDraftKey,
   serverAiDraft = null,
+  voiceIntakeId = null,
 }: {
   services: Service[];
   accentColor: string;
@@ -107,8 +108,10 @@ export function QuoteForm({
   loadAiDraft?: boolean;
   /** Clé sessionStorage (draftKey assistant ou conversationId). */
   aiDraftKey?: string;
-  /** Brouillon préchargé côté serveur (lead qualifié). */
+  /** Brouillon préchargé côté serveur (lead qualifié ou appel vocal). */
   serverAiDraft?: AiQuoteDraft | null;
+  /** Lien vers l'appel Soline source (validation après envoi). */
+  voiceIntakeId?: string | null;
 }) {
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
   const [materials, setMaterials] = React.useState<MaterialRow[]>([
@@ -118,6 +121,7 @@ export function QuoteForm({
   const [aiDraftWarnings, setAiDraftWarnings] = React.useState<string[]>([]);
   const [fromAiDraft, setFromAiDraft] = React.useState(false);
   const [fromLeadDraft, setFromLeadDraft] = React.useState(false);
+  const [fromVoiceDraft, setFromVoiceDraft] = React.useState(Boolean(voiceIntakeId));
   const [customerName, setCustomerName] = React.useState(conversationPrefill?.customerName ?? "");
   const [customerEmail, setCustomerEmail] = React.useState(conversationPrefill?.customerEmail ?? "");
   const [notes, setNotes] = React.useState("");
@@ -142,6 +146,7 @@ export function QuoteForm({
   function applyAiDraft(draft: AiQuoteDraft) {
     setFromAiDraft(true);
     setFromLeadDraft(draft.source === "lead");
+    setFromVoiceDraft(draft.source === "voice" || Boolean(voiceIntakeId));
     setPendingSaveMode("draft");
     setAiDraftWarnings(draft.warnings ?? []);
     if (draft.matchedServiceIds.length) {
@@ -364,7 +369,11 @@ export function QuoteForm({
             "Le message dans la conversation n’a pas pu être envoyé. Copie le lien depuis la fiche devis.",
         });
       } else if (res.status === "sent") {
-        toast.success("Devis enregistré et envoyé au client (message + lien).");
+        toast.success(
+          res.emailSent
+            ? "Devis enregistré et envoyé au client par email."
+            : "Devis enregistré et envoyé au client (message + lien).",
+        );
       } else {
         toast.success("Brouillon enregistré — aucun envoi au client.");
       }
@@ -401,18 +410,26 @@ export function QuoteForm({
           <div
             className={cn(
               "rounded-xl border p-4 text-sm",
-              fromLeadDraft ? "border-amber-500/40 bg-amber-500/5" : "border-brand/30 bg-brand/5",
+              fromLeadDraft
+                ? "border-amber-500/40 bg-amber-500/5"
+                : fromVoiceDraft
+                  ? "border-violet-500/40 bg-violet-500/5"
+                  : "border-brand/30 bg-brand/5",
             )}
           >
             <p className="font-medium">
               {fromLeadDraft
                 ? "Généré depuis une demande qualifiée IA"
-                : "Brouillon généré par l’assistant IA"}
+                : fromVoiceDraft
+                  ? "Proposition depuis un appel Soline"
+                  : "Brouillon généré par l’assistant IA"}
             </p>
             <p className="mt-1 text-muted-foreground">
               {fromLeadDraft
                 ? "Estimation indicative, à confirmer après visite ou diagnostic. Rien n’est envoyé au client tant que tu ne choisis pas « Envoyer »."
-                : "Vérifie chaque ligne. Rien n’est envoyé au client tant que tu ne choisis pas « Envoyer »."}
+                : fromVoiceDraft
+                  ? "Vérifie chaque ligne. « Enregistrer et envoyer » enverra le devis par email au client."
+                  : "Vérifie chaque ligne. Rien n’est envoyé au client tant que tu ne choisis pas « Envoyer »."}
             </p>
             {aiDraftWarnings.length > 0 ? (
               <ul className="mt-2 list-inside list-disc text-muted-foreground">
@@ -446,6 +463,7 @@ export function QuoteForm({
             ) : null}
           </>
         ) : null}
+        {voiceIntakeId ? <input type="hidden" name="voice_intake_id" value={voiceIntakeId} /> : null}
 
         <Card className="border-0 shadow-none">
           <CardHeader>
@@ -1082,7 +1100,7 @@ export function QuoteForm({
                     ) : null}
                     Enregistrer en brouillon
                   </Button>
-                  {conversationPrefill ? (
+                  {conversationPrefill || (fromVoiceDraft && customerEmail.trim()) ? (
                     <Button
                       type="submit"
                       name="save_mode"
@@ -1095,11 +1113,11 @@ export function QuoteForm({
                       {submitting && pendingSaveMode === "send" ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
-                      Enregistrer et envoyer au client
+                      {fromVoiceDraft ? "Enregistrer et envoyer par email" : "Enregistrer et envoyer au client"}
                     </Button>
                   ) : (
                     <p className="text-center text-xs text-muted-foreground">
-                      Lie un client (via contacts / messages) pour pouvoir envoyer le devis.
+                      Lie un client (via contacts / messages) ou renseigne un email pour envoyer le devis.
                     </p>
                   )}
                 </div>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { sendMessage } from "@/lib/messages/actions";
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
+import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
 import { buildQuoteNotificationMessage } from "@/lib/quotes/supplier-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -178,11 +179,11 @@ export async function createQuote(formData: FormData) {
   const quoteStatus =
     forceDraft
       ? "draft"
-      : forceSend || (linkedConversationId && linkedCustomerUserId)
-        ? linkedConversationId && linkedCustomerUserId
+      : forceSend
+        ? "sent"
+        : linkedConversationId && linkedCustomerUserId
           ? "sent"
-          : "draft"
-        : "draft";
+          : "draft";
 
   const { data: createdQuote, error: quoteErr } = await supabase
     .from("quotes")
@@ -204,8 +205,9 @@ export async function createQuote(formData: FormData) {
       work_site_address,
       work_site_city,
       work_site_postal_code,
+      sent_at: quoteStatus === "sent" ? new Date().toISOString() : null,
     })
-    .select("id")
+    .select("id, public_token")
     .single();
 
   if (quoteErr || !createdQuote?.id) {
@@ -251,8 +253,9 @@ export async function createQuote(formData: FormData) {
   }
 
   let notifyFailed = false;
-  const shouldNotify = quoteStatus === "sent" && !!linkedConversationId;
-  if (shouldNotify) {
+  let emailSent = false;
+  const shouldNotifyConversation = quoteStatus === "sent" && !!linkedConversationId;
+  if (shouldNotifyConversation) {
     const siteUrl = getPublicSiteUrl();
     const totalFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
       grandTotalCents / 100,
@@ -273,8 +276,37 @@ export async function createQuote(formData: FormData) {
     if (!sent.ok) notifyFailed = true;
   }
 
+  if (quoteStatus === "sent" && customerEmail && !linkedConversationId) {
+    const emailResult = await sendQuoteByEmail({
+      to: customerEmail,
+      customerName,
+      businessName: profile.business_name,
+      quotePublicToken: String(createdQuote.public_token ?? ""),
+      grandTotalCents,
+    });
+    emailSent = emailResult.ok;
+    if (!emailResult.ok) notifyFailed = true;
+  }
+
+  const voiceIntakeId = String(formData.get("voice_intake_id") ?? "").trim();
+  if (voiceIntakeId && quoteStatus === "sent") {
+    await supabase
+      .from("voice_call_intakes")
+      .update({ status: "validated", quote_id: createdQuote.id })
+      .eq("id", voiceIntakeId)
+      .eq("artisan_id", profile.id)
+      .eq("status", "pending_review");
+    revalidatePath("/app/appels");
+  }
+
   revalidatePath("/app/quotes");
   revalidatePath("/mes-devis");
-  return { ok: true as const, quoteId: createdQuote.id, notifyFailed, status: quoteStatus };
+  return {
+    ok: true as const,
+    quoteId: createdQuote.id,
+    notifyFailed,
+    emailSent,
+    status: quoteStatus,
+  };
 }
 

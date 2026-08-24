@@ -12,6 +12,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { loadCustomerDisplayNames } from "@/lib/contacts/load-profile-display-names";
+import { loadArtisanInvoicesForList } from "@/lib/billing/load-invoice-for-page";
 import { invoiceStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
@@ -87,22 +88,17 @@ export default async function InvoicesPage({
     .eq("status", "accepted")
     .order("created_at", { ascending: false });
 
-  const { data: invoiceRows } = await supabase
-    .from("invoices")
-    .select(
-      "id, quote_id, customer_user_id, customer_name, customer_email, invoice_number, grand_total, status, created_at, emission_flow, e_invoicing_status, e_invoicing_rejection_reason, finalized_at",
-    )
-    .eq("artisan_id", profile.id);
+  const invoiceRows = await loadArtisanInvoicesForList(supabase, profile.id);
 
   const profileNames = await loadCustomerDisplayNames(supabase, [
     ...(acceptedQuotes ?? []).map((q) => q.customer_user_id),
-    ...(invoiceRows ?? []).map((inv) => inv.customer_user_id),
+    ...invoiceRows.map((inv) => inv.customer_user_id),
   ]);
 
-  const invoicedQuoteIds = new Set((invoiceRows ?? []).map((r) => r.quote_id).filter(Boolean));
+  const invoicedQuoteIds = new Set(invoiceRows.map((r) => r.quote_id).filter(Boolean));
   const toTransform = (acceptedQuotes ?? []).filter((q) => !invoicedQuoteIds.has(q.id));
 
-  const invoices = (invoiceRows ?? []).sort(
+  const invoices = [...invoiceRows].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 

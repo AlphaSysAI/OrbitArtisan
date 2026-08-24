@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { isMissingColumnError } from "@/lib/admin/db";
 import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
 import {
   computeDepositAmountCents,
@@ -23,10 +24,15 @@ type QuoteRow = {
 };
 
 export async function sumInvoicedOnQuote(supabase: SupabaseClient, quoteId: string): Promise<number> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("invoices")
     .select("grand_total, invoice_type")
     .eq("quote_id", quoteId);
+
+  if (error && isMissingColumnError(error)) {
+    const { data: fallback } = await supabase.from("invoices").select("grand_total").eq("quote_id", quoteId);
+    return (fallback ?? []).reduce((acc, row) => acc + (row.grand_total ?? 0), 0);
+  }
 
   return (data ?? [])
     .filter((row) => row.invoice_type !== "credit_note")
