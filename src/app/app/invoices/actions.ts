@@ -32,11 +32,25 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
 
   await redirectIfCannotCreateDocuments(supabase, user.id);
 
-  const { data: profile } = await supabase
+  const { data: profileMinimal } = await supabase
     .from("profiles")
-    .select("id, default_retention_rate")
+    .select("id")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  let defaultRetentionRate = 0;
+  if (profileMinimal?.id) {
+    const { data: profileExtras, error: profileExtrasError } = await supabase
+      .from("profiles")
+      .select("default_retention_rate")
+      .eq("id", profileMinimal.id)
+      .maybeSingle();
+    if (!profileExtrasError && profileExtras) {
+      defaultRetentionRate = Number(profileExtras.default_retention_rate ?? 0);
+    }
+  }
+
+  const profile = profileMinimal?.id ? { id: profileMinimal.id, default_retention_rate: defaultRetentionRate } : null;
   if (!profile?.id) redirect("/login");
 
   const { data: quote } = await supabase

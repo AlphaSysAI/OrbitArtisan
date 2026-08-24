@@ -14,7 +14,7 @@ import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-
 import { FinalizeInvoiceButton } from "@/components/invoices/finalize-invoice-button";
 import { InvoiceReminderButton } from "@/components/invoices/invoice-reminder-button";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
-import { loadInvoiceForEditPage } from "@/lib/billing/load-invoice-for-page";
+import { loadInvoiceForEditPage, loadInvoiceLinesForEditPage } from "@/lib/billing/load-invoice-for-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
@@ -58,40 +58,35 @@ export default async function InvoiceEditPage({
 
   const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
 
-  const invoice = await loadInvoiceForEditPage(supabase, invoiceId);
+  try {
+    const invoice = await loadInvoiceForEditPage(supabase, invoiceId);
 
-  if (!invoice || !profile?.id || invoice.artisan_id !== profile.id) {
-    notFound();
-  }
+    if (!invoice || !profile?.id || invoice.artisan_id !== profile.id) {
+      notFound();
+    }
 
-  let profileDisplayName: string | null = null;
-  if (invoice.customer_user_id) {
-    const { data: cp } = await supabase
-      .from("customer_profiles")
-      .select("display_name, email")
-      .eq("user_id", invoice.customer_user_id)
-      .maybeSingle();
-    profileDisplayName = formatContactDisplayName({
-      profileName: cp?.display_name,
-      email: cp?.email,
+    let profileDisplayName: string | null = null;
+    if (invoice.customer_user_id) {
+      const { data: cp } = await supabase
+        .from("customer_profiles")
+        .select("display_name, email")
+        .eq("user_id", invoice.customer_user_id)
+        .maybeSingle();
+      profileDisplayName = formatContactDisplayName({
+        profileName: cp?.display_name,
+        email: cp?.email,
+      });
+    }
+
+    const customerLabel = formatContactDisplayName({
+      profileName: profileDisplayName,
+      name: invoice.customer_name,
+      email: invoice.customer_email,
     });
-  }
 
-  const customerLabel = formatContactDisplayName({
-    profileName: profileDisplayName,
-    name: invoice.customer_name,
-    email: invoice.customer_email,
-  });
-
-  const { data: lines } = await supabase
-    .from("invoice_lines")
-    .select("line_kind, label, quantity, unit_price, line_total, sort_order")
-    .eq("invoice_id", invoiceId)
-    .order("sort_order", { ascending: true });
-
-  const sortedLines = lines ?? [];
-  const isDraft = invoice.status === "draft" && !invoice.finalized_at;
-  const emissionFlow = invoice.emission_flow as "e_invoicing" | "e_reporting" | null;
+    const sortedLines = await loadInvoiceLinesForEditPage(supabase, invoiceId);
+    const isDraft = invoice.status === "draft" && !invoice.finalized_at;
+    const emissionFlow = invoice.emission_flow as "e_invoicing" | "e_reporting" | null;
 
   return (
     <div className="space-y-8">
@@ -256,4 +251,8 @@ export default async function InvoiceEditPage({
       </Card>
     </div>
   );
+  } catch (error) {
+    console.error("[invoice-detail] render failed", { invoiceId, error });
+    throw error;
+  }
 }

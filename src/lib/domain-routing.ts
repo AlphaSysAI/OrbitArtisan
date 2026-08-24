@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import {
   getMarketingSiteUrl,
+  getPublicSiteOrigin,
   getPublicSiteUrl,
   hostnameFromUrl,
   isDomainSplitEnabled,
@@ -39,7 +40,7 @@ export function resolveDomainRouting(request: NextRequest): NextResponse | null 
 
   if (host === marketingHost) {
     if (MARKETING_PATHS.has(pathname)) return null;
-    return absoluteRedirect(pathname, getPublicSiteUrl(), search);
+    return absoluteRedirect(pathname, getPublicSiteOrigin(), search);
   }
 
   if (host === appHost) {
@@ -67,7 +68,7 @@ export function resolveAppRootRedirect(
   if (host !== appHost) return null;
 
   if (isAuthenticated) {
-    return absoluteRedirect(isArtisan ? "/app" : "/compte", getPublicSiteUrl());
+    return absoluteRedirect(isArtisan ? "/app" : "/compte", getPublicSiteOrigin());
   }
-  return absoluteRedirect("/login?role=artisan", getPublicSiteUrl());
+  return absoluteRedirect("/login?role=artisan", getPublicSiteOrigin());
 }

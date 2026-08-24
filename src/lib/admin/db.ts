@@ -14,7 +14,18 @@ export function isMissingColumnError(error: { code?: string; message?: string } 
   if (!error) return false;
   if (error.code === "42703" || error.code === "PGRST204") return true;
   const msg = error.message?.toLowerCase() ?? "";
-  return msg.includes("does not exist") || msg.includes("could not find");
+  return (
+    msg.includes("does not exist") ||
+    msg.includes("could not find") ||
+    (msg.includes("column") && msg.includes("schema cache"))
+  );
+}
+
+export function isMissingRelationError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === "42P01" || error.code === "PGRST205") return true;
+  const msg = error.message?.toLowerCase() ?? "";
+  return msg.includes("relation") && msg.includes("does not exist");
 }
 
 export function emptyAdminMetrics() {

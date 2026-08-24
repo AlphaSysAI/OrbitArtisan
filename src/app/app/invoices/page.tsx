@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Banknote, FileText, Plus, Receipt, Wallet } from "lucide-react";
 
 import { AppEmptyState } from "@/components/app/app-empty-state";
@@ -43,10 +44,12 @@ export default async function InvoicesPage({
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) redirect("/login?next=/app/invoices");
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name, stripe_account_id, stripe_transfers_enabled, stripe_payouts_enabled")
-    .eq("user_id", user!.id)
+    .eq("user_id", user.id)
     .maybeSingle();
 
   if (!profile?.id) {

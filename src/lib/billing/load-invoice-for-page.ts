@@ -72,6 +72,66 @@ const BTP_DEFAULTS: BtpInvoiceRow = {
   retention_released_at: null,
 };
 
+const MINIMAL_LINE_SELECT = "label, line_total, sort_order";
+const FULL_LINE_SELECT = "line_kind, label, quantity, unit_price, line_total, sort_order";
+
+export type InvoiceLineForEditPage = {
+  line_kind: string;
+  label: string;
+  quantity: number | null;
+  unit_price: number | null;
+  line_total: number;
+  sort_order: number;
+};
+
+function asOptionalString(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeEinvoicingExtra(extra: Partial<EinvoicingInvoiceRow> | null): Partial<EinvoicingInvoiceRow> {
+  if (!extra) return {};
+  return {
+    finalized_at: asOptionalString(extra.finalized_at),
+    emission_flow: asOptionalString(extra.emission_flow),
+    e_invoicing_status: asOptionalString(extra.e_invoicing_status),
+    e_invoicing_rejection_reason: asOptionalString(extra.e_invoicing_rejection_reason),
+    pa_submission_id: asOptionalString(extra.pa_submission_id),
+  };
+}
+
+function normalizeBtpExtra(extra: Partial<BtpInvoiceRow> | null): Partial<BtpInvoiceRow> {
+  if (!extra) return {};
+  return {
+    invoice_type: asOptionalString(extra.invoice_type) ?? "standard",
+    due_date: asOptionalString(extra.due_date),
+    reminder_count: Number(extra.reminder_count ?? 0),
+    last_reminder_at: asOptionalString(extra.last_reminder_at),
+    retention_amount: Number(extra.retention_amount ?? 0),
+    retention_rate: Number(extra.retention_rate ?? 0),
+    retention_released_at: asOptionalString(extra.retention_released_at),
+  };
+}
+
+function normalizeInvoiceLine(
+  row: Partial<InvoiceLineForEditPage> & Pick<InvoiceLineForEditPage, "label" | "line_total" | "sort_order">,
+): InvoiceLineForEditPage {
+  return {
+    line_kind: asOptionalString(row.line_kind) ?? "service",
+    label: asOptionalString(row.label) ?? "Ligne",
+    quantity: typeof row.quantity === "number" ? row.quantity : null,
+    unit_price: typeof row.unit_price === "number" ? row.unit_price : null,
+    line_total: Number(row.line_total ?? 0),
+    sort_order: Number(row.sort_order ?? 0),
+  };
+}
+
 async function trySelectInvoiceExtras<T extends Record<string, unknown>>(
   supabase: SupabaseClient,
   invoiceId: string,
@@ -103,10 +163,13 @@ export async function loadInvoiceForEditPage(
   }
   if (!core) return null;
 
-  const einvoicingExtra =
-    await trySelectInvoiceExtras<EinvoicingInvoiceRow>(supabase, invoiceId, EINVOICING_INVOICE_SELECT);
+  const einvoicingExtra = normalizeEinvoicingExtra(
+    await trySelectInvoiceExtras<EinvoicingInvoiceRow>(supabase, invoiceId, EINVOICING_INVOICE_SELECT),
+  );
 
-  const btpExtra = await trySelectInvoiceExtras<BtpInvoiceRow>(supabase, invoiceId, BTP_INVOICE_SELECT);
+  const btpExtra = normalizeBtpExtra(
+    await trySelectInvoiceExtras<BtpInvoiceRow>(supabase, invoiceId, BTP_INVOICE_SELECT),
+  );
 
   return {
     ...(core as CoreInvoiceRow),
@@ -115,6 +178,46 @@ export async function loadInvoiceForEditPage(
     ...BTP_DEFAULTS,
     ...btpExtra,
   };
+}
+
+/** Lignes de facture pour la page édition (repli si colonnes manquantes). */
+export async function loadInvoiceLinesForEditPage(
+  supabase: SupabaseClient,
+  invoiceId: string,
+): Promise<InvoiceLineForEditPage[]> {
+  const { data: full, error: fullError } = await supabase
+    .from("invoice_lines")
+    .select(FULL_LINE_SELECT)
+    .eq("invoice_id", invoiceId)
+    .order("sort_order", { ascending: true });
+
+  if (!fullError && full) {
+    return (full as InvoiceLineForEditPage[]).map((row) => normalizeInvoiceLine(row));
+  }
+
+  if (fullError && !isMissingColumnError(fullError)) {
+    console.error("[load-invoice-lines] full select failed", fullError.message);
+  }
+
+  const { data: minimal, error: minimalError } = await supabase
+    .from("invoice_lines")
+    .select(MINIMAL_LINE_SELECT)
+    .eq("invoice_id", invoiceId)
+    .order("sort_order", { ascending: true });
+
+  if (minimalError) {
+    console.error("[load-invoice-lines] minimal select failed", minimalError.message);
+    return [];
+  }
+
+  return (minimal ?? []).map((row) =>
+    normalizeInvoiceLine({
+      line_kind: "service",
+      quantity: null,
+      unit_price: null,
+      ...(row as Pick<InvoiceLineForEditPage, "label" | "line_total" | "sort_order">),
+    }),
+  );
 }
 
 /** Factures liées à un devis (page détail devis). */
