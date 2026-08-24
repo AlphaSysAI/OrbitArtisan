@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { ArrowLeft, Receipt } from "lucide-react";
 
@@ -11,7 +11,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { DownloadInvoicePdfButton } from "@/components/invoices/download-invoice-pdf-button";
 import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-badge";
-import { FinalizeInvoiceButton } from "@/components/invoices/finalize-invoice-button";
 import { InvoiceReminderButton } from "@/components/invoices/invoice-reminder-button";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { loadInvoiceForEditPage, loadInvoiceLinesForEditPage } from "@/lib/billing/load-invoice-for-page";
@@ -19,7 +18,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
 import { updateInvoice } from "../actions";
-import { createCreditNoteForm, releaseRetentionForm } from "../btp-actions";
+import { InvoiceBtpActionsCard } from "./invoice-btp-actions-card";
+import { InvoiceFinalizeForm } from "./invoice-finalize-form";
+import { InvoiceAccessDeniedPanel, InvoiceLoadErrorPanel } from "./invoice-status-panels";
 
 const FINALIZE_ERROR_LABELS: Record<string, string> = {
   not_found: "Facture introuvable.",
@@ -53,6 +54,10 @@ function asFormText(value: unknown): string {
   }
 }
 
+function displayText(value: unknown, fallback = ""): string {
+  return asFormText(value) || fallback;
+}
+
 export default async function InvoiceEditPage({
   params,
   searchParams,
@@ -82,22 +87,12 @@ export default async function InvoiceEditPage({
 
   const loaded = await loadInvoiceForEditPage(supabase, invoiceId);
   if (!loaded.ok) {
-    if (loaded.reason === "not_found") notFound();
-    return (
-      <div className="space-y-4 rounded-xl border border-destructive/30 bg-destructive/5 p-6">
-        <h2 className="text-lg font-semibold">Impossible de charger cette facture</h2>
-        <p className="text-sm text-muted-foreground">
-          La base de données a renvoyé une erreur inattendue. Réessaie dans un instant ou contacte le support.
-        </p>
-        <Link href="/app/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
-          Retour aux factures
-        </Link>
-      </div>
-    );
+    if (loaded.reason === "load_error") return <InvoiceLoadErrorPanel />;
+    return <InvoiceAccessDeniedPanel />;
   }
 
   const invoice = loaded.invoice;
-  if (invoice.artisan_id !== profile.id) notFound();
+  if (invoice.artisan_id !== profile.id) return <InvoiceAccessDeniedPanel />;
 
   let profileDisplayName: string | null = null;
   if (invoice.customer_user_id) {
@@ -121,6 +116,7 @@ export default async function InvoiceEditPage({
   const sortedLines = await loadInvoiceLinesForEditPage(supabase, invoiceId);
   const isDraft = invoice.status === "draft" && !invoice.finalized_at;
   const emissionFlow = invoice.emission_flow as "e_invoicing" | "e_reporting" | null;
+  const invoiceTitle = displayText(invoice.invoice_number, "Brouillon");
 
   return (
     <div className="space-y-8">
@@ -129,7 +125,7 @@ export default async function InvoiceEditPage({
           <p className="text-sm font-medium text-muted-foreground">Facture</p>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
             <Receipt className="h-6 w-6" />
-            {invoice.invoice_number ?? "Brouillon"}
+            {invoiceTitle}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {customerLabel} ·{" "}
@@ -149,7 +145,7 @@ export default async function InvoiceEditPage({
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isDraft ? <FinalizeInvoiceButton invoiceId={invoiceId} /> : null}
+          {isDraft ? <InvoiceFinalizeForm invoiceId={invoiceId} /> : null}
           {!isDraft && (invoice.status === "sent" || invoice.status === "overdue") ? (
             <InvoiceReminderButton invoiceId={invoiceId} />
           ) : null}
@@ -235,32 +231,11 @@ export default async function InvoiceEditPage({
       </Card>
 
       {!isDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Actions BTP</CardTitle>
-            <CardDescription>Avoir, retenue de garantie</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <form action={createCreditNoteForm}>
-              <input type="hidden" name="invoice_id" value={invoiceId} />
-              <Button type="submit" variant="outline" size="sm">
-                Créer un avoir
-              </Button>
-            </form>
-            {invoice.retention_amount > 0 && !invoice.retention_released_at ? (
-              <form action={releaseRetentionForm}>
-                <input type="hidden" name="invoice_id" value={invoiceId} />
-                <Button type="submit" variant="outline" size="sm">
-                  Libérer retenue (
-                  {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                    invoice.retention_amount / 100,
-                  )}
-                  )
-                </Button>
-              </form>
-            ) : null}
-          </CardContent>
-        </Card>
+        <InvoiceBtpActionsCard
+          invoiceId={invoiceId}
+          retentionAmount={invoice.retention_amount}
+          retentionReleasedAt={invoice.retention_released_at}
+        />
       ) : null}
 
       <Card>
@@ -268,19 +243,23 @@ export default async function InvoiceEditPage({
           <CardTitle className="text-lg">Lignes (reprise du devis)</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="divide-y rounded-xl border">
-            {sortedLines.map((line, i) => (
-              <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                <div>
-                  <span className="font-medium">{line.label}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">{invoiceLineKindLabel(line.line_kind)}</span>
-                </div>
-                <span className="font-medium">
-                  {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((line.line_total ?? 0) / 100)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {sortedLines.length ? (
+            <ul className="divide-y rounded-xl border">
+              {sortedLines.map((line, i) => (
+                <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                  <div>
+                    <span className="font-medium">{line.label}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{invoiceLineKindLabel(line.line_kind)}</span>
+                  </div>
+                  <span className="font-medium">
+                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((line.line_total ?? 0) / 100)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">Aucune ligne enregistrée pour cette facture.</p>
+          )}
           <p className="mt-4 text-sm font-semibold">
             Total :{" "}
             {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((invoice.grand_total ?? 0) / 100)}

@@ -126,6 +126,20 @@ function normalizeBtpExtra(extra: Partial<BtpInvoiceRow> | null): Partial<BtpInv
   };
 }
 
+function normalizeCoreInvoice(core: CoreInvoiceRow): CoreInvoiceRow {
+  return {
+    ...core,
+    invoice_number: asOptionalString(core.invoice_number),
+    status: asOptionalString(core.status) ?? "draft",
+    notes: asOptionalString(core.notes),
+    customer_name: asOptionalString(core.customer_name),
+    customer_email: asOptionalString(core.customer_email),
+    labor_total: Number(core.labor_total ?? 0),
+    materials_total: Number(core.materials_total ?? 0),
+    grand_total: Number(core.grand_total ?? 0),
+  };
+}
+
 function normalizeInvoiceLine(
   row: Partial<InvoiceLineForEditPage> & Pick<InvoiceLineForEditPage, "label" | "line_total" | "sort_order">,
 ): InvoiceLineForEditPage {
@@ -192,7 +206,7 @@ export async function loadInvoiceForEditPage(
   return {
     ok: true,
     invoice: {
-      ...(core as CoreInvoiceRow),
+      ...normalizeCoreInvoice(core as CoreInvoiceRow),
       ...EINVOICING_DEFAULTS,
       ...einvoicingExtra,
       ...BTP_DEFAULTS,
