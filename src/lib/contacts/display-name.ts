@@ -32,10 +32,21 @@ function isUsablePersonName(name: string, email?: string | null): boolean {
   return true;
 }
 
+function asDisplayName(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
 /** Nom affiché pour un contact — jamais l'e-mail ni son préfixe. */
 export function formatContactDisplayName(input: ContactNameInput): string {
   const fallback = input.fallback ?? "Client";
-  const candidates = [input.profileName, input.name];
+  const candidates = [asDisplayName(input.profileName), asDisplayName(input.name)];
 
   for (const candidate of candidates) {
     if (!candidate) continue;

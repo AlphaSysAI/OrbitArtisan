@@ -3,24 +3,27 @@ import { redirect } from "next/navigation";
 
 import { ArrowLeft, Receipt } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { DownloadInvoicePdfButton } from "@/components/invoices/download-invoice-pdf-button";
 import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-badge";
 import { InvoiceReminderButton } from "@/components/invoices/invoice-reminder-button";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
-import { loadInvoiceForEditPage, loadInvoiceLinesForEditPage } from "@/lib/billing/load-invoice-for-page";
+import {
+  loadInvoiceForEditPage,
+  loadInvoiceLinesForEditPage,
+  type InvoiceForEditPage,
+  type InvoiceLineForEditPage,
+} from "@/lib/billing/load-invoice-for-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
-import { updateInvoice } from "../actions";
-import { InvoiceBtpActionsCard } from "./invoice-btp-actions-card";
+import { InvoiceEditForm } from "./invoice-edit-form";
 import { InvoiceFinalizeForm } from "./invoice-finalize-form";
 import { InvoiceAccessDeniedPanel, InvoiceLoadErrorPanel } from "./invoice-status-panels";
+
+export const dynamic = "force-dynamic";
 
 const FINALIZE_ERROR_LABELS: Record<string, string> = {
   not_found: "Facture introuvable.",
@@ -58,62 +61,33 @@ function displayText(value: unknown, fallback = ""): string {
   return asFormText(value) || fallback;
 }
 
-export default async function InvoiceEditPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ invoiceId: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const { invoiceId } = await params;
-  const query = await searchParams;
-  const finalizeError = queryParam(query.finalize_error);
-  const finalized = queryParam(query.finalized);
-  const flow = queryParam(query.flow);
-  const download = queryParam(query.download);
+function isNextNavigationError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const digest = "digest" in error ? String((error as { digest?: unknown }).digest ?? "") : "";
+  return digest.startsWith("NEXT_") || (error as { message?: string }).message === "NEXT_REDIRECT";
+}
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return <SupabaseMissing title="Factures indisponibles" />;
-  }
+type InvoiceDetailViewProps = {
+  invoiceId: string;
+  invoice: InvoiceForEditPage;
+  sortedLines: InvoiceLineForEditPage[];
+  customerLabel: string;
+  finalizeError?: string;
+  finalized?: string;
+  flow?: string;
+  download?: string;
+};
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/app/invoices/${invoiceId}`);
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) redirect("/app/reglages?tab=activite");
-
-  const loaded = await loadInvoiceForEditPage(supabase, invoiceId);
-  if (!loaded.ok) {
-    if (loaded.reason === "load_error") return <InvoiceLoadErrorPanel />;
-    return <InvoiceAccessDeniedPanel />;
-  }
-
-  const invoice = loaded.invoice;
-  if (invoice.artisan_id !== profile.id) return <InvoiceAccessDeniedPanel />;
-
-  let profileDisplayName: string | null = null;
-  if (invoice.customer_user_id) {
-    const { data: cp } = await supabase
-      .from("customer_profiles")
-      .select("display_name, email")
-      .eq("user_id", invoice.customer_user_id)
-      .maybeSingle();
-    profileDisplayName = formatContactDisplayName({
-      profileName: cp?.display_name,
-      email: cp?.email,
-    });
-  }
-
-  const customerLabel = formatContactDisplayName({
-    profileName: profileDisplayName,
-    name: invoice.customer_name,
-    email: invoice.customer_email,
-  });
-
-  const sortedLines = await loadInvoiceLinesForEditPage(supabase, invoiceId);
+function InvoiceDetailView({
+  invoiceId,
+  invoice,
+  sortedLines,
+  customerLabel,
+  finalizeError,
+  finalized,
+  flow,
+  download,
+}: InvoiceDetailViewProps) {
   const isDraft = invoice.status === "draft" && !invoice.finalized_at;
   const emissionFlow = invoice.emission_flow as "e_invoicing" | "e_reporting" | null;
   const invoiceTitle = displayText(invoice.invoice_number, "Brouillon");
@@ -139,7 +113,7 @@ export default async function InvoiceEditPage({
                 {invoice.due_date
                   ? ` · Échéance ${new Date(invoice.due_date).toLocaleDateString("fr-FR")}`
                   : ""}
-                {emissionFlow ? ` · ${FLOW_LABELS[emissionFlow] ?? emissionFlow}` : ""}
+                {emissionFlow ? ` · ${FLOW_LABELS[emissionFlow] ?? displayText(emissionFlow)}` : ""}
               </span>
             </div>
           ) : null}
@@ -165,14 +139,14 @@ export default async function InvoiceEditPage({
       {invoice.e_invoicing_status === "REJECTED" && invoice.e_invoicing_rejection_reason ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           <p className="font-medium">Facture refusée par le client ou la PA</p>
-          <p className="mt-1">{invoice.e_invoicing_rejection_reason}</p>
+          <p className="mt-1">{displayText(invoice.e_invoicing_rejection_reason)}</p>
         </div>
       ) : null}
 
       {finalized === "1" ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           Facture finalisée avec succès
-          {flow ? ` (${FLOW_LABELS[flow] ?? flow})` : ""}.
+          {flow ? ` (${FLOW_LABELS[flow] ?? displayText(flow)})` : ""}.
           {download === "1" ? " Tu peux télécharger le PDF ci-dessus." : ""}
         </div>
       ) : null}
@@ -193,45 +167,18 @@ export default async function InvoiceEditPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={updateInvoice} className="space-y-6">
-            <input type="hidden" name="invoice_id" value={invoiceId} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="invoice_number">Numéro de facture</Label>
-                <Input
-                  id="invoice_number"
-                  name="invoice_number"
-                  defaultValue={asFormText(invoice.invoice_number)}
-                  placeholder="FAC-…"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Statut</Label>
-                <select
-                  id="status"
-                  name="status"
-                  defaultValue={invoice.status ?? "draft"}
-                  disabled={isDraft}
-                  className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm disabled:opacity-60"
-                >
-                  <option value="draft">Brouillon</option>
-                  <option value="sent">Envoyée</option>
-                  <option value="overdue">En retard</option>
-                  <option value="paid">Payée</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" name="notes" defaultValue={asFormText(invoice.notes)} rows={4} />
-            </div>
-            <Button type="submit">Enregistrer</Button>
-          </form>
+          <InvoiceEditForm
+            invoiceId={invoiceId}
+            invoiceNumber={asFormText(invoice.invoice_number)}
+            status={displayText(invoice.status, "draft")}
+            notes={asFormText(invoice.notes)}
+            isDraft={isDraft}
+          />
         </CardContent>
       </Card>
 
       {!isDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft" ? (
-        <InvoiceBtpActionsCard
+        <BtpActionsSection
           invoiceId={invoiceId}
           retentionAmount={invoice.retention_amount}
           retentionReleasedAt={invoice.retention_released_at}
@@ -248,8 +195,10 @@ export default async function InvoiceEditPage({
               {sortedLines.map((line, i) => (
                 <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                   <div>
-                    <span className="font-medium">{line.label}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">{invoiceLineKindLabel(line.line_kind)}</span>
+                    <span className="font-medium">{displayText(line.label, "Ligne")}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {invoiceLineKindLabel(displayText(line.line_kind))}
+                    </span>
                   </div>
                   <span className="font-medium">
                     {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((line.line_total ?? 0) / 100)}
@@ -268,4 +217,117 @@ export default async function InvoiceEditPage({
       </Card>
     </div>
   );
+}
+
+async function BtpActionsSection({
+  invoiceId,
+  retentionAmount,
+  retentionReleasedAt,
+}: {
+  invoiceId: string;
+  retentionAmount: number;
+  retentionReleasedAt: string | null;
+}) {
+  const { InvoiceBtpActionsCard } = await import("./invoice-btp-actions-card");
+  return (
+    <InvoiceBtpActionsCard
+      invoiceId={invoiceId}
+      retentionAmount={retentionAmount}
+      retentionReleasedAt={retentionReleasedAt}
+    />
+  );
+}
+
+export default async function InvoiceEditPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ invoiceId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { invoiceId } = await params;
+  const query = await searchParams;
+  const finalizeError = queryParam(query.finalize_error);
+  const finalized = queryParam(query.finalized);
+  const flow = queryParam(query.flow);
+  const download = queryParam(query.download);
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return <SupabaseMissing title="Factures indisponibles" />;
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) redirect(`/login?next=/app/invoices/${invoiceId}`);
+
+    const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+    if (!profile?.id) {
+      return (
+        <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6">
+          <h2 className="text-lg font-semibold">Profil artisan incomplet</h2>
+          <p className="text-sm text-muted-foreground">Configure ton activité avant d&apos;ouvrir une facture.</p>
+          <Link href="/app/reglages?tab=activite" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Mon activité
+          </Link>
+        </div>
+      );
+    }
+
+    const loaded = await loadInvoiceForEditPage(supabase, invoiceId);
+    if (!loaded.ok) {
+      if (loaded.reason === "load_error") {
+        console.error("[invoice-detail] load_error", { invoiceId, message: loaded.message });
+        return <InvoiceLoadErrorPanel />;
+      }
+      return <InvoiceAccessDeniedPanel />;
+    }
+
+    const invoice = loaded.invoice;
+    if (invoice.artisan_id !== profile.id) return <InvoiceAccessDeniedPanel />;
+
+    let profileDisplayName: string | null = null;
+    if (invoice.customer_user_id) {
+      const { data: cp } = await supabase
+        .from("customer_profiles")
+        .select("display_name, email")
+        .eq("user_id", invoice.customer_user_id)
+        .maybeSingle();
+      profileDisplayName = formatContactDisplayName({
+        profileName: cp?.display_name,
+        email: cp?.email,
+      });
+    }
+
+    const customerLabel = formatContactDisplayName({
+      profileName: profileDisplayName,
+      name: invoice.customer_name,
+      email: invoice.customer_email,
+    });
+
+    const sortedLines = await loadInvoiceLinesForEditPage(supabase, invoiceId);
+
+    return (
+      <InvoiceDetailView
+        invoiceId={invoiceId}
+        invoice={invoice}
+        sortedLines={sortedLines}
+        customerLabel={customerLabel}
+        finalizeError={finalizeError}
+        finalized={finalized}
+        flow={flow}
+        download={download}
+      />
+    );
+  } catch (error) {
+    if (isNextNavigationError(error)) throw error;
+    console.error("[invoice-detail] render_failed", {
+      invoiceId,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return <InvoiceLoadErrorPanel />;
+  }
 }

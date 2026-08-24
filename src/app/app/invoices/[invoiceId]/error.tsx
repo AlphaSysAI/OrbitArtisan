@@ -13,7 +13,11 @@ export default function InvoiceDetailError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[invoice-detail-error]", error);
+    console.error("[invoice-detail-error]", {
+      message: error.message,
+      digest: error.digest,
+      stack: error.stack,
+    });
   }, [error]);
 
   return (
