@@ -50,6 +50,13 @@ type BtpInvoiceRow = {
 
 export type InvoiceForEditPage = CoreInvoiceRow & EinvoicingInvoiceRow & BtpInvoiceRow;
 
+export type LoadInvoiceForEditResult =
+  | { ok: true; invoice: InvoiceForEditPage }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "load_error"; message: string };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export type InvoiceListRow = CoreInvoiceRow &
   Partial<EinvoicingInvoiceRow> &
   Partial<Pick<BtpInvoiceRow, "invoice_type">>;
@@ -150,7 +157,11 @@ async function trySelectInvoiceExtras<T extends Record<string, unknown>>(
 export async function loadInvoiceForEditPage(
   supabase: SupabaseClient,
   invoiceId: string,
-): Promise<InvoiceForEditPage | null> {
+): Promise<LoadInvoiceForEditResult> {
+  if (!UUID_RE.test(invoiceId)) {
+    return { ok: false, reason: "not_found" };
+  }
+
   const { data: core, error: coreError } = await supabase
     .from("invoices")
     .select(MINIMAL_INVOICE_SELECT)
@@ -158,10 +169,17 @@ export async function loadInvoiceForEditPage(
     .maybeSingle();
 
   if (coreError) {
-    console.error("[load-invoice] core select failed", coreError.message);
-    return null;
+    console.error("[load-invoice] core select failed", {
+      invoiceId,
+      code: coreError.code,
+      message: coreError.message,
+    });
+    if (coreError.code === "22P02") {
+      return { ok: false, reason: "not_found" };
+    }
+    return { ok: false, reason: "load_error", message: coreError.message };
   }
-  if (!core) return null;
+  if (!core) return { ok: false, reason: "not_found" };
 
   const einvoicingExtra = normalizeEinvoicingExtra(
     await trySelectInvoiceExtras<EinvoicingInvoiceRow>(supabase, invoiceId, EINVOICING_INVOICE_SELECT),
@@ -172,11 +190,14 @@ export async function loadInvoiceForEditPage(
   );
 
   return {
-    ...(core as CoreInvoiceRow),
-    ...EINVOICING_DEFAULTS,
-    ...einvoicingExtra,
-    ...BTP_DEFAULTS,
-    ...btpExtra,
+    ok: true,
+    invoice: {
+      ...(core as CoreInvoiceRow),
+      ...EINVOICING_DEFAULTS,
+      ...einvoicingExtra,
+      ...BTP_DEFAULTS,
+      ...btpExtra,
+    },
   };
 }
 
