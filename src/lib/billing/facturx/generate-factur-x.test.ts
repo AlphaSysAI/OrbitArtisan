@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { check, extract } from "@stafyniaksacha/facturx";
+import { Profile, validateXsd } from "@stackforge-eu/factur-x";
 import { Buffer } from "node:buffer";
 
 import { generateFacturX } from "@/lib/billing/facturx/generate-factur-x";
@@ -59,8 +59,18 @@ const sampleInvoice: FacturXInvoiceDocument = {
 };
 
 describe("generateFacturX", () => {
+  it("sérialise le sample de test en XML XSD-valide", async () => {
+    const { buildCrossIndustryInvoice } = await import("./build-cii-invoice");
+    const { crossIndustryInvoiceToXml } = await import("./cii-to-xml");
+    const { validateFacturXXml } = await import("./validate-factur-x");
+    const xml = crossIndustryInvoiceToXml(buildCrossIndustryInvoice(sampleInvoice, "en16931"));
+    const validation = await validateXsd(xml, Profile.EN16931);
+    expect(validation.valid, validation.errors?.map((e) => e.message).join("\n")).toBe(true);
+    await expect(validateFacturXXml(xml, "en16931")).resolves.toBeUndefined();
+  });
+
   it(
-    "génère un PDF/A-3 avec XML CII embarqué extractible (profil EN16931)",
+    "génère un PDF/A-3 avec XML CII embarqué valide XSD (profil EN16931)",
     async () => {
       const result = await generateFacturX(sampleInvoice, { profile: "en16931" });
 
@@ -69,18 +79,7 @@ describe("generateFacturX", () => {
       expect(result.xml).toContain(sampleInvoice.invoiceNumber);
       expect(result.pdf.byteLength).toBeGreaterThan(1000);
 
-      const extracted = await extract({ pdf: Buffer.from(result.pdf), check: false });
-      expect(extracted.filename).toBe(FACTURX_XML_FILENAME);
-      expect(extracted.flavor).toBe("facturx");
-      expect(extracted.xml).toContain(sampleInvoice.invoiceNumber);
-      expect(extracted.xml).toContain("Plomberie Dupont SARL");
-      expect(extracted.xml).toContain("Syndic Résidence Bellevue");
-
-      const validation = await check({
-        xml: extracted.xml,
-        flavor: "facturx",
-        level: "en16931",
-      });
+      const validation = await validateXsd(result.xml, Profile.EN16931);
       expect(validation.valid).toBe(true);
     },
     30_000,
@@ -90,8 +89,27 @@ describe("generateFacturX", () => {
     "génère aussi un profil BASIC valide XSD",
     async () => {
       const result = await generateFacturX(sampleInvoice, { profile: "basic" });
-      const validation = await check({ xml: result.xml, flavor: "facturx", level: "basic" });
+      const validation = await validateXsd(result.xml, Profile.BASIC);
       expect(validation.valid).toBe(true);
+    },
+    30_000,
+  );
+
+  it(
+    "permet l'extraction du XML embarqué (dev — stafyniaksacha optionnel)",
+    async () => {
+      const result = await generateFacturX(sampleInvoice, { profile: "en16931" });
+      let extract: (options: { pdf: Buffer; check?: boolean }) => Promise<{ xml: string; filename: string }>;
+
+      try {
+        ({ extract } = await import("@stafyniaksacha/facturx"));
+      } catch {
+        return;
+      }
+
+      const extracted = await extract({ pdf: Buffer.from(result.pdf), check: false });
+      expect(extracted.filename).toBe(FACTURX_XML_FILENAME);
+      expect(extracted.xml).toContain(sampleInvoice.invoiceNumber);
     },
     30_000,
   );

@@ -386,7 +386,8 @@ Chargement document BDD
 
 ### 9.4 Factur-X
 
-- Génération : `@stafyniaksacha/facturx` (XML CII)
+- Génération XML CII : sérialiseur interne (`cii-to-xml.ts`, sans libxmljs)
+- Validation XSD : `@stackforge-eu/factur-x` (libxml2-wasm, compatible Node 24 / Vercel)
 - Validation croisée : XSD + Schematron EN16931 + `@stackforge-eu/factur-x` (XSD)
 - Profil : EN16931 / BASIC
 - Fichiers : `src/lib/billing/facturx/` (build-cii-invoice, generate-factur-x, validate-factur-x, embed-factur-x-pdf, render-invoice-pdf)
@@ -545,7 +546,7 @@ OrbitArtisan/
 - **Route Handlers** pour API REST et webhooks
 - **RLS PostgreSQL** pour isolation multi-tenant
 - **Service role Supabase** pour opérations cross-tenant (webhooks, dispatch leads)
-- **Imports dynamiques** pour modules natifs (Factur-X / libxmljs) — compatibilité Vercel Node 20
+- **Factur-X sans libxmljs** — `@stafyniaksacha/facturx` réservé aux tests locaux (devDependency)
 
 ---
 

@@ -112,9 +112,7 @@ export type EmbedFacturXOptions = {
  */
 export async function embedFacturXInPdf(options: EmbedFacturXOptions): Promise<Uint8Array> {
   if (options.validateXml !== false) {
-    await validateFacturXXml(options.xml, options.profile, {
-      schematron: process.env.FACTURX_SKIP_SCHEMATRON !== "1",
-    });
+    await validateFacturXXml(options.xml, options.profile);
   }
 
   const pdf = await PDFDocument.load(options.visualPdf);

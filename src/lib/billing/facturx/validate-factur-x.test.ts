@@ -7,7 +7,6 @@ vi.mock("@stackforge-eu/factur-x", () => ({
 
 describe("validateFacturXXml", () => {
   beforeEach(() => {
-    vi.stubEnv("FACTURX_SKIP_STAFYNAKSA", "1");
     vi.stubEnv("FACTURX_SKIP_STACKFORGE", "0");
   });
 

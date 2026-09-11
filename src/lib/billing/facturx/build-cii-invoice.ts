@@ -1,42 +1,9 @@
-import {
-  AmountType,
-  CodeType,
-  CountryIDType,
-  CrossIndustryInvoiceType,
-  CurrencyCodeType,
-  DateTimeType,
-  DocumentCodeType,
-  DocumentContextParameterType,
-  DocumentLineDocumentType,
-  ExchangedDocumentContextType,
-  ExchangedDocumentType,
-  HeaderTradeAgreementType,
-  HeaderTradeDeliveryType,
-  HeaderTradeSettlementType,
-  IDType,
-  LegalOrganizationType,
-  LineTradeAgreementType,
-  LineTradeDeliveryType,
-  LineTradeSettlementType,
-  NoteType,
-  QuantityType,
-  SupplyChainTradeLineItemType,
-  SupplyChainTradeTransactionType,
-  TaxCategoryCodeType,
-  TaxRegistrationType,
-  TaxTypeCodeType,
-  TextType,
-  TradeAddressType,
-  TradeContactType,
-  TradePartyType,
-  TradePriceType,
-  TradeProductType,
-  TradeSettlementHeaderMonetarySummationType,
-  TradeSettlementLineMonetarySummationType,
-  TradeTaxType,
-  UniversalCommunicationType,
-} from "@stafyniaksacha/facturx/models";
-
+import type {
+  CrossIndustryInvoice,
+  SupplyChainTradeLineItem,
+  TradeParty,
+  TradeTax,
+} from "./cii-types";
 import type { FacturXInvoiceDocument, FacturXLineInput, FacturXProfile } from "./types";
 
 const GUIDELINE_URNS: Record<FacturXProfile, string> = {
@@ -48,8 +15,8 @@ function centsToEuros(cents: number): number {
   return Math.round(cents) / 100;
 }
 
-function amount(cents: number, currency = "EUR"): AmountType {
-  return new AmountType({ value: centsToEuros(cents), currencyID: currency });
+function amount(cents: number, currency = "EUR") {
+  return { value: centsToEuros(cents), currencyID: currency };
 }
 
 function formatIssueDate(date: Date): string {
@@ -59,97 +26,87 @@ function formatIssueDate(date: Date): string {
   return `${y}${m}${d}`;
 }
 
-function buildAddress(party: FacturXInvoiceDocument["seller"]): TradeAddressType {
-  return new TradeAddressType({
-    postcodeCode: party.postalCode ? new CodeType({ value: party.postalCode }) : undefined,
-    lineOne: party.addressLine1 ? new TextType({ value: party.addressLine1 }) : undefined,
-    lineTwo: party.addressLine2 ? new TextType({ value: party.addressLine2 }) : undefined,
-    cityName: party.city ? new TextType({ value: party.city }) : undefined,
-    countryID: new CountryIDType({ value: (party.countryCode ?? "FR").toUpperCase() }),
-  });
+function buildAddress(party: FacturXInvoiceDocument["seller"]): TradeParty["postalTradeAddress"] {
+  return {
+    postcodeCode: party.postalCode ? { value: party.postalCode } : undefined,
+    lineOne: party.addressLine1 ? { value: party.addressLine1 } : undefined,
+    lineTwo: party.addressLine2 ? { value: party.addressLine2 } : undefined,
+    cityName: party.city ? { value: party.city } : undefined,
+    countryID: { value: (party.countryCode ?? "FR").toUpperCase() },
+  };
 }
 
-function buildTradeParty(party: FacturXInvoiceDocument["seller"], profile: FacturXProfile): TradePartyType {
-  const contacts: TradeContactType[] = [];
+function buildTradeParty(party: FacturXInvoiceDocument["seller"], profile: FacturXProfile): TradeParty {
+  const contacts: TradeParty["definedTradeContact"] = [];
   if (profile === "en16931" && (party.email || party.phone)) {
-    contacts.push(
-      new TradeContactType({
-        emailURIUniversalCommunication: party.email
-          ? new UniversalCommunicationType({ uriID: new IDType({ value: `mailto:${party.email}` }) })
-          : undefined,
-        telephoneUniversalCommunication: party.phone
-          ? new UniversalCommunicationType({ completeNumber: new TextType({ value: party.phone }) })
-          : undefined,
-      }),
-    );
+    contacts.push({
+      emailURIUniversalCommunication: party.email
+        ? { uriID: { value: `mailto:${party.email}` } }
+        : undefined,
+      telephoneUniversalCommunication: party.phone ? { completeNumber: { value: party.phone } } : undefined,
+    });
   }
 
-  const taxRegs: TaxRegistrationType[] = [];
+  const taxRegs: TradeParty["specifiedTaxRegistration"] = [];
   if (party.vatNumber) {
-    taxRegs.push(new TaxRegistrationType({ id: new IDType({ value: party.vatNumber }) }));
+    taxRegs.push({ id: { value: party.vatNumber } });
   }
 
-  return new TradePartyType({
-    name: new TextType({ value: party.name }),
+  return {
+    name: { value: party.name },
     specifiedLegalOrganization:
       party.siret || party.siren
-        ? new LegalOrganizationType({
-            id: new IDType({
+        ? {
+            id: {
               value: party.siret ?? party.siren!,
               schemeID: party.siret ? "0009" : "0002",
-            }),
+            },
             tradingBusinessName: party.tradeRegisterNumber
-              ? new TextType({ value: party.tradeRegisterNumber })
+              ? { value: party.tradeRegisterNumber }
               : undefined,
-          })
+          }
         : undefined,
     definedTradeContact: contacts.length > 0 ? contacts : undefined,
     postalTradeAddress: buildAddress(party),
     specifiedTaxRegistration: taxRegs.length > 0 ? taxRegs : undefined,
-  });
+  };
 }
 
-function buildLineTax(line: FacturXLineInput): TradeTaxType {
-  const tax = new TradeTaxType({
-    typeCode: new TaxTypeCodeType({ value: "VAT" }),
-    categoryCode: new TaxCategoryCodeType({ value: line.vatCategoryCode }),
+function buildLineTax(line: FacturXLineInput): TradeTax {
+  return {
+    calculatedAmount: amount(Math.round((line.lineTotalCents * line.vatRate) / 100)),
+    basisAmount: amount(line.lineTotalCents),
+    typeCode: { value: "VAT" },
+    categoryCode: { value: line.vatCategoryCode },
     rateApplicablePercent: { value: line.vatRate },
-  });
-
-  if (line.vatRate === 0 && line.vatExemptionReason) {
-    tax.exemptionReason = new TextType({ value: line.vatExemptionReason });
-  }
-
-  return tax;
+    exemptionReason:
+      line.vatRate === 0 && line.vatExemptionReason ? { value: line.vatExemptionReason } : undefined,
+  };
 }
 
-function buildLineItem(line: FacturXLineInput, currency: string): SupplyChainTradeLineItemType {
+function buildLineItem(line: FacturXLineInput, currency: string): SupplyChainTradeLineItem {
   const unitNetCents =
     line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents;
 
-  return new SupplyChainTradeLineItemType({
-    associatedDocumentLineDocument: new DocumentLineDocumentType({
-      lineID: new IDType({ value: String(line.lineNumber) }),
-    }),
-    specifiedTradeProduct: new TradeProductType({
-      name: new TextType({ value: line.label }),
-    }),
-    specifiedLineTradeAgreement: new LineTradeAgreementType({
-      netPriceProductTradePrice: new TradePriceType({
+  return {
+    associatedDocumentLineDocument: { lineID: { value: String(line.lineNumber) } },
+    specifiedTradeProduct: { name: { value: line.label } },
+    specifiedLineTradeAgreement: {
+      netPriceProductTradePrice: {
         chargeAmount: amount(unitNetCents, currency),
-        basisQuantity: new QuantityType({ value: 1, unitCode: "C62" }),
-      }),
-    }),
-    specifiedLineTradeDelivery: new LineTradeDeliveryType({
-      billedQuantity: new QuantityType({ value: line.quantity, unitCode: "C62" }),
-    }),
-    specifiedLineTradeSettlement: new LineTradeSettlementType({
+        basisQuantity: { value: 1, unitCode: "C62" },
+      },
+    },
+    specifiedLineTradeDelivery: {
+      billedQuantity: { value: line.quantity, unitCode: "C62" },
+    },
+    specifiedLineTradeSettlement: {
       applicableTradeTax: [buildLineTax(line)],
-      specifiedTradeSettlementLineMonetarySummation: new TradeSettlementLineMonetarySummationType({
+      specifiedTradeSettlementLineMonetarySummation: {
         lineTotalAmount: amount(line.lineTotalCents, currency),
-      }),
-    }),
-  });
+      },
+    },
+  };
 }
 
 type TaxGroup = {
@@ -189,66 +146,58 @@ function groupTaxes(lines: FacturXLineInput[]): TaxGroup[] {
 export function buildCrossIndustryInvoice(
   doc: FacturXInvoiceDocument,
   profile: FacturXProfile,
-): CrossIndustryInvoiceType {
+): CrossIndustryInvoice {
   const currency = doc.currency ?? "EUR";
   const taxGroups = groupTaxes(doc.lines);
   const lineTotalCents = doc.lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
   const taxTotalCents = taxGroups.reduce((sum, group) => sum + group.taxCents, 0);
   const grandTotalCents = lineTotalCents + taxTotalCents;
 
-  const headerTaxes = taxGroups.map(
-    (group) =>
-      new TradeTaxType({
-        calculatedAmount: amount(group.taxCents, currency),
-        basisAmount: amount(group.basisCents, currency),
-        typeCode: new TaxTypeCodeType({ value: "VAT" }),
-        categoryCode: new TaxCategoryCodeType({ value: group.vatCategoryCode }),
-        rateApplicablePercent: { value: group.vatRate },
-        exemptionReason:
-          group.vatRate === 0 && group.exemptionReason
-            ? new TextType({ value: group.exemptionReason })
-            : undefined,
-      }),
-  );
+  const headerTaxes: TradeTax[] = taxGroups.map((group) => ({
+    calculatedAmount: amount(group.taxCents, currency),
+    basisAmount: amount(group.basisCents, currency),
+    typeCode: { value: "VAT" },
+    categoryCode: { value: group.vatCategoryCode },
+    rateApplicablePercent: { value: group.vatRate },
+    exemptionReason:
+      group.vatRate === 0 && group.exemptionReason ? { value: group.exemptionReason } : undefined,
+  }));
 
-  const notes: NoteType[] = [];
-  if (doc.notes?.trim()) {
-    notes.push(new NoteType({ content: new TextType({ value: doc.notes.trim() }) }));
-  }
+  const notes = doc.notes?.trim() ? [{ content: { value: doc.notes.trim() } }] : undefined;
 
-  return new CrossIndustryInvoiceType({
-    exchangedDocumentContext: new ExchangedDocumentContextType({
-      guidelineSpecifiedDocumentContextParameter: new DocumentContextParameterType({
-        id: new IDType({ value: GUIDELINE_URNS[profile] }),
-      }),
-    }),
-    exchangedDocument: new ExchangedDocumentType({
-      id: new IDType({ value: doc.invoiceNumber }),
-      typeCode: new DocumentCodeType({ value: "380" }),
-      issueDateTime: new DateTimeType({
+  return {
+    exchangedDocumentContext: {
+      guidelineSpecifiedDocumentContextParameter: {
+        id: { value: GUIDELINE_URNS[profile] },
+      },
+    },
+    exchangedDocument: {
+      id: { value: doc.invoiceNumber },
+      typeCode: { value: "380" },
+      issueDateTime: {
         dateTimeString: formatIssueDate(doc.issueDate),
         format: "102",
-      }),
-      includedNote: notes.length > 0 ? notes : undefined,
-    }),
-    supplyChainTradeTransaction: new SupplyChainTradeTransactionType({
+      },
+      includedNote: notes,
+    },
+    supplyChainTradeTransaction: {
       includedSupplyChainTradeLineItem: doc.lines.map((line) => buildLineItem(line, currency)),
-      applicableHeaderTradeAgreement: new HeaderTradeAgreementType({
+      applicableHeaderTradeAgreement: {
         sellerTradeParty: buildTradeParty(doc.seller, profile),
         buyerTradeParty: buildTradeParty(doc.buyer, profile),
-      }),
-      applicableHeaderTradeDelivery: new HeaderTradeDeliveryType({}),
-      applicableHeaderTradeSettlement: new HeaderTradeSettlementType({
-        invoiceCurrencyCode: new CurrencyCodeType({ value: currency }),
+      },
+      applicableHeaderTradeDelivery: {},
+      applicableHeaderTradeSettlement: {
+        invoiceCurrencyCode: { value: currency },
         applicableTradeTax: headerTaxes,
-        specifiedTradeSettlementHeaderMonetarySummation: new TradeSettlementHeaderMonetarySummationType({
+        specifiedTradeSettlementHeaderMonetarySummation: {
           lineTotalAmount: amount(lineTotalCents, currency),
           taxBasisTotalAmount: amount(lineTotalCents, currency),
           taxTotalAmount: [amount(taxTotalCents, currency)],
           grandTotalAmount: amount(grandTotalCents, currency),
           duePayableAmount: amount(grandTotalCents, currency),
-        }),
-      }),
-    }),
-  });
+        },
+      },
+    },
+  };
 }

@@ -2,9 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: [
-    "@stafyniaksacha/facturx",
     "@stackforge-eu/factur-x",
-    "libxmljs",
     "libxml2-wasm",
     "saxon-js",
     "twilio",
