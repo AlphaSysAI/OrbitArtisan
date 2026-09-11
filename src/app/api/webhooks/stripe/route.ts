@@ -73,8 +73,8 @@ async function markInvoicePaidFromSession(session: Stripe.Checkout.Session) {
 
 async function syncStripeConnectAccount(account: Stripe.Account) {
   const stripeAccountId = account.id;
-  const capabilities: any = (account as any).capabilities ?? {};
-  const transfersStatus = capabilities?.transfers?.status;
+  const capabilities = account.capabilities ?? {};
+  const transfersStatus = capabilities.transfers;
 
   const stripeTransfersEnabled = transfersStatus === "active";
   const stripePayoutsEnabled = stripeTransfersEnabled;

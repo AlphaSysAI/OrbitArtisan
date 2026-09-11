@@ -567,7 +567,7 @@ ${message}`,
   }
 
   if (intent.intent === "navigate") {
-    let path =
+    const path =
       intent.navigate_path && ALLOWED_NAV.has(intent.navigate_path) ? intent.navigate_path : "/app";
     let label = NAV_LABELS[path] ?? "Ouvrir";
     let href = path;

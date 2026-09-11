@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, LogOut, Menu, Shield, X } from "lucide-react";
@@ -51,28 +51,29 @@ function NavLink({
   );
 }
 
-export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
-  const pathname = usePathname();
+function useIsClientMounted(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+function AppHeaderMobileMenu({
+  pathname,
+  isPlatformAdmin,
+}: {
+  pathname: string;
+  isPlatformAdmin: boolean;
+}) {
+  const mounted = useIsClientMounted();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [panelRect, setPanelRect] = useState<AnchorRect | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const moreActive = isNavMoreActive(pathname);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
 
   useLayoutEffect(() => {
-    if (!menuOpen) {
-      setPanelRect(null);
-      return;
-    }
+    if (!menuOpen) return;
 
     function update() {
       const trigger = triggerRef.current?.getBoundingClientRect();
@@ -116,6 +117,108 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
       window.removeEventListener("keydown", onKey);
     };
   }, [menuOpen]);
+
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        type="button"
+        variant="outline"
+        size="icon"
+        className="size-9 shrink-0 lg:hidden"
+        onClick={() => setMenuOpen((v) => !v)}
+        aria-expanded={menuOpen}
+        aria-controls="app-mobile-menu"
+        aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+      >
+        {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+      </Button>
+
+      {mounted && menuOpen && panelRect
+        ? createPortal(
+            <div
+              ref={panelRef}
+              id="app-mobile-menu"
+              role="menu"
+              aria-label="Menu de navigation"
+              className="fixed z-[60] overflow-hidden rounded-2xl border border-border/80 bg-background p-2 shadow-[0_16px_48px_rgb(0_0_0/0.16)]"
+              style={{
+                top: panelRect.top,
+                left: panelRect.left,
+                width: panelRect.width,
+                maxHeight: panelRect.maxHeight,
+              }}
+            >
+              <nav
+                className="flex flex-col gap-0.5 overflow-y-auto"
+                style={{ maxHeight: panelRect.maxHeight - 96 }}
+              >
+                {APP_NAV_ITEMS.map((item) => {
+                  const active = isNavItemActive(pathname, item);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      role="menuitem"
+                      className={cn(
+                        "flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : "text-foreground hover:bg-muted",
+                      )}
+                    >
+                      <Icon className="size-5 shrink-0 opacity-90" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              <div className="mt-2 space-y-2 border-t border-border/70 pt-2">
+                {isPlatformAdmin ? (
+                  <Link
+                    href="/admin"
+                    role="menuitem"
+                    className={cn(
+                      "flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                      pathname.startsWith("/admin")
+                        ? "bg-foreground text-background"
+                        : "text-foreground hover:bg-muted",
+                    )}
+                  >
+                    <Shield className="size-5 shrink-0 opacity-90" />
+                    Administration
+                  </Link>
+                ) : null}
+                <InviteSomeoneDialog
+                  contextLabel="Je"
+                  canLinkClientToArtisan
+                  size="default"
+                  className="w-full justify-center"
+                />
+                <form action={signOut}>
+                  <Button
+                    variant="outline"
+                    type="submit"
+                    className="w-full gap-2 text-muted-foreground"
+                  >
+                    <LogOut className="size-4" />
+                    Quitter
+                  </Button>
+                </form>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
+export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
+  const pathname = usePathname();
+  const moreActive = isNavMoreActive(pathname);
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl">
@@ -209,100 +312,13 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
             </Button>
           </form>
 
-          <Button
-            ref={triggerRef}
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-9 shrink-0 lg:hidden"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-expanded={menuOpen}
-            aria-controls="app-mobile-menu"
-            aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
-          >
-            {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-          </Button>
+          <AppHeaderMobileMenu
+            key={pathname}
+            pathname={pathname}
+            isPlatformAdmin={isPlatformAdmin}
+          />
         </div>
       </div>
-
-      {mounted && menuOpen && panelRect
-        ? createPortal(
-            <div
-              ref={panelRef}
-              id="app-mobile-menu"
-              role="menu"
-              aria-label="Menu de navigation"
-              className="fixed z-[60] overflow-hidden rounded-2xl border border-border/80 bg-background p-2 shadow-[0_16px_48px_rgb(0_0_0/0.16)]"
-              style={{
-                top: panelRect.top,
-                left: panelRect.left,
-                width: panelRect.width,
-                maxHeight: panelRect.maxHeight,
-              }}
-            >
-              <nav
-                className="flex flex-col gap-0.5 overflow-y-auto"
-                style={{ maxHeight: panelRect.maxHeight - 96 }}
-              >
-                {APP_NAV_ITEMS.map((item) => {
-                  const active = isNavItemActive(pathname, item);
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      role="menuitem"
-                      className={cn(
-                        "flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
-                        active
-                          ? "bg-primary text-primary-foreground"
-                          : "text-foreground hover:bg-muted",
-                      )}
-                    >
-                      <Icon className="size-5 shrink-0 opacity-90" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </nav>
-
-              <div className="mt-2 space-y-2 border-t border-border/70 pt-2">
-                {isPlatformAdmin ? (
-                  <Link
-                    href="/admin"
-                    role="menuitem"
-                    className={cn(
-                      "flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
-                      pathname.startsWith("/admin")
-                        ? "bg-foreground text-background"
-                        : "text-foreground hover:bg-muted",
-                    )}
-                  >
-                    <Shield className="size-5 shrink-0 opacity-90" />
-                    Administration
-                  </Link>
-                ) : null}
-                <InviteSomeoneDialog
-                  contextLabel="Je"
-                  canLinkClientToArtisan
-                  size="default"
-                  className="w-full justify-center"
-                />
-                <form action={signOut}>
-                  <Button
-                    variant="outline"
-                    type="submit"
-                    className="w-full gap-2 text-muted-foreground"
-                  >
-                    <LogOut className="size-4" />
-                    Quitter
-                  </Button>
-                </form>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
     </header>
   );
 }

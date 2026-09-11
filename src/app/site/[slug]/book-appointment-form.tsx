@@ -113,9 +113,11 @@ export function BookAppointmentForm({
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
   const [selectedSlotISO, setSelectedSlotISO] = React.useState<string | null>(null);
 
+  const viewYear = viewDate.getFullYear();
+  const viewMonth = viewDate.getMonth();
   const weeks = React.useMemo(
-    () => getCalendarWeeks(viewDate.getFullYear(), viewDate.getMonth()),
-    [viewDate.getFullYear(), viewDate.getMonth()],
+    () => getCalendarWeeks(viewYear, viewMonth),
+    [viewYear, viewMonth],
   );
 
   const slotsForSelectedDay = React.useMemo(() => {

@@ -1,29 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { endImpersonation } from "@/app/admin/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ADMIN_IMPERSONATION_COOKIE, type ImpersonationCookie } from "@/lib/auth/impersonation";
 
-export function ImpersonationBanner() {
-  const [ctx, setCtx] = useState<ImpersonationCookie | null>(null);
+function readImpersonationCookie(): ImpersonationCookie | null {
+  if (typeof document === "undefined") return null;
 
-  useEffect(() => {
-    const raw = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith(`${ADMIN_IMPERSONATION_COOKIE}=`))
-      ?.split("=")
-      .slice(1)
-      .join("=");
-    if (!raw) return;
-    try {
-      setCtx(JSON.parse(decodeURIComponent(raw)) as ImpersonationCookie);
-    } catch {
-      setCtx(null);
-    }
-  }, []);
+  const raw = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${ADMIN_IMPERSONATION_COOKIE}=`))
+    ?.split("=")
+    .slice(1)
+    .join("=");
+
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(decodeURIComponent(raw)) as ImpersonationCookie;
+  } catch {
+    return null;
+  }
+}
+
+export function ImpersonationBanner() {
+  const ctx = useSyncExternalStore(
+    () => () => {},
+    readImpersonationCookie,
+    () => null,
+  );
 
   if (!ctx) return null;
 

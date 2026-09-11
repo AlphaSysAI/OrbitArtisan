@@ -399,9 +399,9 @@ export function QuoteForm({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href="/app/quotes" className={cn("rounded-xl px-4 py-2 text-sm", "border bg-card hover:bg-muted")}>
+          <Link href="/app/quotes" className={cn("rounded-xl px-4 py-2 text-sm", "border bg-card hover:bg-muted")}>
             ← Retour
-          </a>
+          </Link>
         </div>
       </div>
 

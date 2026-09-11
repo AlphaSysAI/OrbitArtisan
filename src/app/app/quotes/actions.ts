@@ -21,6 +21,18 @@ type ParsedMaterial = {
   vat_rate?: number;
 };
 
+type MaterialJsonRow = {
+  label?: unknown;
+  quantity?: unknown;
+  exclude_from_invoice?: unknown;
+  unit_price_eur?: unknown;
+  vat_rate?: unknown;
+  supplier_product_id?: unknown;
+  supplier_url?: unknown;
+  supplier_sku?: unknown;
+  is_supplier_catalog?: unknown;
+};
+
 function parseEurToCents(raw: string): number | null {
   const cleaned = raw.trim().replace(",", ".").replace(/[^0-9.]/g, "");
   if (!cleaned) return null;
@@ -53,7 +65,7 @@ export async function createQuote(formData: FormData) {
   }
 
   const materialsRaw = String(formData.get("materials_json") ?? "[]");
-  const materialsParsed = safeParseJsonArray<any>(materialsRaw);
+  const materialsParsed = safeParseJsonArray<MaterialJsonRow>(materialsRaw);
 
   const materials: ParsedMaterial[] = (materialsParsed ?? [])
     .map((m) => {

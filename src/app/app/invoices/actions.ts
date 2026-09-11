@@ -357,16 +357,16 @@ export async function withdrawStripeFunds(): Promise<void> {
   const stripe = getStripe();
   const stripeAccountId = profile.stripe_account_id;
 
-  let balance: any;
+  let balance: Awaited<ReturnType<typeof stripe.balance.retrieve>>;
   try {
     balance = await stripe.balance.retrieve({}, { stripeAccount: stripeAccountId });
-  } catch (e) {
+  } catch {
     redirect("/app/invoices?withdraw_error=balance_failed");
   }
 
   const eurAvailable = (balance.available ?? [])
-    .filter((b: any) => b.currency === "eur")
-    .reduce((sum: number, b: any) => sum + (b.amount ?? 0), 0);
+    .filter((b) => b.currency === "eur")
+    .reduce((sum, b) => sum + (b.amount ?? 0), 0);
 
   if (eurAvailable <= 0) redirect("/app/invoices?withdraw_error=0");
 
@@ -379,7 +379,7 @@ export async function withdrawStripeFunds(): Promise<void> {
       },
       { stripeAccount: stripeAccountId },
     );
-  } catch (e) {
+  } catch {
     redirect("/app/invoices?withdraw_error=payout_failed");
   }
 

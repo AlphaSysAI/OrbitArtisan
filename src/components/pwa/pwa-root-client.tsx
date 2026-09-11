@@ -2,7 +2,7 @@
 
 import { Share } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +34,11 @@ type BeforeInstallPromptEvent = Event & {
 export function PwaRootClient() {
   const pathname = usePathname();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [guide, setGuide] = useState<InstallGuide>("main");
   const deferredRef = useRef<BeforeInstallPromptEvent | null>(null);
@@ -42,10 +46,6 @@ export function PwaRootClient() {
 
   /** Widget embarqué chez un tiers : ni service worker, ni invitation à installer. */
   const embedded = pathname.startsWith("/embed");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   /** Mode appli ou installation passée : mémoriser pour ne plus proposer l’ajout. */
   useEffect(() => {
