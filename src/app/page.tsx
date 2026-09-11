@@ -7,11 +7,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(getMarketingSiteUrl()),
   title: "Soline — Secrétariat IA & Gestion pour artisans du BTP",
   description:
-    "Devis en 2 minutes, secrétaire vocale 24/7, paniers matériaux automatiques. Soline simplifie la gestion des artisans du bâtiment.",
+    "Devis en 2 minutes, secrétaire vocale 24/7, paniers matériaux automatiques et recouvrement d'impayés (mise en demeure en recommandé). Soline simplifie la gestion des artisans du bâtiment.",
   openGraph: {
     title: "Soline — Vos devis pliés en 2 min, 0 appel manqué",
     description:
-      "L'assistante digitale qui décroche au téléphone, prépare vos achats matériaux et gère votre administratif BTP.",
+      "L'assistante digitale qui décroche au téléphone, prépare vos achats matériaux, gère votre administratif BTP et recouvre vos impayés.",
     type: "website",
   },
 };

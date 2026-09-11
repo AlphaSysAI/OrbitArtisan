@@ -298,11 +298,13 @@ Appel entrant (Twilio, numéro E.164)
 
 **Implémentation quota :**
 
-- Colonnes `profiles` : `subscription_plan`, `voice_minutes_included`, `voice_minutes_used`, `voice_minutes_overdue`, `billing_cycle_reset_at`
-- Table `voice_call_logs` : journal appels Twilio
-- RPC atomique idempotente : `process_twilio_voice_call_status`
+- Décompte **dérivé** du mois civil depuis `voice_call_logs` (`src/lib/voice/resolve-voice-quota.ts`) — pas de compteur cumulatif à remettre à zéro
+- Préférence artisan `profiles.voice_allow_overage` : cochée = minutes supplémentaires refacturables ; décochée = refus des appels une fois le quota épuisé
+- RPC atomique idempotente : `process_twilio_voice_call_status` (journalisation seule)
 - Règle : `Math.ceil(CallDuration / 60)` minutes facturées si statut `completed`
+- Contrôle avant tools REST : `resolveVoiceContext` + `POST /api/voice/artisan/quota-status`
 - Alertes logs à 80 % et 100 % du quota (`voice-quota-alerts.ts`)
+- Migration : `supabase/migration/12_voice_quota_civil_month.sql`
 
 **Fichiers :**
 
@@ -379,13 +381,15 @@ Chargement document BDD
     → B2C :
         PDF simple
         Enqueue e_reporting_queue (transmission groupée)
+        Cron quotidien `/api/cron/e-reporting` → soumission PA
 ```
 
 ### 9.4 Factur-X
 
-- Package : `@stafyniaksacha/facturx`
+- Génération : `@stafyniaksacha/facturx` (XML CII)
+- Validation croisée : XSD + Schematron EN16931 + `@stackforge-eu/factur-x` (XSD)
 - Profil : EN16931 / BASIC
-- Fichiers : `src/lib/billing/facturx/` (build-cii-invoice, generate-factur-x, embed-factur-x-pdf, render-invoice-pdf)
+- Fichiers : `src/lib/billing/facturx/` (build-cii-invoice, generate-factur-x, validate-factur-x, embed-factur-x-pdf, render-invoice-pdf)
 
 Routes export :
 
@@ -405,6 +409,51 @@ Routes export :
 - **Stripe Checkout** : paiement facture côté client
 - Webhook : `POST /api/webhooks/stripe` (paiement reçu, mise à jour compte Connect)
 
+### 9.7 Recouvrement de créances
+
+Pipeline en deux phases piloté par `invoices.recovery_status`
+(`none` → `formal_notice_sent` → `submitted_to_collection` → `in_progress` → `collected` | `failed`).
+
+**Phase pré-contentieuse — mise en demeure LRAR (J+30)**
+
+- La mise en demeure est générée en PDF (`src/lib/recovery/render-formal-notice-pdf.ts`) avec
+  décompte des sommes exigibles : principal, pénalités de retard et indemnité forfaitaire de 40 €
+  en B2B (art. L441-10 et D441-5 du Code de commerce).
+- Expédition en recommandé papier avec AR via MySendingBox (`postage_type: lrar`), impression et
+  distribution assurées par La Poste.
+- Suivi d'acheminement : `POST /api/webhooks/mysendingbox`. Les preuves de dépôt et l'accusé de
+  réception sont archivés dans le bucket privé `recovery-documents`.
+
+**Quota LRAR (`src/lib/recovery/formal-notice-quota.ts`)**
+
+Chaque plan inclut 1 LRAR par **mois civil**. Le compteur n'est pas stocké : il est dérivé du
+nombre de lignes `formal_notices` de la période portant un `mysendingbox_letter_id` — c'est-à-dire
+réellement affranchies. Trois propriétés en découlent :
+
+- le non-cumul d'un mois sur l'autre est vrai par construction, aucune tâche de reset n'est requise ;
+- une lettre refusée par MySendingBox n'est jamais affranchie, donc ne consomme pas le quota ;
+- les lignes `formal_notices` restent la seule source de vérité auditable.
+
+Au-delà du quota, `sendFormalNoticeAction` exige `acceptExtraCost: true` : l'artisan confirme le
+surcoût dans une modale avant tout envoi payant. La colonne `formal_notices.billed_to_artisan`
+marque les lettres à refacturer, et `reconcileQuotaBilling` la recalcule après affranchissement
+pour rester juste même si deux envois partent simultanément.
+
+Le mois civil est volontairement décorrélé du cycle Stripe : un abonnement annuel ne doit pas
+donner droit à une seule lettre par an, et `profiles.billing_cycle_reset_at` n'est aujourd'hui
+alimenté par aucun code.
+
+**Phase contentieuse — mandat de recouvrement (J+40 ou après mise en demeure)**
+
+- Transmission du dossier à RubyPayeur sous mandat explicite de l'artisan (modèle « no cure, no pay »).
+- Pièces jointes : facture, devis signé, mise en demeure et preuves La Poste, en URL signées.
+- Webhook `POST /api/webhooks/rubypayeur` (HMAC-SHA256) : à l'encaissement, la rétrocession
+  apporteur d'affaires est calculée sur les honoraires du prestataire (`RUBYPAYEUR_COMMISSION_RATE`,
+  20 % par défaut) et la facture est soldée.
+
+Tables : `formal_notices`, `debt_collection_cases` (migration `11_recovery_and_legal_notices.sql`).
+Server Actions : `src/app/app/invoices/recovery-actions.ts`.
+
 ---
 
 ## 10. Modèle économique et tarification
@@ -415,11 +464,16 @@ Source : `src/lib/billing/subscription-plans.ts`
 
 | Plan | Mensuel | Annuel | Soline (min/mois) | Différence |
 |------|---------|--------|-------------------|------------|
-| **Base** | 29,90 € | 299,90 € | 0 | SaaS complet, sans Soline |
+| **Base** | 44,90 € | 449,90 € | 0 | SaaS complet, sans Soline |
 | **Pro** | 69,90 € | 699,90 € | 60 | SaaS + secrétaire vocale IA |
 | **Premium** | 99,90 € | 999,90 € | 150 | SaaS + plus de minutes Soline |
 
-Le SaaS BTP est identique sur les trois formules. Seule Soline (secrétaire vocale IA) diffère.
+Le SaaS BTP et le recouvrement d'impayés sont identiques sur les trois formules. Seule Soline
+(secrétaire vocale IA) diffère.
+
+Chaque plan inclut **1 mise en demeure LRAR par mois** (affranchissement offert, non reportable).
+Au-delà, le recommandé est refacturé à l'artisan au tarif La Poste en vigueur, sans marge
+(`FORMAL_NOTICES_INCLUDED_PER_MONTH`).
 
 Essai gratuit 15 jours (mentionné landing).
 
@@ -541,7 +595,9 @@ Fichier principal : `supabase/init.sql`
 
 ### 12.4 Storage
 
-Bucket privé `lead-media` : photos/vidéos leads (max 50 Mo/fichier).
+- Bucket privé `lead-media` : photos/vidéos leads (max 50 Mo/fichier).
+- Bucket privé `recovery-documents` : mises en demeure et preuves La Poste (PDF, max 20 Mo/fichier).
+  Aucune policy `authenticated` — tous les accès passent par des URL signées générées côté serveur.
 
 ---
 
@@ -564,9 +620,12 @@ Bucket privé `lead-media` : photos/vidéos leads (max 50 Mo/fichier).
 | POST | `/api/voice/artisan/availability` | Créneaux vocaux |
 | POST | `/api/voice/artisan/schedule` | Désactivé (RDV vocal) |
 | POST | `/api/voice/artisan/appointment-info` | Info RDV |
+| POST | `/api/voice/artisan/quota-status` | Quota vocal (acceptation d'appel) |
 | POST | `/api/webhooks/stripe` | Paiements Stripe |
-| POST | `/api/webhooks/twilio/status` | Quota vocal Twilio |
+| POST | `/api/webhooks/twilio/status` | Journal appels Twilio |
 | POST | `/api/webhooks/facturation-electronique` | Callbacks PA |
+| POST | `/api/webhooks/mysendingbox` | Suivi acheminement LRAR |
+| POST | `/api/webhooks/rubypayeur` | Cycle de vie dossiers recouvrement |
 
 ### 13.2 Variables d'environnement (noms uniquement)
 
@@ -590,8 +649,20 @@ Bucket privé `lead-media` : photos/vidéos leads (max 50 Mo/fichier).
 | `TWILIO_AUTH_TOKEN` | Signature webhooks Twilio |
 | `TWILIO_STATUS_CALLBACK_URL` | Callback explicite |
 | `VOICE_AI_TOOL_SECRET` | Auth tools vocaux |
-| `PA_PROVIDER` | Fournisseur PA |
+| `PA_PROVIDER` | Fournisseur PA (`noop`, `pennylane`, `http`, …) |
+| `PA_API_KEY` | Token Bearer PA (Pennylane, Iopole, …) |
+| `PA_API_URL` | URL soumission (optionnel pour Pennylane) |
 | `PA_WEBHOOK_SECRET` | Auth webhooks PA |
+| `E_REPORTING_API_URL` | Endpoint transmission e-reporting B2C |
+| `E_REPORTING_API_KEY` | Token e-reporting (défaut : `PA_API_KEY`) |
+| `CRON_SECRET` | Auth routes `/api/cron/*` |
+| `MYSENDINGBOX_API_KEY` | Envoi LRAR papier (Auth Basic) |
+| `MYSENDINGBOX_WEBHOOK_SECRET` | Secret partagé callbacks LRAR |
+| `RUBYPAYEUR_API_URL` | Endpoint dossiers de recouvrement |
+| `RUBYPAYEUR_API_KEY` | Token Bearer RubyPayeur |
+| `RUBYPAYEUR_WEBHOOK_SECRET` | HMAC-SHA256 callbacks RubyPayeur |
+| `RUBYPAYEUR_PARTNER_ID` | Référence apporteur d'affaires |
+| `RUBYPAYEUR_COMMISSION_RATE` | Taux de rétrocession (défaut `0.2`) |
 
 ### 13.3 APIs publiques sans clé
 

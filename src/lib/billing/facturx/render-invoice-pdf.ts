@@ -1,18 +1,15 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
+import { formatDateForPdf, formatEurosForPdf, sanitizePdfText } from "@/lib/billing/pdf-text";
+
 import type { FacturXInvoiceDocument } from "./types";
 
 const MARGIN = 50;
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 
-function formatEuros(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(date);
-}
+const formatEuros = formatEurosForPdf;
+const formatDate = formatDateForPdf;
 
 function wrapText(text: string, maxChars: number): string[] {
   const words = text.split(/\s+/);
@@ -45,7 +42,7 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
   const draw = (text: string, opts: { size?: number; bold?: boolean; color?: ReturnType<typeof rgb> } = {}) => {
     const size = opts.size ?? 10;
     const usedFont = opts.bold ? fontBold : font;
-    page.drawText(text, {
+    page.drawText(sanitizePdfText(text), {
       x: MARGIN,
       y,
       size,
@@ -92,11 +89,11 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
   for (const line of doc.lines) {
     for (const wrapped of wrapText(line.label, 70)) {
       if (y < 120) break;
-      page.drawText(wrapped, { x: MARGIN, y, size: 10, font });
+      page.drawText(sanitizePdfText(wrapped), { x: MARGIN, y, size: 10, font });
       y -= 14;
     }
     const detail = `${line.quantity} × ${formatEuros(line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents)} HT · TVA ${line.vatRate} %`;
-    page.drawText(detail, { x: MARGIN + 12, y, size: 9, font, color: rgb(0.35, 0.35, 0.35) });
+    page.drawText(sanitizePdfText(detail), { x: MARGIN + 12, y, size: 9, font, color: rgb(0.35, 0.35, 0.35) });
     page.drawText(formatEuros(line.lineTotalCents), {
       x: PAGE_WIDTH - MARGIN - 80,
       y,
@@ -123,7 +120,7 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
     y = Math.min(y, 120);
     for (const line of doc.legalMentions) {
       if (y < 40) break;
-      page.drawText(line, { x: MARGIN, y, size: 7, font, color: rgb(0.4, 0.4, 0.4) });
+      page.drawText(sanitizePdfText(line), { x: MARGIN, y, size: 7, font, color: rgb(0.4, 0.4, 0.4) });
       y -= 10;
     }
   }

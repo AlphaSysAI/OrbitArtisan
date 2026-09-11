@@ -1,7 +1,7 @@
 import type { IPayloadSubmitter, PaSubmissionPayload, PaSubmissionResult } from "../payload-submitter";
 
 /**
- * Soumission vers une Plateforme Agréée via HTTP (Iopole, Pennylane API, etc.).
+ * Soumission générique vers une PA via HTTP (AFNOR XP Z12-013 / Iopole, SUPER PDP, etc.).
  * Configure PA_API_URL + PA_API_KEY dans l'environnement.
  */
 export class HttpPayloadSubmitter implements IPayloadSubmitter {
@@ -12,17 +12,20 @@ export class HttpPayloadSubmitter implements IPayloadSubmitter {
 
   async submitEInvoice(payload: PaSubmissionPayload): Promise<PaSubmissionResult> {
     const formData = new FormData();
-    formData.append(
-      "pdf",
-      new Blob([Buffer.from(payload.facturXPdf)], { type: "application/pdf" }),
-      `facture-${payload.invoiceNumber}.pdf`,
-    );
+    const pdfBlob = new Blob([Buffer.from(payload.facturXPdf)], { type: "application/pdf" });
+    const pdfName = `facture-${payload.invoiceNumber}.pdf`;
+
+    // Champs compatibles AFNOR XP Z12-013 et adapters génériques.
+    formData.append("file", pdfBlob, pdfName);
+    formData.append("pdf", pdfBlob, pdfName);
     formData.append("xml", new Blob([payload.facturXXml], { type: "application/xml" }), "factur-x.xml");
     formData.append(
       "metadata",
       JSON.stringify({
         invoiceId: payload.invoiceId,
         invoiceNumber: payload.invoiceNumber,
+        format: "factur-x",
+        profile: "en16931",
         seller: payload.seller,
         buyer: payload.buyer,
       }),

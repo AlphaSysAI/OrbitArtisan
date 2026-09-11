@@ -28,6 +28,7 @@ All routes require Bearer authentication with `VOICE_AI_TOOL_SECRET`.
 - `POST /api/voice/artisan/schedule` - **Disabled** (returns `appointment_booking_disabled`)
 - `POST /api/voice/artisan/appointment-info` - Get appointment details
 - `POST /api/voice/artisan/create-quote-draft` - Register call summary + AI quote proposal
+- `POST /api/voice/artisan/quota-status` - Quota mensuel et acceptation d'appel (sans blocage quota)
 
 ## How It Works
 

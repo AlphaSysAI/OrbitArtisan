@@ -6,11 +6,14 @@ import {
   Check,
   ChevronDown,
   FileText,
+  Gavel,
   Menu,
   Phone,
   PhoneIncoming,
+  Scale,
   ShoppingCart,
   Sparkles,
+  Stamp,
   X,
   Zap,
 } from "lucide-react";
@@ -18,11 +21,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SubscriptionPricingGrid } from "@/components/billing/subscription-pricing-grid";
-import { SOLINE_RECHARGE_PACKS } from "@/lib/billing/subscription-plans";
+import {
+  FORMAL_NOTICE_OVERAGE_NOTICE,
+  FORMAL_NOTICES_INCLUDED_PER_MONTH,
+  SOLINE_RECHARGE_PACKS,
+} from "@/lib/billing/subscription-plans";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { href: "#fonctionnalites", label: "Fonctionnalités" },
+  { href: "#recouvrement", label: "Impayés" },
   { href: "#tarifs", label: "Tarifs" },
   { href: "#temoignages", label: "Témoignages" },
 ] as const;
@@ -42,6 +50,40 @@ const FAQ_ITEMS = [
     question: "Les factures générées sont-elles conformes ?",
     answer:
       "Oui. Soline génère des factures PDF conformes aux obligations françaises, avec mentions légales, TVA et préparation Factur-X pour la facturation électronique B2B à venir.",
+  },
+  {
+    question: "Combien me coûte l'envoi d'une lettre recommandée ?",
+    answer:
+      "Chaque abonnement comprend une mise en demeure en recommandé avec accusé de réception par mois, affranchissement inclus. Au-delà, l'envoi reste à votre charge : nous le refacturons au tarif La Poste en vigueur, sans marge. Vous validez toujours l'envoi d'un clic avant qu'il ne part — rien n'est expédié automatiquement sans votre accord.",
+  },
+  {
+    question: "Qui rédige la mise en demeure et le dossier de recouvrement ?",
+    answer:
+      "Soline rédige la mise en demeure pour vous, avec le décompte légal des sommes dues : principal, pénalités de retard et indemnité forfaitaire de 40 € entre professionnels. Si la créance reste impayée, vous confiez le dossier à notre partenaire de recouvrement en un clic. Son modèle est « no cure, no pay » : il n'est rémunéré qu'en cas de succès, donc vous ne payez rien si rien n'est recouvré.",
+  },
+] as const;
+
+const RECOVERY_STEPS = [
+  {
+    icon: Stamp,
+    step: "Étape 1 — Relances",
+    title: "Relances automatiques",
+    description:
+      "Dès l'échéance dépassée, Soline relance votre client par email à J+7, J+14, J+21 et J+30. Vous ne courez plus après vos factures.",
+  },
+  {
+    icon: Scale,
+    step: "Étape 2 — Mise en demeure",
+    title: "Recommandé papier La Poste",
+    description:
+      "En un clic, Soline rédige la mise en demeure avec pénalités de retard et indemnité de 40 €, puis l'expédie en recommandé avec accusé de réception. Suivi et AR archivés automatiquement.",
+  },
+  {
+    icon: Gavel,
+    step: "Étape 3 — Recouvrement",
+    title: "Dossier confié à un pro",
+    description:
+      "Toujours impayé ? Le dossier complet part chez notre partenaire de recouvrement, pièces justificatives incluses. Rémunéré au succès uniquement : zéro frais si rien n'est récupéré.",
   },
 ] as const;
 
@@ -271,6 +313,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                   "Soirées perdues sur Excel à refaire les devis à la main.",
                   "Chantiers perdus faute de répondre au téléphone sur le toit.",
                   "Trajets inutiles pour vérifier le stock chez le négociant.",
+                  "Factures impayées abandonnées, faute de temps et de procédure.",
                 ].map((item) => (
                   <li key={item} className="flex gap-3 text-sm leading-relaxed text-slate-600 sm:text-base">
                     <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-500">
@@ -291,6 +334,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                   "Administratif automatisé : devis, factures, relances.",
                   "Réponses téléphoniques 24/7 — même quand vous êtes en intervention.",
                   "Devis envoyés par SMS/Mail et suivi de chantier en direct.",
+                  "Impayés relancés, mis en demeure par recommandé, puis recouvrés.",
                 ].map((item) => (
                   <li key={item} className="flex gap-3 text-sm leading-relaxed text-slate-700 sm:text-base">
                     <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
@@ -317,7 +361,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 icon: Phone,
@@ -339,6 +383,13 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                 description: "Génération PDF conforme en 2 clics depuis le mobile, même entre deux chantiers.",
                 accent: "bg-slate-100 text-slate-800",
               },
+              {
+                icon: Gavel,
+                title: "Recouvrement d'Impayés",
+                description:
+                  "Relances, mise en demeure en recommandé La Poste, puis recouvrement par un professionnel payé au succès.",
+                accent: "bg-emerald-600 text-white",
+              },
             ].map((feature) => (
               <article
                 key={feature.title}
@@ -353,6 +404,72 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                 <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{feature.description}</p>
               </article>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Recouvrement d'impayés */}
+      <section id="recouvrement" className="scroll-mt-24 border-t border-slate-100 bg-slate-50/60 py-16 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="mx-auto mb-12 max-w-2xl text-center">
+            <Badge
+              variant="outline"
+              className="mx-auto mb-4 h-auto gap-1.5 border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700"
+            >
+              <Gavel className="size-3.5" />
+              Nouveau — Recouvrement d&apos;impayés
+            </Badge>
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+              Un client ne paie pas ? Vous n&apos;abandonnez plus.
+            </h2>
+            <p className="mt-3 text-slate-600">
+              Un artisan renonce souvent à une créance parce que la procédure est longue et intimidante.
+              Soline déroule les trois étapes à votre place, de la relance amiable jusqu&apos;au
+              recouvrement judiciaire.
+            </p>
+          </div>
+
+          <ol className="grid gap-6 md:grid-cols-3">
+            {RECOVERY_STEPS.map((item) => (
+              <li
+                key={item.title}
+                className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7"
+              >
+                <span className="mb-5 inline-flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <item.icon className="size-6" strokeWidth={2} />
+                </span>
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">
+                  {item.step}
+                </p>
+                <h3 className="mt-1.5 text-lg font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{item.description}</p>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-8 rounded-3xl border border-dashed border-slate-300 bg-white p-6 sm:p-8">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+              <span className="inline-flex size-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-orange-400">
+                <Stamp className="size-6" strokeWidth={2} />
+              </span>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Le coût de l&apos;affranchissement, en toute transparence
+                </h3>
+                <p className="text-sm leading-relaxed text-slate-600 sm:text-base">
+                  Chaque abonnement comprend{" "}
+                  <strong className="text-slate-900">
+                    {FORMAL_NOTICES_INCLUDED_PER_MONTH} mise en demeure en recommandé par mois
+                  </strong>
+                  , affranchissement offert. {FORMAL_NOTICE_OVERAGE_NOTICE} L&apos;envoi du courrier
+                  recommandé reste donc à la charge de l&apos;artisan au-delà du quota mensuel.
+                </p>
+                <p className="text-sm text-slate-500">
+                  Aucun courrier n&apos;est expédié sans votre validation, et le recouvrement par notre
+                  partenaire ne vous coûte rien s&apos;il échoue.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -409,8 +526,8 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
               Tarifs clairs, sans surprise
             </h2>
             <p className="mt-3 text-slate-600">
-              Trois formules, mensuelles ou annuelles. Le SaaS BTP est identique sur tous les plans — seule
-              Soline diffère.
+              Trois formules, mensuelles ou annuelles. Le SaaS BTP et le recouvrement d&apos;impayés sont
+              identiques sur tous les plans — seule Soline diffère.
             </p>
           </div>
 

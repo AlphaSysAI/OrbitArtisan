@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
 import {
   formatPriceHtEur,
+  FORMAL_NOTICES_INCLUDED_PER_MONTH,
   SOLINE_RECHARGE_PACKS,
   SUBSCRIPTION_PLANS,
 } from "@/lib/billing/subscription-plans";
@@ -78,6 +79,25 @@ export default function CguPage() {
             affichées lors de l&apos;inscription.
           </li>
         </ul>
+        <p>
+          Chaque offre comprend l&apos;envoi de{" "}
+          <strong>
+            {FORMAL_NOTICES_INCLUDED_PER_MONTH} mise en demeure par lettre recommandée avec accusé de
+            réception par mois civil
+          </strong>
+          , affranchissement inclus. Au-delà de ce quota, les frais d&apos;affranchissement du courrier
+          recommandé restent à la charge de l&apos;artisan et lui sont refacturés au tarif postal en
+          vigueur, sans marge. Un envoi payant n&apos;est déclenché qu&apos;après acceptation expresse
+          du surcoût par l&apos;artisan, et aucun courrier n&apos;est expédié sans sa validation
+          préalable. Le quota non consommé est perdu à la fin de chaque mois civil : il n&apos;est ni
+          reportable, ni cumulable, ni remboursable.
+        </p>
+        <p>
+          La transmission d&apos;un dossier de créance à notre partenaire de recouvrement est
+          subordonnée à l&apos;acceptation expresse, par l&apos;artisan, d&apos;un mandat de
+          recouvrement amiable et judiciaire. La rémunération du partenaire est prélevée sur les sommes
+          effectivement recouvrées : aucun frais n&apos;est dû en l&apos;absence de recouvrement.
+        </p>
         <p>Des packs de recharge de minutes Soline sont également disponibles à l&apos;achat depuis l&apos;espace artisan :</p>
         <ul className="list-disc space-y-2 pl-5">
           {SOLINE_RECHARGE_PACKS.map((pack) => (

@@ -14,6 +14,8 @@ const EINVOICING_INVOICE_SELECT =
 const BTP_INVOICE_SELECT =
   "invoice_type, due_date, reminder_count, last_reminder_at, retention_amount, retention_rate, retention_released_at";
 
+const RECOVERY_INVOICE_SELECT = "recovery_status, rubypayeur_case_id";
+
 type CoreInvoiceRow = {
   id: string;
   artisan_id: string;
@@ -48,7 +50,15 @@ type BtpInvoiceRow = {
   retention_released_at: string | null;
 };
 
-export type InvoiceForEditPage = CoreInvoiceRow & EinvoicingInvoiceRow & BtpInvoiceRow;
+type RecoveryInvoiceRow = {
+  recovery_status: string;
+  rubypayeur_case_id: string | null;
+};
+
+export type InvoiceForEditPage = CoreInvoiceRow &
+  EinvoicingInvoiceRow &
+  BtpInvoiceRow &
+  RecoveryInvoiceRow;
 
 export type LoadInvoiceForEditResult =
   | { ok: true; invoice: InvoiceForEditPage }
@@ -77,6 +87,11 @@ const BTP_DEFAULTS: BtpInvoiceRow = {
   retention_amount: 0,
   retention_rate: 0,
   retention_released_at: null,
+};
+
+const RECOVERY_DEFAULTS: RecoveryInvoiceRow = {
+  recovery_status: "none",
+  rubypayeur_case_id: null,
 };
 
 const MINIMAL_LINE_SELECT = "label, line_total, sort_order";
@@ -110,6 +125,14 @@ function normalizeEinvoicingExtra(extra: Partial<EinvoicingInvoiceRow> | null): 
     e_invoicing_status: asOptionalString(extra.e_invoicing_status),
     e_invoicing_rejection_reason: asOptionalString(extra.e_invoicing_rejection_reason),
     pa_submission_id: asOptionalString(extra.pa_submission_id),
+  };
+}
+
+function normalizeRecoveryExtra(extra: Partial<RecoveryInvoiceRow> | null): Partial<RecoveryInvoiceRow> {
+  if (!extra) return {};
+  return {
+    recovery_status: asOptionalString(extra.recovery_status) ?? "none",
+    rubypayeur_case_id: asOptionalString(extra.rubypayeur_case_id),
   };
 }
 
@@ -203,6 +226,10 @@ export async function loadInvoiceForEditPage(
     await trySelectInvoiceExtras<BtpInvoiceRow>(supabase, invoiceId, BTP_INVOICE_SELECT),
   );
 
+  const recoveryExtra = normalizeRecoveryExtra(
+    await trySelectInvoiceExtras<RecoveryInvoiceRow>(supabase, invoiceId, RECOVERY_INVOICE_SELECT),
+  );
+
   return {
     ok: true,
     invoice: {
@@ -211,6 +238,8 @@ export async function loadInvoiceForEditPage(
       ...einvoicingExtra,
       ...BTP_DEFAULTS,
       ...btpExtra,
+      ...RECOVERY_DEFAULTS,
+      ...recoveryExtra,
     },
   };
 }

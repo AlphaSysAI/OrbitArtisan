@@ -6,6 +6,7 @@ import { ContactSettingsForm } from "@/components/settings/contact-settings-form
 import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
 import { SubscriptionSettingsSection } from "@/components/settings/subscription-settings-section";
 import { VoiceNumberForm } from "@/components/settings/voice-number-form";
+import { VoiceQuotaSettingsForm } from "@/components/settings/voice-quota-settings-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { buildEmbedSnippet } from "@/lib/leads/embed";
@@ -13,6 +14,7 @@ import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 import { listStripeBillingEventsForProfile } from "@/lib/billing/stripe-billing-events";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 
 import { ProfileForm } from "../profile/profile-form";
 import { LegalSettingsForm } from "@/components/settings/legal-settings-form";
@@ -204,15 +206,16 @@ export default async function ArtisanSettingsPage({
     trial_ends_at: null as string | null,
     stripe_customer_id: null as string | null,
     stripe_subscription_id: null as string | null,
-    voice_minutes_included: 0,
-    voice_minutes_used: 0,
   };
+
+  let voiceQuota = null as Awaited<ReturnType<typeof resolveVoiceQuota>>;
+  let voiceAllowOverage = true;
 
   if (profile?.id) {
     const subscriptionRes = await supabase
       .from("profiles")
       .select(
-        "subscription_plan, subscription_status, trial_ends_at, stripe_customer_id, stripe_subscription_id, voice_minutes_included, voice_minutes_used",
+        "subscription_plan, subscription_status, trial_ends_at, stripe_customer_id, stripe_subscription_id, voice_allow_overage",
       )
       .eq("id", profile.id)
       .maybeSingle();
@@ -223,10 +226,11 @@ export default async function ArtisanSettingsPage({
         trial_ends_at: subscriptionRes.data.trial_ends_at,
         stripe_customer_id: subscriptionRes.data.stripe_customer_id,
         stripe_subscription_id: subscriptionRes.data.stripe_subscription_id,
-        voice_minutes_included: subscriptionRes.data.voice_minutes_included ?? 0,
-        voice_minutes_used: subscriptionRes.data.voice_minutes_used ?? 0,
       };
+      voiceAllowOverage = subscriptionRes.data.voice_allow_overage ?? true;
     }
+
+    voiceQuota = await resolveVoiceQuota(supabase, profile.id);
   }
 
   let billingEvents: Awaited<ReturnType<typeof listStripeBillingEventsForProfile>> = [];
@@ -345,6 +349,7 @@ export default async function ArtisanSettingsPage({
           ) : (
             <SubscriptionSettingsSection
               profile={subscriptionProfile}
+              voiceQuota={voiceQuota}
               alerts={subscriptionAlerts}
               billingEvents={billingEvents}
             />
@@ -423,6 +428,12 @@ export default async function ArtisanSettingsPage({
                     Active l’IA vocale pour recevoir des appels et des demandes de RDV.
                   </p>
                 </div>
+                {voiceQuota ? (
+                  <VoiceQuotaSettingsForm
+                    quota={voiceQuota}
+                    allowOverage={voiceAllowOverage}
+                  />
+                ) : null}
                 <VoiceNumberForm initialPhone={voiceNumber?.phone_e164 ?? null} />
               </>
             )}

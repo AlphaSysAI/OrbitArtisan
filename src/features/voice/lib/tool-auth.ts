@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 
 export type VoiceContext = {
   artisanId: string;
@@ -29,7 +30,16 @@ function timingSafeEqualStrings(a: string, b: string): boolean {
   return result === 0;
 }
 
-export async function resolveVoiceContext(request: Request): Promise<VoiceResolveResult> {
+type ResolveVoiceContextOptions = {
+  /** Refuse les tools si le quota est épuisé et que l'artisan a désactivé le dépassement. */
+  enforceQuota?: boolean;
+};
+
+export async function resolveVoiceContext(
+  request: Request,
+  options: ResolveVoiceContextOptions = {},
+): Promise<VoiceResolveResult> {
+  const enforceQuota = options.enforceQuota ?? true;
   const expected = process.env.VOICE_AI_TOOL_SECRET;
   if (!expected) {
     return { ok: false, response: NextResponse.json({ error: "Voice AI non configuré" }, { status: 503 }) };
@@ -67,10 +77,35 @@ export async function resolveVoiceContext(request: Request): Promise<VoiceResolv
     return { ok: false, response: NextResponse.json({ error: "Numéro non rattaché" }, { status: 404 }) };
   }
 
+  const artisanId = mapping.artisan_id as string;
+
+  if (enforceQuota) {
+    const quota = await resolveVoiceQuota(client, artisanId);
+    if (quota && !quota.canAcceptCalls) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          {
+            error: "voice_quota_exhausted",
+            message:
+              "Le quota mensuel Soline de cet artisan est épuisé et il a choisi de ne pas dépasser son forfait. Informez l'appelant qu'il peut rappeler le mois prochain ou laisser un message sur la ligne directe de l'artisan.",
+            quota: {
+              included: quota.voiceMinutesIncluded,
+              used: quota.voiceMinutesUsed,
+              remaining: quota.remainingMinutes,
+              period_end: quota.periodEnd,
+            },
+          },
+          { status: 403 },
+        ),
+      };
+    }
+  }
+
   return {
     ok: true,
     ctx: {
-      artisanId: mapping.artisan_id as string,
+      artisanId,
       db: client,
       body,
       callerNumber: String(body.caller_number ?? body.from ?? "").trim() || null,

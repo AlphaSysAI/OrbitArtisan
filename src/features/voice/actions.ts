@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type VoiceActionResult<T = undefined> =
@@ -31,6 +33,43 @@ export async function getArtisanVoiceNumber(): Promise<VoiceActionResult<{ phone
       .maybeSingle();
 
     return { success: true, data: { phone: (data?.phone_e164 as string) ?? null } };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Erreur serveur" };
+  }
+}
+
+export async function setVoiceAllowOverage(allowOverage: boolean): Promise<VoiceActionResult> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Non authentifié" };
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!profile) return { success: false, error: "Accès refusé" };
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ voice_allow_overage: allowOverage })
+      .eq("id", profile.id);
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message.includes("voice_allow_overage")
+          ? "Migration quota vocal non appliquée (12_voice_quota_civil_month.sql)."
+          : error.message,
+      };
+    }
+
+    revalidatePath("/app/reglages");
+    return { success: true, data: undefined };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Erreur serveur" };
   }

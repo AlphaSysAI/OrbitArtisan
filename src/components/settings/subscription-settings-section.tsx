@@ -17,14 +17,14 @@ import {
 import { isStripeConfigured } from "@/lib/stripe/server";
 import { isStripeSubscriptionPaymentLinksConfigured } from "@/lib/stripe/subscription-payment-links";
 
+import type { VoiceQuotaSnapshot } from "@/lib/voice/voice-quota-types";
+
 type SubscriptionProfile = {
   subscription_plan: string | null;
   subscription_status: string | null;
   trial_ends_at: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
-  voice_minutes_included: number | null;
-  voice_minutes_used: number | null;
 };
 
 function reasonMessage(reason: string | undefined) {
@@ -68,10 +68,12 @@ function formatBillingAmount(event: StripeBillingEventRow): string | null {
 
 export function SubscriptionSettingsSection({
   profile,
+  voiceQuota,
   alerts,
   billingEvents = [],
 }: {
   profile: SubscriptionProfile;
+  voiceQuota?: VoiceQuotaSnapshot | null;
   alerts?: {
     reason?: string;
     success?: string;
@@ -87,9 +89,9 @@ export function SubscriptionSettingsSection({
   const blockMessage = reasonMessage(alerts?.reason);
   const stripeEnabled = isStripeConfigured() && isStripeSubscriptionPaymentLinksConfigured();
   const canManageBilling = !!profile.stripe_customer_id?.trim();
-  const voiceIncluded = profile.voice_minutes_included ?? getPlanVoiceMinutes(planId);
-  const voiceUsed = profile.voice_minutes_used ?? 0;
-  const voiceRemaining = Math.max(0, voiceIncluded - voiceUsed);
+  const voiceIncluded = voiceQuota?.voiceMinutesIncluded ?? getPlanVoiceMinutes(planId);
+  const voiceUsed = voiceQuota?.voiceMinutesUsed ?? 0;
+  const voiceRemaining = voiceQuota?.remainingMinutes ?? Math.max(0, voiceIncluded - voiceUsed);
 
   return (
     <section className="space-y-8">

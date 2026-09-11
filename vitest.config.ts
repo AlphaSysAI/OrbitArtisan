@@ -9,11 +9,16 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(root, "./src"),
+      "server-only": path.resolve(root, "./test/server-only-stub.ts"),
     },
   },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
     testTimeout: 30_000,
+    env: {
+      FACTURX_SKIP_STAFYNAKSA: "1",
+      FACTURX_SKIP_SCHEMATRON: "1",
+    },
   },
 });

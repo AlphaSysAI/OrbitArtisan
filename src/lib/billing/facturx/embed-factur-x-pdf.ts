@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { AFRelationship, PDFDocument, PDFHexString, PDFName } from "pdf-lib";
 
-import { FacturXValidationError } from "./types";
+import { validateFacturXXml } from "./validate-factur-x";
 import type { FacturXProfile } from "./types";
 
 export const FACTURX_XML_FILENAME = "factur-x.xml" as const;
@@ -112,16 +112,9 @@ export type EmbedFacturXOptions = {
  */
 export async function embedFacturXInPdf(options: EmbedFacturXOptions): Promise<Uint8Array> {
   if (options.validateXml !== false) {
-    const { check } = await import("@stafyniaksacha/facturx");
-    const result = await check({
-      xml: options.xml,
-      flavor: "facturx",
-      level: options.profile,
+    await validateFacturXXml(options.xml, options.profile, {
+      schematron: process.env.FACTURX_SKIP_SCHEMATRON !== "1",
     });
-
-    if (!result.valid) {
-      throw new FacturXValidationError("XML CII invalide (échec validation XSD Factur-X).", result.errors);
-    }
   }
 
   const pdf = await PDFDocument.load(options.visualPdf);

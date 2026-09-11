@@ -5,14 +5,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
 import { logVoiceQuotaThresholds } from "@/lib/voice/voice-quota-alerts";
 
-export type VoiceQuotaSnapshot = {
-  artisanId: string;
-  voiceMinutesIncluded: number;
-  voiceMinutesUsed: number;
-  voiceMinutesOverdue: number;
-  remainingMinutes: number;
-  hasRemainingMinutes: boolean;
-};
+import { resolveVoiceQuota, type VoiceQuotaSnapshot } from "./resolve-voice-quota";
+
+export type { VoiceQuotaSnapshot };
 
 export type ProcessTwilioCallResult =
   | {
@@ -26,9 +21,7 @@ export type ProcessTwilioCallResult =
 type RpcProcessResult = {
   duplicate?: boolean;
   minutes_billed?: number;
-  voice_minutes_included?: number;
-  voice_minutes_used?: number;
-  voice_minutes_overdue?: number;
+  log_id?: string | null;
 };
 
 export async function resolveArtisanIdByCalledNumber(
@@ -53,34 +46,12 @@ export async function resolveArtisanIdByCalledNumber(
   return data.artisan_id as string;
 }
 
+/** Alias historique — dérive le quota depuis voice_call_logs (mois civil). */
 export async function checkVoiceQuota(
   db: SupabaseClient,
   artisanId: string,
 ): Promise<VoiceQuotaSnapshot | null> {
-  const { data, error } = await db
-    .from("profiles")
-    .select("id, voice_minutes_included, voice_minutes_used, voice_minutes_overdue")
-    .eq("id", artisanId)
-    .maybeSingle();
-
-  if (error || !data) {
-    console.error("[voice-quota] checkVoiceQuota failed", error?.message ?? "profile missing");
-    return null;
-  }
-
-  const included = Number(data.voice_minutes_included ?? 0);
-  const used = Number(data.voice_minutes_used ?? 0);
-  const overdue = Number(data.voice_minutes_overdue ?? 0);
-  const remainingMinutes = Math.max(0, included - used);
-
-  return {
-    artisanId,
-    voiceMinutesIncluded: included,
-    voiceMinutesUsed: used,
-    voiceMinutesOverdue: overdue,
-    remainingMinutes,
-    hasRemainingMinutes: remainingMinutes > 0,
-  };
+  return resolveVoiceQuota(db, artisanId);
 }
 
 export async function processTwilioCallStatus(
@@ -112,31 +83,27 @@ export async function processTwilioCallStatus(
   }
 
   const payload = (data ?? {}) as RpcProcessResult;
-  const included = Number(payload.voice_minutes_included ?? 0);
-  const used = Number(payload.voice_minutes_used ?? 0);
-  const overdue = Number(payload.voice_minutes_overdue ?? 0);
-  const remainingMinutes = Math.max(0, included - used);
+  const duplicate = Boolean(payload.duplicate);
+  const minutesBilled = duplicate ? 0 : Number(payload.minutes_billed ?? input.minutesBilled);
 
-  if (!payload.duplicate && input.minutesBilled > 0) {
+  const quota = await resolveVoiceQuota(db, input.artisanId);
+  if (!quota) {
+    return { ok: false, code: "artisan_not_found", message: "profile missing" };
+  }
+
+  if (!duplicate && minutesBilled > 0) {
     logVoiceQuotaThresholds({
       artisanId: input.artisanId,
-      included,
-      previousUsed: input.previousUsed ?? Math.max(0, used - input.minutesBilled),
-      newUsed: used,
+      included: quota.voiceMinutesIncluded,
+      previousUsed: input.previousUsed ?? Math.max(0, quota.voiceMinutesUsed - minutesBilled),
+      newUsed: quota.voiceMinutesUsed,
     });
   }
 
   return {
     ok: true,
-    duplicate: Boolean(payload.duplicate),
-    minutesBilled: Number(payload.minutes_billed ?? input.minutesBilled),
-    quota: {
-      artisanId: input.artisanId,
-      voiceMinutesIncluded: included,
-      voiceMinutesUsed: used,
-      voiceMinutesOverdue: overdue,
-      remainingMinutes,
-      hasRemainingMinutes: remainingMinutes > 0,
-    },
+    duplicate,
+    minutesBilled,
+    quota,
   };
 }

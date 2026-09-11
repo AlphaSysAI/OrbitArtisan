@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ArrowLeft, Receipt } from "lucide-react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -72,6 +74,8 @@ type InvoiceDetailViewProps = {
   invoice: InvoiceForEditPage;
   sortedLines: InvoiceLineForEditPage[];
   customerLabel: string;
+  /** Bloc recouvrement, rendu par le parent qui détient le client Supabase. */
+  recoverySlot?: ReactNode;
   finalizeError?: string;
   finalized?: string;
   flow?: string;
@@ -83,6 +87,7 @@ function InvoiceDetailView({
   invoice,
   sortedLines,
   customerLabel,
+  recoverySlot,
   finalizeError,
   finalized,
   flow,
@@ -177,6 +182,8 @@ function InvoiceDetailView({
         </CardContent>
       </Card>
 
+      {recoverySlot}
+
       {!isDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft" ? (
         <BtpActionsSection
           invoiceId={invoiceId}
@@ -217,6 +224,33 @@ function InvoiceDetailView({
       </Card>
     </div>
   );
+}
+
+/**
+ * Le bloc recouvrement est optionnel : tant que la migration 11 n'est pas
+ * appliquée, ou en cas d'incident, il disparaît au lieu de faire échouer
+ * l'affichage de la facture.
+ */
+async function RecoveryPanel({
+  supabase,
+  invoice,
+  artisanId,
+}: {
+  supabase: SupabaseClient;
+  invoice: InvoiceForEditPage;
+  artisanId: string;
+}) {
+  try {
+    const { RecoverySection } = await import("@/components/recovery/recovery-section");
+    return <RecoverySection supabase={supabase} invoice={invoice} artisanId={artisanId} />;
+  } catch (error) {
+    if (isNextNavigationError(error)) throw error;
+    console.error("[invoice-detail] recovery_section_failed", {
+      invoiceId: invoice.id,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 async function BtpActionsSection({
@@ -315,6 +349,9 @@ export default async function InvoiceEditPage({
         invoice={invoice}
         sortedLines={sortedLines}
         customerLabel={customerLabel}
+        recoverySlot={
+          <RecoveryPanel supabase={supabase} invoice={invoice} artisanId={profile.id} />
+        }
         finalizeError={finalizeError}
         finalized={finalized}
         flow={flow}

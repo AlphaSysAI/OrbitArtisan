@@ -98,3 +98,53 @@ export function reportingPeriodFromDate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   return `${y}-${m}-01`;
 }
+
+/** Lot e-reporting transmis à la PA (Flux 10 — transactions B2C). */
+export type EReportingBatchPayload = {
+  schemaVersion: "1.1";
+  artisanId: string;
+  reportingPeriod: string;
+  transactionCount: number;
+  transactions: EReportingPayload[];
+  submittedAt: string;
+};
+
+export function buildEReportingBatchPayload(
+  artisanId: string,
+  reportingPeriod: string,
+  transactions: EReportingPayload[],
+): EReportingBatchPayload {
+  return {
+    schemaVersion: "1.1",
+    artisanId,
+    reportingPeriod,
+    transactionCount: transactions.length,
+    transactions,
+    submittedAt: new Date().toISOString(),
+  };
+}
+
+type QueueRow = {
+  id: string;
+  artisan_id: string;
+  reporting_period: string | null;
+  payload: EReportingPayload;
+};
+
+/** Regroupe les lignes pending par artisan + période. */
+export function groupEReportingQueueRows(rows: QueueRow[]): Map<string, { artisanId: string; period: string; rows: QueueRow[] }> {
+  const groups = new Map<string, { artisanId: string; period: string; rows: QueueRow[] }>();
+
+  for (const row of rows) {
+    const period = row.reporting_period ?? reportingPeriodFromDate(new Date());
+    const key = `${row.artisan_id}:${period}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.rows.push(row);
+    } else {
+      groups.set(key, { artisanId: row.artisan_id, period, rows: [row] });
+    }
+  }
+
+  return groups;
+}

@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { buildLegalMentionLines, type ArtisanLegalProfile } from "@/lib/billing/legal-mentions";
+import { formatDateForPdf, formatEurosForPdf, sanitizePdfText } from "@/lib/billing/pdf-text";
 
 export type QuotePdfLine = {
   label: string;
@@ -41,13 +42,8 @@ const MARGIN = 50;
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 
-function formatEuros(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(date);
-}
+const formatEuros = formatEurosForPdf;
+const formatDate = formatDateForPdf;
 
 function wrapText(text: string, maxChars: number): string[] {
   const words = text.split(/\s+/);
@@ -76,7 +72,7 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
 
   const draw = (text: string, opts: { size?: number; bold?: boolean; x?: number } = {}) => {
     const size = opts.size ?? 10;
-    page.drawText(text, {
+    page.drawText(sanitizePdfText(text), {
       x: opts.x ?? MARGIN,
       y,
       size,
@@ -124,11 +120,11 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
     for (const line of lines) {
       if (y < 180) break;
       for (const wrapped of wrapText(line.label, 65)) {
-        page.drawText(wrapped, { x: MARGIN, y, size: 10, font });
+        page.drawText(sanitizePdfText(wrapped), { x: MARGIN, y, size: 10, font });
         y -= 14;
       }
       if (line.detail) {
-        page.drawText(line.detail, {
+        page.drawText(sanitizePdfText(line.detail), {
           x: MARGIN + 12,
           y,
           size: 9,
@@ -168,7 +164,7 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
   y = 100;
   const legalLines = buildLegalMentionLines(doc.seller);
   for (const line of legalLines) {
-    page.drawText(line, { x: MARGIN, y, size: 7, font, color: rgb(0.4, 0.4, 0.4) });
+    page.drawText(sanitizePdfText(line), { x: MARGIN, y, size: 7, font, color: rgb(0.4, 0.4, 0.4) });
     y -= 10;
   }
 

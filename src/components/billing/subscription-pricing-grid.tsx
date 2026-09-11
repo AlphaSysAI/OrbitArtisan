@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Stamp } from "lucide-react";
 
 import { SubscriptionPlanButton } from "@/app/app/abonnement/subscription-plan-button";
 import { BillingIntervalToggle } from "@/components/billing/billing-interval-toggle";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
   formatPriceHtEur,
+  FORMAL_NOTICE_OVERAGE_NOTICE,
+  FORMAL_NOTICES_INCLUDED_PER_MONTH,
   getPlanAnnualSavingsPercent,
   SUBSCRIPTION_PLANS,
   type BillingInterval,
@@ -158,6 +160,17 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
           );
         })}
       </div>
+
+      <p
+        className={cn(
+          "mx-auto max-w-2xl text-center text-sm",
+          props.variant === "landing" ? "text-slate-500" : "text-muted-foreground",
+        )}
+      >
+        <Stamp className="mr-1.5 inline size-4 -translate-y-px opacity-70" />
+        {FORMAL_NOTICES_INCLUDED_PER_MONTH} mise en demeure en recommandé avec accusé de réception
+        incluse par mois sur chaque plan. {FORMAL_NOTICE_OVERAGE_NOTICE}
+      </p>
     </div>
   );
 }
