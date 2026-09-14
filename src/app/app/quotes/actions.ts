@@ -159,18 +159,22 @@ export async function createQuote(formData: FormData) {
   let linkedConversationId: string | null = null;
   let linkedCustomerUserId: string | null = null;
 
-  if (conversationIdRaw && customerUserIdRaw) {
+  if (conversationIdRaw) {
     const { data: conv } = await supabase
       .from("conversations")
       .select("id, artisan_id, customer_user_id")
       .eq("id", conversationIdRaw)
       .maybeSingle();
-    if (!conv || conv.artisan_id !== profile.id || conv.customer_user_id !== customerUserIdRaw) {
+    if (!conv || conv.artisan_id !== profile.id) {
+      return { ok: false as const, error: "invalid_conversation" as const };
+    }
+    // Lead Soline : customer_user_id reste null tant que le prospect n'a pas de compte.
+    if (customerUserIdRaw && conv.customer_user_id !== customerUserIdRaw) {
       return { ok: false as const, error: "invalid_conversation" as const };
     }
     linkedConversationId = conv.id;
     linkedCustomerUserId = conv.customer_user_id;
-  } else if (conversationIdRaw || customerUserIdRaw) {
+  } else if (customerUserIdRaw) {
     return { ok: false as const, error: "invalid_conversation" as const };
   }
 
