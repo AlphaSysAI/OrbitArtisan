@@ -11,26 +11,57 @@ export type AnchorRect = {
 
 const MARGIN = 8;
 
+/** Hauteur minimale utile avant de basculer l’ancrage de l’autre côté du trigger. */
+const MIN_USEFUL_PANEL_HEIGHT = 280;
+
+export function resolveAnchoredPanelSide(
+  trigger: Pick<DOMRect, "top" | "bottom">,
+  preferredMaxHeight: number,
+  viewportHeight: number,
+): AnchorSide {
+  const spaceAbove = trigger.top - MARGIN;
+  const spaceBelow = viewportHeight - trigger.bottom - MARGIN;
+  const minUseful = Math.min(preferredMaxHeight, MIN_USEFUL_PANEL_HEIGHT);
+
+  if (spaceAbove >= minUseful) return "above";
+  if (spaceBelow >= minUseful) return "below";
+  return spaceBelow > spaceAbove ? "below" : "above";
+}
+
 export function computeAnchoredPanelRect(params: {
   trigger: DOMRect;
   /** Largeur souhaitée du panneau */
   preferredWidth: number;
   /** Hauteur max souhaitée */
   preferredMaxHeight: number;
-  side: AnchorSide;
+  side: AnchorSide | "auto";
   /** Alignement horizontal du panneau par rapport au trigger */
   align?: "start" | "end";
+  viewportHeight?: number;
+  viewportWidth?: number;
 }): AnchorRect {
-  const { trigger, preferredWidth, preferredMaxHeight, side, align = "end" } = params;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+  const {
+    trigger,
+    preferredWidth,
+    preferredMaxHeight,
+    side,
+    align = "end",
+    viewportHeight = typeof window !== "undefined" ? window.innerHeight : 800,
+    viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280,
+  } = params;
+  const resolvedSide =
+    side === "auto"
+      ? resolveAnchoredPanelSide(trigger, preferredMaxHeight, viewportHeight)
+      : side;
+  const vw = viewportWidth;
+  const vh = viewportHeight;
 
   const width = Math.min(preferredWidth, vw - MARGIN * 2);
 
   let left = align === "end" ? trigger.right - width : trigger.left;
   left = Math.min(Math.max(MARGIN, left), vw - width - MARGIN);
 
-  if (side === "below") {
+  if (resolvedSide === "below") {
     const top = trigger.bottom + MARGIN;
     const maxHeight = Math.min(preferredMaxHeight, vh - top - MARGIN);
     return { top, left, width, maxHeight: Math.max(160, maxHeight) };

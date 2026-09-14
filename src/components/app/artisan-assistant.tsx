@@ -331,7 +331,7 @@ export function ArtisanAssistant() {
           trigger,
           preferredWidth: 420,
           preferredMaxHeight: Math.min(window.innerHeight * 0.72, 520),
-          side: "above",
+          side: "auto",
           align: "end",
         }),
       );
@@ -344,7 +344,7 @@ export function ArtisanAssistant() {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [open, position]);
+  }, [open, position, pathname]);
 
   useEffect(() => {
     return () => stopListening();
@@ -353,24 +353,6 @@ export function ArtisanAssistant() {
   useEffect(() => {
     sendMessageRef.current = sendMessage;
   });
-
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    function onPointerDown(e: PointerEvent) {
-      const t = e.target as Node;
-      if (triggerRef.current?.contains(t) || panelRef.current?.contains(t)) return;
-      setOpen(false);
-    }
-    window.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [open]);
 
   async function sendMessage(raw: string) {
     const message = raw.trim();
@@ -574,7 +556,8 @@ export function ArtisanAssistant() {
         onPointerUp={onTriggerPointerUp}
         onPointerCancel={onTriggerPointerUp}
         className={cn(
-          "fixed z-50 inline-flex h-14 touch-none select-none items-center gap-2.5 rounded-2xl border-2 border-brand bg-brand px-4",
+          "fixed inline-flex h-14 touch-none select-none items-center gap-2.5 rounded-2xl border-2 border-brand bg-brand px-4",
+          open ? "z-[70]" : "z-50",
           !position && "right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6 sm:right-6",
           "font-display text-base font-semibold tracking-tight text-brand-foreground",
           "shadow-[0_10px_30px_oklch(0.55_0.13_55/0.4)] transition-transform hover:scale-[1.03]",
@@ -610,6 +593,7 @@ export function ArtisanAssistant() {
             <div
               ref={panelRef}
               role="dialog"
+              aria-modal="false"
               aria-label="Assistant Soline"
               className="fixed z-[60] flex flex-col overflow-hidden rounded-3xl border border-brand/30 bg-background shadow-[0_20px_60px_rgb(0_0_0/0.22)]"
               style={{
