@@ -27,6 +27,12 @@ import {
   QUOTE_NEW_STARTERS,
   QUOTE_NEW_WELCOME,
 } from "@/lib/ai/assistant-quote-context";
+import {
+  clampAssistantPosition,
+  loadAssistantPosition,
+  saveAssistantPosition,
+  type AssistantPosition,
+} from "@/lib/ai/assistant-position";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -50,6 +56,9 @@ type SpeechRecognitionLike = {
 
 /** Nombre de relances sans parole avant de couper le micro. */
 const MAX_SILENT_RESTARTS = 6;
+
+/** Distance minimale (px) avant de considérer un geste comme un déplacement. */
+const DRAG_THRESHOLD_PX = 10;
 
 function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   if (typeof window === "undefined") return null;
@@ -83,8 +92,18 @@ export function ArtisanAssistant() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: "welcome", role: "assistant", content: DEFAULT_WELCOME },
   ]);
+  const [position, setPosition] = useState<AssistantPosition | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originLeft: number;
+    originTop: number;
+  } | null>(null);
+  const didDragRef = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -227,6 +246,36 @@ export function ArtisanAssistant() {
     setMounted(true);
   }, []);
 
+  useLayoutEffect(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const saved = loadAssistantPosition();
+    const next = clampAssistantPosition(saved ?? { left: rect.left, top: rect.top }, {
+      width: rect.width,
+      height: rect.height,
+    });
+    setPosition(next);
+  }, []);
+
+  useEffect(() => {
+    function onResize() {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      setPosition((prev) => {
+        if (!prev) return prev;
+        const rect = trigger.getBoundingClientRect();
+        const clamped = clampAssistantPosition(prev, { width: rect.width, height: rect.height });
+        saveAssistantPosition(clamped);
+        return clamped;
+      });
+    }
+
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const starters = isQuoteNewPage ? QUOTE_NEW_STARTERS : DEFAULT_STARTERS;
   const inputPlaceholder = listening
     ? "Écoute en cours…"
@@ -295,7 +344,7 @@ export function ArtisanAssistant() {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [open]);
+  }, [open, position]);
 
   useEffect(() => {
     return () => stopListening();
@@ -423,6 +472,75 @@ export function ArtisanAssistant() {
     startListening();
   }
 
+  function onTriggerPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!position) return;
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originLeft: position.left,
+      originTop: position.top,
+    };
+    didDragRef.current = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onTriggerPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!didDragRef.current && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+
+    didDragRef.current = true;
+    setIsDragging(true);
+
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    setPosition(
+      clampAssistantPosition(
+        { left: drag.originLeft + dx, top: drag.originTop + dy },
+        { width: rect.width, height: rect.height },
+      ),
+    );
+  }
+
+  function onTriggerPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const moved = didDragRef.current;
+    dragRef.current = null;
+    setIsDragging(false);
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // déjà relâché
+    }
+
+    if (moved) {
+      const trigger = triggerRef.current;
+      if (trigger) {
+        const rect = trigger.getBoundingClientRect();
+        const final = clampAssistantPosition(
+          {
+            left: drag.originLeft + (e.clientX - drag.startX),
+            top: drag.originTop + (e.clientY - drag.startY),
+          },
+          { width: rect.width, height: rect.height },
+        );
+        setPosition(final);
+        saveAssistantPosition(final);
+      }
+      return;
+    }
+
+    setOpen((v) => !v);
+  }
+
   function runAction(action: NonNullable<AssistantApiResponse["action"]>) {
     if (action.type === "open_quote_form") {
       persistAiQuoteDraft(action.draft);
@@ -451,21 +569,33 @@ export function ArtisanAssistant() {
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onPointerDown={onTriggerPointerDown}
+        onPointerMove={onTriggerPointerMove}
+        onPointerUp={onTriggerPointerUp}
+        onPointerCancel={onTriggerPointerUp}
         className={cn(
-          "fixed z-50 inline-flex h-14 items-center gap-2.5 rounded-2xl border-2 border-brand bg-brand px-4",
-          "right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6 sm:right-6",
+          "fixed z-50 inline-flex h-14 touch-none select-none items-center gap-2.5 rounded-2xl border-2 border-brand bg-brand px-4",
+          !position && "right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6 sm:right-6",
           "font-display text-base font-semibold tracking-tight text-brand-foreground",
           "shadow-[0_10px_30px_oklch(0.55_0.13_55/0.4)] transition-transform hover:scale-[1.03]",
           "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/35",
+          isDragging ? "cursor-grabbing scale-100" : "cursor-grab",
           open && "ring-4 ring-brand/30",
           isQuoteNewPage &&
             !open &&
             "animate-pulse ring-4 ring-brand/45 ring-offset-2 ring-offset-background",
         )}
-        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+        style={
+          position
+            ? { left: position.left, top: position.top }
+            : { marginBottom: "env(safe-area-inset-bottom)" }
+        }
         aria-expanded={open}
-        aria-label={open ? "Fermer l’assistant Soline" : "Ouvrir l’assistant Soline"}
+        aria-label={
+          open
+            ? "Fermer l’assistant Soline. Glisser pour déplacer."
+            : "Ouvrir l’assistant Soline. Glisser pour déplacer."
+        }
       >
         {open ? (
           <X className="size-5 shrink-0" strokeWidth={2.5} />
