@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { DownloadInvoicePdfButton } from "@/components/invoices/download-invoice-pdf-button";
+import { InvoiceDocumentActionsCard } from "@/components/invoices/invoice-document-actions-card";
 import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-badge";
 import { InvoiceReminderButton } from "@/components/invoices/invoice-reminder-button";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
@@ -162,7 +163,13 @@ function InvoiceDetailView({
         </div>
       ) : null}
 
-      <Card>
+      <InvoiceDocumentActionsCard
+        invoiceId={invoiceId}
+        emissionFlow={emissionFlow}
+        isDraft={isDraft}
+      />
+
+      <Card id="invoice-edit">
         <CardHeader>
           <CardTitle>Éditer la facture</CardTitle>
           <CardDescription>

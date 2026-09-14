@@ -33,14 +33,13 @@ function formatItem(item: DirectPurchaseItem): string {
 
 export function buildQuoteNotificationMessage(opts: {
   totalFormatted: string;
-  quoteUrl: string;
   directPurchaseItems: DirectPurchaseItem[];
   maxLength?: number;
 }): string {
-  const { totalFormatted, quoteUrl, directPurchaseItems } = opts;
+  const { totalFormatted, directPurchaseItems } = opts;
   const maxLength = opts.maxLength ?? MESSAGE_MAX_LENGTH;
 
-  const header = `📋 J’ai préparé un devis pour toi — Total : ${totalFormatted}. Consulte-le ici : ${quoteUrl}`;
+  const header = `📋 J’ai préparé un devis pour toi — Total : ${totalFormatted}. Télécharge le PDF ci-dessous.`;
 
   const items = directPurchaseItems.filter((i) => i.label.trim());
   if (items.length === 0) return header;

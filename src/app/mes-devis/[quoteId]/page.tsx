@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 
 import { QuoteSummary } from "@/components/ai/quote-summary";
 
+import { ClientQuotePdfDownloadButton } from "@/components/quotes/quote-document-actions-card";
+
 import { ClientQuoteActions } from "./client-quote-actions";
 
 export default async function ClientQuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
@@ -235,6 +237,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
                 </div>
               )}
 
+              <ClientQuotePdfDownloadButton quoteId={quoteId} />
               <ClientQuoteActions quoteId={quoteId} status={q.status} />
             </CardContent>
           </Card>

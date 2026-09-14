@@ -367,13 +367,13 @@ export function QuoteForm({
       if (res.notifyFailed) {
         toast.message("Devis enregistré", {
           description:
-            "Le message dans la conversation n’a pas pu être envoyé. Copie le lien depuis la fiche devis.",
+            "Le message avec le PDF n’a pas pu être envoyé. Télécharge le devis depuis la fiche et envoie-le manuellement.",
         });
       } else if (res.status === "sent") {
         toast.success(
           res.emailSent
             ? "Devis enregistré et envoyé au client par email."
-            : "Devis enregistré et envoyé au client (message + lien).",
+            : "Devis enregistré et envoyé au client (PDF dans la conversation).",
         );
       } else {
         toast.success("Brouillon enregistré — aucun envoi au client.");

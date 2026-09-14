@@ -25,7 +25,7 @@ export function DuplicateQuoteButton({ quoteId }: { quoteId: string }) {
 
   return (
     <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => void handleClick()}>
-      {pending ? "…" : "Dupliquer"}
+      {pending ? "…" : "Dupliquer pour modifier"}
     </Button>
   );
 }

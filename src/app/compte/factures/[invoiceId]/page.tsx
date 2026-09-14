@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ArrowLeft, Receipt } from "lucide-react";
 
+import { ClientInvoicePdfButton } from "@/components/invoices/client-invoice-pdf-button";
 import { InvoicePaymentRefresh } from "@/components/compte/invoice-payment-refresh";
 import { PayInvoiceForm } from "@/components/compte/pay-invoice-form";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ export default async function ClientInvoiceDetailPage({
   const { data: invoice } = await supabase
     .from("invoices")
     .select(
-      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_name, customer_email, created_at, updated_at, customer_user_id",
+      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_name, customer_email, created_at, updated_at, customer_user_id, emission_flow",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -134,6 +135,10 @@ export default async function ClientInvoiceDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ClientInvoicePdfButton
+            invoiceId={invoice.id}
+            emissionFlow={invoice.emission_flow as "e_invoicing" | "e_reporting" | null}
+          />
           <Link href={`/mes-devis/${invoice.quote_id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
             Voir le devis d’origine
           </Link>

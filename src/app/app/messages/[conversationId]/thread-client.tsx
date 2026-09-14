@@ -3,7 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { FileText, Loader2, Send, Sparkles } from "lucide-react";
+import { FileDown, FileText, Loader2, Send, Sparkles } from "lucide-react";
 
 import { aiErrorMessage } from "@/lib/ai/error-messages";
 import { mapApiResponseToDraft, persistAiQuoteDraft } from "@/lib/ai/map-quote-draft";
@@ -232,27 +232,51 @@ export function ArtisanThreadClient({
                   {m.body}
                   {m.attachments?.length ? (
                     <ul className="mt-3 space-y-2">
-                      {m.attachments.map((att) =>
-                        att.signed_url ? (
-                          <li key={att.id}>
-                            {att.kind === "video" ? (
+                      {m.attachments.map((att) => {
+                        if (!att.signed_url) return null;
+                        if (att.kind === "file" || att.mime_type === "application/pdf") {
+                          return (
+                            <li key={att.id}>
+                              <a
+                                href={att.signed_url}
+                                download={att.file_name ?? "document.pdf"}
+                                className={cn(
+                                  buttonVariants({
+                                    variant: mine ? "secondary" : "outline",
+                                    size: "sm",
+                                  }),
+                                  "inline-flex items-center gap-2 no-underline",
+                                )}
+                              >
+                                <FileDown className="size-4" />
+                                Télécharger {att.file_name ?? "le PDF"}
+                              </a>
+                            </li>
+                          );
+                        }
+                        if (att.kind === "video") {
+                          return (
+                            <li key={att.id}>
                               <video
                                 src={att.signed_url}
                                 controls
                                 className="max-h-48 rounded-lg"
                                 preload="metadata"
                               />
-                            ) : (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={att.signed_url}
-                                alt={att.file_name ?? "Pièce jointe"}
-                                className="max-h-48 rounded-lg object-cover"
-                              />
-                            )}
+                            </li>
+                          );
+                        }
+                        return (
+                          <li key={att.id}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={att.signed_url}
+                              alt={att.file_name ?? "Pièce jointe"}
+                              className="max-h-48 rounded-lg object-cover"
+                            />
                           </li>
-                        ) : null,
-                      )}
+                        );
+                      })}
                     </ul>
                   ) : null}
                 </div>

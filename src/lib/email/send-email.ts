@@ -1,11 +1,17 @@
 import "server-only";
 
+export type EmailAttachment = {
+  filename: string;
+  content: string;
+};
+
 export type SendEmailInput = {
   to: string;
   subject: string;
   html: string;
   text?: string;
   from?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type SendEmailResult =
@@ -40,6 +46,10 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       subject: input.subject,
       html: input.html,
       text: input.text,
+      attachments: input.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      })),
     }),
   });
 

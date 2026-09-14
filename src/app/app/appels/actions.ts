@@ -117,10 +117,12 @@ export async function validateVoiceIntakeQuote(
   }
 
   const emailResult = await sendQuoteByEmail({
+    supabase,
+    quoteId: created.quoteId,
+    artisanId: profile.id,
     to: String(intake.customer_email ?? draft.customerEmail ?? ""),
     customerName: intake.customer_name ?? draft.customerName,
     businessName: profile.business_name,
-    quotePublicToken: created.publicToken,
     grandTotalCents: created.grandTotalCents,
   });
 

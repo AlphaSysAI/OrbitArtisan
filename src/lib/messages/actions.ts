@@ -98,6 +98,7 @@ export type MessageAttachmentRow = {
   storage_path: string;
   kind: string;
   file_name: string | null;
+  mime_type?: string | null;
   signed_url?: string | null;
 };
 
@@ -127,7 +128,7 @@ export async function listMessages(conversationId: string) {
 
   const { data: attachments } = await supabase
     .from("message_attachments")
-    .select("id, message_id, storage_bucket, storage_path, kind, file_name")
+    .select("id, message_id, storage_bucket, storage_path, kind, file_name, mime_type")
     .in("message_id", messageIds);
 
   const byMessage = new Map<string, MessageAttachmentRow[]>();
@@ -139,6 +140,7 @@ export async function listMessages(conversationId: string) {
       storage_path: row.storage_path as string,
       kind: row.kind as string,
       file_name: (row.file_name as string | null) ?? null,
+      mime_type: (row.mime_type as string | null) ?? null,
     });
     byMessage.set(row.message_id as string, list);
   }

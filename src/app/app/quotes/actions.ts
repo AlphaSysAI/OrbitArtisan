@@ -2,12 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { sendMessage } from "@/lib/messages/actions";
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
-import { buildQuoteNotificationMessage } from "@/lib/quotes/supplier-links";
+import { sendQuotePdfInConversation } from "@/lib/quotes/send-quote-pdf";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getPublicSiteUrl } from "@/lib/site-url";
 
 type ParsedMaterial = {
   label: string;
@@ -268,13 +266,12 @@ export async function createQuote(formData: FormData) {
   let emailSent = false;
   const shouldNotifyConversation = quoteStatus === "sent" && !!linkedConversationId;
   if (shouldNotifyConversation) {
-    const siteUrl = getPublicSiteUrl();
-    const totalFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-      grandTotalCents / 100,
-    );
-    const body = buildQuoteNotificationMessage({
-      totalFormatted: totalFmt,
-      quoteUrl: `${siteUrl}/mes-devis/${createdQuote.id}`,
+    const sent = await sendQuotePdfInConversation(supabase, {
+      conversationId: linkedConversationId!,
+      senderUserId: user.id,
+      quoteId: createdQuote.id,
+      artisanId: profile.id,
+      grandTotalCents,
       directPurchaseItems: materials
         .filter((m) => m.excludeFromInvoice)
         .map((m) => ({
@@ -284,16 +281,17 @@ export async function createQuote(formData: FormData) {
           supplierSku: m.supplierSku ?? null,
         })),
     });
-    const sent = await sendMessage(linkedConversationId!, body);
     if (!sent.ok) notifyFailed = true;
   }
 
   if (quoteStatus === "sent" && customerEmail && !linkedConversationId) {
     const emailResult = await sendQuoteByEmail({
+      supabase,
+      quoteId: createdQuote.id,
+      artisanId: profile.id,
       to: customerEmail,
       customerName,
       businessName: profile.business_name,
-      quotePublicToken: String(createdQuote.public_token ?? ""),
       grandTotalCents,
     });
     emailSent = emailResult.ok;
