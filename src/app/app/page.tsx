@@ -16,6 +16,7 @@ import { AppEmptyState } from "@/components/app/app-empty-state";
 import { AppPageHeader } from "@/components/app/app-page-header";
 import { DashboardStatCard } from "@/components/app/dashboard-stat-card";
 import { StepCard } from "@/components/app/step-card";
+import { VitrineShareButton } from "@/components/app/vitrine-share-button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { listArtisanContacts } from "@/lib/contacts/actions";
@@ -242,15 +243,18 @@ export default async function AppHomePage() {
             <p className="font-display text-xl font-semibold tracking-tight">Lien de ta page</p>
             <p className="font-mono text-sm text-muted-foreground">/site/{profile!.slug}</p>
           </div>
-          <Link
-            href={`/site/${profile!.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={buttonVariants({ variant: "secondary", size: "lg", className: "gap-2 shrink-0" })}
-          >
-            Ouvrir la vitrine
-            <ExternalLink className="size-4" />
-          </Link>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <VitrineShareButton slug={profile!.slug} businessName={profile!.business_name} />
+            <Link
+              href={`/site/${profile!.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ variant: "secondary", size: "lg", className: "gap-2" })}
+            >
+              Ouvrir la vitrine
+              <ExternalLink className="size-4" />
+            </Link>
+          </div>
         </section>
       ) : null}
     </div>
