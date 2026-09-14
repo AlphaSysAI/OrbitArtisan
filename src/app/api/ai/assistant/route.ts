@@ -404,7 +404,7 @@ Règles d’or :
 6. « crée / ajoute / planifie / cale un RDV pour X le … à … » → intent=create_appointment_draft, avec customer_query (le client), date_query (le jour) et time_query (l’heure). Ce n’est JAMAIS answer ni navigate.
 7. clarify seulement si info bloquante pour un devis. Jamais pour une question RDV.
 8. reply courte. Pour answer, une intro suffit (« Je regarde tes RDV… ») — le serveur complète.
-9. date_query et time_query : recopie UNIQUEMENT les mots du message actuel. Si le message n’indique aucun jour (ex. « crée un RDV à 14h pour Dupont » après avoir parlé d’un jour), date_query=null — le serveur reprendra le jour de l’historique. N’invente jamais de date et ne recopie jamais un exemple.
+9. date_query et time_query : recopie UNIQUEMENT les termes temporels du message actuel. Si le message n’indique aucun jour, date_query=null — le serveur reprendra le jour de l’historique. N’invente jamais de date.
 10. Contexte écran : si l’artisan consulte un devis, une facture ou un client, interprète « ce devis », « cette facture », « ce client » sans redemander.
 
 Chemins navigate_path : /app, /app/rdv, /app/contacts, /app/messages, /app/quotes, /app/quotes/new, /app/invoices, /app/reglages.`,
@@ -425,17 +425,6 @@ ${message}`,
       {
         temperature: 0.1,
         jsonSchema: ASSISTANT_INTENT_JSON_SCHEMA,
-        // Aucune valeur concrète de date ni d'heure ici : le modèle les recopie.
-        jsonExample: `{
-  "intent": "answer",
-  "reply": "Je regarde tes rendez-vous.",
-  "customer_query": null,
-  "navigate_path": null,
-  "date_query": null,
-  "time_query": null,
-  "work_description": null,
-  "answer_topic": "appointments"
-}`,
       },
     );
   } catch (err) {

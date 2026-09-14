@@ -2,7 +2,6 @@ import "server-only";
 
 import { mistralChatParse } from "@/lib/ai/mistral";
 import {
-  LEAD_QUALIFICATION_JSON_EXAMPLE,
   LEAD_QUALIFICATION_JSON_SCHEMA,
   LeadQualificationSchema,
   type LeadQualification,
@@ -34,14 +33,9 @@ export async function qualifyLead(params: {
   const systemPrompt = `Tu es un économiste de la construction en France. Tu analyses la demande d'un particulier pour préparer un chiffrage.
 Règles :
 1. N'invente rien : tout ce que tu écris doit venir du texte du client. Ce qui manque va dans missing_info.
-2. estimated_hours_min / estimated_hours_max = total des heures de main d'œuvre facturées, toutes personnes confondues, déplacement et préparation inclus. Une équipe de 2 pendant 5 jours = 80 h, pas 5.
-3. Repères de durée à respecter :
-   - dépannage simple (fuite, prise, serrure, remplacement d'un joint) : 1 à 4 h
-   - pose ou remplacement d'un équipement (WC, chauffe-eau, fenêtre, radiateur) : 4 à 12 h
-   - rénovation d'une pièce (salle de bains, cuisine, sol d'un séjour) : 40 à 150 h
-   - réfection complète d'une toiture, d'une façade ou d'une isolation extérieure, environ 100 m² : 150 à 350 h
-   - construction, extension ou gros œuvre : 400 h et plus
-4. material_cost_share = part des matériaux dans le coût total (0 pour de la pure main d'œuvre, 0.5 à 0.6 pour de la fourniture-pose lourde comme une toiture ou une menuiserie).
+2. estimated_hours_min / estimated_hours_max = total des heures de main d'œuvre facturées, toutes personnes confondues, déplacement et préparation inclus. Multiplie par le nombre d'intervenants si une équipe est implicite.
+3. Les heures doivent être proportionnées à l'ampleur décrite (intervention ponctuelle, rénovation partielle, chantier complet) — sans extrapoler au-delà du texte client.
+4. material_cost_share = part des matériaux dans le coût total, entre 0 et 0,7, selon la part fourniture dans le lot décrit.
 5. confidence = « faible » si la demande reste vague, « bonne » si dimensions et nature sont claires.
 6. Ne donne aucun prix : le tarif est appliqué ensuite à partir des taux réels des artisans.
 7. Réponds en français, sans jargon inutile.`;
@@ -63,7 +57,6 @@ ${params.description}`;
     {
       temperature: 0.2,
       jsonSchema: LEAD_QUALIFICATION_JSON_SCHEMA,
-      jsonExample: LEAD_QUALIFICATION_JSON_EXAMPLE,
     },
   );
 

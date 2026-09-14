@@ -83,11 +83,6 @@ Règles :
       {
         temperature: 0.3,
         jsonSchema: LEAD_CHAT_JSON_SCHEMA,
-        jsonExample: `{
-  "question": "Où se situe la fuite exactement (sous l'évier, au plafond, au compteur) ?",
-  "done": false,
-  "summary": ""
-}`,
       },
     );
 

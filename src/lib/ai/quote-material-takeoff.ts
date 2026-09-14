@@ -78,22 +78,42 @@ export const MATERIAL_TAKEOFF_JSON_SCHEMA: Record<string, unknown> = {
   required: ["work_summary", "assumptions", "materials", "calculation_notes"],
 };
 
-/** Détecte une description de chantier avec dimensions (métré automatique utile). */
+const WORK_KEYWORDS =
+  /mur|parpaing|agglo|brique|bloc|dalle|chape|toiture|carrelage|enduit|cloison|fondation|terrasse|maçonnerie|maconnerie|beton|béton|linteau|poteau|hourdis|planelle|plancher/i;
+
+/** Chantier global sans métré explicite (maison neuve, gros œuvre…). */
+export function isWholeHouseMasonryProject(instruction: string): boolean {
+  return /maison\s+neuve|construction\s+(d[''])?une\s+maison|maison\s+individuelle|gros\s+[œoe]uvre|murs?\s+porteurs?|charpente\s+traditionnelle/i.test(
+    instruction,
+  );
+}
+
+/** Détecte une description de chantier où un métré automatique est utile. */
 export function needsMaterialTakeoff(instruction: string): boolean {
   const text = instruction.trim();
   if (text.length < 12) return false;
+
+  const hasWork = WORK_KEYWORDS.test(text);
+  if (!hasWork) return false;
 
   const hasDimension =
     /\d+[,.]?\d*\s*(m(?:l|²|³|ètre|eter|ètres|eters)?|cm|mm)\b/i.test(text) ||
     /\d+\s*[x×]\s*\d+/i.test(text) ||
     /\d+[,.]?\d*\s*m\s*lin/i.test(text);
 
-  const hasWork =
-    /mur|parpaing|agglo|brique|bloc|dalle|chape|toiture|carrelage|enduit|cloison|fondation|terrasse|maçonnerie|maconnerie|beton|béton|linteau|poteau|hourdis|planelle/i.test(
-      text,
-    );
+  if (hasDimension) return true;
 
-  return hasDimension && hasWork;
+  return isWholeHouseMasonryProject(text);
+}
+
+export function takeoffAssumptionHint(instruction: string): string | null {
+  if (!isWholeHouseMasonryProject(instruction)) return null;
+  if (/\d+[,.]?\d*\s*m(?:²|2)\b/i.test(instruction)) return null;
+
+  return (
+    "Surface du projet non précisée dans la description : formule des hypothèses dimensionnelles " +
+    "dans assumptions avant de chiffrer, et indique qu'elles sont à valider sur chantier."
+  );
 }
 
 function buildWebSearchQuery(instruction: string): string {
@@ -115,7 +135,10 @@ export async function runMaterialTakeoff(instruction: string): Promise<MaterialT
 À partir de la description de travaux, estime les matériaux nécessaires et les quantités réalistes.
 
 Règles :
-- Utilise des hypothèses standards FR si non précisées (ex. parpaing creux 20×20×50 cm, ~10 U/m² de mur, +8 à 12 % chute).
+- Applique les ratios métiers standards du BTP en France ; documente chaque hypothèse dimensionnelle dans "assumptions".
+- Les parpaings / agglos concernent les murs porteurs — pas le plancher, la dalle ni la toiture (hourdis, béton, charpente, couverture).
+- Ne cumule pas plusieurs lots en multipliant plusieurs fois la même surface au sol.
+- Prévois une marge de chute réaliste et indique-la dans "assumptions".
 - Détaille les hypothèses dans "assumptions" (dimensions bloc, épaisseur joint, ouvertures non déduites si absentes, etc.).
 - "materials" : noms génériques en français, quantités arrondies à l'entier supérieur pour les U/sacs.
 - "unit" : U, sacs, m³, kg, L, ml, m²…
@@ -124,7 +147,12 @@ Règles :
 - Si des références web sont fournies, croise-les avec ton expertise ; ne copie pas aveuglément.
 - Ne liste pas d'outillage consommable mineur (seaux, truelles) sauf si quantités significatives.`;
 
+  const assumptionHint = takeoffAssumptionHint(instruction);
+
   const userParts = [`Description des travaux :\n${instruction}`];
+  if (assumptionHint) {
+    userParts.push(assumptionHint);
+  }
   if (webBlock) {
     userParts.push(`Références web (indicatives, à recouper) :\n${webBlock}`);
   } else {
@@ -143,17 +171,6 @@ Règles :
     {
       temperature: 0.15,
       jsonSchema: MATERIAL_TAKEOFF_JSON_SCHEMA,
-      jsonExample: `{
-  "work_summary": "Mur en parpaings 10 ml × 2 m",
-  "assumptions": ["Parpaing 20×20×50 cm", "10 % chute", "Pas d'ouverture déduite"],
-  "materials": [
-    { "name_generic": "Parpaing creux", "quantity": 440, "unit": "U", "specifications": "20×20×50" },
-    { "name_generic": "Mortier ciment", "quantity": 12, "unit": "sacs", "specifications": "35 kg" },
-    { "name_generic": "Sable", "quantity": 1.2, "unit": "m³", "specifications": null }
-  ],
-  "labor_hours_estimate": 16,
-  "calculation_notes": "Métré indicatif — confirmer métrés et accès sur chantier."
-}`,
     },
   );
 
