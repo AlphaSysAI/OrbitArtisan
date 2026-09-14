@@ -24,12 +24,19 @@ import { buildLeadSuiviHref } from "@/lib/leads/client-signup-urls";
 import type { LeadEstimate, LeadSession, MatchedArtisan } from "@/lib/leads/types";
 import { cn } from "@/lib/utils";
 
-import { finalizeLead, saveLeadBrief, startLead, submitLeadContact } from "./actions";
+import {
+  finalizeLead,
+  finalizeWidgetLead,
+  saveLeadBrief,
+  startLead,
+  submitLeadContact,
+} from "./actions";
 import { ChatStep } from "./chat-step";
 import { LocationStep, type LeadLocation } from "./location-step";
 import { MediaStep } from "./media-step";
 
-const STEP_LABELS = ["Métier", "Besoin", "Photos", "Adresse", "Estimation"];
+const STEP_LABELS_GENERAL = ["Métier", "Besoin", "Photos", "Adresse", "Estimation"];
+const STEP_LABELS_WIDGET = ["Besoin", "Photos", "Estimation"];
 
 type WidgetOwner = { slug: string; businessName: string };
 
@@ -41,6 +48,7 @@ type WizardState = {
   messages: LeadChatMessage[];
   mediaCount: number;
   location: LeadLocation | null;
+  matchedArtisans: MatchedArtisan[];
 };
 
 type Screen =
@@ -82,7 +90,10 @@ export function EstimationWizard({
     messages: [],
     mediaCount: 0,
     location: null,
+    matchedArtisans: [],
   });
+
+  const directToOwner = !!owner;
 
   const openLead = React.useCallback(
     async (trade: TradeSelection) => {
@@ -152,10 +163,31 @@ export function EstimationWizard({
     setScreen({ name: "result" });
   }
 
-  // Le widget saute l'étape « Métier » : la barre de progression suit.
-  const labels = presetTrade ? STEP_LABELS.slice(1) : STEP_LABELS;
-  const rawIndex =
-    screen.name === "trade" || screen.name === "creating"
+  const labels = directToOwner
+    ? presetTrade
+      ? STEP_LABELS_WIDGET
+      : ["Métier", ...STEP_LABELS_WIDGET]
+    : presetTrade
+      ? STEP_LABELS_GENERAL.slice(1)
+      : STEP_LABELS_GENERAL;
+
+  const rawIndex = directToOwner
+    ? screen.name === "trade" || screen.name === "creating"
+      ? 0
+      : screen.name === "chat"
+        ? presetTrade
+          ? 0
+          : 1
+        : screen.name === "media"
+          ? presetTrade
+            ? 1
+            : 2
+          : screen.name === "result" || screen.name === "contact" || screen.name === "sent"
+            ? presetTrade
+              ? 2
+              : 3
+            : 0
+    : screen.name === "trade" || screen.name === "creating"
       ? 0
       : screen.name === "chat"
         ? 1
@@ -164,7 +196,12 @@ export function EstimationWizard({
           : screen.name === "location"
             ? 3
             : 4;
-  const stepIndex = presetTrade ? Math.max(0, rawIndex - 1) : rawIndex;
+
+  const stepIndex = directToOwner
+    ? rawIndex
+    : presetTrade
+      ? Math.max(0, rawIndex - 1)
+      : rawIndex;
 
   return (
     <div className={compact ? "space-y-4" : "space-y-6"}>
@@ -199,19 +236,37 @@ export function EstimationWizard({
           onBack={() => setScreen({ name: "chat" })}
           onDone={(count) => {
             setState((s) => ({ ...s, mediaCount: count }));
-            setScreen({ name: "location" });
+            setScreen(directToOwner ? { name: "result" } : { name: "location" });
           }}
         />
       )}
 
-      {screen.name === "location" && (
+      {!directToOwner && screen.name === "location" && (
         <LocationStep
           onBack={() => setScreen({ name: "media" })}
           onDone={(location) => void onLocationDone(location)}
         />
       )}
 
-      {screen.name === "result" && state.session && state.trade && (
+      {screen.name === "result" && state.session && state.trade && directToOwner && owner && (
+        <WidgetResultStep
+          token={state.session.token}
+          categoryId={state.trade.categoryId}
+          tradeId={state.trade.tradeId}
+          tradeLabel={state.trade.tradeLabel}
+          description={state.description}
+          messages={state.messages}
+          mediaCount={state.mediaCount}
+          owner={owner}
+          onBack={() => setScreen({ name: "media" })}
+          onAccept={(artisans) => {
+            setState((s) => ({ ...s, matchedArtisans: artisans }));
+            setScreen({ name: "contact" });
+          }}
+        />
+      )}
+
+      {screen.name === "result" && state.session && state.trade && !directToOwner && (
         <ResultStep
           token={state.session.token}
           categoryId={state.trade.categoryId}
@@ -221,15 +276,20 @@ export function EstimationWizard({
           messages={state.messages}
           mediaCount={state.mediaCount}
           locationLabel={state.location?.label ?? ""}
-          ownerSlug={owner?.slug ?? null}
+          ownerSlug={originArtisanSlug}
           onBack={() => setScreen({ name: "location" })}
-          onAccept={() => setScreen({ name: "contact" })}
+          onAccept={(artisans) => {
+            setState((s) => ({ ...s, matchedArtisans: artisans }));
+            setScreen({ name: "contact" });
+          }}
         />
       )}
 
       {screen.name === "contact" && state.session && (
         <ContactStep
           token={state.session.token}
+          mode={directToOwner ? "widget" : "general"}
+          ownerName={owner?.businessName ?? null}
           onBack={() => setScreen({ name: "result" })}
           onSent={(payload) =>
             setScreen({
@@ -249,6 +309,9 @@ export function EstimationWizard({
             signup={screen.signup}
             warning={screen.warning}
             compact={compact}
+            directToOwner={directToOwner}
+            ownerName={owner?.businessName ?? null}
+            artisans={state.matchedArtisans}
           />
           {screen.signup?.canSignup ? (
             <p className="text-center text-xs text-muted-foreground">
@@ -301,6 +364,121 @@ function Stepper({
   );
 }
 
+function WidgetResultStep({
+  token,
+  categoryId,
+  tradeId,
+  tradeLabel,
+  description,
+  messages,
+  mediaCount,
+  owner,
+  onBack,
+  onAccept,
+}: {
+  token: string;
+  categoryId: string;
+  tradeId: string;
+  tradeLabel: string;
+  description: string;
+  messages: LeadChatMessage[];
+  mediaCount: number;
+  owner: WidgetOwner;
+  onBack: () => void;
+  onAccept: (artisans: MatchedArtisan[]) => void;
+}) {
+  const [state, setState] = React.useState<
+    | { status: "loading" }
+    | { status: "error" }
+    | { status: "done"; estimate: LeadEstimate; artisan: MatchedArtisan | null }
+  >({ status: "loading" });
+
+  const load = React.useCallback(async () => {
+    setState({ status: "loading" });
+    const res = await finalizeWidgetLead({
+      token,
+      categoryId,
+      tradeId,
+      description,
+      messages,
+      mediaCount,
+    });
+    if (!res.ok) {
+      setState({ status: "error" });
+      return;
+    }
+    setState({ status: "done", estimate: res.estimate, artisan: res.artisan });
+  }, [token, categoryId, tradeId, description, messages, mediaCount]);
+
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (state.status === "loading") {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card py-20 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">On chiffre ta demande…</p>
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <StepShell title="Estimation indisponible" onBack={onBack}>
+        <p className="text-sm text-muted-foreground">
+          {owner.businessName} ne reçoit pas les demandes pour le moment, ou le calcul a échoué.
+          Réessaie dans un instant.
+        </p>
+        <Button type="button" variant="outline" className="gap-2" onClick={() => void load()}>
+          <RefreshCcw className="h-4 w-4" />
+          Réessayer
+        </Button>
+      </StepShell>
+    );
+  }
+
+  const artisan = state.artisan;
+
+  return (
+    <StepShell title="Ton estimation" subtitle={`${tradeLabel} · ${owner.businessName}`} onBack={onBack}>
+      <div className="rounded-2xl border bg-card p-6">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <BadgeEuro className="h-4 w-4" />
+          Fourchette indicative
+        </p>
+        <p className="mt-2 text-3xl font-semibold tracking-tight">
+          {euros.format(state.estimate.min)} – {euros.format(state.estimate.max)}
+        </p>
+        <p className="mt-3 text-sm text-muted-foreground">{state.estimate.basis}</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Estimation indicative basée sur les tarifs de {owner.businessName} — seule la proposition
+          validée par l’artisan, après visite ou échange, fait foi.
+        </p>
+      </div>
+
+      <div className="rounded-xl border bg-card p-4">
+        <p className="text-sm font-medium">Envoi direct dans la messagerie</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ta demande sera transmise à <strong>{owner.businessName}</strong>
+          {artisan ? " qui pourra te recontacter par téléphone." : "."}
+        </p>
+      </div>
+
+      <Button
+        type="button"
+        size="lg"
+        className="w-full gap-2"
+        onClick={() => onAccept(artisan ? [artisan] : [])}
+        disabled={!artisan}
+      >
+        <Send className="h-4 w-4" />
+        Envoyer ma demande à {owner.businessName}
+      </Button>
+    </StepShell>
+  );
+}
+
 function ResultStep({
   token,
   categoryId,
@@ -324,7 +502,7 @@ function ResultStep({
   locationLabel: string;
   ownerSlug: string | null;
   onBack: () => void;
-  onAccept: () => void;
+  onAccept: (artisans: MatchedArtisan[]) => void;
 }) {
   const [state, setState] = React.useState<
     | { status: "loading" }
@@ -450,7 +628,12 @@ function ResultStep({
         </ul>
       </div>
 
-      <Button type="button" size="lg" className="w-full gap-2" onClick={onAccept}>
+      <Button
+        type="button"
+        size="lg"
+        className="w-full gap-2"
+        onClick={() => onAccept(state.artisans)}
+      >
         <Send className="h-4 w-4" />
         Envoyer ma demande
       </Button>
@@ -460,14 +643,19 @@ function ResultStep({
 
 function ContactStep({
   token,
+  mode,
+  ownerName,
   onBack,
   onSent,
 }: {
   token: string;
+  mode: "widget" | "general";
+  ownerName: string | null;
   onBack: () => void;
   onSent: (payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" }) => void;
 }) {
-  const [name, setName] = React.useState("");
+  const [firstName, setFirstName] = React.useState("");
+  const [lastName, setLastName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [pending, setPending] = React.useState(false);
@@ -477,18 +665,27 @@ function ContactStep({
     event.preventDefault();
     setError(null);
     setPending(true);
-    const res = await submitLeadContact({ token, name, email, phone });
+    const res = await submitLeadContact({
+      token,
+      firstName,
+      lastName,
+      email: mode === "general" ? email : null,
+      phone,
+      mode,
+    });
     setPending(false);
 
     if (!res.ok) {
       setError(
-        res.error === "missing_contact"
-          ? "Indique au moins un e-mail ou un téléphone."
+        res.error === "invalid_phone"
+          ? "Indique un numéro de téléphone valide."
           : res.error === "invalid_email"
             ? "Cet e-mail ne semble pas valide."
-            : res.error === "invalid_name"
-              ? "Indique ton nom."
-              : "L’envoi a échoué. Réessaie dans un instant.",
+            : res.error === "invalid_first_name"
+              ? "Indique ton prénom."
+              : res.error === "invalid_last_name"
+                ? "Indique ton nom."
+                : "L’envoi a échoué. Réessaie dans un instant.",
       );
       return;
     }
@@ -498,34 +695,38 @@ function ContactStep({
   return (
     <StepShell
       title="Comment te recontacter ?"
-      subtitle="Dernière étape — aucun compte à créer"
+      subtitle={
+        mode === "widget" && ownerName
+          ? `${ownerName} te recontactera par téléphone`
+          : "Dernière étape — aucun compte à créer"
+      }
       onBack={onBack}
     >
       <form onSubmit={submit} className="space-y-4 rounded-2xl border bg-card p-5">
-        <div className="space-y-2">
-          <Label htmlFor="lead_name">Ton nom</Label>
-          <Input
-            id="lead_name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Camille Martin"
-            autoComplete="name"
-            required
-            autoFocus
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="lead_email">E-mail</Label>
-          <Input
-            id="lead_email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="camille@exemple.fr"
-            autoComplete="email"
-            inputMode="email"
-          />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="lead_first_name">Prénom</Label>
+            <Input
+              id="lead_first_name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Camille"
+              autoComplete="given-name"
+              required
+              autoFocus
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="lead_last_name">Nom</Label>
+            <Input
+              id="lead_last_name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Martin"
+              autoComplete="family-name"
+              required
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -538,12 +739,29 @@ function ContactStep({
             placeholder="06 12 34 56 78"
             autoComplete="tel"
             inputMode="tel"
+            required
           />
         </div>
 
+        {mode === "general" ? (
+          <div className="space-y-2">
+            <Label htmlFor="lead_email">E-mail (optionnel)</Label>
+            <Input
+              id="lead_email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="camille@exemple.fr"
+              autoComplete="email"
+              inputMode="email"
+            />
+          </div>
+        ) : null}
+
         <p className="text-xs text-muted-foreground">
-          E-mail ou téléphone, l’un des deux suffit. Estimation indicative, non engageante — aucun
-          compte requis pour envoyer.
+          {mode === "widget"
+            ? "Ton numéro permet à l’artisan de te rappeler. Estimation indicative, non engageante."
+            : "Les artisans sélectionnés te recontactent par téléphone. L’e-mail sert uniquement au suivi en ligne, s’il est renseigné."}
         </p>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

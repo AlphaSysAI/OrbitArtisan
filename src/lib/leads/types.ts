@@ -14,4 +14,5 @@ export type MatchedArtisan = {
   rank: number;
   city: string | null;
   logoUrl: string | null;
+  phone: string | null;
 };

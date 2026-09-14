@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { CheckCircle2, MessageSquare, UserPlus } from "lucide-react";
 
+import { LeadArtisanCallList } from "@/components/leads/lead-artisan-call-list";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { LeadSignupOffer } from "@/lib/leads/client-signup-types";
+import type { MatchedArtisan } from "@/lib/leads/types";
 import { buildLeadLoginHref, buildLeadSignupHref } from "@/lib/leads/client-signup-urls";
 import { getMarketingHomeHref } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
@@ -12,11 +14,17 @@ export function LeadSentPanel({
   signup,
   warning,
   compact = false,
+  directToOwner = false,
+  ownerName = null,
+  artisans = [],
 }: {
   leadToken: string;
   signup?: LeadSignupOffer | null;
   warning?: "no_artisans" | "dispatch_pending";
   compact?: boolean;
+  directToOwner?: boolean;
+  ownerName?: string | null;
+  artisans?: MatchedArtisan[];
 }) {
   const canTrackOnline = signup?.canSignup && signup.email;
   const signupHref = signup?.canSignup
@@ -39,16 +47,24 @@ export function LeadSentPanel({
         <h2 className="text-xl font-semibold tracking-tight">Demande envoyée</h2>
         <p className="mx-auto max-w-md text-sm text-muted-foreground">
           {warning === "no_artisans"
-            ? "Ta demande est enregistrée. Aucun artisan disponible dans ta zone pour l’instant — on te recontacte dès qu’il y en a un."
+            ? directToOwner && ownerName
+              ? `${ownerName} ne reçoit pas les demandes pour le moment. Ta demande est enregistrée — réessaie plus tard ou contacte l’artisan directement.`
+              : "Ta demande est enregistrée. Aucun artisan disponible dans ta zone pour l’instant — on te recontacte dès qu’il y en a un."
             : warning === "dispatch_pending"
-              ? "Ta demande est bien enregistrée. Les artisans la recevront dans quelques minutes."
-              : "Les artisans sélectionnés (2 à 3 maximum) reçoivent ta demande avec tes photos et ton estimation indicative, non engageante."}
+              ? directToOwner && ownerName
+                ? `Ta demande est enregistrée. ${ownerName} la recevra dans sa messagerie sous peu.`
+                : "Ta demande est bien enregistrée. Les artisans la recevront dans quelques minutes."
+              : directToOwner && ownerName
+                ? `${ownerName} a reçu ta demande dans sa messagerie, avec tes photos et l’estimation indicative. Il te recontactera par téléphone.`
+                : "Les artisans sélectionnés (2 à 3 maximum) reçoivent ta demande avec tes photos et ton estimation indicative, non engageante."}
         </p>
         <p className="mx-auto max-w-md text-xs text-muted-foreground">
           Estimation indicative uniquement — ce n’est pas un devis. Seule la proposition validée par
           l’artisan, après visite ou échange, fait foi.
         </p>
       </div>
+
+      <LeadArtisanCallList artisans={artisans} directToOwner={directToOwner} />
 
       {canTrackOnline && signupHref ? (
         <div className="w-full max-w-sm space-y-3 pt-2">

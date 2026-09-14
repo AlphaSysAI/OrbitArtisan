@@ -150,6 +150,51 @@ export async function registerLeadMedia(input: {
  * La mise en relation passe en premier : ce sont les tarifs des artisans
  * retenus qui servent de base au chiffrage.
  */
+type MatchRpcRow = {
+  artisan_id: string;
+  business_name: string;
+  slug: string;
+  distance_km: number | null;
+  rank: number;
+};
+
+type MatchRpcPayload = {
+  ok?: boolean;
+  error?: string;
+  matches?: MatchRpcRow[];
+};
+
+async function loadMatchedArtisans(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  matches: MatchRpcRow[],
+): Promise<MatchedArtisan[]> {
+  if (!matches.length) return [];
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, city, logo_url, phone")
+    .in(
+      "id",
+      matches.map((m) => m.artisan_id),
+    );
+
+  const extraById = new Map((profiles ?? []).map((p) => [p.id as string, p]));
+
+  return matches
+    .map((m) => ({
+      id: m.artisan_id,
+      businessName: m.business_name,
+      slug: m.slug,
+      distanceKm: m.distance_km,
+      rank: m.rank,
+      city: (extraById.get(m.artisan_id)?.city as string | null) ?? null,
+      logoUrl: (extraById.get(m.artisan_id)?.logo_url as string | null) ?? null,
+      phone: (extraById.get(m.artisan_id)?.phone as string | null) ?? null,
+    }))
+    .sort((a, b) => a.rank - b.rank);
+}
+
+/** Parcours général : géolocalisation + 2 à 3 artisans proches. */
 export async function finalizeLead(input: {
   token: string;
   categoryId: string;
@@ -170,19 +215,7 @@ export async function finalizeLead(input: {
     return fail("match_failed");
   }
 
-  const payload = data as
-    | {
-        ok?: boolean;
-        error?: string;
-        matches?: {
-          artisan_id: string;
-          business_name: string;
-          slug: string;
-          distance_km: number | null;
-          rank: number;
-        }[];
-      }
-    | null;
+  const payload = data as MatchRpcPayload | null;
 
   const noArtisan = !payload?.ok && payload?.error === "no_artisan_nearby";
   if (!payload?.ok && !noArtisan) {
@@ -201,33 +234,47 @@ export async function finalizeLead(input: {
     artisanIds: matches.map((m) => m.artisan_id),
   });
 
-  // Estimation valable même sans artisan disponible autour.
-  if (!matches.length) return { ok: true, estimate, artisans: [] };
-
-  // `profiles` est en lecture publique : on complète la fiche affichée.
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, city, logo_url")
-    .in(
-      "id",
-      matches.map((m) => m.artisan_id),
-    );
-
-  const extraById = new Map((profiles ?? []).map((p) => [p.id as string, p]));
-
-  const artisans: MatchedArtisan[] = matches
-    .map((m) => ({
-      id: m.artisan_id,
-      businessName: m.business_name,
-      slug: m.slug,
-      distanceKm: m.distance_km,
-      rank: m.rank,
-      city: (extraById.get(m.artisan_id)?.city as string | null) ?? null,
-      logoUrl: (extraById.get(m.artisan_id)?.logo_url as string | null) ?? null,
-    }))
-    .sort((a, b) => a.rank - b.rank);
-
+  const artisans = await loadMatchedArtisans(supabase, matches);
   return { ok: true, estimate, artisans };
+}
+
+/** Widget artisan : fourchette basée sur l'artisan hôte, sans géolocalisation. */
+export async function finalizeWidgetLead(input: {
+  token: string;
+  categoryId: string;
+  tradeId?: string | null;
+  description: string;
+  mediaCount: number;
+  messages?: LeadChatMessage[];
+}): Promise<{ ok: true; estimate: LeadEstimate; artisan: MatchedArtisan | null } | Fail> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase.rpc("match_lead_to_origin_artisan", {
+    p_token: input.token,
+  });
+  if (error) {
+    console.error("[estimation] match_lead_to_origin_artisan", error.message);
+    return fail("match_failed");
+  }
+
+  const payload = data as MatchRpcPayload | null;
+  if (!payload?.ok) {
+    return fail(payload?.error ?? "match_failed");
+  }
+
+  const matches = payload.matches ?? [];
+  const estimate = await computeLeadEstimate(supabase, {
+    token: input.token,
+    categoryId: input.categoryId,
+    tradeId: input.tradeId ?? null,
+    description: input.description,
+    mediaCount: input.mediaCount,
+    messages: input.messages,
+    artisanIds: matches.map((m) => m.artisan_id),
+  });
+
+  const artisans = await loadMatchedArtisans(supabase, matches);
+  return { ok: true, estimate, artisan: artisans[0] ?? null };
 }
 
 /**
@@ -289,19 +336,24 @@ async function computeLeadEstimate(
 
 export async function submitLeadContact(input: {
   token: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email?: string | null;
-  phone?: string | null;
+  phone: string;
+  mode?: "widget" | "general";
 }): Promise<
   | { ok: true; warning?: "no_artisans" | "dispatch_pending"; signup?: LeadSignupOffer }
   | Fail
 > {
-  const name = input.name.trim();
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const name = `${firstName} ${lastName}`.trim();
   const email = input.email?.trim().toLowerCase() || null;
-  const phone = input.phone?.trim() || null;
+  const phone = input.phone.trim();
 
-  if (name.length < 2) return fail("invalid_name");
-  if (!email && !phone) return fail("missing_contact");
+  if (firstName.length < 2) return fail("invalid_first_name");
+  if (lastName.length < 2) return fail("invalid_last_name");
+  if (phone.length < 8) return fail("invalid_phone");
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail("invalid_email");
 
   const supabase = await createSupabaseServerClient();
