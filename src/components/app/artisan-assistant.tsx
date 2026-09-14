@@ -454,7 +454,7 @@ export function ArtisanAssistant() {
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "fixed z-50 inline-flex h-14 items-center gap-2.5 rounded-2xl border-2 border-brand bg-brand px-4",
-          "right-4 bottom-4 sm:right-6 sm:bottom-6",
+          "right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6 sm:right-6",
           "font-display text-base font-semibold tracking-tight text-brand-foreground",
           "shadow-[0_10px_30px_oklch(0.55_0.13_55/0.4)] transition-transform hover:scale-[1.03]",
           "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/35",

@@ -53,6 +53,14 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  // Accès public devis / factures retiré — documents via espace client authentifié uniquement.
+  if (pathname.startsWith("/devis/") || pathname.startsWith("/facture/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   let isSuperAdmin = false;
   if (user) {
     const { data: platformAdmin } = await supabase

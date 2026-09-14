@@ -23,7 +23,7 @@ export type CreateQuoteFromDraftParams = {
 };
 
 export type CreateQuoteFromDraftResult =
-  | { ok: true; quoteId: string; publicToken: string; grandTotalCents: number }
+  | { ok: true; quoteId: string; grandTotalCents: number }
   | { ok: false; error: string };
 
 /**
@@ -96,7 +96,7 @@ export async function createQuoteFromAiDraft(
       grand_total: grandTotalCents,
       sent_at: params.status === "sent" ? new Date().toISOString() : null,
     })
-    .select("id, public_token")
+    .select("id")
     .single();
 
   if (quoteErr || !createdQuote?.id) {
@@ -142,7 +142,6 @@ export async function createQuoteFromAiDraft(
   return {
     ok: true,
     quoteId: createdQuote.id as string,
-    publicToken: String(createdQuote.public_token ?? ""),
     grandTotalCents,
   };
 }

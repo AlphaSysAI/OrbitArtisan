@@ -217,7 +217,7 @@ export async function createQuote(formData: FormData) {
       work_site_postal_code,
       sent_at: quoteStatus === "sent" ? new Date().toISOString() : null,
     })
-    .select("id, public_token")
+    .select("id")
     .single();
 
   if (quoteErr || !createdQuote?.id) {
