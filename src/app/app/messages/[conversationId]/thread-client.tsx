@@ -3,7 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { FileDown, FileText, Loader2, Send, Sparkles } from "lucide-react";
+import { FileDown, FileText, Loader2, Phone, Send, Sparkles } from "lucide-react";
 
 import { aiErrorMessage } from "@/lib/ai/error-messages";
 import { mapApiResponseToDraft, persistAiQuoteDraft } from "@/lib/ai/map-quote-draft";
@@ -16,11 +16,17 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { sendMessage, listMessages, type MessageRow } from "@/lib/messages/actions";
 import { cn } from "@/lib/utils";
 
+function telHref(phone: string): string {
+  const digits = phone.replace(/[^\d+]/g, "");
+  return `tel:${digits || phone.replace(/\s/g, "")}`;
+}
+
 export function ArtisanThreadClient({
   conversationId,
   viewerUserId,
   showQuoteShortcut = true,
   sentOnLeft = false,
+  leadContactPhone = null,
   leadMatchId,
   leadQuoteReady = false,
 }: {
@@ -30,6 +36,8 @@ export function ArtisanThreadClient({
   showQuoteShortcut?: boolean;
   /** Si true, les messages envoyés par l'utilisateur courant s'affichent à gauche. */
   sentOnLeft?: boolean;
+  /** Téléphone du prospect (demande widget / estimation Soline). */
+  leadContactPhone?: string | null;
   leadMatchId?: string;
   leadQuoteReady?: boolean;
 }) {
@@ -230,6 +238,20 @@ export function ArtisanThreadClient({
                   )}
                 >
                   {m.body}
+                  {isRecap && leadContactPhone ? (
+                    <div className="mt-3 border-t border-amber-500/25 pt-3">
+                      <a
+                        href={telHref(leadContactPhone)}
+                        className={cn(
+                          buttonVariants({ variant: "default", size: "sm" }),
+                          "gap-1.5 no-underline",
+                        )}
+                      >
+                        <Phone className="size-4" />
+                        Appeler le client
+                      </a>
+                    </div>
+                  ) : null}
                   {m.attachments?.length ? (
                     <ul className="mt-3 space-y-2">
                       {m.attachments.map((att) => {

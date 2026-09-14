@@ -167,7 +167,10 @@ export function ContactSettingsForm({
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold">Coordonnées</h2>
-          <p className="text-sm text-muted-foreground">Téléphone et adresse postale pour les devis et factures.</p>
+          <p className="text-sm text-muted-foreground">
+            Téléphone et adresse postale pour les devis et factures. L’adresse sert aussi à te
+            proposer aux clients du tunnel d’estimation près de chez toi (rayon 40 km).
+          </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">

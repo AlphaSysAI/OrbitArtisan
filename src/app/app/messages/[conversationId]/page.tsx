@@ -36,13 +36,15 @@ export default async function ArtisanConversationPage({
   if (!conv || conv.artisan_id !== profile.id) notFound();
 
   let displayName = "Client";
+  let leadContactPhone: string | null = null;
   if (conv.lead_id) {
     const { data: lead } = await supabase
       .from("leads")
-      .select("contact_name")
+      .select("contact_name, contact_phone")
       .eq("id", conv.lead_id)
       .maybeSingle();
     displayName = lead?.contact_name?.trim() || "Demande Soline";
+    leadContactPhone = lead?.contact_phone?.trim() || null;
   } else if (conv.customer_user_id) {
     const { data: cp } = await supabase
       .from("customer_profiles")
@@ -90,6 +92,7 @@ export default async function ArtisanConversationPage({
         conversationId={conversationId}
         viewerUserId={user!.id}
         sentOnLeft
+        leadContactPhone={leadContactPhone}
         leadMatchId={leadMatch.ok ? leadMatch.leadMatchId : undefined}
         leadQuoteReady={leadMatch.ok && leadMatch.quoteDraftCreated}
       />

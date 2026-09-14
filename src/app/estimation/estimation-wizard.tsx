@@ -148,10 +148,16 @@ export function EstimationWizard({
   }
 
   async function onLocationDone(location: LeadLocation) {
-    if (!state.session) return;
+    const session = state.session;
+    if (!session) return;
+    if (!Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
+      toast.error("Coordonnées invalides. Saisis ton adresse à la main.");
+      return;
+    }
+
     setState((s) => ({ ...s, location }));
     const res = await saveLeadBrief({
-      token: state.session.token,
+      token: session.token,
       lat: location.lat,
       lng: location.lng,
       addressLabel: location.label,
@@ -266,7 +272,7 @@ export function EstimationWizard({
         />
       )}
 
-      {screen.name === "result" && state.session && state.trade && !directToOwner && (
+      {screen.name === "result" && state.session && state.trade && !directToOwner && state.location && (
         <ResultStep
           token={state.session.token}
           categoryId={state.trade.categoryId}
@@ -275,7 +281,7 @@ export function EstimationWizard({
           description={state.description}
           messages={state.messages}
           mediaCount={state.mediaCount}
-          locationLabel={state.location?.label ?? ""}
+          location={state.location}
           ownerSlug={originArtisanSlug}
           onBack={() => setScreen({ name: "location" })}
           onAccept={(artisans) => {
@@ -487,7 +493,7 @@ function ResultStep({
   description,
   messages,
   mediaCount,
-  locationLabel,
+  location,
   ownerSlug,
   onBack,
   onAccept,
@@ -499,7 +505,7 @@ function ResultStep({
   description: string;
   messages: LeadChatMessage[];
   mediaCount: number;
-  locationLabel: string;
+  location: LeadLocation;
   ownerSlug: string | null;
   onBack: () => void;
   onAccept: (artisans: MatchedArtisan[]) => void;
@@ -519,13 +525,16 @@ function ResultStep({
       description,
       messages,
       mediaCount,
+      lat: location.lat,
+      lng: location.lng,
+      addressLabel: location.label,
     });
     if (!res.ok) {
       setState({ status: "error" });
       return;
     }
     setState({ status: "done", estimate: res.estimate, artisans: res.artisans });
-  }, [token, categoryId, tradeId, description, messages, mediaCount]);
+  }, [token, categoryId, tradeId, description, messages, mediaCount, location]);
 
   React.useEffect(() => {
     void load();
@@ -555,7 +564,7 @@ function ResultStep({
   }
 
   return (
-    <StepShell title="Ton estimation" subtitle={`${tradeLabel} · ${locationLabel}`} onBack={onBack}>
+    <StepShell title="Ton estimation" subtitle={`${tradeLabel} · ${location.label}`} onBack={onBack}>
       <div className="rounded-2xl border bg-card p-6">
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <BadgeEuro className="h-4 w-4" />
@@ -584,8 +593,9 @@ function ResultStep({
 
         {state.artisans.length === 0 && (
           <p className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
-            Aucun artisan de ce métier n’est encore inscrit dans ta zone. Laisse tes coordonnées : on te
-            prévient dès qu’un professionnel peut prendre ta demande.
+            Aucun artisan de ce métier n’est disponible à moins de 40 km pour l’instant (métier +
+            position GPS requis côté artisan). Laisse tes coordonnées : on te prévient dès qu’un
+            professionnel peut prendre ta demande.
           </p>
         )}
 

@@ -6,7 +6,8 @@
  * coordonnées à l'enregistrement du profil artisan.
  */
 
-const BAN_ENDPOINT = "https://api-adresse.data.gouv.fr/search/";
+const BAN_SEARCH_ENDPOINT = "https://api-adresse.data.gouv.fr/search/";
+const BAN_REVERSE_ENDPOINT = "https://api-adresse.data.gouv.fr/reverse/";
 
 export type BanSuggestion = {
   label: string;
@@ -56,7 +57,7 @@ export async function searchBanAddresses(
   const q = query.trim();
   if (q.length < 3) return [];
 
-  const url = new URL(BAN_ENDPOINT);
+  const url = new URL(BAN_SEARCH_ENDPOINT);
   url.searchParams.set("q", q);
   url.searchParams.set("limit", String(opts.limit ?? 5));
   url.searchParams.set("autocomplete", "1");
@@ -73,6 +74,35 @@ export async function searchBanAddresses(
 }
 
 /**
+ * Géocodage inverse : coordonnées GPS → adresse BAN la plus proche.
+ * Aligné sur le même référentiel que la saisie manuelle (matching géo cohérent).
+ */
+export async function reverseBanCoordinates(
+  latitude: number,
+  longitude: number,
+  opts: { signal?: AbortSignal } = {},
+): Promise<BanSuggestion | null> {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  const url = new URL(BAN_REVERSE_ENDPOINT);
+  url.searchParams.set("lon", String(longitude));
+  url.searchParams.set("lat", String(latitude));
+  url.searchParams.set("limit", "1");
+
+  try {
+    const res = await fetch(url, { signal: opts.signal });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { features?: BanFeature[] };
+    const suggestion = (data.features ?? [])
+      .map(toSuggestion)
+      .find((s): s is BanSuggestion => s !== null);
+    return suggestion ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Recherche de communes (repli si le client refuse la géolocalisation).
  * `type=municipality` renvoie le centre de la ville.
  */
@@ -83,7 +113,7 @@ export async function searchBanCities(
   const q = query.trim();
   if (q.length < 2) return [];
 
-  const url = new URL(BAN_ENDPOINT);
+  const url = new URL(BAN_SEARCH_ENDPOINT);
   url.searchParams.set("q", q);
   url.searchParams.set("type", "municipality");
   url.searchParams.set("limit", String(opts.limit ?? 5));

@@ -202,8 +202,32 @@ export async function finalizeLead(input: {
   description: string;
   mediaCount: number;
   messages?: LeadChatMessage[];
+  /** Re-sauvegarde la position juste avant le matching (évite une course GPS → RPC). */
+  lat?: number | null;
+  lng?: number | null;
+  addressLabel?: string | null;
 }): Promise<{ ok: true; estimate: LeadEstimate; artisans: MatchedArtisan[] } | Fail> {
   const supabase = await createSupabaseServerClient();
+
+  if (
+    input.lat != null &&
+    input.lng != null &&
+    Number.isFinite(input.lat) &&
+    Number.isFinite(input.lng)
+  ) {
+    const { data: saved, error: saveError } = await supabase.rpc("update_lead_brief", {
+      p_token: input.token,
+      p_lat: input.lat,
+      p_lng: input.lng,
+      p_address_label: input.addressLabel ?? null,
+    });
+    if (saveError) {
+      console.error("[estimation] finalizeLead update_lead_brief", saveError.message);
+      return fail("save_failed");
+    }
+    const savePayload = saved as { ok?: boolean; error?: string } | null;
+    if (!savePayload?.ok) return fail(savePayload?.error ?? "save_failed");
+  }
 
   const { data, error } = await supabase.rpc("match_lead_to_artisans", {
     p_token: input.token,

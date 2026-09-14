@@ -4,11 +4,14 @@ import { ExternalLink } from "lucide-react";
 import { AppPageHeader } from "@/components/app/app-page-header";
 import { ContactSettingsForm } from "@/components/settings/contact-settings-form";
 import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
+import { LeadMatchingReadiness } from "@/components/settings/lead-matching-readiness";
 import { SubscriptionSettingsSection } from "@/components/settings/subscription-settings-section";
 import { VoiceNumberForm } from "@/components/settings/voice-number-form";
 import { VoiceQuotaSettingsForm } from "@/components/settings/voice-quota-settings-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { backfillArtisanGeocode } from "@/lib/leads/backfill-artisan-geocode";
+import { getArtisanMatchingReadiness } from "@/lib/leads/artisan-matching-readiness";
 import { buildEmbedSnippet } from "@/lib/leads/embed";
 import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
@@ -105,6 +108,8 @@ export default async function ArtisanSettingsPage({
   };
 
   if (profile?.id) {
+    await backfillArtisanGeocode(profile.id);
+
     const contactRes = await supabase
       .from("profiles")
       .select("phone, address_line1, address_line2, postal_code, city, latitude, longitude")
@@ -128,6 +133,19 @@ export default async function ArtisanSettingsPage({
       leadMatchingEnabled = matchingRes.data.lead_matching_enabled ?? true;
     }
   }
+
+  const matchingReadiness = profile
+    ? getArtisanMatchingReadiness({
+        leadMatchingEnabled,
+        trade: profile.trade,
+        tradeCategory: profile.trade_category,
+        addressLine1: contact.address_line1,
+        postalCode: contact.postal_code,
+        city: contact.city,
+        latitude: contact.latitude,
+        longitude: contact.longitude,
+      })
+    : null;
 
   const { data: services } = profile?.id
     ? await supabase
@@ -405,6 +423,7 @@ export default async function ArtisanSettingsPage({
                     de prix, et sa demande t’arrive directement.
                   </p>
                 </div>
+                {matchingReadiness ? <LeadMatchingReadiness readiness={matchingReadiness} /> : null}
                 <EmbedWidgetCard
                   slug={profile.slug}
                   snippet={buildEmbedSnippet(getPublicSiteUrl(), profile.slug, getMarketingSiteUrl())}

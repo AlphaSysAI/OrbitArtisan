@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { StepShell, TradePicker } from "@/components/trades/trade-picker";
+import { useIsSmartphone } from "@/lib/device/use-is-smartphone";
 import { searchBanCities, type BanSuggestion } from "@/lib/geo/ban";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ type Step =
   | { name: "results"; origin: Origin; categoryId: string; tradeId: string; tradeLabel: string };
 
 export function RechercheClient() {
+  const isSmartphone = useIsSmartphone();
   const [step, setStep] = React.useState<Step>({ name: "start" });
 
   function startGeolocation() {
@@ -54,7 +56,11 @@ export function RechercheClient() {
   return (
     <div className="space-y-6">
       {step.name === "start" && (
-        <StartButton onGeolocate={startGeolocation} onManual={() => setStep({ name: "manual-location" })} />
+        <StartButton
+          showGeolocate={isSmartphone}
+          onGeolocate={startGeolocation}
+          onManual={() => setStep({ name: "manual-location" })}
+        />
       )}
 
       {step.name === "locating" && (
@@ -100,7 +106,15 @@ export function RechercheClient() {
   );
 }
 
-function StartButton({ onGeolocate, onManual }: { onGeolocate: () => void; onManual: () => void }) {
+function StartButton({
+  showGeolocate,
+  onGeolocate,
+  onManual,
+}: {
+  showGeolocate: boolean;
+  onGeolocate: () => void;
+  onManual: () => void;
+}) {
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl border bg-card px-6 py-12 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
@@ -109,20 +123,31 @@ function StartButton({ onGeolocate, onManual }: { onGeolocate: () => void; onMan
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Trouve un artisan près de chez toi</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          On te guide pas à pas jusqu’au bon professionnel.
+          {showGeolocate
+            ? "On te guide pas à pas jusqu’au bon professionnel."
+            : "Indique ta ville pour chercher des artisans proches."}
         </p>
       </div>
-      <Button size="lg" className="h-12 gap-2 text-base" onClick={onGeolocate}>
-        <Navigation className="h-5 w-5" />
-        Rechercher un artisan autour de moi
-      </Button>
-      <button
-        type="button"
-        onClick={onManual}
-        className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-      >
-        Saisir ma ville à la place
-      </button>
+      {showGeolocate ? (
+        <>
+          <Button size="lg" className="h-12 gap-2 text-base" onClick={onGeolocate}>
+            <Navigation className="h-5 w-5" />
+            Rechercher un artisan autour de moi
+          </Button>
+          <button
+            type="button"
+            onClick={onManual}
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Saisir ma ville à la place
+          </button>
+        </>
+      ) : (
+        <Button size="lg" className="h-12 gap-2 text-base" onClick={onManual}>
+          <MapPin className="h-5 w-5" />
+          Saisir ma ville
+        </Button>
+      )}
     </div>
   );
 }
