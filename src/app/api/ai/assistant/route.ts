@@ -27,6 +27,8 @@ import { mistralChatParse } from "@/lib/ai/mistral";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { resolveAppointmentDate } from "@/lib/ai/resolve-appointment-when";
 import { formatIsoDateFr, resolveFrenchDateQuery, toIsoDate } from "@/lib/ai/resolve-date";
+import type { AssistantPageContextPayload } from "@/lib/ai/assistant-page-context";
+import { buildAssistantPageContextBlock } from "@/lib/ai/assistant-page-enrichment";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { listArtisanContacts } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -272,6 +274,17 @@ export async function POST(request: Request) {
         .filter(Boolean)
     : [];
 
+  const pageContext =
+    body?.pageContext && typeof body.pageContext === "object"
+      ? ({
+          pathname: String(body.pageContext.pathname ?? ""),
+          pageKey: String(body.pageContext.pageKey ?? ""),
+          label: String(body.pageContext.label ?? ""),
+          entityType: body.pageContext.entityType,
+          entityId: body.pageContext.entityId ? String(body.pageContext.entityId) : undefined,
+        } satisfies AssistantPageContextPayload)
+      : null;
+
   if (!message) {
     return NextResponse.json({ error: "missing_message" }, { status: 400 });
   }
@@ -372,6 +385,8 @@ export async function POST(request: Request) {
       ? linked.map((c) => `- ${c.label}${c.email ? ` <${c.email}>` : ""}`).join("\n")
       : "(aucun client lié pour l’instant)";
 
+  const pageContextBlock = await buildAssistantPageContextBlock(supabase, profile.id, pageContext);
+
   let intent;
   try {
     intent = await mistralChatParse(
@@ -390,12 +405,16 @@ Règles d’or :
 7. clarify seulement si info bloquante pour un devis. Jamais pour une question RDV.
 8. reply courte. Pour answer, une intro suffit (« Je regarde tes RDV… ») — le serveur complète.
 9. date_query et time_query : recopie UNIQUEMENT les mots du message actuel. Si le message n’indique aucun jour (ex. « crée un RDV à 14h pour Dupont » après avoir parlé d’un jour), date_query=null — le serveur reprendra le jour de l’historique. N’invente jamais de date et ne recopie jamais un exemple.
+10. Contexte écran : si l’artisan consulte un devis, une facture ou un client, interprète « ce devis », « cette facture », « ce client » sans redemander.
 
 Chemins navigate_path : /app, /app/rdv, /app/contacts, /app/messages, /app/quotes, /app/quotes/new, /app/invoices, /app/reglages.`,
         },
         {
           role: "user",
-          content: `Clients connus:
+          content: `Contexte écran:
+${pageContextBlock}
+
+Clients connus:
 ${contactDirectory}
 
 ${history.length ? `Historique:\n${history.join("\n")}\n\n` : ""}Message actuel:

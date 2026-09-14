@@ -23,16 +23,15 @@ import { Button } from "@/components/ui/button";
 import { computeAnchoredPanelRect, type AnchorRect } from "@/lib/ui/anchor-panel";
 import { onArtisanAssistantOpen } from "@/lib/ai/assistant-bridge";
 import {
-  QUOTE_NEW_PLACEHOLDER,
-  QUOTE_NEW_STARTERS,
-  QUOTE_NEW_WELCOME,
-} from "@/lib/ai/assistant-quote-context";
-import {
   clampAssistantPosition,
   loadAssistantPosition,
   saveAssistantPosition,
   type AssistantPosition,
 } from "@/lib/ai/assistant-position";
+import {
+  resolveAssistantPageContext,
+  toAssistantPageContextPayload,
+} from "@/lib/ai/assistant-page-context";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -40,6 +39,8 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   action?: AssistantApiResponse["action"];
+  /** Actions rapides proposées selon la page consultée. */
+  suggestions?: string[];
 };
 
 type SpeechRecognitionLike = {
@@ -69,18 +70,10 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-const DEFAULT_WELCOME =
-  "Pose-moi une question ou une action. Ex. « Ai-je des RDV les 27 et 28 août ? » ou « Crée un devis pour Dupont : mur 50 m ».";
-
-const DEFAULT_STARTERS = [
-  "Crée un devis pour mon client…",
-  "Ouvre mes rendez-vous",
-  "Montre mes factures",
-];
-
 export function ArtisanAssistant() {
   const router = useRouter();
   const pathname = usePathname();
+  const pageContext = resolveAssistantPageContext(pathname);
   const isQuoteNewPage = pathname === "/app/quotes/new";
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -89,13 +82,12 @@ export function ArtisanAssistant() {
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [handsFree, setHandsFree] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: "welcome", role: "assistant", content: DEFAULT_WELCOME },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [position, setPosition] = useState<AssistantPosition | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const lastContextKeyRef = useRef<string | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -276,27 +268,42 @@ export function ArtisanAssistant() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const starters = isQuoteNewPage ? QUOTE_NEW_STARTERS : DEFAULT_STARTERS;
   const inputPlaceholder = listening
     ? "Écoute en cours…"
     : handsFree
       ? "Mains libres — parle quand tu veux"
-      : isQuoteNewPage
-        ? QUOTE_NEW_PLACEHOLDER
-        : "Écris ou dicte ta demande…";
+      : pageContext.inputPlaceholder;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const ctx = resolveAssistantPageContext(pathname);
     setMessages((prev) => {
-      if (prev.some((m) => m.role === "user")) return prev;
+      const hasUserMessages = prev.some((m) => m.role === "user");
+      if (!hasUserMessages) {
+        lastContextKeyRef.current = ctx.pageKey;
+        return [
+          {
+            id: "welcome",
+            role: "assistant",
+            content: ctx.welcome,
+            suggestions: ctx.suggestions,
+          },
+        ];
+      }
+      if (lastContextKeyRef.current === ctx.pageKey) return prev;
+      lastContextKeyRef.current = ctx.pageKey;
       return [
+        ...prev,
         {
-          id: "welcome",
+          id: `context-${ctx.pageKey}-${Date.now()}`,
           role: "assistant",
-          content: isQuoteNewPage ? QUOTE_NEW_WELCOME : DEFAULT_WELCOME,
+          content: `Tu es sur ${ctx.label}. Je peux t’aider avec :`,
+          suggestions: ctx.suggestions,
         },
       ];
     });
-  }, [isQuoteNewPage]);
+  }, [pathname, open]);
 
   useEffect(() => {
     return onArtisanAssistantOpen(({ message, handsFree: startHandsFree }) => {
@@ -386,7 +393,12 @@ export function ArtisanAssistant() {
       const res = await fetch("/api/ai/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history, pendingAction }),
+        body: JSON.stringify({
+          message,
+          history,
+          pendingAction,
+          pageContext: toAssistantPageContextPayload(resolveAssistantPageContext(pathname)),
+        }),
       });
       const json = (await res.json().catch(() => null)) as
         | (AssistantApiResponse & { error?: string })
@@ -615,9 +627,8 @@ export function ArtisanAssistant() {
                   </div>
                   <h2 className="font-display text-lg font-semibold tracking-tight">Soline</h2>
                   <p className="text-xs text-muted-foreground">
-                    {isQuoteNewPage
-                      ? "Décris le chantier · je prépare le devis"
-                      : "Voix ou texte · tu valides avant envoi"}
+                    {pageContext.label}
+                    {isQuoteNewPage ? " · décris le chantier" : " · voix ou texte"}
                   </p>
                 </div>
                 <Button
@@ -740,6 +751,22 @@ export function ArtisanAssistant() {
                           {m.action.label ?? "Voir dans l’app"}
                         </Button>
                       ) : null}
+
+                      {m.suggestions?.length ? (
+                        <div className="mt-2.5 flex flex-wrap gap-2">
+                          {m.suggestions.map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              disabled={loading}
+                              onClick={() => void sendMessage(suggestion)}
+                              className="rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-left text-xs font-medium text-foreground transition hover:border-brand/50 hover:bg-brand/10 disabled:opacity-50"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -751,21 +778,6 @@ export function ArtisanAssistant() {
                   </div>
                 ) : null}
               </div>
-
-              {!messages.some((m) => m.role === "user") ? (
-                <div className="flex shrink-0 flex-wrap gap-2 border-t border-border/50 px-4 py-2.5">
-                  {starters.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setInput(s)}
-                      className="rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-brand/40 hover:text-foreground"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
 
               {handsFree ? (
                 <div className="flex shrink-0 items-center justify-between gap-3 border-t border-brand/25 bg-brand/10 px-4 py-2">
