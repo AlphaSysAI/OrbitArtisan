@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StepShell } from "@/components/trades/trade-picker";
 import { MAX_LEAD_CHAT_QUESTIONS, type LeadChatMessage } from "@/lib/leads/chat-schema";
+import { MIN_LEAD_CHAT_QUESTIONS, formatLeadDescription } from "@/lib/leads/chat-turn";
 import { cn } from "@/lib/utils";
 
 export function ChatStep({
@@ -160,9 +161,10 @@ export function ChatStep({
       {!finished && (
         <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
           <span>
-            Question {Math.min(answered + 1, MAX_LEAD_CHAT_QUESTIONS)} sur {MAX_LEAD_CHAT_QUESTIONS} maximum
+            Question {Math.min(answered + 1, MAX_LEAD_CHAT_QUESTIONS)} · {MIN_LEAD_CHAT_QUESTIONS} minimum pour
+            bien cadrer ton besoin
           </span>
-          {answered > 0 && (
+          {answered >= MIN_LEAD_CHAT_QUESTIONS && (
             <button
               type="button"
               className="underline-offset-4 hover:text-foreground hover:underline"
@@ -203,7 +205,7 @@ export function ChatStep({
             size="lg"
             className="w-full"
             disabled={description.trim().length < 10}
-            onClick={() => onDone(description.trim(), messages)}
+            onClick={() => onDone(formatLeadDescription(description.trim(), messages), messages)}
           >
             Continuer
           </Button>

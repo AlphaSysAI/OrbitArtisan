@@ -33,7 +33,8 @@ export const LEAD_CHAT_JSON_SCHEMA: Record<string, unknown> = {
     },
     done: {
       type: "boolean",
-      description: "true dès que le besoin est suffisamment décrit pour un artisan.",
+      description:
+        "true uniquement après au moins 3 questions posées et répondues, quand nature, localisation, dimensions et urgence sont couverts.",
     },
     summary: {
       type: "string",

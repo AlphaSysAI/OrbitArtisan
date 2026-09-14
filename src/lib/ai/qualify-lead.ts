@@ -43,9 +43,11 @@ Règles :
   const userPrompt = `Métier demandé : ${trade}
 ${params.mediaCount ? `Le client a joint ${params.mediaCount} photo(s) ou vidéo(s) que tu ne peux pas voir : n'en tire aucune conclusion.` : "Aucun média joint."}
 
-${transcript ? `Échange de qualification :\n${transcript}\n` : ""}
-Demande finale du client :
-${params.description}`;
+${transcript ? `Échange de qualification (questions/réponses — source principale pour le détail) :\n${transcript}\n` : ""}
+Demande reformulée transmise aux artisans :
+${params.description}
+
+Consigne : extrais chaque détail concret (localisation, dimensions, quantités, urgence, matériaux) depuis l'échange ET la description. Ne généralise pas.`;
 
   const qualification = await mistralChatParse(
     LeadQualificationSchema,

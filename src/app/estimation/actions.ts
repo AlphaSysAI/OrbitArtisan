@@ -1,13 +1,15 @@
 "use server";
 
-import { qualifyLead } from "@/lib/ai/qualify-lead";
-import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
 import type { LeadChatMessage } from "@/lib/leads/chat-schema";
 import { prepareLeadClientSignup } from "@/lib/leads/client-signup";
 import type { LeadSignupOffer } from "@/lib/leads/client-signup-types";
 import { dispatchLeadToArtisans } from "@/lib/leads/dispatch-lead";
-import { estimateLeadRange } from "@/lib/leads/estimate";
-import { buildEstimate, resolvePricingContext } from "@/lib/leads/pricing";
+import { fillLeadQuoteDrafts } from "@/lib/leads/fill-lead-quote-drafts";
+import {
+  prefetchLeadQualification,
+  resolveLeadEstimate,
+  type LeadEstimateInput,
+} from "@/lib/leads/lead-estimate";
 import {
   LEAD_MEDIA_BUCKET,
   type LeadEstimate,
@@ -15,7 +17,8 @@ import {
   type MatchedArtisan,
 } from "@/lib/leads/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { findTrade, findTradeCategory, isValidTradeSelection } from "@/lib/trades/taxonomy";
+import { isValidTradeSelection } from "@/lib/trades/taxonomy";
+import { after } from "next/server";
 
 /**
  * Tunnel d'estimation public : le prospect n'a pas de compte. Toutes les
@@ -248,15 +251,7 @@ export async function finalizeLead(input: {
 
   const matches = noArtisan ? [] : (payload?.matches ?? []);
 
-  const estimate = await computeLeadEstimate(supabase, {
-    token: input.token,
-    categoryId: input.categoryId,
-    tradeId: input.tradeId ?? null,
-    description: input.description,
-    mediaCount: input.mediaCount,
-    messages: input.messages,
-    artisanIds: matches.map((m) => m.artisan_id),
-  });
+  const estimate = await resolveLeadEstimate(supabase, leadEstimateInput(input, matches));
 
   const artisans = await loadMatchedArtisans(supabase, matches);
   return { ok: true, estimate, artisans };
@@ -287,7 +282,51 @@ export async function finalizeWidgetLead(input: {
   }
 
   const matches = payload.matches ?? [];
-  const estimate = await computeLeadEstimate(supabase, {
+  const estimate = await resolveLeadEstimate(supabase, leadEstimateInput(input, matches));
+
+  const artisans = await loadMatchedArtisans(supabase, matches);
+  return { ok: true, estimate, artisan: artisans[0] ?? null };
+}
+
+/** Qualification IA en arrière-plan (pendant photos / adresse). */
+export async function warmupLeadQualification(input: {
+  token: string;
+  categoryId: string;
+  tradeId?: string | null;
+  description: string;
+  mediaCount: number;
+  messages?: LeadChatMessage[];
+}): Promise<{ ok: true } | Fail> {
+  after(async () => {
+    try {
+      await prefetchLeadQualification({
+        token: input.token,
+        categoryId: input.categoryId,
+        tradeId: input.tradeId ?? null,
+        description: input.description,
+        mediaCount: input.mediaCount,
+        messages: input.messages,
+        artisanIds: [],
+      });
+    } catch (err) {
+      console.error("[estimation] warmupLeadQualification", err instanceof Error ? err.message : err);
+    }
+  });
+  return { ok: true };
+}
+
+function leadEstimateInput(
+  input: {
+    token: string;
+    categoryId: string;
+    tradeId?: string | null;
+    description: string;
+    mediaCount: number;
+    messages?: LeadChatMessage[];
+  },
+  matches: MatchRpcRow[],
+): LeadEstimateInput {
+  return {
     token: input.token,
     categoryId: input.categoryId,
     tradeId: input.tradeId ?? null,
@@ -295,67 +334,7 @@ export async function finalizeWidgetLead(input: {
     mediaCount: input.mediaCount,
     messages: input.messages,
     artisanIds: matches.map((m) => m.artisan_id),
-  });
-
-  const artisans = await loadMatchedArtisans(supabase, matches);
-  return { ok: true, estimate, artisan: artisans[0] ?? null };
-}
-
-/**
- * Qualification IA + chiffrage, persistés sur le lead. Si l'IA est
- * indisponible, on retombe sur l'heuristique par mots-clés : le prospect voit
- * toujours une fourchette.
- */
-async function computeLeadEstimate(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  input: {
-    token: string;
-    categoryId: string;
-    tradeId: string | null;
-    description: string;
-    mediaCount: number;
-    messages?: LeadChatMessage[];
-    artisanIds: string[];
-  },
-): Promise<LeadEstimate> {
-  let estimate: LeadEstimate | null = null;
-  let qualification: LeadQualification | null = null;
-
-  try {
-    qualification = await qualifyLead({
-      description: input.description,
-      categoryLabel: findTradeCategory(input.categoryId)?.label ?? null,
-      tradeLabel: findTrade(input.categoryId, input.tradeId)?.label ?? null,
-      messages: input.messages,
-      mediaCount: input.mediaCount,
-    });
-
-    const pricing = await resolvePricingContext(supabase, {
-      artisanIds: input.artisanIds,
-      categoryId: input.categoryId,
-    });
-    estimate = buildEstimate(qualification, pricing);
-  } catch (err) {
-    console.error("[estimation] qualification IA", err instanceof Error ? err.message : err);
-  }
-
-  if (!estimate) {
-    estimate = estimateLeadRange({
-      categoryId: input.categoryId,
-      description: input.description,
-      mediaCount: input.mediaCount,
-    });
-  }
-
-  const { error } = await supabase.rpc("set_lead_estimate", {
-    p_token: input.token,
-    p_min: estimate.min,
-    p_max: estimate.max,
-    p_qualification: qualification,
-  });
-  if (error) console.error("[estimation] set_lead_estimate", error.message);
-
-  return estimate;
+  };
 }
 
 export async function submitLeadContact(input: {
@@ -401,6 +380,14 @@ export async function submitLeadContact(input: {
     console.error("[estimation] dispatch-lead", dispatch.error);
     if (dispatch.error === "no_matches") warning = "no_artisans";
     else if (dispatch.error === "dispatch_unavailable") warning = "dispatch_pending";
+  } else if (dispatch.dispatched > 0) {
+    after(async () => {
+      try {
+        await fillLeadQuoteDrafts(input.token);
+      } catch (err) {
+        console.error("[estimation] fill-lead-quote-drafts", err instanceof Error ? err.message : err);
+      }
+    });
   }
 
   const signup = email ? await prepareLeadClientSignup(input.token) : undefined;

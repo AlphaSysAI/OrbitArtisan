@@ -30,6 +30,7 @@ import {
   saveLeadBrief,
   startLead,
   submitLeadContact,
+  warmupLeadQualification,
 } from "./actions";
 import { ChatStep } from "./chat-step";
 import { LocationStep, type LeadLocation } from "./location-step";
@@ -58,7 +59,6 @@ type Screen =
   | { name: "media" }
   | { name: "location" }
   | { name: "result" }
-  | { name: "contact" }
   | { name: "sent"; leadToken: string; signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" };
 
 const euros = new Intl.NumberFormat("fr-FR", {
@@ -188,7 +188,7 @@ export function EstimationWizard({
           ? presetTrade
             ? 1
             : 2
-          : screen.name === "result" || screen.name === "contact" || screen.name === "sent"
+          : screen.name === "result" || screen.name === "sent"
             ? presetTrade
               ? 2
               : 3
@@ -241,7 +241,19 @@ export function EstimationWizard({
           token={state.session.token}
           onBack={() => setScreen({ name: "chat" })}
           onDone={(count) => {
+            const session = state.session;
+            const trade = state.trade;
             setState((s) => ({ ...s, mediaCount: count }));
+            if (session && trade) {
+              void warmupLeadQualification({
+                token: session.token,
+                categoryId: trade.categoryId,
+                tradeId: trade.tradeId,
+                description: state.description,
+                mediaCount: count,
+                messages: state.messages,
+              });
+            }
             setScreen(directToOwner ? { name: "result" } : { name: "location" });
           }}
         />
@@ -265,9 +277,14 @@ export function EstimationWizard({
           mediaCount={state.mediaCount}
           owner={owner}
           onBack={() => setScreen({ name: "media" })}
-          onAccept={(artisans) => {
+          onSent={(artisans, payload) => {
             setState((s) => ({ ...s, matchedArtisans: artisans }));
-            setScreen({ name: "contact" });
+            setScreen({
+              name: "sent",
+              leadToken: state.session!.token,
+              signup: payload.signup,
+              warning: payload.warning,
+            });
           }}
         />
       )}
@@ -284,27 +301,15 @@ export function EstimationWizard({
           location={state.location}
           ownerSlug={originArtisanSlug}
           onBack={() => setScreen({ name: "location" })}
-          onAccept={(artisans) => {
+          onSent={(artisans, payload) => {
             setState((s) => ({ ...s, matchedArtisans: artisans }));
-            setScreen({ name: "contact" });
-          }}
-        />
-      )}
-
-      {screen.name === "contact" && state.session && (
-        <ContactStep
-          token={state.session.token}
-          mode={directToOwner ? "widget" : "general"}
-          ownerName={owner?.businessName ?? null}
-          onBack={() => setScreen({ name: "result" })}
-          onSent={(payload) =>
             setScreen({
               name: "sent",
               leadToken: state.session!.token,
               signup: payload.signup,
               warning: payload.warning,
-            })
-          }
+            });
+          }}
         />
       )}
 
@@ -380,7 +385,7 @@ function WidgetResultStep({
   mediaCount,
   owner,
   onBack,
-  onAccept,
+  onSent,
 }: {
   token: string;
   categoryId: string;
@@ -391,7 +396,10 @@ function WidgetResultStep({
   mediaCount: number;
   owner: WidgetOwner;
   onBack: () => void;
-  onAccept: (artisans: MatchedArtisan[]) => void;
+  onSent: (
+    artisans: MatchedArtisan[],
+    payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" },
+  ) => void;
 }) {
   const [state, setState] = React.useState<
     | { status: "loading" }
@@ -471,16 +479,13 @@ function WidgetResultStep({
         </p>
       </div>
 
-      <Button
-        type="button"
-        size="lg"
-        className="w-full gap-2"
-        onClick={() => onAccept(artisan ? [artisan] : [])}
+      <LeadContactForm
+        token={token}
+        mode="widget"
+        ownerName={owner.businessName}
         disabled={!artisan}
-      >
-        <Send className="h-4 w-4" />
-        Envoyer ma demande à {owner.businessName}
-      </Button>
+        onSent={(payload) => onSent(artisan ? [artisan] : [], payload)}
+      />
     </StepShell>
   );
 }
@@ -496,7 +501,7 @@ function ResultStep({
   location,
   ownerSlug,
   onBack,
-  onAccept,
+  onSent,
 }: {
   token: string;
   categoryId: string;
@@ -508,7 +513,10 @@ function ResultStep({
   location: LeadLocation;
   ownerSlug: string | null;
   onBack: () => void;
-  onAccept: (artisans: MatchedArtisan[]) => void;
+  onSent: (
+    artisans: MatchedArtisan[],
+    payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" },
+  ) => void;
 }) {
   const [state, setState] = React.useState<
     | { status: "loading" }
@@ -638,30 +646,27 @@ function ResultStep({
         </ul>
       </div>
 
-      <Button
-        type="button"
-        size="lg"
-        className="w-full gap-2"
-        onClick={() => onAccept(state.artisans)}
-      >
-        <Send className="h-4 w-4" />
-        Envoyer ma demande
-      </Button>
+      <LeadContactForm
+        token={token}
+        mode="general"
+        ownerName={null}
+        onSent={(payload) => onSent(state.artisans, payload)}
+      />
     </StepShell>
   );
 }
 
-function ContactStep({
+function LeadContactForm({
   token,
   mode,
   ownerName,
-  onBack,
+  disabled = false,
   onSent,
 }: {
   token: string;
   mode: "widget" | "general";
   ownerName: string | null;
-  onBack: () => void;
+  disabled?: boolean;
   onSent: (payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" }) => void;
 }) {
   const [firstName, setFirstName] = React.useState("");
@@ -703,16 +708,15 @@ function ContactStep({
   }
 
   return (
-    <StepShell
-      title="Comment te recontacter ?"
-      subtitle={
-        mode === "widget" && ownerName
-          ? `${ownerName} te recontactera par téléphone`
-          : "Dernière étape — aucun compte à créer"
-      }
-      onBack={onBack}
-    >
-      <form onSubmit={submit} className="space-y-4 rounded-2xl border bg-card p-5">
+    <form onSubmit={submit} className="space-y-4 rounded-2xl border bg-card p-5">
+      <div>
+        <p className="text-sm font-medium">Tes coordonnées</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {mode === "widget" && ownerName
+            ? `${ownerName} te recontactera par téléphone`
+            : "Dernière étape — aucun compte à créer"}
+        </p>
+      </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="lead_first_name">Prénom</Label>
@@ -776,11 +780,10 @@ function ContactStep({
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button type="submit" size="lg" className="w-full gap-2" disabled={pending}>
+        <Button type="submit" size="lg" className="w-full gap-2" disabled={pending || disabled}>
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Envoyer ma demande
+          {mode === "widget" && ownerName ? `Envoyer à ${ownerName}` : "Envoyer ma demande"}
         </Button>
-      </form>
-    </StepShell>
+    </form>
   );
 }

@@ -3,7 +3,6 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
-import { buildLeadQuoteDraft } from "@/lib/leads/build-lead-quote-draft";
 import { buildLeadRecapMessage } from "@/lib/leads/lead-recap-message";
 import { LEAD_MEDIA_BUCKET } from "@/lib/leads/types";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -95,17 +94,17 @@ export async function dispatchLeadToArtisans(token: string): Promise<DispatchLea
     if (typeof uid === "string") customerUserId = uid;
   }
 
-  let dispatched = 0;
-
-  for (const match of pending) {
-    const sent = await dispatchToArtisan(admin, {
-      lead: leadRow,
-      match,
-      media,
-      customerUserId,
-    });
-    if (sent) dispatched += 1;
-  }
+  const results = await Promise.all(
+    pending.map((match) =>
+      dispatchToArtisan(admin, {
+        lead: leadRow,
+        match,
+        media,
+        customerUserId,
+      }),
+    ),
+  );
+  const dispatched = results.filter(Boolean).length;
 
   if (dispatched > 0) {
     await admin
@@ -191,38 +190,12 @@ async function dispatchToArtisan(
     if (attachError) console.error("[dispatch-lead] attachments", attachError.message);
   }
 
-  let quoteDraft = null;
-  try {
-    quoteDraft = await buildLeadQuoteDraft({
-      supabase: admin,
-      leadMatchId: match.id,
-      artisanId: profile.id,
-      profile: {
-        business_name: profile.business_name,
-        description: profile.description,
-        labor_rate_per_hour: profile.labor_rate_per_hour,
-      },
-      lead: {
-        description: lead.description,
-        contact_name: lead.contact_name,
-        contact_email: lead.contact_email,
-        estimate_min: lead.estimate_min,
-        estimate_max: lead.estimate_max,
-        trade_category: lead.trade_category,
-        trade: lead.trade,
-        ai_qualification: lead.ai_qualification,
-      },
-    });
-  } catch (err) {
-    console.error("[dispatch-lead] quote draft", err instanceof Error ? err.message : err);
-  }
-
   const { error: updateError } = await admin
     .from("lead_matches")
     .update({
       conversation_id: conversationId,
-      quote_draft: quoteDraft,
-      quote_draft_created: quoteDraft != null,
+      quote_draft: null,
+      quote_draft_created: false,
     })
     .eq("id", match.id)
     .is("conversation_id", null);

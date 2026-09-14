@@ -6,6 +6,11 @@ import {
   MAX_LEAD_CHAT_QUESTIONS,
   type LeadChatMessage,
 } from "@/lib/leads/chat-schema";
+import {
+  MIN_LEAD_CHAT_QUESTIONS,
+  fallbackChatQuestion,
+  normalizeChatTurn,
+} from "@/lib/leads/chat-turn";
 import { mistralChatParse } from "@/lib/ai/mistral";
 
 export const runtime = "nodejs";
@@ -15,13 +20,12 @@ const MAX_CONTENT = 600;
 
 /** Repli si l'IA est indisponible : le tunnel ne doit jamais se bloquer. */
 function fallbackTurn(answered: number, tradeLabel: string) {
-  const questions = [
-    `Décris-moi le problème ou le projet en quelques mots (${tradeLabel.toLowerCase()}).`,
-    "Depuis quand est-ce que ça dure, et est-ce urgent ?",
-    "Peux-tu préciser les dimensions, la surface ou le nombre d’éléments concernés ?",
-  ];
-  const question = questions[answered] ?? null;
-  return { question, done: question === null, summary: "" };
+  const question = fallbackChatQuestion(answered, tradeLabel);
+  return {
+    question,
+    done: question === null,
+    summary: "",
+  };
 }
 
 export async function POST(request: Request) {
@@ -44,7 +48,6 @@ export async function POST(request: Request) {
 
   const answered = messages.filter((m) => m.role === "user").length;
 
-  // Garde-fou : on ne laisse pas l'IA prolonger l'interrogatoire indéfiniment.
   if (answered >= MAX_LEAD_CHAT_QUESTIONS) {
     const summary = messages
       .filter((m) => m.role === "user")
@@ -63,20 +66,25 @@ export async function POST(request: Request) {
       [
         {
           role: "system",
-          content: `Tu qualifies la demande d'un particulier pour un artisan « ${tradeLabel} ».
-Règles :
+          content: `Tu qualifies la demande d'un particulier pour un artisan « ${tradeLabel} » via un mini-questionnaire.
+Règles impératives :
 1. UNE seule question à la fois, courte, concrète, en français, tutoiement.
-2. Questions utiles à un chiffrage : nature exacte du problème, localisation dans le logement, ancienneté, dimensions ou surface, urgence, matériel existant.
-3. Ne demande JAMAIS le nom, l'e-mail, le téléphone ni l'adresse : c'est géré ailleurs dans le parcours.
-4. Ne donne aucun prix, aucun conseil technique, aucun diagnostic.
-5. done=true dès que tu as de quoi décrire le chantier (${MAX_LEAD_CHAT_QUESTIONS} questions maximum).
-6. summary : le besoin reformulé à la 1re personne (« Je dois… »), 1 à 3 phrases, sans invention.`,
+2. Ne mets JAMAIS done=true avant d'avoir posé au moins ${MIN_LEAD_CHAT_QUESTIONS} questions distinctes et reçu les réponses — sauf plafond atteint (${MAX_LEAD_CHAT_QUESTIONS} questions max).
+3. Suis cet ordre de collecte (une question par thème, approfondis si la réponse est vague) :
+   a) Nature exacte du besoin ou du problème
+   b) Localisation précise (pièce, étage, intérieur/extérieur, type de logement)
+   c) Dimensions, surface, quantité ou étendue
+   d) Ancienneté, urgence, contraintes d'accès, matériel ou revêtement existant
+4. Chaque question doit s'appuyer sur la réponse précédente : creuse les flous, ne repose pas une question déjà bien couverte.
+5. Ne demande JAMAIS nom, e-mail, téléphone ni adresse.
+6. Ne donne aucun prix, conseil technique ni diagnostic.
+7. summary (quand done=true) : synthèse complète à la 1re personne (« Je dois… »), 2 à 4 phrases, sans invention, intégrant toutes les réponses.`,
         },
         {
           role: "user",
           content: transcript
-            ? `Échange en cours :\n${transcript}\n\nDonne la prochaine question, ou termine.`
-            : "Aucun échange pour l'instant : pose la première question.",
+            ? `Échange en cours (${answered} réponse(s) client) :\n${transcript}\n\nPose la prochaine question utile, ou termine si les ${MIN_LEAD_CHAT_QUESTIONS} thèmes sont couverts.`
+            : "Aucun échange : pose la première question sur la nature exacte du besoin.",
         },
       ],
       "lead_chat_turn",
@@ -86,13 +94,8 @@ Règles :
       },
     );
 
-    // Cohérence : pas de question ⇒ terminé, et inversement.
-    const done = turn.done || !turn.question;
-    return NextResponse.json({
-      question: done ? null : turn.question,
-      done,
-      summary: turn.summary,
-    });
+    const normalized = normalizeChatTurn(turn, answered, tradeLabel, messages);
+    return NextResponse.json(normalized);
   } catch (err) {
     console.error("[estimation/chat]", err instanceof Error ? err.message : err);
     return NextResponse.json(fallbackTurn(answered, tradeLabel));
