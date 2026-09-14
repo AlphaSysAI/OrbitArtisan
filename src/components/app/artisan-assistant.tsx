@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
   ArrowUp,
@@ -21,6 +21,12 @@ import { persistAiQuoteDraft } from "@/lib/ai/map-quote-draft";
 import { formatIsoDateFr } from "@/lib/ai/resolve-date";
 import { Button } from "@/components/ui/button";
 import { computeAnchoredPanelRect, type AnchorRect } from "@/lib/ui/anchor-panel";
+import { onArtisanAssistantOpen } from "@/lib/ai/assistant-bridge";
+import {
+  QUOTE_NEW_PLACEHOLDER,
+  QUOTE_NEW_STARTERS,
+  QUOTE_NEW_WELCOME,
+} from "@/lib/ai/assistant-quote-context";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -54,7 +60,10 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-const STARTERS = [
+const DEFAULT_WELCOME =
+  "Pose-moi une question ou une action. Ex. « Ai-je des RDV les 27 et 28 août ? » ou « Crée un devis pour Dupont : mur 50 m ».";
+
+const DEFAULT_STARTERS = [
   "Crée un devis pour mon client…",
   "Ouvre mes rendez-vous",
   "Montre mes factures",
@@ -62,6 +71,8 @@ const STARTERS = [
 
 export function ArtisanAssistant() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isQuoteNewPage = pathname === "/app/quotes/new";
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [panelRect, setPanelRect] = useState<AnchorRect | null>(null);
@@ -70,12 +81,7 @@ export function ArtisanAssistant() {
   const [listening, setListening] = useState(false);
   const [handsFree, setHandsFree] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-        content:
-          "Pose-moi une question ou une action. Ex. « Ai-je des RDV les 27 et 28 août ? » ou « Crée un devis pour Dupont : mur 50 m ».",
-    },
+    { id: "welcome", role: "assistant", content: DEFAULT_WELCOME },
   ]);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -219,6 +225,42 @@ export function ArtisanAssistant() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  const starters = isQuoteNewPage ? QUOTE_NEW_STARTERS : DEFAULT_STARTERS;
+  const inputPlaceholder = listening
+    ? "Écoute en cours…"
+    : handsFree
+      ? "Mains libres — parle quand tu veux"
+      : isQuoteNewPage
+        ? QUOTE_NEW_PLACEHOLDER
+        : "Écris ou dicte ta demande…";
+
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.role === "user")) return prev;
+      return [
+        {
+          id: "welcome",
+          role: "assistant",
+          content: isQuoteNewPage ? QUOTE_NEW_WELCOME : DEFAULT_WELCOME,
+        },
+      ];
+    });
+  }, [isQuoteNewPage]);
+
+  useEffect(() => {
+    return onArtisanAssistantOpen(({ message, handsFree: startHandsFree }) => {
+      setOpen(true);
+      if (message?.trim()) setInput(message.trim());
+
+      if (startHandsFree) {
+        handsFreeRef.current = true;
+        silentRunsRef.current = 0;
+        setHandsFree(true);
+        window.setTimeout(() => startListeningRef.current(), 300);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -417,6 +459,9 @@ export function ArtisanAssistant() {
           "shadow-[0_10px_30px_oklch(0.55_0.13_55/0.4)] transition-transform hover:scale-[1.03]",
           "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/35",
           open && "ring-4 ring-brand/30",
+          isQuoteNewPage &&
+            !open &&
+            "animate-pulse ring-4 ring-brand/45 ring-offset-2 ring-offset-background",
         )}
         style={{ marginBottom: "env(safe-area-inset-bottom)" }}
         aria-expanded={open}
@@ -427,7 +472,7 @@ export function ArtisanAssistant() {
         ) : (
           <Sparkles className="size-5 shrink-0" strokeWidth={2.5} />
         )}
-        <span>Soline</span>
+        <span>{isQuoteNewPage && !open ? "Décrire le devis" : "Soline"}</span>
       </button>
 
       {mounted && open && panelRect
@@ -455,7 +500,11 @@ export function ArtisanAssistant() {
                     </p>
                   </div>
                   <h2 className="font-display text-lg font-semibold tracking-tight">Soline</h2>
-                  <p className="text-xs text-muted-foreground">Voix ou texte · tu valides avant envoi</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isQuoteNewPage
+                      ? "Décris le chantier · je prépare le devis"
+                      : "Voix ou texte · tu valides avant envoi"}
+                  </p>
                 </div>
                 <Button
                   type="button"
@@ -591,7 +640,7 @@ export function ArtisanAssistant() {
 
               {!messages.some((m) => m.role === "user") ? (
                 <div className="flex shrink-0 flex-wrap gap-2 border-t border-border/50 px-4 py-2.5">
-                  {STARTERS.map((s) => (
+                  {starters.map((s) => (
                     <button
                       key={s}
                       type="button"
@@ -658,13 +707,7 @@ export function ArtisanAssistant() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   rows={2}
-                  placeholder={
-                    listening
-                      ? "Écoute en cours…"
-                      : handsFree
-                        ? "Mains libres — parle quand tu veux"
-                        : "Écris ou dicte ta demande…"
-                  }
+                  placeholder={inputPlaceholder}
                   className="max-h-28 min-h-11 flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {

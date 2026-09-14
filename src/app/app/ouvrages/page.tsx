@@ -4,9 +4,11 @@ import { AppPageHeader } from "@/components/app/app-page-header";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { listWorkCategories, listWorkItems } from "@/lib/work-library/actions";
+import { listPlatformCatalogForProfile } from "@/lib/work-library/platform-catalog-actions";
+import { isTradeConfigured } from "@/lib/work-library/platform-catalog";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-import { WorkLibraryManager } from "./work-library-manager";
+import { OuvragesClientShell } from "./ouvrages-client-shell";
 
 export default async function OuvragesPage() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -20,7 +22,7 @@ export default async function OuvragesPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, labor_rate_per_hour")
+    .select("id, labor_rate_per_hour, trade_category, trade")
     .eq("user_id", user!.id)
     .maybeSingle();
 
@@ -41,16 +43,28 @@ export default async function OuvragesPage() {
     );
   }
 
-  const [itemsRes, categoriesRes] = await Promise.all([listWorkItems(), listWorkCategories()]);
+  const [itemsRes, categoriesRes, platformRes] = await Promise.all([
+    listWorkItems(),
+    listWorkCategories(),
+    listPlatformCatalogForProfile(),
+  ]);
   const hourlyRate = profile.labor_rate_per_hour != null ? profile.labor_rate_per_hour / 100 : 45;
+
+  const tradeConfigured = isTradeConfigured(profile.trade_category, profile.trade);
+  const platformItems = platformRes.ok ? platformRes.items : [];
+  const platformTradeLabel = platformRes.ok ? platformRes.tradeLabel : null;
 
   return (
     <div className="space-y-8">
       <AppPageHeader
         title="Bibliothèque d'ouvrages"
-        description="Gère ton catalogue de prix BTP : ouvrages, marges, import et export CSV."
+        description="Catalogue Soline filtré par métier, plus ta bibliothèque personnelle (import CSV, marges)."
       />
-      <WorkLibraryManager
+
+      <OuvragesClientShell
+        platformItems={platformItems}
+        platformTradeLabel={platformTradeLabel}
+        tradeConfigured={tradeConfigured}
         initialItems={itemsRes.ok ? itemsRes.items : []}
         categories={categoriesRes.ok ? categoriesRes.items : []}
         defaultHourlyRateHt={hourlyRate}

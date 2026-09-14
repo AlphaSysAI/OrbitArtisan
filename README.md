@@ -1,292 +1,348 @@
-# Soline — Documentation technique et fonctionnelle
-
-**Document de description de création**
+# Soline — Documentation du projet OrbitArtisan
 
 | | |
 |---|---|
-| **Produit** | Soline — Secrétariat IA & Gestion pour artisans du BTP |
-| **Éditeur** | AlphaSysAI (Entreprise individuelle) |
-| **Dirigeant** | Florian LAPERTOT |
-| **Siège** | 4 Rue Barbès, 11700 Capendu, France |
-| **SIREN** | 105815633 |
-| **SIRET** | 10581563300018 |
+| **Produit** | Soline — Secrétariat IA & gestion pour artisans du BTP |
+| **Dépôt Git** | OrbitArtisan (nom interne) |
+| **Éditeur** | AlphaSysAI — Florian LAPERTOT |
+| **Site marketing** | [solinebtp.fr](https://solinebtp.fr) |
+| **Application** | [app.solinebtp.fr](https://app.solinebtp.fr) |
 | **Contact** | contact@alphasys.tech |
-| **Site public** | solinebtp.fr |
-| **Application** | app.solinebtp.fr |
-| **Date de rédaction** | 14 août 2026 |
-| **Dépôt source** | OrbitArtisan (nom interne du dépôt Git) |
+
+Ce document décrit **comment fonctionne le projet** : architecture, flux métier, intégrations et déploiement. Une **partie Résumé** en fin de document présente le produit comme un pitch commercial.
 
 ---
 
 ## Table des matières
 
-1. [Résumé exécutif](#1-résumé-exécutif)
-2. [Problème adressé et proposition de valeur](#2-problème-adressé-et-proposition-de-valeur)
-3. [Utilisateurs et rôles](#3-utilisateurs-et-rôles)
-4. [Fonctionnalités détaillées](#4-fonctionnalités-détaillées)
-5. [Parcours utilisateurs (flux métier)](#5-parcours-utilisateurs-flux-métier)
-6. [Intelligence artificielle](#6-intelligence-artificielle)
-7. [Secrétariat vocal Soline (Twilio + agent vocal)](#7-secrétariat-vocal-soline-twilio--agent-vocal)
-8. [Tunnel de leads et acquisition prospects](#8-tunnel-de-leads-et-acquisition-prospects)
-9. [Facturation, devis et conformité légale](#9-facturation-devis-et-conformité-légale)
-10. [Modèle économique et tarification](#10-modèle-économique-et-tarification)
-11. [Architecture technique](#11-architecture-technique)
-12. [Schéma de données](#12-schéma-de-données)
-13. [API et intégrations externes](#13-api-et-intégrations-externes)
-14. [Sécurité et conformité RGPD](#14-sécurité-et-conformité-rgpd)
-15. [Éléments distinctifs et originalité](#15-éléments-distinctifs-et-originalité)
-16. [État d'avancement et évolutions prévues](#16-état-davancement-et-évolutions-prévues)
-17. [Annexes](#annexes)
+1. [Vue d'ensemble](#1-vue-densemble)
+2. [Stack technique](#2-stack-technique)
+3. [Structure du dépôt](#3-structure-du-dépôt)
+4. [Domaines et routage](#4-domaines-et-routage)
+5. [Utilisateurs, auth et sécurité d'accès](#5-utilisateurs-auth-et-sécurité-daccès)
+6. [Espaces et modules fonctionnels](#6-espaces-et-modules-fonctionnels)
+7. [Flux métier principaux](#7-flux-métier-principaux)
+8. [Intelligence artificielle](#8-intelligence-artificielle)
+9. [Secrétariat vocal Soline](#9-secrétariat-vocal-soline)
+10. [Facturation, conformité et paiements](#10-facturation-conformité-et-paiements)
+11. [Recouvrement des impayés](#11-recouvrement-des-impayés)
+12. [Tunnel de leads et acquisition](#12-tunnel-de-leads-et-acquisition)
+13. [Modèle économique](#13-modèle-économique)
+14. [Base de données et migrations](#14-base-de-données-et-migrations)
+15. [API, webhooks et crons](#15-api-webhooks-et-crons)
+16. [Variables d'environnement](#16-variables-denvironnement)
+17. [Développement local](#17-développement-local)
+18. [Déploiement (Vercel)](#18-déploiement-vercel)
+19. [Résumé — ce que fait Soline](#19-résumé--ce-que-fait-soline)
 
 ---
 
-## 1. Résumé exécutif
+## 1. Vue d'ensemble
 
-**Soline** est une plateforme SaaS (Software as a Service) destinée aux **artisans et TPE du bâtiment** (plomberie, électricité, couverture, maçonnerie, etc.). Elle centralise l'ensemble de l'activité commerciale et administrative d'un artisan :
+Soline est une **application web SaaS** (Progressive Web App) construite avec **Next.js App Router**. Elle centralise l'activité commerciale et administrative des artisans du bâtiment dans une seule plateforme.
 
-- création et suivi de **devis** et **factures** ;
-- **planning** et prise de rendez-vous ;
-- **messagerie** avec les clients ;
-- **site vitrine** public et **widget embarquable** sur sites tiers ;
-- **qualification automatique de prospects** via un tunnel d'estimation alimenté par IA ;
-- **secrétaire vocale intelligente** (Soline) disponible 24h/24 pour répondre aux appels et prendre des RDV ;
-- **facturation électronique** conforme à la réglementation française (Factur-X, e-invoicing B2B, e-reporting B2C).
+### Principes d'architecture
 
-L'originalité du produit réside dans l'**orchestration bout-en-bout** : un prospect anonyme peut décrire son besoin (texte, photos, localisation), être qualifié par IA, être géolocalisé et matché avec 2 à 3 artisans proches, puis voir son dossier **dispatché automatiquement** dans la messagerie de chaque artisan avec un **brouillon de devis pré-rempli** — le tout sans que le prospect ait besoin de créer un compte au départ.
-
----
-
-## 2. Problème adressé et proposition de valeur
-
-### 2.1 Problèmes des artisans BTP
-
-| Problème | Réponse Soline |
+| Principe | Implémentation |
 |----------|----------------|
-| Perte d'appels pendant les chantiers | Secrétaire vocale IA (Soline) avec prise de RDV automatique |
-| Devis longs à rédiger | Assistant IA + génération de brouillon depuis chat ou lead |
-| Prospects non qualifiés | Tunnel d'estimation avec chat IA, fourchette de prix, matching géo |
-| Multi-outils (Excel, WhatsApp, agenda papier) | Plateforme unifiée : devis, factures, RDV, messages |
-| Facturation électronique obligatoire (2026+) | Pipeline Factur-X + Plateforme Agréée + e-reporting B2C |
-| Visibilité en ligne limitée | Vitrine publique + widget embed pour site existant |
+| Rendu | Server Components Next.js + Server Actions pour les mutations |
+| API | Route Handlers (`/api/*`) pour REST, webhooks et crons |
+| Données | Supabase (PostgreSQL + Auth + Storage + RLS) |
+| Multi-tenant | Chaque artisan ne voit que ses données (RLS) ; opérations cross-tenant via service role |
+| IA | Mistral AI (texte) ; agent vocal ElevenLabs (voix) branché par tools REST |
+| Paiements | Stripe (Connect pour encaissement artisan, Checkout pour factures client, Billing pour abonnements) |
 
-### 2.2 Proposition de valeur
+### Schéma global
 
-Soline positionne l'artisan comme **professionnel digitalisé** : il reçoit des leads qualifiés, répond par la voix ou le chat, convertit en devis signés, facture conformément à la loi, et encaisse via Stripe — depuis une seule application web progressive (PWA).
-
----
-
-## 3. Utilisateurs et rôles
-
-### 3.1 Artisan (compte `profiles`)
-
-- **Accès :** `/app/*` après authentification Supabase
-- **Gère :** profil commercial, prestations, planning, contacts, devis, factures, messagerie, réglages (widget, vocal)
-- **Peut recevoir** des leads matchés automatiquement
-
-### 3.2 Client final (compte `customer_profiles`)
-
-- **Accès :** `/compte/*`, `/mes-devis/*`
-- **Consulte** et accepte/refuse les devis
-- **Paie** les factures (Stripe Checkout si l'artisan a activé Stripe Connect)
-- **Recherche** des artisans à proximité par métier
-
-### 3.3 Visiteur anonyme (public)
-
-- **Accès :** `/`, `/estimation`, `/site/[slug]`, `/embed/[slug]`
-- **Peut lancer** une estimation sans compte
-- **Peut prendre RDV** sur la vitrine d'un artisan
-- **Peut utiliser** le widget embed sur un site tiers
-
-### 3.4 Séparation des rôles
-
-Un middleware Next.js (`src/middleware.ts`) empêche un client d'accéder à l'espace artisan et inversement. L'authentification repose sur Supabase Auth avec typage de compte (`src/lib/auth/account-type.ts`).
+```
+Visiteur / Client / Artisan
+        │
+        ▼
+  Next.js (Vercel) — middleware + App Router
+        │
+        ├── Supabase Auth (sessions cookies SSR)
+        ├── PostgreSQL + RLS (métier, quotas, audit)
+        ├── Storage (lead-media, recovery-documents)
+        │
+        ├── Mistral AI (assistant, leads, devis)
+        ├── ElevenLabs + Twilio (secrétaire vocale)
+        ├── Stripe (paiements, abonnements)
+        ├── Plateforme Agréée (e-facturation B2B)
+        ├── MySendingBox (LRAR) + RubyPayeur (recouvrement)
+        └── BAN data.gouv.fr (géocodage adresses FR)
+```
 
 ---
 
-## 4. Fonctionnalités détaillées
+## 2. Stack technique
 
-### 4.1 Espace artisan (`/app`)
+| Couche | Technologie | Version |
+|--------|-------------|---------|
+| Framework | Next.js (App Router, Turbopack) | 16.1.7 |
+| UI | React + Tailwind CSS v4 + shadcn/ui | React 19.2.3 |
+| Langage | TypeScript | ^5 |
+| Runtime | Node.js | **24.x** (`.nvmrc`, `engines`) |
+| BDD | Supabase (PostgreSQL, Auth, Storage, pgvector) | ^2.99 |
+| IA texte | Mistral AI | API REST |
+| Voix | Twilio (téléphonie, webhooks) + ElevenLabs (agent) | twilio ^5.13 |
+| Paiements | Stripe | ^21.0 |
+| Factur-X | `@stackforge-eu/factur-x` (prod, libxml2-wasm) | ^1.4 |
+| PDF | pdf-lib | ^1.17 |
+| Validation | Zod | ^4.4 |
+| Tests | Vitest | ^4.1 |
+| Hébergement | Vercel (build + fonctions serverless + crons) | — |
+
+> **Factur-X en production** : génération XML CII via sérialiseur interne (`cii-to-xml.ts`, sans libxmljs natif). Validation XSD/Schematron via `@stackforge-eu/factur-x`. `@stafyniaksacha/facturx` est réservé aux tests locaux (devDependency).
+
+---
+
+## 3. Structure du dépôt
+
+```
+OrbitArtisan/
+├── src/
+│   ├── app/                 # Routes App Router (pages + API)
+│   │   ├── app/             # Espace artisan (/app/*)
+│   │   ├── compte/          # Espace client
+│   │   ├── admin/           # Super-admin plateforme
+│   │   ├── estimation/      # Tunnel leads public
+│   │   ├── site/[slug]/     # Vitrine artisan
+│   │   ├── embed/[slug]/    # Widget iframe
+│   │   └── api/             # REST, webhooks, crons
+│   ├── components/          # UI (app, vitrine, landing, recovery, admin…)
+│   ├── lib/                 # Logique métier (ai, billing, leads, supabase…)
+│   └── features/voice/      # Module vocal (tools, auth)
+├── supabase/
+│   ├── init.sql             # Schéma complet idempotent (~3400 lignes)
+│   └── migration/           # Migrations incrémentales 01 → 12
+├── public/
+│   ├── embed.js             # Widget JavaScript embarquable
+│   └── sw.js                # Service Worker PWA
+├── vercel.json              # Crons Vercel
+├── next.config.ts           # Headers CSP embed, packages externes
+└── .env.example             # Variables d'environnement documentées
+```
+
+### Dossiers `src/lib/` importants
+
+| Dossier | Rôle |
+|---------|------|
+| `ai/` | Mistral, assistant artisan, qualification leads, embeddings pgvector |
+| `billing/` | Devis, factures, Factur-X, e-reporting, abonnements, relances BTP |
+| `leads/` | Tunnel estimation, dispatch, matching géographique |
+| `recovery/` | Mise en demeure LRAR, quota, contexte recouvrement |
+| `voice/` | Quota vocal mois civil, journal Twilio |
+| `supabase/` | Clients browser / server / service-role |
+| `auth/` | Types de compte, admin plateforme, impersonation |
+| `domain-routing.ts` | Séparation solinebtp.fr ↔ app.solinebtp.fr |
+| `site-url.ts` | URLs canoniques marketing / app |
+
+---
+
+## 4. Domaines et routage
+
+En production, deux domaines coexistent :
+
+| Domaine | Rôle | Variable |
+|---------|------|----------|
+| `solinebtp.fr` | Landing marketing, tarifs, pages légales | `NEXT_PUBLIC_MARKETING_URL` |
+| `app.solinebtp.fr` | Application SaaS (artisan, client, vitrines) | `NEXT_PUBLIC_SITE_URL` |
+
+### Middleware (`src/middleware.ts`)
+
+Le middleware exécute, dans l'ordre :
+
+1. **Routage inter-domaines** (`resolveDomainRouting`) — sur le domaine marketing, seuls `/`, les pages légales et `/embed.js` sont servis ; le reste redirige vers l'app. Sur le domaine app, les pages légales redirigent vers le marketing.
+2. **Session Supabase** — rafraîchissement cookies SSR.
+3. **Typage utilisateur** — artisan (`profiles`) vs client (`customer_profiles`).
+4. **Protection des routes** — `/app/*` réservé aux artisans, `/compte/*` et `/mes-devis/*` aux clients.
+5. **Admin** — accès `/admin/*` via table `platform_admins`.
+6. **Comptes suspendus** — redirection vers `/app/suspended`.
+7. **Contrôle abonnement** — blocage création devis/factures si essai expiré ou abonnement impayé.
+
+En local ou sur preview Vercel mono-domaine, la séparation est désactivée si marketing et app partagent le même hostname.
+
+### Widget embed et CSP
+
+- `/embed/[slug]` : iframe du tunnel d'estimation, `frame-ancestors *` (seule route embarquable).
+- `public/embed.js` : API `window.Soline.open()`, `.close()`, `.toggle()`.
+- Toutes les autres routes refusent l'encadrement (`X-Frame-Options: SAMEORIGIN`).
+
+---
+
+## 5. Utilisateurs, auth et sécurité d'accès
+
+### Trois profils d'utilisation
+
+| Profil | Table | Espace | Accès |
+|--------|-------|--------|-------|
+| **Artisan** | `profiles` | `/app/*` | Devis, factures, RDV, messages, réglages, vitrine |
+| **Client final** | `customer_profiles` | `/compte/*`, `/mes-devis/*` | Accepter devis, payer factures, messages |
+| **Visiteur anonyme** | — | `/`, `/estimation`, `/site/[slug]` | Estimation, prise de RDV, consultation vitrine |
+
+L'authentification repose sur **Supabase Auth** (email/mot de passe, callback `/auth/callback`). Le typage artisan/client est déterminé par la présence d'une ligne dans `profiles` ou `customer_profiles` (`src/lib/auth/account-type.ts`).
+
+### Invitations
+
+Le système `platform_invitations` permet à un artisan d'inviter un client (ou l'inverse) par email + token (`/invitation/[token]`).
+
+### Isolation des données
+
+- **RLS PostgreSQL** sur toutes les tables métier.
+- **Service role** Supabase pour les opérations légitimes cross-tenant : webhooks, crons, dispatch de leads, recouvrement.
+- **Leads anonymes** : accès par token porteur (`public_token`), pas d'INSERT direct anonyme.
+
+---
+
+## 6. Espaces et modules fonctionnels
+
+### Espace artisan (`/app`)
 
 | Module | Route | Description |
 |--------|-------|-------------|
-| Tableau de bord | `/app` | Vue d'ensemble activité |
+| Tableau de bord | `/app` | Vue d'ensemble activité, raccourcis |
 | Profil | `/app/profile` | Identité, logo, coordonnées |
-| Réglages | `/app/reglages` | Métier, adresse (géocodage BAN), prestations, widget embed, numéro vocal |
-| Prestations | `/app/services` | Catalogue de services (durée, tarif) |
-| Planning | `/app/rdv` | Calendrier, création/annulation RDV |
+| Réglages | `/app/reglages` | Métier, adresse (BAN), prestations, widget embed, vocal, abonnement |
+| Prestations | `/app/services` | Catalogue services (durée, tarif) |
+| Planning | `/app/rdv` | Calendrier, création/validation RDV |
+| Appels Soline | `/app/appels` | Validation des propositions de devis issues des appels vocaux |
 | Contacts | `/app/contacts` | Clients liés, historique |
 | Messages | `/app/messages` | Conversations, pièces jointes (photos leads) |
-| Devis | `/app/quotes` | CRUD, envoi, suivi statuts (draft/sent/accepted/rejected) |
-| Factures | `/app/invoices` | Conversion depuis devis accepté, finalisation, export PDF/Factur-X |
-| Assistant IA | FAB flottant | Navigation, questions métier, création RDV/devis par voix ou texte |
+| Devis | `/app/quotes` | CRUD, envoi, suivi statuts |
+| Factures | `/app/invoices` | Conversion, finalisation, PDF/Factur-X, recouvrement |
+| Chantiers | `/app/chantiers` | Suivi chantiers, saisie temps MO |
+| Interventions | `/app/interventions` | Bons d'intervention, signature client |
+| Ouvrages | `/app/ouvrages` | Bibliothèque ouvrages pré-chiffrés |
+| Fournisseurs | `/app/fournisseurs` | Référentiel fournisseurs |
+| Assistant IA | FAB flottant | Navigation, RDV, brouillon devis (texte ou voix) |
 
-### 4.2 Espace client (`/compte`)
+### Espace client (`/compte`)
 
 | Module | Route | Description |
 |--------|-------|-------------|
 | Accueil | `/compte` | RDV, statistiques |
 | Recherche | `/compte/recherche` | Annuaire artisans par métier + proximité (haversine) |
 | Devis | `/mes-devis` | Consultation, acceptation/refus (RPC sécurisées) |
-| Factures | `/compte/factures` | Paiement Stripe Checkout |
+| Factures | `/compte/factures` | Consultation, paiement Stripe Checkout |
 | Messages | `/compte/messages` | Échanges avec artisan(s) |
 | Réglages | `/compte/reglages` | Profil client |
 
-### 4.3 Parcours public
+### Parcours public
 
 | Module | Route | Description |
 |--------|-------|-------------|
-| Landing marketing | `/` | Présentation produit, tarifs, CTA inscription |
-| Estimation | `/estimation` | Tunnel IA en 4 étapes (métier → chat → localisation → médias) |
+| Landing | `/` | Présentation, tarifs, CTA inscription |
+| Estimation | `/estimation` | Tunnel IA en 4 étapes |
 | Suivi lead | `/estimation/suivi` | Suivi via token porteur |
-| Vitrine artisan | `/site/[slug]` | Fiche publique, services, prise RDV |
-| Widget embed | `/embed/[slug]` | Iframe + script `public/embed.js`, API `window.Soline` |
+| Vitrine | `/site/[slug]` | Fiche publique, services, RDV, messages |
+| Devis public | `/devis/[token]` | Consultation devis sans compte |
+| Intervention | `/intervention/[token]` | Signature bon d'intervention |
+| Widget | `/embed/[slug]` | Tunnel embarqué pour sites tiers |
 
-### 4.4 Pages légales
+### Admin plateforme (`/admin`)
 
-- `/cgu` — Conditions générales d'utilisation
-- `/mentions-legales` — Mentions légales
-- `/confidentialite` — Politique de confidentialité
-
-Source unique des informations légales : `src/lib/legal/site-legal-info.ts`
-
-### 4.5 Invitations plateforme
-
-Système d'invitation par email/token permettant à un artisan d'inviter un client (ou inversement) à rejoindre la plateforme (`platform_invitations`, `src/lib/invitations/`).
+Réservé aux `platform_admins` : métriques, liste/suspension des artisans (tenants), journal d'audit, impersonation.
 
 ---
 
-## 5. Parcours utilisateurs (flux métier)
+## 7. Flux métier principaux
 
-### 5.1 Cycle de vie d'un devis
+### Cycle de vie d'un devis
 
 ```
-Artisan crée brouillon (manuel ou IA)
-    → Ajoute prestations + matériaux (catalogue fournisseur optionnel)
+Artisan crée brouillon (manuel, assistant IA ou appel vocal)
+    → Ajoute prestations + matériaux (catalogue fournisseur pgvector optionnel)
     → Envoie au client (statut: sent)
     → Client accepte (RPC client_accept_quote) ou refuse
-    → Si accepté : conversion en facture
+    → Si accepté : conversion en facture (standard, acompte, situation, solde…)
     → Finalisation (Factur-X B2B ou PDF + e-reporting B2C)
-    → Paiement Stripe (optionnel)
+    → Paiement Stripe Checkout (optionnel)
+    → Relances automatiques si impayé (cron)
+    → Recouvrement LRAR puis RubyPayeur si nécessaire
 ```
 
-### 5.2 Cycle de vie d'un rendez-vous
+Fichiers clés : `src/app/app/quotes/`, `src/lib/billing/invoicing/invoice-service.ts`.
+
+### Cycle de vie d'un rendez-vous
 
 ```
-Prospect sur vitrine / widget / vocal Soline
+Prospect sur vitrine / widget / (vocal en pause)
     → Créneau proposé selon disponibilités artisan
     → RDV créé (pending ou confirmed)
     → Si prospect sans compte : pending_vitrine_appointments
     → À l'inscription client : finalisation automatique du RDV
 ```
 
-### 5.3 Cycle de vie d'un lead (tunnel estimation)
+### Cycle de vie d'un lead (tunnel estimation)
 
 ```
-1. Prospect choisit un métier (taxonomie BTP ~100 métiers)
-2. Chat IA qualification (questions séquentielles, max configurable)
-3. Localisation (API BAN data.gouv.fr ou géolocalisation navigateur)
-4. Upload photos/vidéos (bucket privé Supabase lead-media)
-5. Qualification IA → JSON structuré (nature, urgence, complexité, heures, matériaux)
-6. Estimation fourchette prix (min/max en centimes)
-7. Matching géographique : 2-3 artisans dans un rayon (~40 km)
-8. Prospect saisit coordonnées (nom, email, téléphone)
-9. Dispatch automatique (dispatchLeadToArtisans) :
-   - Création conversation artisan ↔ lead
-   - Message récap structuré (buildLeadRecapMessage)
-   - Pièces jointes (photos) en message_attachments
-   - Brouillon de devis pré-rempli (buildLeadQuoteDraft)
-10. Suivi via token public : /estimation/suivi
-11. Conversion : prospect s'inscrit → claim_lead
+1. Prospect choisit un métier (~100 métiers BTP, taxonomy.ts)
+2. Chat IA qualification (questions séquentielles)
+3. Localisation (API BAN ou géolocalisation navigateur)
+4. Upload photos/vidéos (bucket privé lead-media)
+5. Qualification IA → JSON structuré (urgence, complexité, fourchette prix)
+6. Matching géographique : 2-3 artisans dans ~40 km (RPC match_leads_to_artisans)
+7. Prospect saisit coordonnées (nom, email, téléphone)
+8. Dispatch automatique (dispatchLeadToArtisans) :
+   - Conversation artisan ↔ lead
+   - Message récap + pièces jointes
+   - Brouillon de devis pré-rempli
+9. Suivi via token : /estimation/suivi
+10. Conversion : prospect s'inscrit → claim_lead
 ```
 
-**Fichiers clés :**
-
-- `src/app/estimation/` — UI tunnel
-- `src/lib/leads/dispatch-lead.ts` — dispatch idempotent
-- `src/lib/leads/build-lead-quote-draft.ts` — brouillon devis
-- `src/lib/ai/qualify-lead.ts` — qualification IA
+Fichiers clés : `src/app/estimation/`, `src/lib/leads/dispatch-lead.ts`, `src/lib/ai/qualify-lead.ts`.
 
 ---
 
-## 6. Intelligence artificielle
+## 8. Intelligence artificielle
 
-### 6.1 Fournisseur
+**Fournisseur** : Mistral AI (`src/lib/ai/mistral.ts`)
 
-**Mistral AI** (API REST `https://api.mistral.ai/v1`)  
-Client interne : `src/lib/ai/mistral.ts`
+| Usage | Modèle | Endpoint / fichier |
+|-------|--------|-------------------|
+| Chat général (assistant, leads, devis) | `open-mistral-nemo` (surchargeable `MISTRAL_CHAT_MODEL`) | `/api/ai/assistant` |
+| Embeddings catalogue matériaux | `mistral-embed` (1024 dims) | `src/lib/ai/embeddings.ts` |
+| Qualification lead | JSON structuré (Zod + Mistral) | `/api/ai/qualify-lead` |
+| Brouillon devis depuis texte | Matching pgvector matériaux | `/api/ai/generate-quote-from-chat` |
 
-| Usage | Modèle | Fichier |
-|-------|--------|---------|
-| Chat général (assistant, leads, devis) | `open-mistral-nemo` (surchargeable via `MISTRAL_CHAT_MODEL`) | `mistral.ts` |
-| Embeddings catalogue matériaux | `mistral-embed` (1024 dimensions) | `src/lib/ai/embeddings.ts` |
-| Vision photos leads (prévu) | `MISTRAL_VISION_MODEL` | `prompt-cursor-vision-photos-lead.md` |
+### Assistant artisan (`POST /api/ai/assistant`)
 
-### 6.2 Capacités IA implémentées
-
-#### Assistant artisan (`POST /api/ai/assistant`)
-
-- Compréhension d'intentions : navigation, questions sur RDV/devis/factures en attente
-- Création de rendez-vous par langage naturel
-- Brouillon de devis depuis dictée ou texte
-- Fast-paths déterministes pour réponses rapides sans appel LLM (`assistant-fast-path.ts`)
+- Compréhension d'intentions : navigation, questions RDV/devis/factures en attente
+- Création de RDV en langage naturel
+- Brouillon de devis depuis dictée ou texte (mode mains libres dans le FAB)
+- **Fast-paths déterministes** (`assistant-fast-path.ts`) pour réponses instantanées sans appel LLM
 - Requêtes données métier (`assistant-data-query.ts`)
 
-#### Qualification de lead (`qualifyLead`)
+### Catalogue matériaux vectorisé
 
-Extraction structurée (schéma Zod + JSON Schema Mistral) :
-
-- Nature du besoin, urgence, complexité
-- Estimation heures main-d'œuvre, part matériaux
-- Fourchette de prix indicative
-
-Schéma : `src/lib/ai/qualify-lead-schema.ts`
-
-#### Chat estimation (`POST /api/estimation/chat`)
-
-Questions séquentielles adaptées au métier choisi. Fallback heuristique si Mistral indisponible.
-
-#### Génération de devis depuis texte (`POST /api/ai/generate-quote-from-chat`)
-
-- Extraction prestations, main-d'œuvre, matériaux
-- Matching catalogue fournisseur via **pgvector** (similarité cosinus)
-- RPC PostgreSQL : `match_supplier_products`
-
-#### Suggestions rédactionnelles
-
-- `POST /api/ai/suggest-reply` — suggestion de réponse messagerie
-- `POST /api/ai/suggest-quote-notes` — notes de devis
-- `POST /api/ai/summarize-quote` — résumé de devis
-
-### 6.3 Catalogue matériaux vectorisé
-
-Table `supplier_products` avec colonne `embedding vector(1024)`.  
-Script de seed : `scripts/seed-supplier-embeddings.ts` (catalogue type Brico Dépôt).
+Table `supplier_products` avec `embedding vector(1024)`. RPC `match_supplier_products` pour similarité cosinus lors de la génération de devis. Script seed : `scripts/seed-supplier-embeddings.ts`.
 
 ---
 
-## 7. Secrétariat vocal Soline (Twilio + agent vocal)
+## 9. Secrétariat vocal Soline
 
-### 7.1 Concept
+**Soline** est l'agent vocal qui répond aux appels des clients de l'artisan, 24h/24. L'agent est hébergé chez **ElevenLabs** ; il interroge l'application via des **tools REST** authentifiés.
 
-**Soline** est le nom de l'agent vocal intelligent qui répond aux appels téléphoniques des clients de l'artisan, 24h/24. L'agent est hébergé chez **ElevenLabs** (sous-traitant documenté). Il communique avec l'application Soline via des **tools REST** authentifiés.
-
-### 7.2 Architecture découplée
+### Architecture
 
 ```
-Appel entrant (Twilio, numéro E.164)
+Appel entrant (Twilio, numéro E.164 de l'artisan)
     → Agent vocal ElevenLabs
-    → Appels REST vers Soline (Bearer VOICE_AI_TOOL_SECRET)
-        POST /api/voice/artisan/create-quote-draft — proposition de devis (résumé + brouillon IA)
-        POST /api/voice/artisan/availability  — créneaux libres (optionnel)
-        POST /api/voice/artisan/schedule      — désactivé (RDV vocal en pause)
-        POST /api/voice/artisan/appointment-info — info RDV existant
-    → Artisan valide dans /app/appels (email client à la validation)
-    → Twilio StatusCallback
-        POST /api/webhooks/twilio/status
-    → Décompte minutes + quota abonnement
+    → Tools REST Soline (Bearer VOICE_AI_TOOL_SECRET)
+        POST /api/voice/artisan/quota-status     — quota avant acceptation
+        POST /api/voice/artisan/create-quote-draft — résumé + brouillon devis
+        POST /api/voice/artisan/availability     — créneaux libres
+        POST /api/voice/artisan/appointment-info   — info RDV existant
+        POST /api/voice/artisan/schedule           — désactivé (RDV vocal en pause)
+    → Artisan valide dans /app/appels
+    → Webhook Twilio POST /api/webhooks/twilio/status
+    → Journal voice_call_logs + décompte minutes
 ```
 
-### 7.3 Quota vocal
+Table `artisan_voice_numbers` : association numéro E.164 ↔ artisan.
+
+### Quota vocal (mois civil)
 
 | Plan | Minutes incluses/mois |
 |------|----------------------|
@@ -294,82 +350,28 @@ Appel entrant (Twilio, numéro E.164)
 | Pro | 60 |
 | Premium | 150 |
 
-**Recharges :** Pack 60 min (39 € HT), Pack 150 min (79 € HT)
-
-**Implémentation quota :**
-
-- Décompte **dérivé** du mois civil depuis `voice_call_logs` (`src/lib/voice/resolve-voice-quota.ts`) — pas de compteur cumulatif à remettre à zéro
-- Préférence artisan `profiles.voice_allow_overage` : cochée = minutes supplémentaires refacturables ; décochée = refus des appels une fois le quota épuisé
-- RPC atomique idempotente : `process_twilio_voice_call_status` (journalisation seule)
-- Règle : `Math.ceil(CallDuration / 60)` minutes facturées si statut `completed`
-- Contrôle avant tools REST : `resolveVoiceContext` + `POST /api/voice/artisan/quota-status`
-- Alertes logs à 80 % et 100 % du quota (`voice-quota-alerts.ts`)
-- Migration : `supabase/migration/12_voice_quota_civil_month.sql`
-
-**Fichiers :**
-
-- `src/lib/voice/voice-quota-service.ts`
-- `src/lib/voice/twilio-minutes.ts`
-- `src/lib/voice/twilio-signature.ts`
-- `supabase/migration/01_voice_quota.sql`
-
-### 7.4 Mapping numéros
-
-Table `artisan_voice_numbers` : association numéro E.164 ↔ artisan.
+- Décompte **dérivé** du mois civil depuis `voice_call_logs` — pas de compteur cumulatif à remettre à zéro (`src/lib/voice/resolve-voice-quota.ts`).
+- Préférence `profiles.voice_allow_overage` : cochée = minutes supplémentaires refacturables ; décochée = refus des appels hors quota.
+- Règle facturation : `Math.ceil(CallDuration / 60)` minutes si statut `completed`.
+- Recharges : Pack 60 min (39 € HT), Pack 150 min (79 € HT).
 
 ---
 
-## 8. Tunnel de leads et acquisition prospects
+## 10. Facturation, conformité et paiements
 
-### 8.1 Widget embed
-
-Script JavaScript `public/embed.js` injectable sur tout site web :
-
-```javascript
-window.Soline.open();   // ouvre le widget
-window.Soline.close();  // ferme
-window.Soline.toggle(); // bascule
-```
-
-Le widget charge une iframe `/embed/[slug]` avec le wizard d'estimation pré-configuré pour l'artisan hôte (`originArtisanSlug`).  
-CSP `frame-ancestors *` uniquement sur `/embed/*`.
-
-Configuration dans `/app/reglages` : `embed-widget-card.tsx`
-
-### 8.2 Taxonomie métiers BTP
-
-Fichier `src/lib/trades/taxonomy.ts` : ~15 catégories, ~100 métiers (plombier, couvreur, électricien, etc.). Utilisée pour filtrage, matching, thème vitrine.
-
-### 8.3 Matching géographique
-
-RPC `match_leads_to_artisans` : sélection de 2 à 3 artisans dans un rayon configurable (~40 km) selon métier et coordonnées GPS. Algorithme haversine via `search_artisans_nearby`.
-
-### 8.4 Sécurité leads anonymes
-
-- Accès lead via **token porteur** (`public_token`) — pas de session requise
-- Bucket `lead-media` privé, RLS stricte
-- RPC `security definer` pour opérations cross-tenant (dispatch, claim)
-
----
-
-## 9. Facturation, devis et conformité légale
-
-### 9.1 Devis
+### Devis
 
 - Statuts : `draft`, `sent`, `accepted`, `rejected`
-- Lignes : `quote_services` (prestations), `quote_materials` (matériaux + lien catalogue)
-- Signature client via RPC sécurisées
-- Export PDF
+- Lignes : `quote_services`, `quote_materials`
+- Lien public : token `public_token` → `/devis/[token]`
+- Export PDF : `GET /api/quotes/[quoteId]/pdf`
+- Attestation TVA réduite BTP : `GET /api/quotes/[quoteId]/vat-attestation`
 
-### 9.2 Factures
+### Factures BTP
 
-- Relation 1:1 devis accepté → facture
-- Lignes : `invoice_lines` (type labor/service/material)
-- Statuts métier + statuts e-invoicing
+Types : `standard`, `deposit` (acompte), `progress` (situation), `final` (solde), `credit_note` (avoir). Plusieurs factures peuvent être rattachées à un même devis accepté.
 
-### 9.3 Pipeline de finalisation (`InvoiceService`)
-
-Fichier : `src/lib/billing/invoicing/invoice-service.ts`
+### Pipeline de finalisation (`InvoiceService`)
 
 ```
 Chargement document BDD
@@ -380,387 +382,347 @@ Chargement document BDD
         Suivi statuts via webhooks PA
     → B2C :
         PDF simple
-        Enqueue e_reporting_queue (transmission groupée)
-        Cron quotidien `/api/cron/e-reporting` → soumission PA
+        Enqueue e_reporting_queue
+        Cron quotidien /api/cron/e-reporting → transmission PA
 ```
 
-### 9.4 Factur-X
+Fichiers : `src/lib/billing/facturx/` (build-cii-invoice, generate-factur-x, validate-factur-x, render-invoice-pdf).
 
-- Génération XML CII : sérialiseur interne (`cii-to-xml.ts`, sans libxmljs)
-- Validation XSD : `@stackforge-eu/factur-x` (libxml2-wasm, compatible Node 24 / Vercel)
-- Validation croisée : XSD + Schematron EN16931 + `@stackforge-eu/factur-x` (XSD)
-- Profil : EN16931 / BASIC
-- Fichiers : `src/lib/billing/facturx/` (build-cii-invoice, generate-factur-x, validate-factur-x, embed-factur-x-pdf, render-invoice-pdf)
+### Paiements Stripe
 
-Routes export :
+- **Stripe Connect Express** : onboarding artisan pour encaissement direct sur ses factures.
+- **Stripe Checkout** : paiement facture côté client (`/compte/factures/[invoiceId]`).
+- **Stripe Billing** : abonnements SaaS (webhook sync `subscription_status`, essai 15 jours).
+- Webhook : `POST /api/webhooks/stripe`.
 
-- `GET /api/invoices/[invoiceId]/pdf`
-- `GET /api/invoices/[invoiceId]/factur-x`
+### Relances impayés
 
-### 9.5 Webhooks Plateforme Agréée
-
-- Route : `POST /api/webhooks/facturation-electronique`
-- Auth : header `x-pa-signature` + `PA_WEBHOOK_SECRET`
-- Audit : table `pa_webhook_events`
-- Providers prévus : `pennylane`, `docaposte`, `confactura` (défaut : `noop`)
-
-### 9.6 Paiements Stripe
-
-- **Stripe Connect Express** : onboarding artisan pour encaissement direct
-- **Stripe Checkout** : paiement facture côté client
-- Webhook : `POST /api/webhooks/stripe` (paiement reçu, mise à jour compte Connect)
-
-### 9.7 Recouvrement de créances
-
-Pipeline en deux phases piloté par `invoices.recovery_status`
-(`none` → `formal_notice_sent` → `submitted_to_collection` → `in_progress` → `collected` | `failed`).
-
-**Phase pré-contentieuse — mise en demeure LRAR (J+30)**
-
-- La mise en demeure est générée en PDF (`src/lib/recovery/render-formal-notice-pdf.ts`) avec
-  décompte des sommes exigibles : principal, pénalités de retard et indemnité forfaitaire de 40 €
-  en B2B (art. L441-10 et D441-5 du Code de commerce).
-- Expédition en recommandé papier avec AR via MySendingBox (`postage_type: lrar`), impression et
-  distribution assurées par La Poste.
-- Suivi d'acheminement : `POST /api/webhooks/mysendingbox`. Les preuves de dépôt et l'accusé de
-  réception sont archivés dans le bucket privé `recovery-documents`.
-
-**Quota LRAR (`src/lib/recovery/formal-notice-quota.ts`)**
-
-Chaque plan inclut 1 LRAR par **mois civil**. Le compteur n'est pas stocké : il est dérivé du
-nombre de lignes `formal_notices` de la période portant un `mysendingbox_letter_id` — c'est-à-dire
-réellement affranchies. Trois propriétés en découlent :
-
-- le non-cumul d'un mois sur l'autre est vrai par construction, aucune tâche de reset n'est requise ;
-- une lettre refusée par MySendingBox n'est jamais affranchie, donc ne consomme pas le quota ;
-- les lignes `formal_notices` restent la seule source de vérité auditable.
-
-Au-delà du quota, `sendFormalNoticeAction` exige `acceptExtraCost: true` : l'artisan confirme le
-surcoût dans une modale avant tout envoi payant. La colonne `formal_notices.billed_to_artisan`
-marque les lettres à refacturer, et `reconcileQuotaBilling` la recalcule après affranchissement
-pour rester juste même si deux envois partent simultanément.
-
-Le mois civil est volontairement décorrélé du cycle Stripe : un abonnement annuel ne doit pas
-donner droit à une seule lettre par an, et `profiles.billing_cycle_reset_at` n'est aujourd'hui
-alimenté par aucun code.
-
-**Phase contentieuse — mandat de recouvrement (J+40 ou après mise en demeure)**
-
-- Transmission du dossier à RubyPayeur sous mandat explicite de l'artisan (modèle « no cure, no pay »).
-- Pièces jointes : facture, devis signé, mise en demeure et preuves La Poste, en URL signées.
-- Webhook `POST /api/webhooks/rubypayeur` (HMAC-SHA256) : à l'encaissement, la rétrocession
-  apporteur d'affaires est calculée sur les honoraires du prestataire (`RUBYPAYEUR_COMMISSION_RATE`,
-  20 % par défaut) et la facture est soldée.
-
-Tables : `formal_notices`, `debt_collection_cases` (migration `11_recovery_and_legal_notices.sql`).
-Server Actions : `src/app/app/invoices/recovery-actions.ts`.
+Cron quotidien `0 7 * * *` → `/api/cron/invoice-reminders`. Relance manuelle possible depuis l'UI facture.
 
 ---
 
-## 10. Modèle économique et tarification
+## 11. Recouvrement des impayés
+
+Pipeline piloté par `invoices.recovery_status` :
+
+`none` → `formal_notice_sent` → `submitted_to_collection` → `in_progress` → `collected` | `failed`
+
+### Phase 1 — Mise en demeure LRAR (J+30)
+
+- PDF généré (`render-formal-notice-pdf.ts`) : principal + pénalités + indemnité 40 € B2B.
+- Envoi recommandé AR via **MySendingBox** (La Poste).
+- Webhook `POST /api/webhooks/mysendingbox` : suivi acheminement, preuves archivées dans bucket `recovery-documents`.
+
+**Quota LRAR** : 1 recommandé/mois civil inclus par plan, **non cumulable**. Compteur dérivé des `formal_notices` réellement affranchies (`mysendingbox_letter_id`). Au-delà : consentement `acceptExtraCost: true` dans l'UI avant surcoût.
+
+### Phase 2 — Recouvrement contentieux (J+40)
+
+- Transmission dossier à **RubyPayeur** sous mandat artisan (no cure, no pay).
+- Pièces : facture, devis signé, mise en demeure, preuves La Poste (URLs signées).
+- Webhook `POST /api/webhooks/rubypayeur` (HMAC-SHA256) : encaissement, rétrocession partenaire (`RUBYPAYEUR_COMMISSION_RATE`, 20 % par défaut).
+
+UI : `src/components/recovery/` (FormalNoticeCard, RecoveryCollectionModal). Actions : `src/app/app/invoices/recovery-actions.ts`.
+
+---
+
+## 12. Tunnel de leads et acquisition
+
+### Widget embed
+
+Script `public/embed.js` injectable sur tout site :
+
+```javascript
+window.Soline.open();
+window.Soline.close();
+window.Soline.toggle();
+```
+
+Configuration dans `/app/reglages` (snippet + prévisualisation).
+
+### Taxonomie métiers BTP
+
+`src/lib/trades/taxonomy.ts` : ~15 catégories, ~100 métiers. Utilisée pour filtrage, matching, thème vitrine.
+
+### Matching géographique
+
+RPC `match_leads_to_artisans` : 2-3 artisans dans un rayon configurable (~40 km), algorithme haversine via `search_artisans_nearby`.
+
+### Sécurité
+
+- Accès lead par **token porteur** (pas de session requise).
+- Bucket `lead-media` privé, RLS stricte.
+- Dispatch **idempotent** : rejeu sans duplication des matchs déjà dispatchés.
+
+---
+
+## 13. Modèle économique
 
 Source : `src/lib/billing/subscription-plans.ts`
 
-### 10.1 Abonnements HT
+### Abonnements HT
 
-| Plan | Mensuel | Annuel | Soline (min/mois) | Différence |
-|------|---------|--------|-------------------|------------|
-| **Base** | 44,90 € | 449,90 € | 0 | SaaS complet, sans Soline |
-| **Pro** | 69,90 € | 699,90 € | 60 | SaaS + secrétaire vocale IA |
-| **Premium** | 99,90 € | 999,90 € | 150 | SaaS + plus de minutes Soline |
+| Plan | Mensuel | Annuel | Soline (min/mois) | LRAR/mois |
+|------|---------|--------|-------------------|-----------|
+| **Base** | 44,90 € | 449,90 € | 0 | 1 |
+| **Pro** | 69,90 € | 699,90 € | 60 | 1 |
+| **Premium** | 99,90 € | 999,90 € | 150 | 1 |
 
-Le SaaS BTP et le recouvrement d'impayés sont identiques sur les trois formules. Seule Soline
-(secrétaire vocale IA) diffère.
+Le SaaS BTP (devis, factures, RDV, messagerie, vitrine, recouvrement) est identique sur les trois formules. Seule la **secrétaire vocale Soline** diffère.
 
-Chaque plan inclut **1 mise en demeure LRAR par mois** (affranchissement offert, non reportable).
-Au-delà, le recommandé est refacturé à l'artisan au tarif La Poste en vigueur, sans marge
-(`FORMAL_NOTICES_INCLUDED_PER_MONTH`).
-
-Essai gratuit 15 jours (mentionné landing).
-
-### 10.2 Recharges minutes Soline
-
-| Pack | Minutes | Prix HT |
-|------|---------|---------|
-| Pack 60 | 60 | 39 € |
-| Pack 150 | 150 | 79 € |
-
-### 10.3 État d'implémentation billing
-
-- Grille tarifaire affichée (landing + CGU)
-- Quota vocal opérationnel en base (Twilio webhook)
-- **Abonnement Stripe SaaS : non encore branché** (Stripe actuel = Connect + paiement factures)
+- Essai gratuit **15 jours** (`TRIAL_DURATION_DAYS`).
+- LRAR supplémentaire : refacturé au tarif La Poste, sans marge, avec consentement artisan.
 
 ---
 
-## 11. Architecture technique
+## 14. Base de données et migrations
 
-### 11.1 Stack
+Schéma complet : `supabase/init.sql` (idempotent, rejouable).
 
-| Couche | Technologie | Version |
-|--------|-------------|---------|
-| Framework | Next.js (App Router) | 16.1.7 |
-| UI | React | 19.2.3 |
-| Langage | TypeScript | ^5 |
-| Styles | Tailwind CSS | v4 |
-| Composants | shadcn/ui, lucide-react | — |
-| Runtime | Node.js | 20.x |
-| BDD | Supabase (PostgreSQL + Auth + Storage + RLS + pgvector) | ^2.99 |
-| IA | Mistral AI | API REST |
-| Voix | ElevenLabs + Twilio | SDK twilio ^5.13 |
-| Paiements | Stripe | ^21.0 |
-| Facturation élec. | @stafyniaksacha/facturx | ^0.5 |
-| PDF | pdf-lib | ^1.17 |
-| Validation | Zod | ^4.4 |
-| Tests | Vitest | ^4.1 |
+Migrations incrémentales dans `supabase/migration/` :
 
-### 11.2 Hébergement
+| Fichier | Contenu |
+|---------|---------|
+| `01_voice_quota.sql` | Quota vocal, `voice_call_logs`, RPC Twilio |
+| `02_platform_admin.sql` | `platform_admins`, statuts compte, suspension |
+| `03_trial_subscription.sql` | Essai 15j, IDs Stripe Billing |
+| `04_work_library.sql` | Catalogue ouvrages pré-chiffrés |
+| `05_btp_invoicing.sql` | TVA réduite, factures acompte/situation/solde/avoir |
+| `06_retake_gaps.sql` | Mentions légales, lien public devis, chantiers, BI, fournisseurs |
+| `07_stripe_billing_events.sql` | Journal événements Stripe Billing |
+| `08_voice_call_intakes.sql` | Intakes appels (résumé + brouillon à valider) |
+| `09_e_invoicing_invoice.sql` | Colonnes e-facturation sur invoices |
+| `10_e_reporting_worker.sql` | File `e_reporting_queue` |
+| `11_recovery_and_legal_notices.sql` | Recouvrement, `formal_notices`, `debt_collection_cases`, bucket recovery |
+| `12_voice_quota_civil_month.sql` | Quota vocal mois civil, `voice_allow_overage` |
 
-| Composant | Hébergeur |
-|-----------|-----------|
-| Application web | o2switch (France) |
-| Base de données | Supabase (Union européenne) |
-| Build / CI | Vercel |
+### Tables métier principales
 
-### 11.3 Structure du dépôt
+`profiles`, `services`, `appointments`, `quotes`, `quote_services`, `quote_materials`, `invoices`, `invoice_lines`, `conversations`, `messages`, `leads`, `lead_media`, `lead_matches`, `supplier_products`, `voice_call_logs`, `formal_notices`, `debt_collection_cases`, `e_reporting_queue`, `platform_admins`.
 
-```
-OrbitArtisan/
-├── src/
-│   ├── app/              # Routes App Router (pages + API)
-│   ├── components/       # UI (app, vitrine, landing, billing, legal…)
-│   ├── lib/              # Logique métier (ai, billing, leads, stripe, supabase…)
-│   └── features/voice/   # Module vocal artisan
-├── supabase/
-│   ├── init.sql          # Schéma complet idempotent (~3400 lignes)
-│   └── migration/        # Migrations incrémentales
-├── public/
-│   ├── embed.js          # Widget JavaScript
-│   └── sw.js             # Service Worker PWA
-└── scripts/              # Seed embeddings catalogue
-```
-
-### 11.4 Patterns architecturaux
-
-- **Server Components** + **Server Actions** pour mutations métier
-- **Route Handlers** pour API REST et webhooks
-- **RLS PostgreSQL** pour isolation multi-tenant
-- **Service role Supabase** pour opérations cross-tenant (webhooks, dispatch leads)
-- **Factur-X sans libxmljs** — `@stafyniaksacha/facturx` réservé aux tests locaux (devDependency)
-
----
-
-## 12. Schéma de données
-
-Fichier principal : `supabase/init.sql`
-
-### 12.1 Tables métier
-
-| Table | Rôle |
-|-------|------|
-| `profiles` | Profil artisan (identité, slug vitrine, géoloc, Stripe Connect, entité légale, abonnement, quota vocal) |
-| `services` | Prestations (durée, prix centimes) |
-| `appointments` | Rendez-vous (statut, lien client) |
-| `pending_vitrine_appointments` | RDV en attente de compte client |
-| `customer_profiles` | Profil client |
-| `conversations` | Fils messagerie (lien lead optionnel) |
-| `messages` | Messages texte |
-| `message_attachments` | Pièces jointes messagerie |
-| `quotes` | Devis |
-| `quote_services` | Lignes prestations devis |
-| `quote_materials` | Lignes matériaux devis |
-| `invoices` | Factures |
-| `invoice_lines` | Lignes facture |
-| `platform_invitations` | Invitations email/token |
-| `supplier_products` | Catalogue fournisseur + embedding vector(1024) |
-| `artisan_voice_numbers` | Numéros Twilio ↔ artisan |
-| `leads` | Prospects tunnel estimation |
-| `lead_media` | Photos/vidéos lead |
-| `lead_matches` | Matching lead → artisans |
-| `e_reporting_queue` | File e-reporting B2C |
-| `pa_webhook_events` | Audit webhooks PA |
-| `voice_call_logs` | Journal appels + minutes |
-
-### 12.2 Extensions PostgreSQL
+### Extensions PostgreSQL
 
 - `pgcrypto` — tokens, UUID
 - `vector` (pgvector) — recherche similarité catalogue matériaux
 
-### 12.3 RPC significatives
+### Storage Supabase
 
-- `create_lead`, `update_lead_brief`, `match_leads_to_artisans`, `claim_lead`
-- `client_accept_quote`, `client_reject_quote`
-- `search_artisans_nearby`, `match_supplier_products`
-- `process_twilio_voice_call_status`
-- `lookup_auth_user_id_by_email`
-
-### 12.4 Storage
-
-- Bucket privé `lead-media` : photos/vidéos leads (max 50 Mo/fichier).
-- Bucket privé `recovery-documents` : mises en demeure et preuves La Poste (PDF, max 20 Mo/fichier).
-  Aucune policy `authenticated` — tous les accès passent par des URL signées générées côté serveur.
+| Bucket | Usage | Accès |
+|--------|-------|-------|
+| `lead-media` | Photos/vidéos leads | Privé, RLS |
+| `recovery-documents` | Mises en demeure, preuves La Poste | Privé, URLs signées serveur |
 
 ---
 
-## 13. API et intégrations externes
+## 15. API, webhooks et crons
 
-### 13.1 Routes API internes
+### Routes IA et estimation
 
-| Méthode | Route | Rôle |
-|---------|-------|------|
-| POST | `/api/ai/assistant` | Assistant artisan |
-| POST | `/api/ai/qualify-lead` | Qualification lead |
-| POST | `/api/ai/generate-quote-from-chat` | Brouillon devis |
-| POST | `/api/ai/suggest-reply` | Suggestion réponse |
-| POST | `/api/ai/suggest-quote-notes` | Notes devis |
-| POST | `/api/ai/summarize-quote` | Résumé devis |
-| POST | `/api/estimation/chat` | Chat qualification prospect |
-| GET | `/api/invoices/[id]/pdf` | PDF facture |
-| GET | `/api/invoices/[id]/factur-x` | Export Factur-X |
-| POST | `/api/voice/artisan/create-quote-draft` | Proposition de devis depuis appel |
-| POST | `/api/voice/artisan/availability` | Créneaux vocaux |
-| POST | `/api/voice/artisan/schedule` | Désactivé (RDV vocal) |
-| POST | `/api/voice/artisan/appointment-info` | Info RDV |
-| POST | `/api/voice/artisan/quota-status` | Quota vocal (acceptation d'appel) |
-| POST | `/api/webhooks/stripe` | Paiements Stripe |
-| POST | `/api/webhooks/twilio/status` | Journal appels Twilio |
-| POST | `/api/webhooks/facturation-electronique` | Callbacks PA |
-| POST | `/api/webhooks/mysendingbox` | Suivi acheminement LRAR |
-| POST | `/api/webhooks/rubypayeur` | Cycle de vie dossiers recouvrement |
+| Méthode | Route |
+|---------|-------|
+| POST | `/api/ai/assistant` |
+| POST | `/api/ai/qualify-lead` |
+| POST | `/api/ai/generate-quote-from-chat` |
+| POST | `/api/ai/suggest-reply` |
+| POST | `/api/ai/suggest-quote-notes` |
+| POST | `/api/ai/summarize-quote` |
+| POST | `/api/estimation/chat` |
 
-### 13.2 Variables d'environnement (noms uniquement)
+### Documents
+
+| Méthode | Route |
+|---------|-------|
+| GET | `/api/quotes/[quoteId]/pdf` |
+| GET | `/api/quotes/[quoteId]/vat-attestation` |
+| GET | `/api/invoices/[invoiceId]/pdf` |
+| GET | `/api/invoices/[invoiceId]/factur-x` |
+| GET | `/api/invoices/export-accounting` |
+
+### Voice (Bearer `VOICE_AI_TOOL_SECRET`)
+
+| Méthode | Route |
+|---------|-------|
+| POST | `/api/voice/artisan/create-quote-draft` |
+| POST | `/api/voice/artisan/quota-status` |
+| POST | `/api/voice/artisan/availability` |
+| POST | `/api/voice/artisan/appointment-info` |
+| POST | `/api/voice/artisan/schedule` *(désactivé)* |
+
+### Webhooks
+
+| Route | Auth | Rôle |
+|-------|------|------|
+| `/api/webhooks/stripe` | Signature Stripe | Abo SaaS, Connect, paiement factures |
+| `/api/webhooks/twilio/status` | Signature Twilio | Journal appels + minutes |
+| `/api/webhooks/facturation-electronique` | `x-pa-signature` | Callbacks Plateforme Agréée |
+| `/api/webhooks/mysendingbox` | Secret partagé | Suivi LRAR |
+| `/api/webhooks/rubypayeur` | HMAC-SHA256 | Cycle recouvrement |
+
+### Crons Vercel (`vercel.json`)
+
+| Schedule (UTC) | Route | Rôle |
+|----------------|-------|------|
+| `0 7 * * *` | `/api/cron/invoice-reminders` | Relances impayés |
+| `0 3 * * *` | `/api/cron/e-reporting` | Transmission e-reporting B2C |
+
+Auth : `Authorization: Bearer ${CRON_SECRET}`.
+
+---
+
+## 16. Variables d'environnement
+
+Copier `.env.example` vers `.env` et renseigner les valeurs.
+
+### Supabase & app
 
 | Variable | Usage |
 |----------|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | URL Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé publique |
-| `SUPABASE_SERVICE_ROLE_KEY` | Opérations admin |
-| `NEXT_PUBLIC_SITE_URL` | URL canonique |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL projet Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé publique (client) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Opérations admin / webhooks / crons |
+| `NEXT_PUBLIC_SITE_URL` | URL app (`https://app.solinebtp.fr`) |
+| `NEXT_PUBLIC_MARKETING_URL` | URL marketing (`https://solinebtp.fr`) |
+| `CRON_SECRET` | Protection routes `/api/cron/*` |
+
+### IA & voix
+
+| Variable | Usage |
+|----------|-------|
 | `MISTRAL_API_KEY` | API Mistral |
-| `MISTRAL_CHAT_MODEL` | Surcharge modèle chat |
+| `MISTRAL_CHAT_MODEL` | Surcharge modèle chat (optionnel) |
 | `MISTRAL_VISION_MODEL` | Modèle vision (prévu) |
-| `STRIPE_SECRET_KEY` | API Stripe |
-| `STRIPE_WEBHOOK_SECRET` | Validation webhooks Stripe |
-| `STRIPE_PAYMENT_LINK_BASE_MONTHLY` | Lien de paiement Stripe — Base mensuel |
-| `STRIPE_PAYMENT_LINK_BASE_ANNUAL` | Lien de paiement Stripe — Base annuel |
-| `STRIPE_PAYMENT_LINK_PRO_MONTHLY` | Lien de paiement Stripe — Pro mensuel |
-| `STRIPE_PAYMENT_LINK_PRO_ANNUAL` | Lien de paiement Stripe — Pro annuel |
-| `STRIPE_PAYMENT_LINK_PREMIUM_MONTHLY` | Lien de paiement Stripe — Premium mensuel |
-| `STRIPE_PAYMENT_LINK_PREMIUM_ANNUAL` | Lien de paiement Stripe — Premium annuel |
-| `TWILIO_AUTH_TOKEN` | Signature webhooks Twilio |
-| `TWILIO_STATUS_CALLBACK_URL` | Callback explicite |
-| `VOICE_AI_TOOL_SECRET` | Auth tools vocaux |
-| `PA_PROVIDER` | Fournisseur PA (`noop`, `pennylane`, `http`, …) |
-| `PA_API_KEY` | Token Bearer PA (Pennylane, Iopole, …) |
-| `PA_API_URL` | URL soumission (optionnel pour Pennylane) |
-| `PA_WEBHOOK_SECRET` | Auth webhooks PA |
-| `E_REPORTING_API_URL` | Endpoint transmission e-reporting B2C |
-| `E_REPORTING_API_KEY` | Token e-reporting (défaut : `PA_API_KEY`) |
-| `CRON_SECRET` | Auth routes `/api/cron/*` |
-| `MYSENDINGBOX_API_KEY` | Envoi LRAR papier (Auth Basic) |
-| `MYSENDINGBOX_WEBHOOK_SECRET` | Secret partagé callbacks LRAR |
-| `RUBYPAYEUR_API_URL` | Endpoint dossiers de recouvrement |
-| `RUBYPAYEUR_API_KEY` | Token Bearer RubyPayeur |
-| `RUBYPAYEUR_WEBHOOK_SECRET` | HMAC-SHA256 callbacks RubyPayeur |
-| `RUBYPAYEUR_PARTNER_ID` | Référence apporteur d'affaires |
-| `RUBYPAYEUR_COMMISSION_RATE` | Taux de rétrocession (défaut `0.2`) |
+| `VOICE_AI_TOOL_SECRET` | Auth tools vocaux ElevenLabs |
+| `TWILIO_AUTH_TOKEN` | Validation signature webhooks Twilio |
+| `TWILIO_STATUS_CALLBACK_URL` | Callback explicite (optionnel) |
 
-### 13.3 APIs publiques sans clé
+### Facturation électronique
 
-- **BAN** (data.gouv.fr) — géocodage adresses françaises (`src/lib/geo/ban.ts`)
+| Variable | Usage |
+|----------|-------|
+| `PA_PROVIDER` | `noop`, `pennylane`, `http`, `docaposte`, `confactura` |
+| `PA_API_KEY`, `PA_API_URL`, `PA_WEBHOOK_SECRET` | Plateforme Agréée B2B |
+| `E_REPORTING_PROVIDER`, `E_REPORTING_API_URL`, `E_REPORTING_API_KEY` | E-reporting B2C |
+| `FACTURX_SKIP_*` | Désactiver validations (dev) |
 
-### 13.4 Sous-traitants documentés
+### Recouvrement
 
-Supabase, o2switch, Mistral AI, ElevenLabs, Stripe — voir `src/lib/legal/site-legal-info.ts`
+| Variable | Usage |
+|----------|-------|
+| `MYSENDINGBOX_API_KEY`, `MYSENDINGBOX_WEBHOOK_SECRET` | LRAR papier |
+| `RUBYPAYEUR_*` | Dossiers contentieux + commission partenaire |
 
----
+### Stripe
 
-## 14. Sécurité et conformité RGPD
+| Variable | Usage |
+|----------|-------|
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Paiements et abonnements |
+| `STRIPE_PAYMENT_LINK_*` | Liens Payment Link par plan (6 variables) |
 
-- **RLS** activé sur toutes les tables métier
-- **Isolation multi-tenant** : un artisan ne voit que ses données
-- **Leads anonymes** : accès par token, pas d'INSERT anon direct
-- **Hébergement UE** : Supabase (BDD), o2switch (app)
-- **Pages légales** : CGU, confidentialité, mentions légales à jour (14 août 2026)
-- **Données IA** : textes prospects/clients traités par Mistral AI (mentionné confidentialité)
-- **Données vocales** : traitées par ElevenLabs (option Secrétariat IA)
-- **Paiements** : Stripe (PCI-DSS)
+### Email (utilisé dans le code)
+
+| Variable | Usage |
+|----------|-------|
+| `RESEND_API_KEY`, `EMAIL_FROM` | Envoi emails transactionnels |
 
 ---
 
-## 15. Éléments distinctifs et originalité
+## 17. Développement local
 
-Les éléments suivants constituent l'**originalité** de la création Soline :
+### Prérequis
 
-1. **Pipeline lead bout-en-bout** : estimation anonyme → qualification IA → matching géo → dispatch automatique (conversation + brouillon devis + médias) sans compte initial prospect.
+- **Node.js 24.x** (voir `.nvmrc`)
+- Projet Supabase configuré (exécuter `init.sql` + migrations)
+- Fichier `.env` renseigné
 
-2. **Assistant artisan multimodal métier** : fast-paths déterministes + LLM pour intents, extraction devis, matching contacts/services, recherche matériaux vectorielle pgvector.
-
-3. **Architecture vocale découplée** : agent tiers (ElevenLabs) + tools REST authentifiés + quota Twilio atomique idempotent en PostgreSQL.
-
-4. **Routage facturation intelligent B2B/B2C** : Factur-X + Plateforme Agréée vs e-reporting queue selon classification SIREN/TVA automatique.
-
-5. **Taxonomie métiers BTP** intégrée (~15 catégories, ~100 métiers) pour matching, vitrine thématisée, qualification IA contextualisée.
-
-6. **Widget embed** (`embed.js`) avec API JavaScript `window.Soline` et tunnel d'estimation intégré en iframe.
-
-7. **Schéma SQL monolithique idempotent** (`init.sql`) + migrations numérotées — conception rejouable pour déploiement Supabase reproductible.
-
-8. **Dispatch lead idempotent** : rejeu sans duplication (ignore matchs déjà dispatchés).
-
----
-
-## 16. État d'avancement et évolutions prévues
-
-### 16.1 Fonctionnel et opérationnel
-
-- Application artisan complète (devis, factures, RDV, messages, réglages)
-- Espace client (devis, factures, recherche, messages)
-- Tunnel estimation public + widget embed
-- Vitrine artisan publique
-- Assistant IA artisan
-- Qualification lead IA (texte)
-- Dispatch lead automatique
-- Factur-X + pipeline e-invoicing
-- Stripe Connect + paiement factures
-- Quota vocal Twilio (backend)
-- Landing marketing + pages légales
-- PWA (manifest, service worker)
-
-### 16.2 En cours / prévu
-
-- Analyse vision des photos leads (Mistral multimodal) — spec : `prompt-cursor-vision-photos-lead.md`
-- Abonnement Stripe SaaS (choix plan à l'inscription)
-- UI consommation/recharge minutes dans `/app/reglages`
-- Sync automatique quota selon plan actif
-- Configuration infra Twilio (status callback, migration Supabase quota)
-- Médiateur de la consommation (CGU)
-
----
-
-## Annexes
-
-### Annexe A — Commandes de développement
+### Commandes
 
 ```bash
 npm install
-npm run dev      # Serveur local http://localhost:3000
+npm run dev      # http://localhost:3000
 npm run build    # Build production
-npm run test     # Tests Vitest
+npm run test     # Vitest
 npm run lint     # ESLint
 ```
 
-Node.js 20.x requis (`.nvmrc`).
+Sans Supabase configuré, la landing et certaines pages de démo restent accessibles (le middleware dégrade gracieusement).
 
-### Annexe B — Auteur et droits
+### Appliquer les migrations Supabase
 
-**Créateur et éditeur :** Florian LAPERTOT, AlphaSysAI  
-**Produit :** Soline  
-**Année de création :** 2025–2026  
-**Tous droits réservés.**
-
-Ce document décrit l'état du logiciel au **14 août 2026** et constitue une description technique et fonctionnelle de la création Soline aux fins de preuve d'antériorité.
+Exécuter dans l'ordre : `supabase/init.sql` (si base vierge), puis `supabase/migration/01` à `12` dans le SQL Editor Supabase.
 
 ---
 
-*Fin du document.*
+## 18. Déploiement (Vercel)
+
+| Paramètre | Valeur |
+|-----------|--------|
+| Framework | Next.js (auto-détecté) |
+| Node.js | **24.x** (`engines` + réglage projet) |
+| Build | `npm run build` (défaut) |
+| Crons | `vercel.json` (2 jobs, compatible Hobby) |
+| BDD | Supabase (UE), indépendante de Vercel |
+
+### Plan Hobby — contraintes importantes
+
+- **Une seule région** pour les fonctions serverless. Ne pas sélectionner plusieurs régions (ex. Paris + Washington) : le build peut réussir puis échouer silencieusement à « Deploying outputs… » avec *internal Vercel error*. Recommandation : **Paris (cdg1)** pour des utilisateurs français.
+- **2 crons max**, chacun 1×/jour — la configuration actuelle est conforme.
+- Appliquer les migrations Supabase **avant** d'activer les fonctionnalités recouvrement / e-reporting / quota vocal en prod.
+
+### Checklist post-déploiement
+
+1. Variables d'environnement production sur Vercel (toutes les sections ci-dessus).
+2. `NEXT_PUBLIC_SITE_URL` = `https://app.solinebtp.fr`
+3. Webhooks Stripe, Twilio, MySendingBox, RubyPayeur, PA pointés vers les URLs prod.
+4. Migrations Supabase 10, 11, 12 appliquées si pas encore fait.
+
+---
+
+## 19. Résumé — ce que fait Soline
+
+**Soline, c'est le bureau digital complet de l'artisan du bâtiment — avec une secrétaire IA qui ne dort jamais.**
+
+Imaginez un plombier, un couvreur ou un électricien qui passe ses journées sur les chantiers. Le téléphone sonne, les devis traînent, les relances s'accumulent, et la facturation électronique — désormais obligatoire — paraît incompréhensible. Soline remplace cette pile d'outils dispersés (Excel, WhatsApp, agenda papier, logiciel comptable) par **une seule application**, accessible depuis le téléphone comme depuis un ordinateur.
+
+### Pour l'artisan : tout son activité au même endroit
+
+Depuis **app.solinebtp.fr**, l'artisan gère l'intégralité de son activité :
+
+- Il **crée des devis en quelques minutes**, à la main, en dictant à l'assistant IA, ou même depuis un **appel téléphonique** que Soline (sa secrétaire vocale) a pris en son absence.
+- Il **envoie le devis au client** par lien ; dès que le client accepte, la **facture** se génère — conforme à la loi, au format **Factur-X** pour les professionnels, avec transmission automatique à la **Plateforme Agréée**.
+- Il **planifie ses rendez-vous**, échange par **messagerie** avec ses clients, et consulte son **planning** en un coup d'œil.
+- Il dispose d'une **vitrine en ligne** (`/site/[slug]`) et d'un **widget** à coller sur son site existant pour recevoir des demandes de devis directement.
+- Si une facture impayée traîne, Soline enclenche un **pipeline de recouvrement** : mise en demeure **LRAR** envoyée par La Poste (1 recommandé offert par mois), puis, si besoin, transmission à un **cabinet de recouvrement** partenaire — le tout piloté depuis la fiche facture, sans courrier à imprimer ni recommandé à affranchir à la main.
+
+### Pour le client final : simplicité et transparence
+
+Le client accède à son espace **/compte** : il consulte ses devis, les **accepte ou refuse en un clic**, paie ses factures par **carte bancaire** (Stripe), prend rendez-vous et échange avec son artisan par message. Il peut aussi **rechercher un artisan** près de chez lui par métier.
+
+### Pour le prospect : zéro friction à l'entrée
+
+Un particulier qui a un problème de toiture ou de plomberie n'a pas besoin de créer un compte pour commencer. Sur **solinebtp.fr/estimation**, il décrit son besoin en **chat avec l'IA**, indique où il habite, envoie des photos — et reçoit une **fourchette de prix indicative**. Soline **qualifie** la demande, **géolocalise** le prospect, et **dispatch automatiquement** son dossier vers 2 ou 3 artisans compatibles : conversation ouverte, photos transmises, **brouillon de devis déjà pré-rempli**. L'artisan n'a plus qu'à ajuster et envoyer.
+
+### Soline, la secrétaire vocale (plans Pro et Premium)
+
+Quand l'artisan est sur un échafaudage et ne peut pas décrocher, **Soline répond à sa place**. Branchée sur le numéro de l'artisan (Twilio), l'agent vocal (ElevenLabs) accueille l'appelant, comprend la demande, et peut **proposer un brouillon de devis** que l'artisan valide ensuite depuis son téléphone. Chaque plan inclut un **quota de minutes** ; au-delà, l'artisan choisit s'il accepte la facturation supplémentaire ou s'il préfère couper les appels.
+
+### Conformité et sérénité administrative
+
+Soline intègre nativement les exigences de la **facturation électronique française** : Factur-X, e-invoicing B2B, e-reporting B2C, relances automatiques des impayés. L'artisan n'a pas à choisir entre « outil métier » et « conformité légale » — les deux sont dans le même flux.
+
+### Les formules
+
+| | Base | Pro | Premium |
+|---|------|-----|---------|
+| **Prix mensuel HT** | 44,90 € | 69,90 € | 99,90 € |
+| **SaaS complet** | ✓ | ✓ | ✓ |
+| **Recouvrement LRAR** | 1/mois | 1/mois | 1/mois |
+| **Soline (min/mois)** | — | 60 min | 150 min |
+
+**15 jours d'essai gratuit** pour tester sans engagement.
+
+---
+
+**En une phrase :** Soline transforme l'artisan du BTP en entreprise digitalisée — il reçoit des leads qualifiés, répond par la voix ou le chat, convertit en devis signés, facture conformément à la loi, relance et recouvre les impayés, le tout depuis une application unique, avec une secrétaire IA disponible 24h/24.
+
+---
+
+*Document mis à jour — septembre 2026. Dépôt : OrbitArtisan / Produit : Soline / AlphaSysAI.*

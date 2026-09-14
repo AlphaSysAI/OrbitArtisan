@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { QuoteAiPrompt } from "@/components/quotes/quote-ai-prompt";
 import { QuoteMarginBanner } from "@/components/quotes/quote-margin-banner";
 import { cn } from "@/lib/utils";
 
@@ -404,6 +405,8 @@ export function QuoteForm({
           </Link>
         </div>
       </div>
+
+      {!fromAiDraft ? <QuoteAiPrompt /> : null}
 
       <form onSubmit={onSubmit} className="space-y-6">
         {fromAiDraft ? (

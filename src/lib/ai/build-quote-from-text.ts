@@ -6,6 +6,11 @@ import { buildMaterialSearchQuery, embedText } from "@/lib/ai/embeddings";
 import { laborMinutesFromItems, matchServiceIdsByTitles } from "@/lib/ai/match-services";
 import { mistralChatParse } from "@/lib/ai/mistral";
 import {
+  formatTakeoffForQuotePrompt,
+  runMaterialTakeoff,
+  takeoffWarnings,
+} from "@/lib/ai/quote-material-takeoff";
+import {
   QUOTE_EXTRACTION_JSON_SCHEMA,
   QuoteExtractionSchema,
   type GenerateQuoteFromChatResponse,
@@ -50,14 +55,39 @@ export async function buildQuoteFromText(params: {
       ? (profile.labor_rate_per_hour / 100).toFixed(2)
       : "non renseigné";
 
+  const warnings: string[] = [];
+  let takeoffBlock = "";
+  const webSearchEnabled = Boolean(process.env.TAVILY_API_KEY?.trim());
+
+  try {
+    const takeoff = await runMaterialTakeoff(instruction);
+    if (takeoff) {
+      takeoffBlock = formatTakeoffForQuotePrompt(takeoff, webSearchEnabled);
+      warnings.push(...takeoffWarnings(takeoff, webSearchEnabled));
+    }
+  } catch (err) {
+    console.error("[build-quote-from-text] takeoff error", err);
+    warnings.push("Le métré automatique n'a pas pu être calculé — complète les matériaux à la main.");
+  }
+
   const systemPrompt = `Tu es un expert en chiffrage pour artisans du bâtiment en France.
 L'artisan dicte ou écrit une instruction pour préparer un devis.
-Extrais un brouillon structuré. N'invente pas de matériaux absents de l'instruction.
-Si un matériau est mentionné sans prix, mets-le quand même dans needed_materials.
-Pour catalog_service_titles, choisis uniquement parmi les titres du catalogue (orthographe proche OK).
-Si aucune prestation catalogue ne correspond, laisse catalog_service_titles vide et décris le travail dans labor_items + notes.
-Pour labor_items, quantity = heures estimées, unit_price = taux horaire en euros (utilise ${laborRateEur} €/h si cohérent).
-notes : synthèse courte pour le devis (max 500 caractères), en français.`;
+Extrais un brouillon structuré.
+
+Matériaux :
+- Si un bloc « Métré automatique » est fourni, reprends ces matériaux et quantités dans needed_materials (tu peux ajuster légèrement si l'instruction artisan contredit le métré).
+- Sinon, n'invente pas de matériaux absents de l'instruction.
+- Si un matériau est mentionné sans prix, mets-le quand même dans needed_materials (specifications = unité : sacs, m³, U…).
+
+Prestations :
+- catalog_service_titles : uniquement parmi le catalogue (orthographe proche OK).
+- Si aucune prestation catalogue ne correspond, laisse catalog_service_titles vide et décris le travail dans labor_items + notes.
+
+Main-d'œuvre :
+- labor_items : quantity = heures estimées, unit_price = taux horaire en euros (utilise ${laborRateEur} €/h si cohérent).
+- Si un métré indique des heures MO, utilise-les comme base.
+
+notes : synthèse courte pour le devis (max 500 caractères), en français. Mentionne que le métré est indicatif si applicable.`;
 
   const userPrompt = `Artisan: ${profile.business_name ?? "Artisan"}
 ${profile.description ? `Description: ${profile.description}` : ""}
@@ -67,7 +97,7 @@ Taux horaire artisan: ${laborRateEur} €/h
 Catalogue prestations disponibles:
 ${catalogList}
 
-Instruction de l'artisan:
+${takeoffBlock ? `${takeoffBlock}\n\n` : ""}Instruction de l'artisan:
 ${instruction}`;
 
   const extraction = await mistralChatParse(
@@ -96,7 +126,6 @@ ${instruction}`;
     throw new Error("empty_ai_response");
   }
 
-  const warnings: string[] = [];
   const laborDurationMinutes = laborMinutesFromItems(extraction.labor_items);
 
   const matchedServiceIds = matchServiceIdsByTitles(
