@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  LEAD_CHAT_JSON_EXAMPLE,
   LEAD_CHAT_JSON_SCHEMA,
   LeadChatTurnSchema,
   MAX_LEAD_CHAT_QUESTIONS,
@@ -75,7 +76,7 @@ Règles impératives :
    b) Localisation précise (pièce, étage, intérieur/extérieur, type de logement)
    c) Dimensions, surface, quantité ou étendue
    d) Ancienneté, urgence, contraintes d'accès, matériel ou revêtement existant
-4. Chaque question doit s'appuyer sur la réponse précédente : creuse les flous, ne repose pas une question déjà bien couverte.
+4. Chaque question DOIT reprendre un élément concret de la dernière réponse du client (« tu as dit… », « pour la cuisine que tu mentionnes… ») avant d'approfondir. Ne pose jamais une question générique si le client vient de donner un détail exploitable.
 5. Ne demande JAMAIS nom, e-mail, téléphone ni adresse.
 6. Ne donne aucun prix, conseil technique ni diagnostic.
 7. summary (quand done=true) : synthèse complète à la 1re personne (« Je dois… »), 2 à 4 phrases, sans invention, intégrant toutes les réponses.`,
@@ -91,6 +92,7 @@ Règles impératives :
       {
         temperature: 0.3,
         jsonSchema: LEAD_CHAT_JSON_SCHEMA,
+        jsonExample: LEAD_CHAT_JSON_EXAMPLE,
       },
     );
 

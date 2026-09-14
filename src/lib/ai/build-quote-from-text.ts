@@ -136,6 +136,15 @@ ${instruction}`;
     {
       temperature: 0.2,
       jsonSchema: QUOTE_EXTRACTION_JSON_SCHEMA,
+      jsonExample: `{
+  "labor_items": [{ "description": "Construction mur", "quantity": 8, "unit_price": 45 }],
+  "catalog_service_titles": ["Maçonnerie"],
+  "needed_materials": [
+    { "name_generic": "Parpaing", "quantity": 1000, "specifications": null },
+    { "name_generic": "Ciment", "quantity": 5, "specifications": "sacs" }
+  ],
+  "notes": "Mur 50 m — vérifier métrés et accès chantier."
+}`,
     },
   );
 

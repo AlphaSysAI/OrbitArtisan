@@ -2,6 +2,7 @@ import "server-only";
 
 import { mistralChatParse } from "@/lib/ai/mistral";
 import {
+  LEAD_QUALIFICATION_JSON_EXAMPLE,
   LEAD_QUALIFICATION_JSON_SCHEMA,
   LeadQualificationSchema,
   type LeadQualification,
@@ -59,6 +60,7 @@ Consigne : extrais chaque détail concret (localisation, dimensions, quantités,
     {
       temperature: 0.2,
       jsonSchema: LEAD_QUALIFICATION_JSON_SCHEMA,
+      jsonExample: LEAD_QUALIFICATION_JSON_EXAMPLE,
     },
   );
 

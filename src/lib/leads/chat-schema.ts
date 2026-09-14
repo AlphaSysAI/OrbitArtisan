@@ -44,4 +44,11 @@ export const LEAD_CHAT_JSON_SCHEMA: Record<string, unknown> = {
   required: ["question", "done", "summary"],
 };
 
+/** Exemple montrant une relance contextualisée sur la réponse précédente du client. */
+export const LEAD_CHAT_JSON_EXAMPLE = `{
+  "question": "Tu as mentionné une fuite sous l'évier : est-ce un goutte-à-goutte en permanence ou seulement quand tu ouvres le robinet ?",
+  "done": false,
+  "summary": ""
+}`;
+
 export type LeadChatMessage = { role: "assistant" | "user"; content: string };

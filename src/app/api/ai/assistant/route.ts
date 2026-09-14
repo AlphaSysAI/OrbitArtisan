@@ -425,6 +425,16 @@ ${message}`,
       {
         temperature: 0.1,
         jsonSchema: ASSISTANT_INTENT_JSON_SCHEMA,
+        jsonExample: `{
+  "intent": "answer",
+  "reply": "Je regarde tes rendez-vous.",
+  "customer_query": null,
+  "navigate_path": null,
+  "date_query": null,
+  "time_query": null,
+  "work_description": null,
+  "answer_topic": "appointments"
+}`,
       },
     );
   } catch (err) {

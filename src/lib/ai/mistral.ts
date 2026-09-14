@@ -100,16 +100,19 @@ export async function mistralChatParse<T extends z.ZodType>(
   options?: {
     temperature?: number;
     jsonSchema?: Record<string, unknown>;
+    jsonExample?: string;
   },
 ): Promise<z.infer<T>> {
   const temperature = options?.temperature ?? 0.2;
   const jsonSchema = options?.jsonSchema;
+  const jsonExample = options?.jsonExample;
 
   const jsonInstruction: MistralChatMessage = {
     role: "system",
     content: `Tu dois répondre UNIQUEMENT avec un objet JSON valide (sans markdown, sans texte autour).
 Respecte strictement le schéma « ${schemaName} » (noms de champs et types).
-N'utilise que des valeurs issues du contexte fourni — aucune valeur fictive de démonstration.`,
+Structure attendue (forme uniquement — valeurs tirées du contexte, ne recopie pas les exemples) :
+${jsonExample ?? JSON.stringify(jsonSchema ?? {}, null, 2)}`,
   };
 
   const attempts: ResponseFormat[] = [

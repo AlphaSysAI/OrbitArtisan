@@ -110,3 +110,16 @@ export const LEAD_QUALIFICATION_JSON_SCHEMA: Record<string, unknown> = {
     "missing_info",
   ],
 };
+
+export const LEAD_QUALIFICATION_JSON_EXAMPLE = `{
+  "need_summary": "Je dois faire réparer une fuite sous l'évier de la cuisine, apparue il y a deux jours, avec de l'eau qui goutte en continu.",
+  "job_type": "Réparation fuite évier",
+  "urgency": "urgent",
+  "technical_elements": ["fuite au niveau du siphon", "meuble sous évier abîmé"],
+  "estimated_hours_min": 1,
+  "estimated_hours_max": 3,
+  "complexity": "simple",
+  "material_cost_share": 0.15,
+  "confidence": "moyenne",
+  "missing_info": ["âge de l'installation"]
+}`;

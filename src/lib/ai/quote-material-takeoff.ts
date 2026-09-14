@@ -171,6 +171,17 @@ Règles :
     {
       temperature: 0.15,
       jsonSchema: MATERIAL_TAKEOFF_JSON_SCHEMA,
+      jsonExample: `{
+  "work_summary": "Mur en parpaings 10 ml × 2 m",
+  "assumptions": ["Parpaing 20×20×50 cm", "10 % chute", "Pas d'ouverture déduite"],
+  "materials": [
+    { "name_generic": "Parpaing creux", "quantity": 440, "unit": "U", "specifications": "20×20×50" },
+    { "name_generic": "Mortier ciment", "quantity": 12, "unit": "sacs", "specifications": "35 kg" },
+    { "name_generic": "Sable", "quantity": 1.2, "unit": "m³", "specifications": null }
+  ],
+  "labor_hours_estimate": 16,
+  "calculation_notes": "Métré indicatif — confirmer métrés et accès sur chantier."
+}`,
     },
   );
 
