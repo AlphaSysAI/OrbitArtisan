@@ -33,6 +33,7 @@ import {
   warmupLeadQualification,
 } from "./actions";
 import { ChatStep } from "./chat-step";
+import { EstimationLoadingPanel } from "./estimation-loading";
 import { LocationStep, type LeadLocation } from "./location-step";
 import { MediaStep } from "./media-step";
 
@@ -429,12 +430,7 @@ function WidgetResultStep({
   }, [load]);
 
   if (state.status === "loading") {
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card py-20 text-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">On chiffre ta demande…</p>
-      </div>
-    );
+    return <EstimationLoadingPanel />;
   }
 
   if (state.status === "error") {
@@ -549,12 +545,7 @@ function ResultStep({
   }, [load]);
 
   if (state.status === "loading") {
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card py-20 text-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">On chiffre ta demande…</p>
-      </div>
-    );
+    return <EstimationLoadingPanel />;
   }
 
   if (state.status === "error") {

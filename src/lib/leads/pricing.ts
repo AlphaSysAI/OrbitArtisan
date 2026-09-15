@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
+import type { LeadMaterialCostEstimate } from "@/lib/leads/lead-material-estimate";
 import type { LeadEstimate } from "@/lib/leads/types";
 
 /**
@@ -134,5 +135,59 @@ export function buildEstimate(
     basis: vague
       ? `${hoursBasis}, ${rateBasis}. Fourchette large : ta description manque encore de détails.`
       : `${hoursBasis}, ${rateBasis}.`,
+  };
+}
+
+/**
+ * Main-d'œuvre + fournitures chiffrées séparément (métré / prix web) quand disponibles.
+ */
+export function buildFullLeadEstimate(
+  qualification: LeadQualification,
+  pricing: PricingContext,
+  materialCosts: LeadMaterialCostEstimate | null,
+): LeadEstimate {
+  if (!materialCosts || materialCosts.max <= 0) {
+    return buildEstimate(qualification, pricing);
+  }
+
+  const rate = pricing.hourlyRateEur;
+  const vague = qualification.confidence === "faible";
+
+  const laborMin = roundTo(
+    Math.max(qualification.estimated_hours_min, MIN_BILLABLE_HOURS) * rate * (vague ? 0.85 : 1),
+    10,
+  );
+  const laborMax = roundTo(
+    Math.max(
+      qualification.estimated_hours_max * rate * (vague ? 1.25 : 1),
+      laborMin * MIN_SPREAD[qualification.complexity],
+    ),
+    50,
+  );
+
+  const min = roundTo(laborMin + materialCosts.min, 10);
+  const max = roundTo(
+    Math.max(laborMax + materialCosts.max, min * MIN_SPREAD[qualification.complexity]),
+    50,
+  );
+
+  const rateBasis =
+    pricing.source === "artisans"
+      ? `taux horaire moyen de ${rate} €/h chez ${pricing.sampleSize} artisan${pricing.sampleSize > 1 ? "s" : ""} près de toi`
+      : `taux horaire de référence de ${rate} €/h`;
+
+  const hoursBasis =
+    qualification.estimated_hours_min === qualification.estimated_hours_max
+      ? `${qualification.estimated_hours_max} h de main-d'œuvre`
+      : `${qualification.estimated_hours_min} à ${qualification.estimated_hours_max} h de main-d'œuvre`;
+
+  const materialBasis = `fournitures ${materialCosts.min.toLocaleString("fr-FR")}–${materialCosts.max.toLocaleString("fr-FR")} €${materialCosts.webUsed ? " (prix recoupés en ligne)" : ""}`;
+
+  return {
+    min,
+    max,
+    basis: vague
+      ? `${hoursBasis}, ${rateBasis}, ${materialBasis}. Fourchette large : certains détails manquent encore.`
+      : `${hoursBasis}, ${rateBasis}, ${materialBasis}.`,
   };
 }

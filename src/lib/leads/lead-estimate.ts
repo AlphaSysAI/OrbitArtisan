@@ -6,7 +6,8 @@ import { qualifyLead } from "@/lib/ai/qualify-lead";
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
 import type { LeadChatMessage } from "@/lib/leads/chat-schema";
 import { estimateLeadRange } from "@/lib/leads/estimate";
-import { buildEstimate, resolvePricingContext } from "@/lib/leads/pricing";
+import { estimateLeadMaterialCosts } from "@/lib/leads/lead-material-estimate";
+import { buildFullLeadEstimate, resolvePricingContext } from "@/lib/leads/pricing";
 import type { LeadEstimate } from "@/lib/leads/types";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
@@ -26,6 +27,13 @@ export type LeadEstimateInput = {
   messages?: LeadChatMessage[];
   artisanIds: string[];
 };
+
+const QUALIFICATION_POLL_MS = 500;
+const QUALIFICATION_POLL_ATTEMPTS = 14;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function readLeadEstimateRow(token: string): Promise<LeadEstimateRow | null> {
   const admin = createSupabaseServiceRoleClient();
@@ -60,6 +68,39 @@ async function persistLeadEstimate(
   if (error) console.error("[lead-estimate] set_lead_estimate", error.message);
 }
 
+function tradeLabelFor(input: LeadEstimateInput): string | null {
+  return (
+    [findTradeCategory(input.categoryId)?.label, findTrade(input.categoryId, input.tradeId)?.label]
+      .filter(Boolean)
+      .join(" · ") || null
+  );
+}
+
+/** Attend le prefetch puis lance qualifyLead si besoin — pas de repli heuristique immédiat. */
+async function ensureQualification(input: LeadEstimateInput): Promise<LeadQualification | null> {
+  for (let i = 0; i < QUALIFICATION_POLL_ATTEMPTS; i += 1) {
+    const stored = await readLeadEstimateRow(input.token);
+    if (stored?.ai_qualification) return stored.ai_qualification;
+    await sleep(QUALIFICATION_POLL_MS);
+  }
+
+  const stored = await readLeadEstimateRow(input.token);
+  if (stored?.ai_qualification) return stored.ai_qualification;
+
+  try {
+    return await qualifyLead({
+      description: input.description,
+      categoryLabel: findTradeCategory(input.categoryId)?.label ?? null,
+      tradeLabel: findTrade(input.categoryId, input.tradeId)?.label ?? null,
+      messages: input.messages,
+      mediaCount: input.mediaCount,
+    });
+  } catch (err) {
+    console.error("[lead-estimate] qualifyLead", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 /**
  * Lance la qualification IA pendant les étapes suivantes (photos, adresse).
  * Idempotent : ignore si une qualification est déjà persistée.
@@ -84,7 +125,7 @@ export async function prefetchLeadQualification(input: LeadEstimateInput): Promi
       artisanIds: [],
       categoryId: input.categoryId,
     });
-    const estimate = buildEstimate(qualification, pricing);
+    const estimate = buildFullLeadEstimate(qualification, pricing, null);
 
     const { data: leadStatus } = await admin
       .from("leads")
@@ -110,22 +151,26 @@ export async function prefetchLeadQualification(input: LeadEstimateInput): Promi
 }
 
 /**
- * Fourchette affichée au prospect : réutilise la qualification pré-calculée
- * si disponible, sinon heuristique immédiate (sans appel IA bloquant).
+ * Fourchette affichée au prospect : attend l'IA, chiffre main-d'œuvre + matériaux.
+ * Repli heuristique uniquement si l'IA est indisponible.
  */
 export async function resolveLeadEstimate(
   supabase: SupabaseClient,
   input: LeadEstimateInput,
 ): Promise<LeadEstimate> {
-  const stored = await readLeadEstimateRow(input.token);
-  const qualification = stored?.ai_qualification ?? null;
+  const label = tradeLabelFor(input);
+
+  const [qualification, materialCosts] = await Promise.all([
+    ensureQualification(input),
+    estimateLeadMaterialCosts({ description: input.description, tradeLabel: label }),
+  ]);
 
   if (qualification) {
     const pricing = await resolvePricingContext(supabase, {
       artisanIds: input.artisanIds,
       categoryId: input.categoryId,
     });
-    const estimate = buildEstimate(qualification, pricing);
+    const estimate = buildFullLeadEstimate(qualification, pricing, materialCosts);
     await persistLeadEstimate(supabase, input.token, estimate, qualification);
     return estimate;
   }

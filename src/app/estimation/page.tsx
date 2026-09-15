@@ -7,6 +7,9 @@ import { getMarketingHomeHref } from "@/lib/site-url";
 
 import { EstimationWizard } from "./estimation-wizard";
 
+/** Qualification + métré matériaux : jusqu'à ~25 s côté serveur. */
+export const maxDuration = 60;
+
 export const metadata: Metadata = {
   title: "Estimer mes travaux gratuitement | Soline",
   description:
