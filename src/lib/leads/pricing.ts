@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
 import type { LeadMaterialCostEstimate } from "@/lib/leads/lead-material-estimate";
+import { applyStructuralShellEstimateFloor } from "@/lib/leads/lead-project-scale";
 import type { LeadEstimate } from "@/lib/leads/types";
 
 /**
@@ -145,9 +146,12 @@ export function buildFullLeadEstimate(
   qualification: LeadQualification,
   pricing: PricingContext,
   materialCosts: LeadMaterialCostEstimate | null,
+  description = "",
 ): LeadEstimate {
   if (!materialCosts || materialCosts.max <= 0) {
-    return buildEstimate(qualification, pricing);
+    return description
+      ? applyStructuralShellEstimateFloor(buildEstimate(qualification, pricing), description)
+      : buildEstimate(qualification, pricing);
   }
 
   const rate = pricing.hourlyRateEur;
@@ -183,11 +187,13 @@ export function buildFullLeadEstimate(
 
   const materialBasis = `fournitures ${materialCosts.min.toLocaleString("fr-FR")}–${materialCosts.max.toLocaleString("fr-FR")} €${materialCosts.webUsed ? " (prix recoupés en ligne)" : ""}`;
 
-  return {
+  const estimate: LeadEstimate = {
     min,
     max,
     basis: vague
       ? `${hoursBasis}, ${rateBasis}, ${materialBasis}. Fourchette large : certains détails manquent encore.`
       : `${hoursBasis}, ${rateBasis}, ${materialBasis}.`,
   };
+
+  return description ? applyStructuralShellEstimateFloor(estimate, description) : estimate;
 }

@@ -8,6 +8,7 @@ import {
   type LeadQualification,
 } from "@/lib/ai/qualify-lead-schema";
 import type { LeadChatMessage } from "@/lib/leads/chat-schema";
+import { enforceQualificationScale } from "@/lib/leads/lead-project-scale";
 
 /**
  * Analyse la demande d'un particulier (chat de qualification + description
@@ -34,12 +35,18 @@ export async function qualifyLead(params: {
   const systemPrompt = `Tu es un économiste de la construction en France. Tu analyses la demande d'un particulier pour préparer un chiffrage.
 Règles :
 1. N'invente rien : tout ce que tu écris doit venir du texte du client. Ce qui manque va dans missing_info.
-2. estimated_hours_min / estimated_hours_max = total des heures de main d'œuvre facturées, toutes personnes confondues, déplacement et préparation inclus. Multiplie par le nombre d'intervenants si une équipe est implicite.
-3. Les heures doivent être proportionnées à l'ampleur décrite (intervention ponctuelle, rénovation partielle, chantier complet) — sans extrapoler au-delà du texte client.
-4. material_cost_share = part des matériaux dans le coût total, entre 0 et 0,7, selon la part fourniture dans le lot décrit.
-5. confidence = « faible » si la demande reste vague, « bonne » si dimensions et nature sont claires.
-6. Ne donne aucun prix : le tarif est appliqué ensuite à partir des taux réels des artisans.
-7. Réponds en français, sans jargon inutile.`;
+2. estimated_hours_min / estimated_hours_max = total des heures de main d'œuvre facturées, toutes personnes confondues (équipe incluse), déplacement et préparation inclus.
+3. Repères de durée en France (à respecter selon l'ampleur décrite) :
+   - dépannage ponctuel (fuite, prise, serrure) : 1 à 4 h
+   - pose ou remplacement d'un équipement : 4 à 12 h
+   - rénovation d'une pièce : 40 à 150 h
+   - réfection toiture ou façade ~100 m² : 150 à 350 h
+   - maison neuve / gros œuvre structurel (plancher, murs, toiture) : minimum ~3 à 9 h/m² de surface au sol citée, cumulées équipe
+4. Si le client donne une surface en m² pour une construction ou maison neuve, calibrer les heures sur cette surface — ne jamais répondre comme pour un dépannage.
+5. material_cost_share = part des matériaux dans le coût total, entre 0 et 0,7 (gros œuvre : souvent 0,5 à 0,65).
+6. confidence = « faible » si la demande reste vague, « bonne » si dimensions et nature sont claires.
+7. Ne donne aucun prix : le tarif est appliqué ensuite à partir des taux réels des artisans.
+8. Réponds en français, sans jargon inutile.`;
 
   const userPrompt = `Métier demandé : ${trade}
 ${params.mediaCount ? `Le client a joint ${params.mediaCount} photo(s) ou vidéo(s) que tu ne peux pas voir : n'en tire aucune conclusion.` : "Aucun média joint."}
@@ -71,5 +78,5 @@ Consigne : extrais chaque détail concret (localisation, dimensions, quantités,
     qualification.estimated_hours_max = min;
   }
 
-  return qualification;
+  return enforceQualificationScale(qualification, params.description);
 }

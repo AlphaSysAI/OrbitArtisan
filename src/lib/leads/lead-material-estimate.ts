@@ -108,7 +108,8 @@ Règles :
 3. unit_price_min_eur / unit_price_max_eur = prix unitaire HT en euros (fourchette marché particulier/pro).
 4. Croise les références web si présentes ; sinon utilise des prix moyens constatés en grande surface pro / négoce BTP France.
 5. Si le lot est quasi 100 % main-d'œuvre (dépannage simple sans fourniture notable), renvoie items=[] et explique dans pricing_notes.
-6. Ne gonfle pas les quantités (ex. parpaings : proportions mur, pas surface au sol × 10).`,
+6. Ne gonfle pas les quantités sur un ouvrage ponctuel (ex. parpaings : proportions mur, pas surface au sol × 10).
+7. Pour une maison neuve ou gros œuvre avec surface au sol citée, chiffre l'ensemble des lots structurels demandés (plancher, murs, toiture) — plusieurs dizaines de milliers d'euros minimum.`,
         },
         {
           role: "user",

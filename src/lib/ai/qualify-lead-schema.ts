@@ -32,8 +32,8 @@ function coerceHours(fallback: number) {
   return (v: unknown) => {
     const n = typeof v === "number" ? v : Number(String(v ?? "").replace(",", "."));
     if (!Number.isFinite(n) || n <= 0) return fallback;
-    // Au-delà d'un mois de chantier, l'estimation automatique n'a plus de sens.
-    return Math.min(n, 320);
+    // Chantiers lourds (maison neuve) : plusieurs milliers d'heures cumulées possibles.
+    return Math.min(n, 8000);
   };
 }
 

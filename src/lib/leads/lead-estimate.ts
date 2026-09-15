@@ -6,6 +6,7 @@ import { qualifyLead } from "@/lib/ai/qualify-lead";
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
 import type { LeadChatMessage } from "@/lib/leads/chat-schema";
 import { estimateLeadRange } from "@/lib/leads/estimate";
+import { applyStructuralShellEstimateFloor, surfaceShellEstimate } from "@/lib/leads/lead-project-scale";
 import { estimateLeadMaterialCosts } from "@/lib/leads/lead-material-estimate";
 import { buildFullLeadEstimate, resolvePricingContext } from "@/lib/leads/pricing";
 import type { LeadEstimate } from "@/lib/leads/types";
@@ -170,16 +171,30 @@ export async function resolveLeadEstimate(
       artisanIds: input.artisanIds,
       categoryId: input.categoryId,
     });
-    const estimate = buildFullLeadEstimate(qualification, pricing, materialCosts);
+    const estimate = buildFullLeadEstimate(
+      qualification,
+      pricing,
+      materialCosts,
+      input.description,
+    );
     await persistLeadEstimate(supabase, input.token, estimate, qualification);
     return estimate;
   }
 
-  const estimate = estimateLeadRange({
-    categoryId: input.categoryId,
+  const shellFallback = surfaceShellEstimate({
     description: input.description,
     mediaCount: input.mediaCount,
   });
+  const estimate =
+    shellFallback ??
+    applyStructuralShellEstimateFloor(
+      estimateLeadRange({
+        categoryId: input.categoryId,
+        description: input.description,
+        mediaCount: input.mediaCount,
+      }),
+      input.description,
+    );
   await persistLeadEstimate(supabase, input.token, estimate, null);
   return estimate;
 }
