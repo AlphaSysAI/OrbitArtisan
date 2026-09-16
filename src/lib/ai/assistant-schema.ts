@@ -75,7 +75,7 @@ export const ASSISTANT_INTENT_JSON_SCHEMA: Record<string, unknown> = {
     },
     answer_topic: {
       type: ["string", "null"],
-      description: "Si intent=answer : appointments | pending_quotes | pending_invoices",
+      description: "Si intent=answer : appointments | messages | pending_quotes | pending_invoices",
     },
   },
   required: [

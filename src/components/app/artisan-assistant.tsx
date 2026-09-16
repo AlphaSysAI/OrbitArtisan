@@ -437,7 +437,11 @@ export function ArtisanAssistant() {
         window.setTimeout(() => {
           // En mains libres, on garde le panneau ouvert pour ne pas couper le micro.
           if (!handsFreeRef.current) setOpen(false);
-          router.push(href);
+          if (pathname === href) {
+            router.refresh();
+          } else {
+            router.push(href);
+          }
         }, 450);
       }
     } catch {

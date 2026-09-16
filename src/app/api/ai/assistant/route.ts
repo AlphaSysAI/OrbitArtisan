@@ -19,6 +19,10 @@ import {
   countPendingQuotes,
   fetchAppointmentsForDates,
 } from "@/lib/ai/assistant-data-query";
+import {
+  answerMessageQuestion,
+  tryOpenMessageNavigation,
+} from "@/lib/ai/assistant-message-query";
 import { buildQuoteFromText } from "@/lib/ai/build-quote-from-text";
 import { extractFrenchDates } from "@/lib/ai/extract-dates";
 import { extractFrenchTime } from "@/lib/ai/extract-time";
@@ -316,7 +320,46 @@ export async function POST(request: Request) {
     }
   }
 
-  // 2) Questions données → lecture BDD (ex. « ai-je des RDV demain ? »)
+  const contactsRes = await listArtisanContacts();
+  const linked: ContactCandidate[] = contactsRes.ok
+    ? contactsRes.items
+        .filter((i): i is Extract<typeof i, { kind: "linked" }> => i.kind === "linked")
+        .filter((i) => !!i.conversationId || !!i.customerUserId)
+        .map((i) => ({
+          customerUserId: i.customerUserId ?? "",
+          label: i.label,
+          email: i.email,
+          conversationId: i.conversationId,
+        }))
+    : [];
+
+  const invited: ContactCandidate[] = contactsRes.ok
+    ? contactsRes.items
+        .filter((i): i is Extract<typeof i, { kind: "pending" }> => i.kind === "pending")
+        .filter((i) => i.invitedName?.trim())
+        .map((i) => ({
+          customerUserId: "",
+          label: i.invitedName!.trim(),
+          email: i.email,
+          conversationId: null,
+        }))
+    : [];
+
+  // 2a) Ouvrir un fil / dernier message (ex. « ouvre le message de Dupont »)
+  const openMessage = await tryOpenMessageNavigation(supabase, profile.id, user.id, message, linked);
+  if (openMessage) {
+    return NextResponse.json(navigateResponse(openMessage.href, openMessage.label, openMessage.reply));
+  }
+
+  // 2b) Questions messages (ex. « ai-je reçu un message de X le 14 sept ? »)
+  const messageAnswer = await answerMessageQuestion(supabase, profile.id, user.id, message, linked);
+  if (messageAnswer) {
+    return NextResponse.json(
+      answerResponse(messageAnswer.reply, messageAnswer.href, messageAnswer.label ?? undefined),
+    );
+  }
+
+  // 2c) Questions données RDV (ex. « ai-je des RDV demain ? »)
   const rdvAnswer = await answerRdvQuestion(supabase, profile.id, message);
   if (rdvAnswer) return NextResponse.json(rdvAnswer);
 
@@ -355,32 +398,6 @@ export async function POST(request: Request) {
     return NextResponse.json(navigateResponse(fast.href, fast.label, fast.reply));
   }
 
-  const contactsRes = await listArtisanContacts();
-  const linked: ContactCandidate[] = contactsRes.ok
-    ? contactsRes.items
-        .filter((i): i is Extract<typeof i, { kind: "linked" }> => i.kind === "linked")
-        .filter((i) => !!i.customerUserId)
-        .map((i) => ({
-          customerUserId: i.customerUserId!,
-          label: i.label,
-          email: i.email,
-          conversationId: i.conversationId,
-        }))
-    : [];
-
-  // Invitations envoyées : le nom existe déjà même si le compte n'est pas créé.
-  const invited: ContactCandidate[] = contactsRes.ok
-    ? contactsRes.items
-        .filter((i): i is Extract<typeof i, { kind: "pending" }> => i.kind === "pending")
-        .filter((i) => i.invitedName?.trim())
-        .map((i) => ({
-          customerUserId: "",
-          label: i.invitedName!.trim(),
-          email: i.email,
-          conversationId: null,
-        }))
-    : [];
-
   const contactDirectory =
     linked.length > 0
       ? linked.map((c) => `- ${c.label}${c.email ? ` <${c.email}>` : ""}`).join("\n")
@@ -398,8 +415,8 @@ export async function POST(request: Request) {
           content: `Tu es Soline, assistant ULTRA-DIRECT pour un artisan.
 Règles d’or :
 1. AGIS tout de suite. Ne pose JAMAIS « prêt à y aller ? » ni « filtre par date ou client ? ».
-2. Questions d’INFO (« ai-je des RDV… », « combien de devis… ») → intent=answer + answer_topic (appointments | pending_quotes | pending_invoices) + date_query si dates citées. Le serveur lit la BDD.
-3. « ouvre / va sur / affiche la page… » → intent=navigate (pas answer).
+2. Questions d’INFO (« ai-je des RDV… », « ai-je reçu un message… », « combien de devis… ») → intent=answer + answer_topic (appointments | messages | pending_quotes | pending_invoices) + date_query si dates citées. Le serveur lit la BDD.
+3. « ouvre / va sur / affiche la page… » → intent=navigate (pas answer). « ouvre le message de X » → navigate vers /app/messages (le serveur résout le fil).
 4. « go / vas-y / oui » après une nav → intent=navigate (historique).
 5. create_quote_draft UNIQUEMENT pour créer/préparer un devis clairement.
 6. « crée / ajoute / planifie / cale un RDV pour X le … à … » → intent=create_appointment_draft, avec customer_query (le client), date_query (le jour) et time_query (l’heure). Ce n’est JAMAIS answer ni navigate.
@@ -565,6 +582,16 @@ ${message}`,
           "/app/invoices",
           "Voir les factures",
         ),
+      );
+    }
+
+    if (topic === "messages") {
+      const msg = await answerMessageQuestion(supabase, profile.id, user.id, message, linked);
+      if (msg) {
+        return NextResponse.json(answerResponse(msg.reply, msg.href, msg.label ?? undefined));
+      }
+      return NextResponse.json(
+        answerResponse("Je n’ai pas trouvé de message correspondant.", "/app/messages", "Messages"),
       );
     }
 

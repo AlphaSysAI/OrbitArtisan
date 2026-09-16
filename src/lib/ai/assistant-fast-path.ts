@@ -93,6 +93,8 @@ export function tryRdvDataQuestion(message: string): { dates: string[]; kind: "d
   if (looksLikeAppointmentCreation(message)) return null;
 
   const m = normalize(message);
+  // « ai-je reçu un message… » n’est pas une question RDV
+  if (/\b(message|messages|messagerie|conversation|sms|recu|recue|envoye|envoyee)\b/.test(m)) return null;
   const aboutRdv =
     /\b(rdv|rendez[- ]?vous|planning|agenda)\b/.test(m) ||
     /\b(suis[- ]?je|ai[- ]?je|avais[- ]?je).*(libre|occupe|dispo|rdv|rendez)\b/.test(m);
@@ -167,7 +169,7 @@ export function tryFastNavigate(message: string): FastNavigateResult | null {
     return { href: "/app/quotes", label: "Devis", reply: "J’ouvre la liste de tes devis." };
   }
 
-  if (/\b(message|messages|messagerie|boite)\b/.test(m)) {
+  if (/\b(message|messages|messagerie|boite)\b/.test(m) && !/\b(de|du|d |avec|par|dernier|recu|recue)\b/.test(m)) {
     return { href: "/app/messages", label: "Messages", reply: "J’ouvre tes messages." };
   }
 
