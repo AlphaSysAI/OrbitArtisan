@@ -78,7 +78,10 @@ export function CreateServiceForm({ disabled }: { disabled?: boolean }) {
               placeholder="65"
               disabled={disabled}
             />
-            <p className="text-xs text-muted-foreground">Vide = affiché « sur devis ».</p>
+            <p className="text-xs text-muted-foreground">
+              Vide = affiché « sur devis ». Affichage uniquement : n&apos;affecte pas le montant d&apos;un devis (calculé
+              sur le taux horaire × la durée).
+            </p>
           </div>
         </div>
 

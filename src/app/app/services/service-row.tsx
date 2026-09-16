@@ -81,6 +81,10 @@ export function ServiceRow({
                 defaultValue={priceEuros}
                 placeholder="65"
               />
+              <p className="text-xs text-muted-foreground">
+                Affichage uniquement : n&apos;affecte pas le montant d&apos;un devis (calculé sur le taux horaire ×
+                la durée).
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

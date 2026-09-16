@@ -471,7 +471,11 @@ export function QuoteForm({
         <Card className="border-0 shadow-none">
           <CardHeader>
             <CardTitle className="text-xl">Prestations</CardTitle>
-            <CardDescription>Choisis une ou plusieurs prestations à inclure dans le devis.</CardDescription>
+            <CardDescription>
+              Choisis une ou plusieurs prestations à inclure dans le devis. Le prix affiché sur chaque prestation
+              est indicatif — seule la durée influence le montant du devis (taux horaire × durée, ajustable
+              ci-dessous).
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
