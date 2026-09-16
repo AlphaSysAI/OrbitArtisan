@@ -359,7 +359,11 @@ export function QuoteForm({
                 ? "Vérifie les fournitures (quantité > 0 et prix valide)."
                 : res.error === "invalid_conversation"
                   ? "Conversation invalide."
-                  : "Impossible de créer le devis. Réessaie.",
+                  : res.error === "missing_customer"
+                    ? "Renseigne le nom ou l'e-mail du client avant envoi."
+                    : res.error === "quote_pdf_profile_incomplete"
+                      ? `Complète ton profil avant envoi : ${("validation" in res ? res.validation.blocking : []).join(" ")}`
+                      : "Impossible de créer le devis. Réessaie.",
         );
         return;
       }

@@ -3,7 +3,9 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { sendEmail } from "@/lib/email/send-email";
-import { renderQuotePdfBytes } from "@/lib/quotes/send-quote-pdf";
+import { loadQuotePdfDocument } from "@/lib/billing/load-quote-pdf";
+import { renderQuotePdf } from "@/lib/billing/render-quote-pdf";
+import { validateQuoteBeforeSend } from "@/lib/quotes/validate-quote-before-send";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 function formatEur(cents: number): string {
@@ -27,8 +29,13 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
   const artisan = params.businessName?.trim() || "Votre artisan";
   const greeting = params.customerName?.trim() ? `Bonjour ${params.customerName.trim()},` : "Bonjour,";
 
-  const pdfBytes = await renderQuotePdfBytes(params.supabase, params.quoteId, params.artisanId);
+  const check = await validateQuoteBeforeSend(params.supabase, params.quoteId, params.artisanId);
+  if (!check.ok) return { ok: false as const, error: "quote_pdf_profile_incomplete" as const };
+
+  const doc = await loadQuotePdfDocument(params.supabase, params.quoteId, params.artisanId);
+  const pdfBytes = doc ? await renderQuotePdf(doc) : null;
   const pdfBase64 = pdfBytes ? Buffer.from(pdfBytes).toString("base64") : null;
+  const fileStem = doc?.quoteNumber.replace(/[^\w-]+/g, "-") ?? params.quoteId.slice(0, 8);
 
   const subject = `${artisan} — votre devis (${total})`;
 
@@ -56,7 +63,7 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
     html,
     text,
     attachments: pdfBase64
-      ? [{ filename: `devis-${params.quoteId.slice(0, 8)}.pdf`, content: pdfBase64 }]
+      ? [{ filename: `devis-${fileStem}.pdf`, content: pdfBase64 }]
       : undefined,
   });
 }

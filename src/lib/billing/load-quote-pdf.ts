@@ -1,18 +1,46 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  buildQuotePdfTableLines,
+  computeVatBreakdown,
+  normalizeVatRate,
+  sumQuoteTotals,
+} from "@/lib/billing/build-quote-pdf-lines";
+import { buildQuotePdfFooterLines, validateQuoteLegalProfile } from "@/lib/billing/quote-pdf-legal";
+import type { QuotePdfDocument } from "@/lib/billing/quote-pdf-types";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 
-import type { QuotePdfDocument } from "./render-quote-pdf";
+async function fetchLogoBytes(url: string | null | undefined): Promise<Uint8Array | null> {
+  if (!url?.trim()) return null;
+  try {
+    const res = await fetch(url, { cache: "force-cache" });
+    if (!res.ok) return null;
+    return new Uint8Array(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+export async function ensureQuoteNumber(
+  supabase: SupabaseClient,
+  quoteId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc("allocate_quote_number", { p_quote_id: quoteId });
+  if (error) return null;
+  return typeof data === "string" ? data : null;
+}
 
 export async function loadQuotePdfDocument(
   supabase: SupabaseClient,
   quoteId: string,
   artisanId: string,
 ): Promise<QuotePdfDocument | null> {
+  const quoteNumber = (await ensureQuoteNumber(supabase, quoteId)) ?? null;
+
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id, artisan_id, customer_name, customer_email, labor_total, materials_total, grand_total, notes, created_at, work_site_address, work_site_city, work_site_postal_code",
+      "id, artisan_id, customer_name, customer_email, labor_rate_per_hour, labor_duration_minutes, labor_total, materials_total, grand_total, notes, created_at, work_site_address, work_site_city, work_site_postal_code, reduced_vat_rate, generate_vat_attestation, quote_number",
     )
     .eq("id", quoteId)
     .eq("artisan_id", artisanId)
@@ -23,7 +51,7 @@ export async function loadQuotePdfDocument(
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "business_name, name, phone, address_line1, postal_code, city, siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, logo_url",
+      "business_name, name, phone, email, address_line1, postal_code, city, siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, logo_url, default_payment_terms_days",
     )
     .eq("id", artisanId)
     .maybeSingle();
@@ -38,59 +66,85 @@ export async function loadQuotePdfDocument(
       .order("created_at", { ascending: true }),
     supabase
       .from("quote_materials")
-      .select("label, quantity, unit_price, line_total")
+      .select("label, quantity, unit_price, line_total, vat_rate, exclude_from_invoice")
       .eq("quote_id", quoteId)
       .order("created_at", { ascending: true }),
   ]);
 
-  const validUntil = new Date(quote.created_at);
-  validUntil.setMonth(validUntil.getMonth() + 2);
+  const issueDate = new Date(quote.created_at);
+  const validUntil = new Date(issueDate);
+  validUntil.setMonth(validUntil.getMonth() + 3);
 
   const workSite = [quote.work_site_address, quote.work_site_postal_code, quote.work_site_city]
     .filter(Boolean)
     .join(", ");
 
+  const defaultVatRate = normalizeVatRate(quote.reduced_vat_rate ?? 20);
+  const tableLines = buildQuotePdfTableLines({
+    services: services ?? [],
+    materials: materials ?? [],
+    laborTotalCents: quote.labor_total ?? 0,
+    laborDurationMinutes: quote.labor_duration_minutes ?? 0,
+    laborRatePerHourCents: quote.labor_rate_per_hour ?? 0,
+    defaultVatRate,
+  });
+
+  const vatBreakdown = computeVatBreakdown(tableLines);
+  const totals = sumQuoteTotals(vatBreakdown);
+
+  const legalProfile = {
+    business_name: profile.business_name,
+    name: profile.name,
+    siren: profile.siren,
+    siret: profile.siret,
+    vat_number: profile.vat_number,
+    trade_register_number: profile.trade_register_number,
+    decennale_insurer: profile.decennale_insurer,
+    decennale_policy_number: profile.decennale_policy_number,
+    rc_pro_insurer: profile.rc_pro_insurer,
+    rc_pro_number: profile.rc_pro_number,
+    mediator_name: profile.mediator_name,
+    mediator_url: profile.mediator_url,
+    addressLine1: profile.address_line1,
+    postalCode: profile.postal_code,
+    city: profile.city,
+    email: profile.email,
+  };
+
+  const validation = validateQuoteLegalProfile(legalProfile);
+  const displayNumber =
+    quote.quote_number ?? quoteNumber ?? quote.id.slice(0, 8).toUpperCase();
+
+  const logoBytes = await fetchLogoBytes(profile.logo_url);
+
   return {
-    quoteNumber: quote.id.slice(0, 8).toUpperCase(),
-    issueDate: new Date(quote.created_at),
+    quoteNumber: displayNumber,
+    issueDate,
     validUntil,
+    paymentTermsDays: profile.default_payment_terms_days ?? 30,
+    defaultVatRate,
     seller: {
-      business_name: profile.business_name,
-      name: profile.name,
-      siren: profile.siren,
-      siret: profile.siret,
-      vat_number: profile.vat_number,
-      trade_register_number: profile.trade_register_number,
-      decennale_insurer: profile.decennale_insurer,
-      decennale_policy_number: profile.decennale_policy_number,
-      rc_pro_insurer: profile.rc_pro_insurer,
-      rc_pro_number: profile.rc_pro_number,
-      mediator_name: profile.mediator_name,
-      mediator_url: profile.mediator_url,
-      addressLine1: profile.address_line1,
-      postalCode: profile.postal_code,
-      city: profile.city,
+      ...legalProfile,
       phone: profile.phone,
       logoUrl: profile.logo_url,
+      logoBytes,
     },
     buyer: {
       name: formatContactDisplayName({ name: quote.customer_name, email: quote.customer_email }),
       email: quote.customer_email,
     },
-    serviceLines: (services ?? []).map((s) => ({
-      label: s.service_title,
-      detail: `${s.duration_minutes} min`,
-      amountCents: s.line_total ?? s.unit_price ?? 0,
-    })),
-    materialLines: (materials ?? []).map((m) => ({
-      label: m.label,
-      detail: `Qté ${m.quantity}`,
-      amountCents: m.line_total ?? m.unit_price * m.quantity,
-    })),
-    laborTotalCents: quote.labor_total ?? 0,
-    materialsTotalCents: quote.materials_total ?? 0,
-    grandTotalCents: quote.grand_total ?? 0,
+    tableLines,
+    vatBreakdown,
+    ...totals,
     notes: quote.notes,
     workSiteAddress: workSite || null,
+    generateVatAttestation: !!quote.generate_vat_attestation,
+    legalFooterLines: buildQuotePdfFooterLines({
+      profile: legalProfile,
+      validUntil,
+      paymentTermsDays: profile.default_payment_terms_days ?? 30,
+      generateVatAttestation: !!quote.generate_vat_attestation,
+    }),
+    legalWarnings: validation.warnings,
   };
 }

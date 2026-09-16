@@ -1,171 +1,229 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-import { buildLegalMentionLines, type ArtisanLegalProfile } from "@/lib/billing/legal-mentions";
-import { formatDateForPdf, formatEurosForPdf, sanitizePdfText } from "@/lib/billing/pdf-text";
+import { formatDateForPdf, formatEurosForPdf } from "@/lib/billing/pdf-text";
+import {
+  PDF_BRAND,
+  PDF_MARGIN,
+  PDF_MUTED,
+  PDF_PAGE_HEIGHT,
+  PDF_PAGE_WIDTH,
+  PDF_TABLE_COLS,
+  PdfLayoutWriter,
+  wrapPdfText,
+  type PdfFonts,
+} from "@/lib/billing/pdf-layout";
+import type { QuotePdfDocument, QuotePdfTableLine } from "@/lib/billing/quote-pdf-types";
 
-export type QuotePdfLine = {
-  label: string;
-  detail?: string;
-  amountCents: number;
-};
+export type { QuotePdfDocument } from "@/lib/billing/quote-pdf-types";
 
-export type QuotePdfDocument = {
-  quoteNumber: string;
-  issueDate: Date;
-  validUntil?: Date | null;
-  seller: ArtisanLegalProfile & {
-    addressLine1?: string | null;
-    addressLine2?: string | null;
-    postalCode?: string | null;
-    city?: string | null;
-    phone?: string | null;
-    email?: string | null;
-    logoUrl?: string | null;
-  };
-  buyer: {
-    name: string;
-    email?: string | null;
-    addressLine1?: string | null;
-    postalCode?: string | null;
-    city?: string | null;
-  };
-  serviceLines: QuotePdfLine[];
-  materialLines: QuotePdfLine[];
-  laborTotalCents: number;
-  materialsTotalCents: number;
-  grandTotalCents: number;
-  notes?: string | null;
-  workSiteAddress?: string | null;
-};
-
-const MARGIN = 50;
-const PAGE_WIDTH = 595.28;
-const PAGE_HEIGHT = 841.89;
-
-const formatEuros = formatEurosForPdf;
-const formatDate = formatDateForPdf;
-
-function wrapText(text: string, maxChars: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = candidate;
-    }
+async function embedLogo(pdf: PDFDocument, bytes: Uint8Array | null | undefined) {
+  if (!bytes?.length) return null;
+  try {
+    if (bytes[0] === 0x89) return pdf.embedPng(bytes);
+    return pdf.embedJpg(bytes);
+  } catch {
+    return null;
   }
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : [text];
+}
+
+function drawTableLine(page: import("pdf-lib").PDFPage, fonts: PdfFonts, line: QuotePdfTableLine, y: number): number {
+  const designationLines = wrapPdfText(line.designation, 42);
+  for (let i = 0; i < designationLines.length; i++) {
+    page.drawText(designationLines[i]!, {
+      x: PDF_TABLE_COLS.designation.x,
+      y: y - i * 12,
+      size: 9,
+      font: i === 0 ? fonts.bold : fonts.regular,
+      color: rgb(0.12, 0.12, 0.12),
+    });
+  }
+  if (line.detail) {
+    page.drawText(line.detail, {
+      x: PDF_TABLE_COLS.designation.x,
+      y: y - designationLines.length * 12 - 2,
+      size: 8,
+      font: fonts.regular,
+      color: PDF_MUTED,
+    });
+  }
+
+  const blockHeight = designationLines.length * 12 + (line.detail ? 12 : 0);
+  page.drawText(`${line.quantity} ${line.quantityLabel}`, {
+    x: PDF_TABLE_COLS.qty.x,
+    y,
+    size: 9,
+    font: fonts.regular,
+    color: rgb(0.12, 0.12, 0.12),
+  });
+  page.drawText(formatEurosForPdf(line.unitPriceCents), {
+    x: PDF_TABLE_COLS.unit.x,
+    y,
+    size: 9,
+    font: fonts.regular,
+    color: rgb(0.12, 0.12, 0.12),
+  });
+  page.drawText(`${line.vatRate} %`, {
+    x: PDF_TABLE_COLS.vat.x,
+    y,
+    size: 9,
+    font: fonts.regular,
+    color: rgb(0.12, 0.12, 0.12),
+  });
+  page.drawText(formatEurosForPdf(line.lineTotalCents), {
+    x: PDF_TABLE_COLS.total.x,
+    y,
+    size: 9,
+    font: fonts.bold,
+    color: rgb(0.12, 0.12, 0.12),
+  });
+
+  return y - blockHeight - 8;
 }
 
 export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
-
-  let y = PAGE_HEIGHT - MARGIN;
-
-  const draw = (text: string, opts: { size?: number; bold?: boolean; x?: number } = {}) => {
-    const size = opts.size ?? 10;
-    page.drawText(sanitizePdfText(text), {
-      x: opts.x ?? MARGIN,
-      y,
-      size,
-      font: opts.bold ? fontBold : font,
-      color: rgb(0.1, 0.1, 0.1),
-    });
-    y -= size + 6;
+  const fonts: PdfFonts = {
+    regular: await pdf.embedFont(StandardFonts.Helvetica),
+    bold: await pdf.embedFont(StandardFonts.HelveticaBold),
   };
+  const writer = new PdfLayoutWriter(pdf, fonts);
 
-  draw("DEVIS", { size: 20, bold: true });
-  draw(`Réf. ${doc.quoteNumber}`, { size: 12, bold: true });
-  draw(`Date : ${formatDate(doc.issueDate)}`);
-  if (doc.validUntil) draw(`Valable jusqu'au : ${formatDate(doc.validUntil)}`);
-  y -= 8;
+  const logo = await embedLogo(pdf, doc.seller.logoBytes);
+  const headerTop = PDF_PAGE_HEIGHT - PDF_MARGIN;
 
-  draw("Émetteur", { size: 11, bold: true });
-  draw(doc.seller.business_name, { bold: true });
-  if (doc.seller.name) draw(doc.seller.name);
-  if (doc.seller.addressLine1) draw(doc.seller.addressLine1);
+  if (logo) {
+    const dims = logo.scale(0.18);
+    writer.getPage().drawImage(logo, {
+      x: PDF_PAGE_WIDTH - PDF_MARGIN - dims.width,
+      y: headerTop - dims.height + 4,
+      width: dims.width,
+      height: dims.height,
+    });
+  }
+
+  writer.getPage().drawRectangle({
+    x: 0,
+    y: PDF_PAGE_HEIGHT - 28,
+    width: PDF_PAGE_WIDTH,
+    height: 28,
+    color: PDF_BRAND,
+  });
+  writer.getPage().drawText("DEVIS", {
+    x: PDF_MARGIN,
+    y: PDF_PAGE_HEIGHT - 20,
+    size: 14,
+    font: fonts.bold,
+    color: rgb(1, 1, 1),
+  });
+  writer.getPage().drawText(`N° ${doc.quoteNumber}`, {
+    x: PDF_MARGIN + 72,
+    y: PDF_PAGE_HEIGHT - 20,
+    size: 11,
+    font: fonts.regular,
+    color: rgb(1, 1, 1),
+  });
+
+  writer.setY(headerTop - 36);
+  writer.drawText(`Date d'émission : ${formatDateForPdf(doc.issueDate)}`, { size: 9 });
+  writer.drawText(`Valable jusqu'au : ${formatDateForPdf(doc.validUntil)}`, { size: 9, color: PDF_MUTED });
+  writer.drawRule();
+
+  const colMid = PDF_PAGE_WIDTH / 2 + 10;
+  const blockStartY = writer.currentY;
+
+  writer.drawText("ÉMETTEUR", { size: 8, bold: true, color: PDF_BRAND });
+  writer.drawText(doc.seller.business_name, { size: 10, bold: true });
+  if (doc.seller.name) writer.drawText(doc.seller.name, { size: 9 });
+  if (doc.seller.addressLine1) writer.drawText(doc.seller.addressLine1, { size: 9 });
   if (doc.seller.postalCode || doc.seller.city) {
-    draw([doc.seller.postalCode, doc.seller.city].filter(Boolean).join(" "));
+    writer.drawText([doc.seller.postalCode, doc.seller.city].filter(Boolean).join(" "), { size: 9 });
   }
-  if (doc.seller.phone) draw(`Tél. : ${doc.seller.phone}`);
-  y -= 8;
+  if (doc.seller.phone) writer.drawText(`Tél. ${doc.seller.phone}`, { size: 9 });
+  if (doc.seller.email) writer.drawText(doc.seller.email, { size: 9 });
+  if (doc.seller.siret) writer.drawText(`SIRET ${doc.seller.siret}`, { size: 8, color: PDF_MUTED });
 
-  draw("Client", { size: 11, bold: true });
-  draw(doc.buyer.name, { bold: true });
-  if (doc.buyer.addressLine1) draw(doc.buyer.addressLine1);
+  const emitterBottom = writer.currentY;
+  writer.setY(blockStartY);
+
+  writer.drawText("CLIENT", { x: colMid, size: 8, bold: true, color: PDF_BRAND });
+  writer.drawText(doc.buyer.name, { x: colMid, size: 10, bold: true });
+  if (doc.buyer.addressLine1) writer.drawText(doc.buyer.addressLine1, { x: colMid, size: 9 });
   if (doc.buyer.postalCode || doc.buyer.city) {
-    draw([doc.buyer.postalCode, doc.buyer.city].filter(Boolean).join(" "));
+    writer.drawText([doc.buyer.postalCode, doc.buyer.city].filter(Boolean).join(" "), {
+      x: colMid,
+      size: 9,
+    });
   }
-  if (doc.buyer.email) draw(doc.buyer.email);
-  y -= 8;
+  if (doc.buyer.email) writer.drawText(doc.buyer.email, { x: colMid, size: 9, color: PDF_MUTED });
+
+  writer.setY(Math.min(emitterBottom, writer.currentY) - 12);
 
   if (doc.workSiteAddress?.trim()) {
-    draw("Chantier", { size: 11, bold: true });
-    draw(doc.workSiteAddress.trim());
-    y -= 8;
+    writer.drawText("LIEU D'EXÉCUTION DES TRAVAUX", { size: 8, bold: true, color: PDF_BRAND });
+    writer.drawText(doc.workSiteAddress.trim(), { size: 9, maxWidthChars: 90 });
+    writer.drawRule();
   }
 
-  const drawSection = (title: string, lines: QuotePdfLine[]) => {
-    if (!lines.length) return;
-    draw(title, { bold: true });
-    y -= 4;
-    for (const line of lines) {
-      if (y < 180) break;
-      for (const wrapped of wrapText(line.label, 65)) {
-        page.drawText(sanitizePdfText(wrapped), { x: MARGIN, y, size: 10, font });
-        y -= 14;
-      }
-      if (line.detail) {
-        page.drawText(sanitizePdfText(line.detail), {
-          x: MARGIN + 12,
-          y,
-          size: 9,
-          font,
-          color: rgb(0.35, 0.35, 0.35),
-        });
-        y -= 14;
-      }
-      page.drawText(formatEuros(line.amountCents), {
-        x: PAGE_WIDTH - MARGIN - 80,
-        y: y + 14,
-        size: 10,
-        font: fontBold,
-      });
-      y -= 6;
-    }
-    y -= 8;
-  };
+  writer.drawText("DÉTAIL DES PRESTATIONS ET FOURNITURES", { size: 9, bold: true, color: PDF_BRAND });
+  writer.drawTableHeader([
+    { label: "Désignation", x: PDF_TABLE_COLS.designation.x, width: PDF_TABLE_COLS.designation.width },
+    { label: "Qté", x: PDF_TABLE_COLS.qty.x, width: PDF_TABLE_COLS.qty.width },
+    { label: "PU HT", x: PDF_TABLE_COLS.unit.x, width: PDF_TABLE_COLS.unit.width },
+    { label: "TVA", x: PDF_TABLE_COLS.vat.x, width: PDF_TABLE_COLS.vat.width },
+    { label: "Total HT", x: PDF_TABLE_COLS.total.x, width: PDF_TABLE_COLS.total.width },
+  ]);
 
-  drawSection("Prestations", doc.serviceLines);
-  drawSection("Fournitures", doc.materialLines);
+  for (const line of doc.tableLines) {
+    writer.ensureSpace(150);
+    const newY = drawTableLine(writer.getPage(), fonts, line, writer.currentY);
+    writer.setY(newY);
+  }
 
-  y -= 4;
-  draw(`Main d'œuvre : ${formatEuros(doc.laborTotalCents)}`);
-  draw(`Fournitures : ${formatEuros(doc.materialsTotalCents)}`);
-  draw(`Total HT (TVA non incluse) : ${formatEuros(doc.grandTotalCents)}`, { bold: true, size: 12 });
+  writer.drawRule();
+  writer.ensureSpace(180);
+
+  const totalsX = PDF_PAGE_WIDTH - PDF_MARGIN - 200;
+  for (const row of doc.vatBreakdown) {
+    writer.drawText(`Base HT ${row.rate} % : ${formatEurosForPdf(row.baseHtCents)}`, {
+      x: totalsX,
+      size: 9,
+    });
+    writer.drawText(`TVA ${row.rate} % : ${formatEurosForPdf(row.vatCents)}`, { x: totalsX, size: 9 });
+  }
+
+  writer.drawText(`Total HT : ${formatEurosForPdf(doc.totalHtCents)}`, { x: totalsX, size: 10, bold: true });
+  writer.drawText(`Total TVA : ${formatEurosForPdf(doc.totalVatCents)}`, { x: totalsX, size: 10 });
+  writer.drawText(`Total TTC : ${formatEurosForPdf(doc.totalTtcCents)}`, {
+    x: totalsX,
+    size: 12,
+    bold: true,
+    color: PDF_BRAND,
+  });
 
   if (doc.notes?.trim()) {
-    y -= 10;
-    draw("Notes", { bold: true });
-    for (const noteLine of wrapText(doc.notes.trim(), 90)) {
-      if (y < 120) break;
-      draw(noteLine);
-    }
+    writer.drawRule();
+    writer.drawText("OBSERVATIONS", { size: 8, bold: true, color: PDF_BRAND });
+    writer.drawText(doc.notes.trim(), { size: 9, maxWidthChars: 95 });
   }
 
-  y = 100;
-  const legalLines = buildLegalMentionLines(doc.seller);
-  for (const line of legalLines) {
-    page.drawText(sanitizePdfText(line), { x: MARGIN, y, size: 7, font, color: rgb(0.4, 0.4, 0.4) });
-    y -= 10;
+  writer.ensureSpace(200);
+  writer.drawRule();
+  writer.drawText("BON POUR ACCORD", { size: 10, bold: true, color: PDF_BRAND });
+  writer.drawText(
+    "Lu et approuvé, devis reçu avant exécution des travaux — Date : ____ / ____ / ______",
+    { size: 9, maxWidthChars: 95 },
+  );
+  writer.drawText("Nom et signature du client :", { size: 9 });
+  writer.drawText("_".repeat(55), { size: 9, color: PDF_MUTED });
+
+  for (const warning of doc.legalWarnings) {
+    writer.ensureSpace(90);
+    writer.drawText(warning, { size: 7, color: rgb(0.55, 0.35, 0.1), maxWidthChars: 110 });
+  }
+
+  for (const line of doc.legalFooterLines) {
+    writer.ensureSpace(90);
+    writer.drawText(line, { size: 7, color: PDF_MUTED, maxWidthChars: 110, lineGap: 9 });
   }
 
   pdf.setTitle(`Devis ${doc.quoteNumber}`);

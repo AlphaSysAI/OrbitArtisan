@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ quoteI
   return new NextResponse(Buffer.from(pdfBytes), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="devis-${quoteId.slice(0, 8)}.pdf"`,
+      "Content-Disposition": `attachment; filename="devis-${doc.quoteNumber.replace(/[^\w-]+/g, "-")}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });

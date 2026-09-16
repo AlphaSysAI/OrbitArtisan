@@ -11,7 +11,8 @@ export function QuoteDocumentActionsCard({ quoteId }: { quoteId: string }) {
     <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
       <p className="text-sm font-medium">Document devis</p>
       <p className="text-xs text-muted-foreground">
-        Télécharge le PDF ou duplique le devis pour le modifier avant un nouvel envoi.
+        PDF professionnel (tableau détaillé, TVA, bon pour accord). Complète tes mentions légales dans Réglages
+        avant envoi au client.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <a

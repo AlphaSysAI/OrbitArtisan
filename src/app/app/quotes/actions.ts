@@ -6,6 +6,7 @@ import { requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/requ
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
 import { notifyQuoteSentToCustomer } from "@/lib/notifications/notify-events";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
+import { validateQuoteLegalProfile } from "@/lib/billing/quote-pdf-legal";
 import { sendQuotePdfInConversation } from "@/lib/quotes/send-quote-pdf";
 
 type ParsedMaterial = {
@@ -100,7 +101,23 @@ export async function createQuote(formData: FormData) {
 
   await redirectIfCannotCreateDocuments(supabase, userId);
 
-  const resolvedProfile = await resolveArtisanProfile(supabase, userId, ["business_name", "labor_rate_per_hour"]);
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, [
+    "business_name",
+    "labor_rate_per_hour",
+    "siren",
+    "siret",
+    "address_line1",
+    "postal_code",
+    "city",
+    "vat_number",
+    "trade_register_number",
+    "decennale_insurer",
+    "decennale_policy_number",
+    "rc_pro_insurer",
+    "rc_pro_number",
+    "mediator_name",
+    "mediator_url",
+  ]);
 
   if (!resolvedProfile.ok) {
     return { ok: false as const, error: "missing_profile" as const };
@@ -187,14 +204,40 @@ export async function createQuote(formData: FormData) {
   const work_site_city = String(formData.get("work_site_city") ?? "").trim() || null;
   const work_site_postal_code = String(formData.get("work_site_postal_code") ?? "").trim() || null;
 
-  const quoteStatus =
-    forceDraft
-      ? "draft"
-      : forceSend
-        ? "sent"
-        : linkedConversationId && linkedCustomerUserId
-          ? "sent"
-          : "draft";
+  const quoteStatus = forceDraft
+    ? "draft"
+    : forceSend || (linkedConversationId && linkedCustomerUserId)
+      ? "sent"
+      : "draft";
+
+  if (quoteStatus === "sent") {
+    if (!customerName?.trim() && !customerEmail?.trim()) {
+      return { ok: false as const, error: "missing_customer" as const };
+    }
+    const legalCheck = validateQuoteLegalProfile({
+      business_name: profile.business_name as string | null,
+      siren: profile.siren as string | null,
+      siret: profile.siret as string | null,
+      vat_number: profile.vat_number as string | null,
+      trade_register_number: profile.trade_register_number as string | null,
+      decennale_insurer: profile.decennale_insurer as string | null,
+      decennale_policy_number: profile.decennale_policy_number as string | null,
+      rc_pro_insurer: profile.rc_pro_insurer as string | null,
+      rc_pro_number: profile.rc_pro_number as string | null,
+      mediator_name: profile.mediator_name as string | null,
+      mediator_url: profile.mediator_url as string | null,
+      addressLine1: profile.address_line1 as string | null,
+      postalCode: profile.postal_code as string | null,
+      city: profile.city as string | null,
+    });
+    if (!legalCheck.ok) {
+      return {
+        ok: false as const,
+        error: "quote_pdf_profile_incomplete" as const,
+        validation: legalCheck,
+      };
+    }
+  }
 
   const { data: createdQuote, error: quoteErr } = await supabase
     .from("quotes")
@@ -282,7 +325,16 @@ export async function createQuote(formData: FormData) {
           supplierSku: m.supplierSku ?? null,
         })),
     });
-    if (!sent.ok) notifyFailed = true;
+    if (!sent.ok) {
+      if (sent.error === "quote_pdf_profile_incomplete") {
+        return {
+          ok: false as const,
+          error: "quote_pdf_profile_incomplete" as const,
+          validation: sent.validation,
+        };
+      }
+      notifyFailed = true;
+    }
   }
 
   if (quoteStatus === "sent" && customerEmail && !linkedConversationId) {
