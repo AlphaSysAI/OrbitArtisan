@@ -8,7 +8,6 @@ import { vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 
 export async function updateInvoiceDetail(formData: FormData): Promise<void> {
   const invoiceId = String(formData.get("invoice_id") ?? "").trim();
-  const invoiceNumber = String(formData.get("invoice_number") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
   const status = String(formData.get("status") ?? "draft").trim();
 
@@ -27,10 +26,12 @@ export async function updateInvoiceDetail(formData: FormData): Promise<void> {
   const { data: inv } = await supabase.from("invoices").select("id, artisan_id").eq("id", invoiceId).maybeSingle();
   if (!inv || inv.artisan_id !== profile.id) redirect("/app/invoices");
 
+  // Point 4 audit pré-pilote : invoice_number n'est plus jamais écrit depuis
+  // ce formulaire — il est attribué automatiquement à la finalisation
+  // (compteur séquentiel) et ne doit plus jamais être un champ libre.
   const { error } = await supabase
     .from("invoices")
     .update({
-      invoice_number: invoiceNumber || null,
       notes: notes || null,
       status,
     })
@@ -101,6 +102,8 @@ const FINALIZE_ERROR_MESSAGES: Record<string, string> = {
   no_lines: "Ajoute des lignes via le devis avant de finaliser.",
   invalid_vat_rate: "Taux de TVA invalide sur une ligne — vérifie/corrige la TVA avant de finaliser.",
   missing_legal_info: "Informations obligatoires manquantes sur ton profil (SIRET / adresse / assurance décennale) — complète-les avant de finaliser.",
+  finalize_in_progress: "Une finalisation est déjà en cours pour cette facture — réessaie dans un instant.",
+  number_allocation_failed: "Impossible d'attribuer un numéro de facture — réessaie.",
   generation_failed: "Échec de génération du document.",
   pa_submission_failed: "Échec d'envoi à la Plateforme Agréée.",
   persist_failed: "Impossible d'enregistrer la finalisation.",

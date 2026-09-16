@@ -53,8 +53,9 @@ export async function createCreditNoteFromInvoice(
     sourceVatRate = sourceQuote?.reduced_vat_rate ?? null;
   }
 
-  const invoiceNumber = `AV-${source.invoice_number ?? source.id.slice(0, 8).toUpperCase()}`;
-
+  // Point 4 audit pré-pilote : plus de numéro ad hoc "AV-..." ici — l'avoir
+  // reçoit son vrai numéro séquentiel (série AVO) à la finalisation, comme
+  // toute autre facture.
   const { data: creditNote, error: invErr } = await supabase
     .from("invoices")
     .insert({
@@ -63,7 +64,7 @@ export async function createCreditNoteFromInvoice(
       customer_user_id: source.customer_user_id,
       customer_name: source.customer_name,
       customer_email: source.customer_email,
-      invoice_number: invoiceNumber,
+      invoice_number: null,
       status: "draft",
       invoice_type: "credit_note",
       credit_note_for_invoice_id: source.id,

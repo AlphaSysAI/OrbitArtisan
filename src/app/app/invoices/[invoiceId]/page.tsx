@@ -36,6 +36,8 @@ const FINALIZE_ERROR_LABELS: Record<string, string> = {
   no_lines: "La facture ne contient aucune ligne.",
   invalid_vat_rate: "Taux de TVA invalide sur une ligne — vérifie/corrige la TVA avant de finaliser.",
   missing_legal_info: "Informations obligatoires manquantes sur ton profil (SIRET / adresse / assurance décennale) — complète-les avant de finaliser.",
+  finalize_in_progress: "Une finalisation est déjà en cours pour cette facture — réessaie dans un instant.",
+  number_allocation_failed: "Impossible d'attribuer un numéro de facture — réessaie.",
   generation_failed: "Échec de génération du document.",
   pa_submission_failed: "Échec d'envoi à la Plateforme Agréée.",
   persist_failed: "Impossible d'enregistrer la finalisation.",

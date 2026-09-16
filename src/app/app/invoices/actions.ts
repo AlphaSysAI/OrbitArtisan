@@ -12,7 +12,7 @@ import {
   createTypedInvoiceFromQuote,
   sumInvoicedOnQuote,
 } from "@/lib/billing/create-btp-invoice";
-import { computeRemainingBillableCents, invoiceNumberPrefix } from "@/lib/billing/invoice-types";
+import { computeRemainingBillableCents } from "@/lib/billing/invoice-types";
 import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
@@ -74,8 +74,8 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   if (remaining <= 0) redirect(`/app/quotes/${quoteId}?error=fully_invoiced`);
 
   const invoiceType = alreadyInvoiced > 0 ? "final" : "standard";
-  const prefix = invoiceNumberPrefix(invoiceType);
-  const invoiceNumber = `${prefix}-${quoteId.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+  // Point 4 audit pré-pilote : plus de numéro généré ici — attribué à la
+  // finalisation via allocate_invoice_number() (InvoiceService.finalize).
 
   let laborShare = quote.grand_total > 0 ? Math.round((quote.labor_total * remaining) / quote.grand_total) : 0;
   let materialsShare = remaining - laborShare;
@@ -107,7 +107,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       customer_user_id: quote.customer_user_id,
       customer_name: quote.customer_name,
       customer_email: quote.customer_email,
-      invoice_number: invoiceNumber,
+      invoice_number: null,
       status: "draft",
       invoice_type: invoiceType,
       quote_reference_total: quote.grand_total,
@@ -216,9 +216,15 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   redirect(`/app/invoices/${invoice.id}`);
 }
 
+/**
+ * NB : cette action semble inutilisée (aucun import trouvé ailleurs dans le
+ * code — voir InvoiceEditForm/updateInvoiceDetail, câblée elle sur la page
+ * de détail). Conservée mais corrigée par prudence en même temps que son
+ * quasi-doublon, pour ne pas laisser une action non câblée réintroduire le
+ * même risque si elle est un jour rebranchée.
+ */
 export async function updateInvoice(formData: FormData): Promise<void> {
   const invoiceId = String(formData.get("invoice_id") ?? "").trim();
-  const invoiceNumber = String(formData.get("invoice_number") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
   const status = String(formData.get("status") ?? "draft").trim();
 
@@ -237,10 +243,11 @@ export async function updateInvoice(formData: FormData): Promise<void> {
   const { data: inv } = await supabase.from("invoices").select("id, artisan_id").eq("id", invoiceId).maybeSingle();
   if (!inv || inv.artisan_id !== profile.id) redirect("/app/invoices");
 
+  // Point 4 audit pré-pilote : invoice_number n'est plus jamais écrit ici —
+  // attribué automatiquement à la finalisation (compteur séquentiel).
   const { error } = await supabase
     .from("invoices")
     .update({
-      invoice_number: invoiceNumber || null,
       notes: notes || null,
       status,
     })

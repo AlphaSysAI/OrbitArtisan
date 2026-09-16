@@ -8,7 +8,6 @@ import {
   computeDepositAmountCents,
   computeProgressInvoiceAmountCents,
   computeRemainingBillableCents,
-  invoiceNumberPrefix,
   type InvoiceType,
 } from "@/lib/billing/invoice-types";
 
@@ -65,9 +64,9 @@ export async function createTypedInvoiceFromQuote(
   const remaining = computeRemainingBillableCents(quote.grand_total, alreadyInvoiced);
   if (options.amountCents > remaining) return { ok: false, error: "exceeds_remaining" };
 
-  const prefix = invoiceNumberPrefix(options.invoiceType);
-  const invoiceNumber = `${prefix}-${quote.id.replace(/-/g, "").slice(0, 10).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-
+  // Point 4 audit pré-pilote : le numéro n'est plus généré ici. Un vrai
+  // numéro séquentiel (par artisan/type/année) est attribué à la
+  // finalisation via allocate_invoice_number() — voir InvoiceService.finalize.
   const { data: invoice, error: invErr } = await supabase
     .from("invoices")
     .insert({
@@ -76,7 +75,7 @@ export async function createTypedInvoiceFromQuote(
       customer_user_id: quote.customer_user_id,
       customer_name: quote.customer_name,
       customer_email: quote.customer_email,
-      invoice_number: invoiceNumber,
+      invoice_number: null,
       status: "draft",
       invoice_type: options.invoiceType,
       progress_percentage: options.progressPercentage ?? null,

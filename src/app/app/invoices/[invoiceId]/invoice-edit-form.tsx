@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -25,8 +24,14 @@ export function InvoiceEditForm({
       <input type="hidden" name="invoice_id" value={invoiceId} />
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="invoice_number">Numéro de facture</Label>
-          <Input id="invoice_number" name="invoice_number" defaultValue={invoiceNumber} placeholder="FAC-…" />
+          <Label>Numéro de facture</Label>
+          {/* Point 4 audit pré-pilote : numéro attribué automatiquement à la
+              finalisation (compteur séquentiel par artisan), non éditable —
+              jamais un champ libre pour rester conforme à la numérotation
+              légale continue (art. A441-1 / CGI 289-II). */}
+          <p className="flex h-10 w-full items-center rounded-lg border border-input bg-muted/30 px-3 text-sm text-muted-foreground">
+            {isDraft ? "Attribué à la finalisation" : invoiceNumber || "—"}
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="status">Statut</Label>

@@ -108,6 +108,12 @@ function createMockSupabase(config: MockConfig) {
   };
 
   const supabase = {
+    rpc: async (fnName: string, _args: Record<string, unknown>) => {
+      if (fnName === "allocate_invoice_number") {
+        return { data: config.invoiceNumber || "INV-2026-0001", error: null };
+      }
+      throw new Error(`Unexpected rpc: ${fnName}`);
+    },
     from: (table: string) => {
       switch (table) {
         case "invoices":
@@ -122,13 +128,27 @@ function createMockSupabase(config: MockConfig) {
             }),
             update: (payload: Record<string, unknown>) => {
               updates.push(payload);
-              return {
-                eq: () => ({
-                  eq: () => ({
-                    is: async () => ({ error: null }),
+              // Chaîne flexible couvrant à la fois le claim anti double-submit
+              // (.eq().eq().eq().is().or().select().maybeSingle()) et les
+              // updates finales / de libération de claim, plus courtes et
+              // directement awaited après .is() (voir invoice-service.ts).
+              const claimResult = { data: { id: config.invoiceId }, error: null };
+              const afterIs: {
+                or: () => { select: () => { maybeSingle: () => Promise<typeof claimResult> } };
+                then: (resolve: (v: { error: null }) => void, reject?: (e: unknown) => void) => Promise<void>;
+              } = {
+                or: () => ({
+                  select: () => ({
+                    maybeSingle: async () => claimResult,
                   }),
                 }),
+                then: (resolve, reject) => Promise.resolve({ error: null }).then(resolve, reject),
               };
+              const chain = {
+                eq: () => chain,
+                is: () => afterIs,
+              };
+              return chain;
             },
           };
         case "profiles":
@@ -211,10 +231,14 @@ describe("InvoiceService.finalize", () => {
       expect(result.paSubmissionId).toBe("test-inv-b2b");
       expect(result.facturXXml).toContain("CrossIndustryInvoice");
       expect(submitter.submitEInvoice).toHaveBeenCalledOnce();
-      expect(updates[0]).toMatchObject({
+      // updates[0] = claim anti double-submit (finalizing_at), updates[1] = update finale.
+      expect(updates).toHaveLength(2);
+      expect(updates[0]).toMatchObject({ finalizing_at: expect.any(String) });
+      expect(updates[1]).toMatchObject({
         emission_flow: "e_invoicing",
         e_invoicing_status: "DEPOSITED",
         status: "sent",
+        finalizing_at: null,
       });
     },
     30_000,
@@ -244,7 +268,8 @@ describe("InvoiceService.finalize", () => {
       expect(submitter.submitEInvoice).not.toHaveBeenCalled();
       expect(queueInserts).toHaveLength(1);
       expect(queueInserts[0]).toMatchObject({ status: "pending", invoice_id: "inv-b2c" });
-      expect(updates[0]).toMatchObject({ emission_flow: "e_reporting", status: "sent" });
+      expect(updates).toHaveLength(2);
+      expect(updates[1]).toMatchObject({ emission_flow: "e_reporting", status: "sent", finalizing_at: null });
     },
     15_000,
   );
@@ -278,7 +303,10 @@ describe("InvoiceService.finalize", () => {
 
     expect(result.code).toBe("invalid_vat_rate");
     expect(submitter.submitEInvoice).not.toHaveBeenCalled();
-    expect(updates).toHaveLength(0);
+    // updates[0] = claim posé avant le contrôle TVA, updates[1] = libération
+    // du claim suite au blocage (pour permettre un nouvel essai immédiat).
+    expect(updates).toHaveLength(2);
+    expect(updates[1]).toMatchObject({ finalizing_at: null });
   });
 
   it("bloque la finalisation si l'assurance décennale de l'artisan est manquante", async () => {
@@ -305,6 +333,62 @@ describe("InvoiceService.finalize", () => {
     expect(result.code).toBe("missing_legal_info");
     expect(result.message).toContain("assurance décennale");
     expect(submitter.submitEInvoice).not.toHaveBeenCalled();
-    expect(updates).toHaveLength(0);
+    expect(updates).toHaveLength(2);
+    expect(updates[1]).toMatchObject({ finalizing_at: null });
+  });
+
+  it("bloque un finalize() concurrent tant qu'un claim est actif (anti double-submit)", async () => {
+    const submitter = new StubSubmitter();
+    const { supabase } = createMockSupabase({
+      invoiceId: "inv-concurrent",
+      artisanId: "art-1",
+      invoiceNumber: "FAC-CONCURRENT",
+      customerUserId: null,
+      customerProfile: null,
+    });
+
+    // Simule un claim déjà posé par un premier appel en cours : le mock
+    // .update().eq()...is() renvoie normalement { data: { id }, error: null }
+    // pour le claim ; on force ici une réponse "aucune ligne affectée" pour
+    // reproduire le cas où le WHERE (finalizing_at is null OR expiré) ne
+    // matche plus rien.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawSupabase = supabase as any;
+    const originalFrom = rawSupabase.from;
+    let callCount = 0;
+    rawSupabase.from = (table: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = originalFrom(table) as any;
+      if (table === "invoices") {
+        const originalUpdate = result.update;
+        result.update = (payload: Record<string, unknown>) => {
+          callCount += 1;
+          if (callCount === 1) {
+            const chain = {
+              eq: () => chain,
+              is: () => ({
+                or: () => ({
+                  select: () => ({
+                    maybeSingle: async () => ({ data: null, error: null }),
+                  }),
+                }),
+              }),
+            };
+            return chain;
+          }
+          return originalUpdate(payload);
+        };
+      }
+      return result;
+    };
+
+    const service = new InvoiceService(supabase, submitter);
+    const result = await service.finalize("inv-concurrent", "art-1");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("finalize_in_progress");
+    expect(submitter.submitEInvoice).not.toHaveBeenCalled();
   });
 });
