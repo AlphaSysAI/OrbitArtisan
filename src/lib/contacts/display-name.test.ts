@@ -18,13 +18,13 @@ describe("formatContactDisplayName", () => {
     ).toBe("Jean Dupont");
   });
 
-  it("rejects email prefix and falls back", () => {
+  it("rejects email prefix and uses local part", () => {
     expect(
       formatContactDisplayName({
         name: "jean.dupont",
         email: "jean.dupont@example.com",
       }),
-    ).toBe("Client");
+    ).toBe("jean.dupont");
   });
 
   it("uses customer_name when it is a real name", () => {

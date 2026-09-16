@@ -64,11 +64,15 @@ export default async function ArtisanContactsPage() {
               </h2>
               <ul className="space-y-3">
                 {linked.map((item) => (
-                  <li key={item.customerUserId}>
+                  <li key={item.customerUserId ?? item.leadId ?? item.conversationId}>
                     <AppListItem
-                      href={`/app/contacts/${item.customerUserId}`}
+                      href={item.href}
                       title={item.label}
-                      subtitle={item.email}
+                      subtitle={
+                        item.leadId && !item.customerUserId
+                          ? `Demande Soline${item.email ? ` · ${item.email}` : ""}`
+                          : item.email
+                      }
                     />
                   </li>
                 ))}

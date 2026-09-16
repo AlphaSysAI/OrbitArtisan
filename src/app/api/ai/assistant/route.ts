@@ -359,8 +359,9 @@ export async function POST(request: Request) {
   const linked: ContactCandidate[] = contactsRes.ok
     ? contactsRes.items
         .filter((i): i is Extract<typeof i, { kind: "linked" }> => i.kind === "linked")
+        .filter((i) => !!i.customerUserId)
         .map((i) => ({
-          customerUserId: i.customerUserId,
+          customerUserId: i.customerUserId!,
           label: i.label,
           email: i.email,
           conversationId: i.conversationId,

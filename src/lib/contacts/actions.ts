@@ -18,11 +18,14 @@ export type PendingInvitationItem = {
 
 export type LinkedContactItem = {
   kind: "linked";
-  customerUserId: string;
+  customerUserId: string | null;
+  leadId: string | null;
   label: string;
   email: string | null;
   conversationId: string | null;
   lastActivityAt: string;
+  /** Lien fiche contact (client enregistré ou prospect lead). */
+  href: string;
 };
 
 export type ArtisanContactItem = PendingInvitationItem | LinkedContactItem;
@@ -60,63 +63,89 @@ export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanC
   const [{ data: convs }, { data: acceptedInvites }] = await Promise.all([
     supabase
       .from("conversations")
-      .select("id, customer_user_id, updated_at")
+      .select("id, customer_user_id, updated_at, lead_id")
       .eq("artisan_id", profile.id)
       .order("updated_at", { ascending: false }),
     supabase
       .from("platform_invitations")
       .select("accepted_user_id, accepted_at")
-      .eq("artisan_id", profile.id)
+      .or(`artisan_id.eq.${profile.id},inviter_user_id.eq.${user.id}`)
       .eq("account_type", "client")
       .eq("status", "accepted")
       .not("accepted_user_id", "is", null),
   ]);
 
+  const convRows = convs ?? [];
   const customerUserIds = new Set<string>();
-  for (const c of convs ?? []) customerUserIds.add(c.customer_user_id);
+  const leadIds = new Set<string>();
+  for (const c of convRows) {
+    if (c.customer_user_id) customerUserIds.add(c.customer_user_id);
+    if (c.lead_id) leadIds.add(c.lead_id);
+  }
   for (const inv of acceptedInvites ?? []) {
     if (inv.accepted_user_id) customerUserIds.add(inv.accepted_user_id as string);
   }
 
-  const customerProfileByUserId = new Map<
-    string,
-    { display_name: string | null; email: string | null }
-  >();
-  if (customerUserIds.size > 0) {
-    const { data: customerProfiles } = await supabase
-      .from("customer_profiles")
-      .select("user_id, display_name, email")
-      .in("user_id", [...customerUserIds]);
-    for (const cp of customerProfiles ?? []) {
-      customerProfileByUserId.set(cp.user_id, cp);
-    }
+  const [{ data: customerProfiles }, { data: leads }] = await Promise.all([
+    customerUserIds.size
+      ? supabase
+          .from("customer_profiles")
+          .select("user_id, display_name, email")
+          .in("user_id", [...customerUserIds])
+      : Promise.resolve({ data: [] as { user_id: string; display_name: string | null; email: string | null }[] }),
+    leadIds.size
+      ? supabase
+          .from("leads")
+          .select("id, contact_name, contact_email")
+          .in("id", [...leadIds])
+      : Promise.resolve({ data: [] as { id: string; contact_name: string | null; contact_email: string | null }[] }),
+  ]);
+
+  const customerProfileByUserId = new Map(
+    (customerProfiles ?? []).map((cp) => [cp.user_id, cp]),
+  );
+  const leadById = new Map((leads ?? []).map((l) => [l.id, l]));
+
+  const linkedByKey = new Map<string, LinkedContactItem>();
+
+  function contactHref(customerUserId: string | null, leadId: string | null): string {
+    if (customerUserId) return `/app/contacts/${customerUserId}`;
+    if (leadId) return `/app/contacts/lead/${leadId}`;
+    return "/app/contacts";
   }
 
-  const linkedByUser = new Map<string, LinkedContactItem>();
+  for (const c of convRows) {
+    const cp = c.customer_user_id ? customerProfileByUserId.get(c.customer_user_id) : undefined;
+    const lead = c.lead_id ? leadById.get(c.lead_id) : undefined;
+    const key = c.customer_user_id ?? (c.lead_id ? `lead:${c.lead_id}` : null);
+    if (!key) continue;
 
-  for (const c of convs ?? []) {
-    const cp = customerProfileByUserId.get(c.customer_user_id);
-    linkedByUser.set(c.customer_user_id, {
+    linkedByKey.set(key, {
       kind: "linked",
       customerUserId: c.customer_user_id,
+      leadId: c.lead_id,
       label: formatContactDisplayName({
-        profileName: cp?.display_name,
-        email: cp?.email,
+        profileName: cp?.display_name ?? lead?.contact_name,
+        email: cp?.email ?? lead?.contact_email,
+        name: lead?.contact_name,
+        fallback: lead?.contact_name?.trim() || "Prospect Soline",
       }),
-      email: cp?.email ?? null,
+      email: cp?.email ?? lead?.contact_email ?? null,
       conversationId: c.id,
       lastActivityAt: c.updated_at,
+      href: contactHref(c.customer_user_id, c.lead_id),
     });
   }
 
   for (const inv of acceptedInvites ?? []) {
     const uid = inv.accepted_user_id as string;
-    if (linkedByUser.has(uid)) continue;
+    if (linkedByKey.has(uid)) continue;
 
     const cp = customerProfileByUserId.get(uid);
-    linkedByUser.set(uid, {
+    linkedByKey.set(uid, {
       kind: "linked",
       customerUserId: uid,
+      leadId: null,
       label: formatContactDisplayName({
         profileName: cp?.display_name,
         email: cp?.email,
@@ -124,10 +153,11 @@ export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanC
       email: cp?.email ?? null,
       conversationId: null,
       lastActivityAt: inv.accepted_at ?? new Date().toISOString(),
+      href: contactHref(uid, null),
     });
   }
 
-  const linkedItems = [...linkedByUser.values()].sort(
+  const linkedItems = [...linkedByKey.values()].sort(
     (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
   );
 
@@ -243,7 +273,7 @@ export async function artisanCanViewCustomer(customerUserId: string): Promise<bo
   const { data: invite } = await supabase
     .from("platform_invitations")
     .select("id")
-    .eq("artisan_id", profile.id)
+    .or(`artisan_id.eq.${profile.id},inviter_user_id.eq.${user.id}`)
     .eq("accepted_user_id", customerUserId)
     .eq("account_type", "client")
     .eq("status", "accepted")
@@ -259,6 +289,34 @@ export async function artisanCanViewCustomer(customerUserId: string): Promise<bo
     .maybeSingle();
 
   return !!quote;
+}
+
+export async function artisanCanViewLead(leadId: string): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  if (!profile?.id) return false;
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("artisan_id", profile.id)
+    .eq("lead_id", leadId)
+    .maybeSingle();
+  if (conv) return true;
+
+  const { data: match } = await supabase
+    .from("lead_matches")
+    .select("id")
+    .eq("artisan_id", profile.id)
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  return !!match;
 }
 
 export async function getOrCreateArtisanCustomerConversation(customerUserId: string) {

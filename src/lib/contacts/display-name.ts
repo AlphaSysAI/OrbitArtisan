@@ -53,6 +53,12 @@ export function formatContactDisplayName(input: ContactNameInput): string {
     if (isUsablePersonName(candidate, input.email)) return candidate.trim();
   }
 
+  const local = emailLocalPart(input.email);
+  if (local) return local;
+
+  const email = input.email?.trim();
+  if (email && looksLikeEmailAddress(email)) return email;
+
   return fallback;
 }
 
