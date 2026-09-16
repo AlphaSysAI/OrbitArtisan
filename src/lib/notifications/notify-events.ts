@@ -150,3 +150,38 @@ export async function notifyVoiceIntake(
     tag: `voice-${input.intakeId}`,
   });
 }
+
+/**
+ * Point 10 audit pré-pilote : un RDV pris depuis la vitrine publique ne doit pas rester
+ * invisible pour l'artisan (ex. sur chantier) — notification push à la création.
+ * Pas d'appel pour un RDV créé par l'artisan lui-même (createArtisanAppointment) :
+ * il vient de le saisir, une auto-notification n'apporterait rien.
+ */
+export async function notifyNewAppointment(
+  supabase: SupabaseClient,
+  input: { artisanId: string; appointmentId: string; customerName: string; startTime: string },
+) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("user_id")
+    .eq("id", input.artisanId)
+    .maybeSingle();
+
+  const userId = profile?.user_id as string | undefined;
+  if (!userId) return;
+
+  const when = new Date(input.startTime).toLocaleString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  notifyUserActivity(userId, {
+    title: "Nouveau rendez-vous",
+    body: `${input.customerName} — ${when}`,
+    url: `${siteUrl}/app/rdv`,
+    tag: `appointment-${input.appointmentId}`,
+  });
+}
