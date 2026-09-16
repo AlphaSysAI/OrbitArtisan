@@ -159,3 +159,19 @@ export function isEInvoicingStatus(value: string): value is EInvoicingStatus {
 export function isVatCollectionNature(value: string): value is VatCollectionNature {
   return (VAT_COLLECTION_NATURES as readonly string[]).includes(value);
 }
+
+/**
+ * Point 3 audit pré-pilote : construit les champs TVA d'une ligne de facture
+ * à partir d'un taux réel (5.5 / 10 / 20), au lieu du DEFAULT_INVOICE_LINE_VAT
+ * fixe à 20 %. AA = catégorie "taux réduit rénovation" (UN/ECE 5305), retenue
+ * pour 5.5 et 10 — S pour le taux normal et tout taux non reconnu (repli sûr).
+ */
+export function vatFieldsForRate(rate: number | null | undefined): InvoiceLineVatFields {
+  const r = typeof rate === "number" && Number.isFinite(rate) ? rate : 20;
+  const isReduced = r === 5.5 || r === 10;
+  return {
+    vat_rate: r,
+    vat_exemption_reason: null,
+    vat_category_code: isReduced ? "AA" : "S",
+  };
+}

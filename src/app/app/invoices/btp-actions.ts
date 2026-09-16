@@ -6,7 +6,7 @@ import {
   createTypedInvoiceFromQuote,
   sumInvoicedOnQuote,
 } from "@/lib/billing/create-btp-invoice";
-import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
+import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { INVOICING_FROZEN, frozenInvoicingResult } from "@/lib/billing/invoicing-freeze";
@@ -40,6 +40,18 @@ export async function createCreditNoteFromInvoice(
 
   const amount = source.grand_total ?? 0;
   if (amount <= 0) return { ok: false, error: "zero_amount" };
+
+  // Point 3 audit pré-pilote : l'avoir reprend le taux de TVA du devis
+  // d'origine plutôt que le DEFAULT_INVOICE_LINE_VAT fixe à 20 %.
+  let sourceVatRate: number | null = null;
+  if (source.quote_id) {
+    const { data: sourceQuote } = await supabase
+      .from("quotes")
+      .select("reduced_vat_rate")
+      .eq("id", source.quote_id)
+      .maybeSingle();
+    sourceVatRate = sourceQuote?.reduced_vat_rate ?? null;
+  }
 
   const invoiceNumber = `AV-${source.invoice_number ?? source.id.slice(0, 8).toUpperCase()}`;
 
@@ -75,7 +87,7 @@ export async function createCreditNoteFromInvoice(
     unit_price: amount,
     line_total: amount,
     sort_order: 0,
-    ...DEFAULT_INVOICE_LINE_VAT,
+    ...vatFieldsForRate(sourceVatRate),
   });
 
   revalidatePath("/app/invoices");
@@ -108,7 +120,7 @@ export async function releaseRetention(invoiceId: string): Promise<{ ok: true } 
 
   const { data: quote } = await supabase
     .from("quotes")
-    .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes")
+    .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes, reduced_vat_rate")
     .eq("id", inv.quote_id)
     .maybeSingle();
 

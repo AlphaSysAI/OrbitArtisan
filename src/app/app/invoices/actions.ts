@@ -13,7 +13,7 @@ import {
   sumInvoicedOnQuote,
 } from "@/lib/billing/create-btp-invoice";
 import { computeRemainingBillableCents, invoiceNumberPrefix } from "@/lib/billing/invoice-types";
-import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
+import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { INVOICING_FROZEN, frozenInvoicingResult } from "@/lib/billing/invoicing-freeze";
@@ -59,7 +59,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id, artisan_id, status, customer_user_id, customer_name, customer_email, labor_total, materials_total, grand_total, labor_duration_minutes, notes",
+      "id, artisan_id, status, customer_user_id, customer_name, customer_email, labor_total, materials_total, grand_total, labor_duration_minutes, notes, reduced_vat_rate",
     )
     .eq("id", quoteId)
     .eq("artisan_id", profile.id)
@@ -144,6 +144,9 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   // horaire artisan) ET une deuxième liste de lignes basée sur des prix
   // catalogue sans rapport avec le total réellement dû — d'où un total HT
   // facturé supérieur au montant du devis accepté par le client.
+  // Point 3 audit pré-pilote : le taux de TVA de chaque ligne suit désormais
+  // le devis (reduced_vat_rate pour la main-d'œuvre, vat_rate par matériau
+  // pour les fournitures), au lieu du DEFAULT_INVOICE_LINE_VAT fixe à 20 %.
   let sort = 0;
   if (laborShare > 0) {
     lines.push({
@@ -154,17 +157,20 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       unit_price: laborShare,
       line_total: laborShare,
       sort_order: sort++,
-      ...DEFAULT_INVOICE_LINE_VAT,
+      ...vatFieldsForRate(quote.reduced_vat_rate),
     });
   }
 
   const { data: qMaterials } = await supabase
     .from("quote_materials")
-    .select("label, quantity, unit_price, line_total")
+    .select("label, quantity, unit_price, line_total, vat_rate, exclude_from_invoice")
     .eq("quote_id", quoteId)
     .order("created_at", { ascending: true });
 
   for (const m of qMaterials ?? []) {
+    // Importants facturation (Vague 2) : un matériau marqué "hors facture" au
+    // devis ne doit jamais être reproratisé et facturé.
+    if (m.exclude_from_invoice) continue;
     const lt = m.line_total ?? m.unit_price * m.quantity;
     const scaled = quote.grand_total > 0 ? Math.round((lt * billableRemaining) / quote.grand_total) : 0;
     if (scaled <= 0) continue;
@@ -176,7 +182,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       unit_price: Math.round(scaled / m.quantity),
       line_total: scaled,
       sort_order: sort++,
-      ...DEFAULT_INVOICE_LINE_VAT,
+      ...vatFieldsForRate(m.vat_rate),
     });
   }
 
@@ -189,7 +195,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       unit_price: billableRemaining,
       line_total: billableRemaining,
       sort_order: 0,
-      ...DEFAULT_INVOICE_LINE_VAT,
+      ...vatFieldsForRate(quote.reduced_vat_rate),
     });
   }
 
@@ -398,7 +404,7 @@ export async function createDepositInvoice(
 
   const { data: quote } = await supabase
     .from("quotes")
-    .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes")
+    .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes, reduced_vat_rate")
     .eq("id", quoteId)
     .eq("artisan_id", profile.id)
     .maybeSingle();
@@ -443,7 +449,7 @@ export async function createProgressInvoice(
 
   const { data: quote } = await supabase
     .from("quotes")
-    .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes")
+    .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes, reduced_vat_rate")
     .eq("id", quoteId)
     .eq("artisan_id", profile.id)
     .maybeSingle();

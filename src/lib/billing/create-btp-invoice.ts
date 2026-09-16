@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isMissingColumnError } from "@/lib/admin/db";
-import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
+import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 import {
   computeDepositAmountCents,
   computeProgressInvoiceAmountCents,
@@ -21,6 +21,8 @@ type QuoteRow = {
   customer_email: string | null;
   grand_total: number;
   notes: string | null;
+  /** Point 3 audit pré-pilote : à propager sur la ligne de facture. */
+  reduced_vat_rate?: number | null;
 };
 
 export async function sumInvoicedOnQuote(supabase: SupabaseClient, quoteId: string): Promise<number> {
@@ -93,7 +95,7 @@ export async function createTypedInvoiceFromQuote(
     unit_price: options.amountCents,
     line_total: options.amountCents,
     sort_order: 0,
-    ...DEFAULT_INVOICE_LINE_VAT,
+    ...vatFieldsForRate(quote.reduced_vat_rate),
   });
 
   if (lineErr) return { ok: false, error: "lines_failed" };
