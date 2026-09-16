@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
-import { estimateDraftTotalCents } from "@/lib/quotes/create-quote-from-ai-draft";
+import { computeDraftTotals } from "@/lib/quotes/create-quote-from-ai-draft";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { VoiceIntakeActions } from "./voice-intake-actions";
@@ -102,6 +102,23 @@ export default async function AppelsSolinePage() {
   const items = error ? [] : (intakes ?? []);
   const pendingCount = items.filter((i) => i.status === "pending_review").length;
 
+  // Durées réelles des prestations, chargées une fois pour tout l'artisan : sert à
+  // calculer l'aperçu avec la même fonction que la création réelle du devis
+  // (point "fidélité preview" audit pré-pilote, vague 4).
+  const { data: artisanServices } = await supabase
+    .from("services")
+    .select("id, duration")
+    .eq("artisan_id", profile.id);
+  const serviceDurationsById = new Map((artisanServices ?? []).map((s) => [s.id as string, (s.duration as number) ?? 0]));
+
+  function formatDuration(minutes: number) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m} min`;
+    if (m === 0) return `${h} h`;
+    return `${h} h ${m}`;
+  }
+
   return (
     <div className="space-y-8">
       <AppPageHeader
@@ -134,7 +151,7 @@ export default async function AppelsSolinePage() {
         <ul className="space-y-4">
           {items.map((item) => {
             const draft = item.quote_draft as AiQuoteDraft | null;
-            const estimate = draft ? estimateDraftTotalCents(draft, profile.labor_rate_per_hour) : null;
+            const totals = draft ? computeDraftTotals(draft, profile.labor_rate_per_hour, serviceDurationsById) : null;
             const canValidate =
               item.status === "pending_review" &&
               Boolean(item.customer_email) &&
@@ -154,8 +171,8 @@ export default async function AppelsSolinePage() {
                       {item.customer_name ?? "Client"} · {item.customer_email ?? "—"} · {formatDate(item.created_at)}
                     </p>
                   </div>
-                  {estimate != null ? (
-                    <p className="text-sm font-medium tabular-nums">{formatEur(estimate)} estimé</p>
+                  {totals != null ? (
+                    <p className="text-sm font-medium tabular-nums">{formatEur(totals.grandTotalCents)} estimé</p>
                   ) : null}
                 </div>
 
@@ -172,7 +189,19 @@ export default async function AppelsSolinePage() {
                       Proposition de devis
                     </p>
                     <p className="mt-1 text-sm leading-relaxed">{draft.notes}</p>
-                    {draft.matchedServiceIds?.length ? (
+                    {draft.matchedServiceIds?.length && totals ? (
+                      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                        <p>
+                          Main d&apos;œuvre : {formatDuration(totals.laborDurationMinutes)} — {formatEur(totals.laborTotalCents)}
+                        </p>
+                        {totals.materialLines.map((m, i) => (
+                          <p key={i}>
+                            {m.quantity} × {m.label}
+                            {m.excludeFromInvoice ? " (hors facture)" : ` — ${formatEur(m.lineTotalCents)}`}
+                          </p>
+                        ))}
+                      </div>
+                    ) : draft.matchedServiceIds?.length ? (
                       <p className="mt-2 text-xs text-muted-foreground">
                         {draft.matchedServiceIds.length} prestation(s) · {draft.supplierMaterials?.length ?? 0}{" "}
                         matériau(x)

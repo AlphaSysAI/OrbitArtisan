@@ -44,6 +44,22 @@ export type CreateQuoteFromDraftResult =
   | { ok: false; error: string };
 
 /**
+ * Durée de main d'œuvre à facturer pour un brouillon IA : celle estimée par l'IA si
+ * disponible, sinon la somme des durées réelles des prestations correspondantes
+ * (jamais un fallback arbitraire) — fonction partagée entre l'aperçu (liste
+ * `/app/appels`) et la création réelle du devis, pour que les deux affichent
+ * toujours le même chiffre (point "fidélité preview" audit pré-pilote, vague 4).
+ */
+export function resolveLaborDurationMinutes(
+  draftLaborDurationMinutes: number,
+  serviceIds: string[],
+  serviceDurationsById: Map<string, number>,
+): number {
+  if (draftLaborDurationMinutes > 0) return draftLaborDurationMinutes;
+  return serviceIds.reduce((acc, id) => acc + (serviceDurationsById.get(id) ?? 0), 0);
+}
+
+/**
  * Crée un devis en base à partir d'un brouillon IA (lead, vocal, assistant).
  */
 export async function createQuoteFromAiDraft(
@@ -74,9 +90,12 @@ export async function createQuoteFromAiDraft(
     return { ok: false, error: "invalid_services" };
   }
 
-  const computedDurationMinutes = servicesFound.reduce((acc, s) => acc + (s.duration ?? 0), 0);
-  const laborDurationMinutes =
-    params.draft.laborDurationMinutes > 0 ? params.draft.laborDurationMinutes : computedDurationMinutes;
+  const serviceDurationsById = new Map(servicesFound.map((s) => [s.id as string, (s.duration as number) ?? 0]));
+  const laborDurationMinutes = resolveLaborDurationMinutes(
+    params.draft.laborDurationMinutes,
+    serviceIds,
+    serviceDurationsById,
+  );
 
   if (laborDurationMinutes <= 0) {
     return { ok: false, error: "invalid_duration" };
@@ -178,22 +197,74 @@ function mapDraftMaterials(rows: AiSupplierMaterialDraft[]) {
   }));
 }
 
+export type DraftMaterialLine = {
+  label: string;
+  quantity: number;
+  unitPriceCents: number;
+  lineTotalCents: number;
+  excludeFromInvoice: boolean;
+};
+
+export type DraftTotals = {
+  laborDurationMinutes: number;
+  laborTotalCents: number;
+  materialsTotalCents: number;
+  grandTotalCents: number;
+  materialLines: DraftMaterialLine[];
+};
+
+/**
+ * Aperçu détaillé (main d'œuvre + lignes matériaux) d'un brouillon IA, à partir des
+ * durées réelles des prestations (`serviceDurationsById` : id prestation → durée en
+ * minutes, à charger une fois pour tout l'artisan côté appelant).
+ *
+ * Utilisée à la fois pour l'aperçu (liste `/app/appels`, avant clic) et pour la
+ * création réelle du devis (`createQuoteFromAiDraft`) : même fonction, mêmes
+ * chiffres partout — corrige l'écart constaté où l'aperçu retombait sur un
+ * fallback fixe de 60 min quand `createQuoteFromAiDraft` utilisait la vraie somme
+ * des durées de prestations.
+ */
+export function computeDraftTotals(
+  draft: AiQuoteDraft,
+  laborRatePerHourCents: number | null,
+  serviceDurationsById: Map<string, number>,
+): DraftTotals | null {
+  if (!laborRatePerHourCents || laborRatePerHourCents < 0) return null;
+  const serviceIds = draft.matchedServiceIds ?? [];
+  if (!serviceIds.length) return null;
+
+  const laborDurationMinutes = resolveLaborDurationMinutes(
+    draft.laborDurationMinutes,
+    serviceIds,
+    serviceDurationsById,
+  );
+  if (laborDurationMinutes <= 0) return null;
+
+  const laborTotalCents = Math.round((laborRatePerHourCents * laborDurationMinutes) / 60);
+
+  const materialLines: DraftMaterialLine[] = mapDraftMaterials(draft.supplierMaterials ?? []).map((m) => ({
+    label: m.label,
+    quantity: m.quantity,
+    unitPriceCents: m.unitPriceCents,
+    lineTotalCents: m.excludeFromInvoice ? 0 : m.quantity * m.unitPriceCents,
+    excludeFromInvoice: m.excludeFromInvoice,
+  }));
+  const materialsTotalCents = materialLines.reduce((acc, l) => acc + l.lineTotalCents, 0);
+
+  return {
+    laborDurationMinutes,
+    laborTotalCents,
+    materialsTotalCents,
+    grandTotalCents: laborTotalCents + materialsTotalCents,
+    materialLines,
+  };
+}
+
 /** Estimation du total TTC indicatif depuis un brouillon (affichage liste appels). */
 export function estimateDraftTotalCents(
   draft: AiQuoteDraft,
   laborRatePerHourCents: number | null,
+  serviceDurationsById: Map<string, number>,
 ): number | null {
-  if (!laborRatePerHourCents || laborRatePerHourCents < 0) return null;
-  if (!draft.matchedServiceIds?.length) return null;
-
-  const laborMinutes = draft.laborDurationMinutes > 0 ? draft.laborDurationMinutes : 60;
-  const laborTotal = Math.round((laborRatePerHourCents * laborMinutes) / 60);
-
-  const materialsTotal = (draft.supplierMaterials ?? []).reduce((acc, m) => {
-    if (m.excludeFromInvoice) return acc;
-    const cents = parseEurToCents(m.unitPriceEur);
-    return acc + m.quantity * cents;
-  }, 0);
-
-  return laborTotal + materialsTotal;
+  return computeDraftTotals(draft, laborRatePerHourCents, serviceDurationsById)?.grandTotalCents ?? null;
 }
