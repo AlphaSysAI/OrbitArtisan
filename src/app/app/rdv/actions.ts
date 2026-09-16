@@ -85,6 +85,7 @@ export type CreateAppointmentResult =
         | "invalid_email"
         | "invalid_date"
         | "rls_denied"
+        | "slot_taken"
         | "insert_failed";
     };
 
@@ -143,6 +144,8 @@ export async function createArtisanAppointment(
 
   if (error || !data) {
     console.error("[rdv] create", error?.message);
+    // Point 9 audit pré-pilote : contrainte EXCLUDE anti double-booking (migration 21).
+    if (error?.code === "23P01") return { ok: false, error: "slot_taken" };
     const denied =
       error?.code === "42501" || /row-level security/i.test(error?.message ?? "");
     return { ok: false, error: denied ? "rls_denied" : "insert_failed" };

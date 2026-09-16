@@ -111,6 +111,7 @@ export function NewAppointmentDialog({
           "Base de données non autorisée : exécute supabase/init.sql (ou renseigne SUPABASE_SERVICE_ROLE_KEY).",
         auth: "Session expirée, reconnecte-toi.",
         missing_profile: "Profil artisan introuvable.",
+        slot_taken: "Ce créneau est déjà réservé pour un autre rendez-vous. Choisis un autre horaire.",
       };
       setError(messages[res.error] ?? "Création impossible. Réessaie.");
       return;

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { getOrCreateConversation } from "@/lib/messages/actions";
+import { notifyNewAppointment } from "@/lib/notifications/notify-events";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -43,7 +44,7 @@ async function ensureConversationWithAdmin(admin: AdminClient, artisanId: string
 
 export type SubmitVitrineAppointmentResult =
   | { ok: true; mode: "done" }
-  | { ok: false; error: "missing_fields" | "insert_failed" | "pending_failed" };
+  | { ok: false; error: "missing_fields" | "insert_failed" | "pending_failed" | "slot_taken" };
 
 /**
  * Client déjà connecté : enregistre le RDV lié au compte, pas de redirection auth.
@@ -66,18 +67,33 @@ export async function createAppointmentForLoggedInUser(formData: FormData): Prom
   } = await supabase.auth.getUser();
   if (!user?.id) return { ok: false, error: "missing_fields" };
 
-  const { error } = await supabase.from("appointments").insert({
-    artisan_id: artisanId,
-    customer_name: customerName,
-    customer_email: customerEmail,
-    customer_phone: readPhone(formData),
-    service_id: serviceId || null,
-    start_time: startTime,
-    status: "pending",
-    customer_user_id: user.id,
-  });
+  const { data: inserted, error } = await supabase
+    .from("appointments")
+    .insert({
+      artisan_id: artisanId,
+      customer_name: customerName,
+      customer_email: customerEmail,
+      customer_phone: readPhone(formData),
+      service_id: serviceId || null,
+      start_time: startTime,
+      status: "pending",
+      customer_user_id: user.id,
+    })
+    .select("id")
+    .single();
 
-  if (error) return { ok: false, error: "insert_failed" };
+  if (error || !inserted) {
+    if (error?.code === "23P01") return { ok: false, error: "slot_taken" };
+    return { ok: false, error: "insert_failed" };
+  }
+
+  // Point 10 audit pré-pilote : notifie l'artisan (RDV pris depuis la vitrine).
+  void notifyNewAppointment(supabase, {
+    artisanId,
+    appointmentId: inserted.id as string,
+    customerName,
+    startTime,
+  });
 
   // Réserver un créneau lie le client à l'artisan : la conversation est créée ici.
   // Best-effort — un échec ne doit pas invalider le rendez-vous déjà enregistré.
@@ -109,17 +125,30 @@ export async function submitVitrineAppointmentAsGuest(formData: FormData): Promi
 
   if (!admin) {
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.from("appointments").insert({
-      artisan_id: artisanId,
-      customer_name: customerName,
-      customer_email: customerEmailRaw.trim(),
-      customer_phone: customerPhone,
-      service_id: serviceId || null,
-      start_time: startTime,
-      status: "pending",
-      customer_user_id: null,
+    const { data: inserted, error } = await supabase
+      .from("appointments")
+      .insert({
+        artisan_id: artisanId,
+        customer_name: customerName,
+        customer_email: customerEmailRaw.trim(),
+        customer_phone: customerPhone,
+        service_id: serviceId || null,
+        start_time: startTime,
+        status: "pending",
+        customer_user_id: null,
+      })
+      .select("id")
+      .single();
+    if (error || !inserted) {
+      if (error?.code === "23P01") return { ok: false, error: "slot_taken" };
+      return { ok: false, error: "insert_failed" };
+    }
+    void notifyNewAppointment(supabase, {
+      artisanId,
+      appointmentId: inserted.id as string,
+      customerName,
+      startTime,
     });
-    if (error) return { ok: false, error: "insert_failed" };
     revalidatePath(`/site/${slug}`);
     return { ok: true, mode: "done" };
   }
@@ -133,17 +162,31 @@ export async function submitVitrineAppointmentAsGuest(formData: FormData): Promi
   const authUserId = typeof existingUserId === "string" ? existingUserId : null;
 
   if (authUserId) {
-    const { error } = await admin.from("appointments").insert({
-      artisan_id: artisanId,
-      customer_name: customerName,
-      customer_email: customerEmailRaw.trim(),
-      customer_phone: customerPhone,
-      service_id: serviceId || null,
-      start_time: startTime,
-      status: "pending",
-      customer_user_id: authUserId,
+    const { data: inserted, error } = await admin
+      .from("appointments")
+      .insert({
+        artisan_id: artisanId,
+        customer_name: customerName,
+        customer_email: customerEmailRaw.trim(),
+        customer_phone: customerPhone,
+        service_id: serviceId || null,
+        start_time: startTime,
+        status: "pending",
+        customer_user_id: authUserId,
+      })
+      .select("id")
+      .single();
+    if (error || !inserted) {
+      if (error?.code === "23P01") return { ok: false, error: "slot_taken" };
+      return { ok: false, error: "insert_failed" };
+    }
+
+    void notifyNewAppointment(admin, {
+      artisanId,
+      appointmentId: inserted.id as string,
+      customerName,
+      startTime,
     });
-    if (error) return { ok: false, error: "insert_failed" };
 
     await ensureConversationWithAdmin(admin, artisanId, authUserId);
 
@@ -181,7 +224,10 @@ export async function submitVitrineAppointmentAsGuest(formData: FormData): Promi
 
 export type FinalizePendingResult =
   | { ok: true }
-  | { ok: false; error: "unauthorized" | "not_found" | "email_mismatch" | "expired" | "insert_failed" };
+  | {
+      ok: false;
+      error: "unauthorized" | "not_found" | "email_mismatch" | "expired" | "insert_failed" | "slot_taken";
+    };
 
 /**
  * Après inscription / retour sur /compte?pending=… : crée le RDV et supprime la file.
@@ -216,18 +262,32 @@ export async function finalizePendingVitrineAppointment(pendingId: string): Prom
     return { ok: false, error: "email_mismatch" };
   }
 
-  const { error: insErr } = await admin.from("appointments").insert({
-    artisan_id: row.artisan_id,
-    customer_name: row.customer_name,
-    customer_email: row.customer_email.trim(),
-    customer_phone: row.customer_phone ?? null,
-    service_id: row.service_id,
-    start_time: row.start_time,
-    status: "pending",
-    customer_user_id: user.id,
-  });
+  const { data: inserted, error: insErr } = await admin
+    .from("appointments")
+    .insert({
+      artisan_id: row.artisan_id,
+      customer_name: row.customer_name,
+      customer_email: row.customer_email.trim(),
+      customer_phone: row.customer_phone ?? null,
+      service_id: row.service_id,
+      start_time: row.start_time,
+      status: "pending",
+      customer_user_id: user.id,
+    })
+    .select("id")
+    .single();
 
-  if (insErr) return { ok: false, error: "insert_failed" };
+  if (insErr || !inserted) {
+    if (insErr?.code === "23P01") return { ok: false, error: "slot_taken" };
+    return { ok: false, error: "insert_failed" };
+  }
+
+  void notifyNewAppointment(admin, {
+    artisanId: row.artisan_id,
+    appointmentId: inserted.id as string,
+    customerName: row.customer_name,
+    startTime: row.start_time,
+  });
 
   await admin.from("customer_profiles").upsert(
     {

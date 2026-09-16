@@ -150,7 +150,9 @@ export function InscriptionClientForm({
           setError(
             fin.error === "email_mismatch"
               ? "L’email du compte doit être le même que celui utilisé pour la demande de RDV."
-              : "Compte créé, mais la finalisation du rendez-vous a échoué. Tu peux reprendre contact avec l’artisan.",
+              : fin.error === "slot_taken"
+                ? "Ce créneau vient d’être réservé par quelqu’un d’autre entre-temps. Le compte a bien été créé — reprends contact avec l’artisan pour un autre horaire."
+                : "Compte créé, mais la finalisation du rendez-vous a échoué. Tu peux reprendre contact avec l’artisan.",
           );
           setLoading(false);
           return;

@@ -158,7 +158,9 @@ export function BookAppointmentForm({
         toast.error(
           res.error === "missing_fields"
             ? "Merci de remplir tous les champs."
-            : "Impossible de créer le RDV. Réessaie.",
+            : res.error === "slot_taken"
+              ? "Ce créneau vient d’être réservé par quelqu’un d’autre. Choisis un autre horaire."
+              : "Impossible de créer le RDV. Réessaie.",
         );
         return;
       }
@@ -173,9 +175,11 @@ export function BookAppointmentForm({
       toast.error(
         res.error === "missing_fields"
           ? "Merci de remplir tous les champs."
-          : res.error === "pending_failed"
-            ? "Impossible d’enregistrer ta demande. Réessaie ou contacte l’assistance."
-            : "Impossible de créer le RDV. Réessaie.",
+          : res.error === "slot_taken"
+            ? "Ce créneau vient d’être réservé par quelqu’un d’autre. Choisis un autre horaire."
+            : res.error === "pending_failed"
+              ? "Impossible d’enregistrer ta demande. Réessaie ou contacte l’assistance."
+              : "Impossible de créer le RDV. Réessaie.",
       );
       return;
     }

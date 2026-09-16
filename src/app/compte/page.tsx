@@ -30,9 +30,21 @@ export default async function CompteHomePage({
   if (pending) {
     const result = await finalizePendingVitrineAppointment(pending);
     if (result.ok) redirect("/compte?success=rdv");
+    redirect(`/compte?rdvError=${result.error}`);
   }
 
   const showRdvSuccess = sp.success === "rdv";
+  const rdvErrorRaw = typeof sp.rdvError === "string" ? sp.rdvError : undefined;
+  const RDV_ERROR_LABELS: Record<string, string> = {
+    slot_taken:
+      "Ce créneau vient d’être réservé par quelqu’un d’autre entre-temps. Reprends contact avec l’artisan pour un autre horaire.",
+    expired: "Cette demande de rendez-vous a expiré (délai de 7 jours dépassé). Reprends contact avec l’artisan.",
+    email_mismatch: "Cette demande de rendez-vous a été faite avec une autre adresse e-mail.",
+    not_found: "Cette demande de rendez-vous est introuvable ou a déjà été traitée.",
+    unauthorized: "Connecte-toi pour finaliser cette demande de rendez-vous.",
+    insert_failed: "Le rendez-vous n’a pas pu être enregistré. Réessaie ou contacte l’artisan.",
+  };
+  const rdvErrorLabel = rdvErrorRaw ? (RDV_ERROR_LABELS[rdvErrorRaw] ?? RDV_ERROR_LABELS.insert_failed) : null;
 
   const { data: cp } = await supabase
     .from("customer_profiles")
@@ -103,6 +115,13 @@ export default async function CompteHomePage({
           <AlertDescription>
             Ta demande est bien liée à ton compte. L’artisan confirmera le créneau.
           </AlertDescription>
+        </Alert>
+      )}
+
+      {rdvErrorLabel && (
+        <Alert variant="destructive">
+          <AlertTitle>Rendez-vous non enregistré</AlertTitle>
+          <AlertDescription>{rdvErrorLabel}</AlertDescription>
         </Alert>
       )}
 
