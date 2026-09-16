@@ -174,8 +174,26 @@ Branche : `pilote/vague1-securite-fiabilite` (depuis `master`, commit de départ
 - `npm run build` n'a pas pu être vérifié en bout en bout dans le bac à sable (Google Fonts bloqué par le proxy réseau du sandbox, sans rapport avec la mise à jour Next.js) — à lancer une fois en local ou laisser Vercel le confirmer au déploiement.
 - Les 3 crons de `vercel.json` sont maintenant à cadence quotidienne unique chacun, compatible avec le plan Hobby. Si le plan Hobby limite aussi le **nombre total** de crons par projet (pas seulement leur fréquence), vérifier dans le dashboard Vercel qu'un déploiement avec 3 crons distincts est bien accepté.
 
-### VAGUE 2 — en attente (bouton Facturer reste gelé tant que non traité)
-Points 1 à 5 (avoirs 380/381, doublement main-d'œuvre, TVA réduite facture, numérotation séquentielle, mentions légales paiement) + durcissements importants associés (retenue de garantie, avoirs vs `alreadyInvoiced`, `exclude_from_invoice`). **Ne démarre qu'après validation de la spec par un expert-comptable.**
+### VAGUE 2 — terminée (16/09/2026), code prêt mais **"Facturer" reste gelé**
+Branche : `pilote/vague2-facturation-legale` (depuis la tête de `pilote/vague1-securite-fiabilite`, commit `83db750`). **Ne passe en production qu'après validation de la spec par un expert-comptable** (avoir 381, taux réduits, mentions légales, e-reporting) — c'est une condition explicite posée avant de coder, pas une case à cocher a posteriori.
+
+| # | Sujet | Statut | Commit |
+|---|---|---|---|
+| 1 | Avoir : `invoice_type` porté jusqu'au document (titre "AVOIR", `typeCode` CII 381, montants **positifs** — voir note ci-dessous) ; `load-from-db.ts` sélectionne enfin `invoice_type` | ✅ Corrigé | `494231d` |
+| 2 | Doublement main-d'œuvre : suppression de la boucle par `quote_service` (prix catalogue jamais dans `labor_total`), ne garde que la ligne "Main d'œuvre" globale | ✅ Corrigé | `f129d20` |
+| 3 | TVA réduite propagée du devis vers toutes les lignes de facture (main-d'œuvre + matériaux, y compris avoirs et factures d'acompte/situation/solde) ; correction manuelle en un geste sur brouillon ; bandeau d'alerte + blocage dur à la finalisation si taux invalide | ✅ Corrigé | `6512730`, `cf4cc93` |
+| 4 | Numérotation séquentielle par artisan/type/année (`allocate_invoice_number`, atomique, attribuée à la finalisation) ; contrainte `UNIQUE (artisan_id, invoice_number)` ; claim anti double-submit ; numéro non éditable (ni avant ni après finalisation, système uniquement) | ✅ Corrigé — ⚠️ migration `20_invoice_sequential_numbering.sql` à exécuter manuellement dans Supabase | `c3a4f61` |
+| 5 | Échéance + conditions de règlement + bloc pénalités de retard/indemnité 40€ (B2B uniquement) sur le PDF ; BT-9 (échéance) ajouté au CII Factur-X transmis à la PA | ✅ Corrigé | `925d963` |
+| — | *Importants facturation* : avoirs soustraits de `alreadyInvoiced` (au lieu d'être exclus) ; retenue de garantie — le surplus dépassant la part matériaux est reporté sur la main-d'œuvre (`labor_total + materials_total = grand_total` toujours vrai) ; `exclude_from_invoice` filtré aussi côté facturation ; contrôle bloquant à la finalisation si SIRET/adresse/assurance décennale manquent | ✅ Corrigé | `8b1ab6e` |
+
+**Point d'attention explicitement signalé (déviation assumée par rapport à la demande initiale) :** la demande disait "montant négatif" pour l'avoir. Vérification faite (EN16931/Peppol) : un avoir `typeCode` 381 doit garder des **montants positifs** dans le CII/XML transmis — négativer en plus du typeCode crée une double négation qui fait échouer la validation chez la plupart des plateformes de réception (règle BR-27). Le PDF humain affiche un signe négatif par lisibilité ; le XML légal reste positif + 381. À confirmer par l'expert-comptable en même temps que le reste de la spec.
+
+**Limite connue, assumée (voir commit `c3a4f61`) :** si `finalize()` échoue *après* soumission à la Plateforme Agréée (ou insertion en file e-reporting) mais *avant* l'écriture finale en base, le numéro alloué reste consommé et un nouvel essai en tirera un autre — un petit gap de séquence peut apparaître. Toléré par la doctrine fiscale (BOI-TVA-DECLA-30-20-20) pour un incident technique non systématique ; à surveiller si ça devient fréquent en usage réel, et à signaler à l'expert-comptable.
+
+**Non résolu par du code, nécessite une action de ta part avant mise en production (pas avant le pilote, puisque "Facturer" reste gelé) :**
+- Faire valider l'ensemble de la spec Vague 2 par un expert-comptable : numérotation par série (une série par type ACO/SIT/SOL/AVO/INV plutôt qu'une série unique — choix documenté dans la migration 20, à confirmer), avoir 381 à montants positifs, mentions de pénalités B2B, e-reporting.
+- Exécuter la migration `20_invoice_sequential_numbering.sql` dans l'éditeur SQL Supabase (idempotente, non destructive).
+- Décider de la date de dégel du bouton "Facturer" une fois la validation comptable obtenue.
 
 ### VAGUE 3 — en attente (avant réactivation de la vitrine publique)
 Points 9 et 10 (anti double-booking DB + applicatif, notifications RDV vitrine).
@@ -185,4 +203,4 @@ Champ "Prix" prestations, fidélité preview devis, alerte quota vocal, helper `
 
 ---
 
-**Prochaine étape** : Vague 1 terminée et vérifiée (eslint + tsc clean sur chaque commit). En attente de ton feu vert avant d'attaquer la Vague 2 — et de ta réponse sur l'autoliquidation sous-traitance pour la Vague 4.
+**Prochaine étape** : Vague 1 et Vague 2 terminées et vérifiées (eslint + tsc clean, tests unitaires verts sur chaque commit). "Facturer" reste gelé — Vague 2 est du code prêt en attente de validation expert-comptable, pas une mise en prod. En attente de ton feu vert avant d'attaquer la Vague 3, et de ta réponse sur l'autoliquidation sous-traitance pour la Vague 4.
