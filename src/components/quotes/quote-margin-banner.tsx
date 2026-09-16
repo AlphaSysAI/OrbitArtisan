@@ -28,7 +28,8 @@ export function QuoteMarginBanner({
     >
       <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          Marge brute estimée (déboursé matière + MO à 65 % du PV) — indicatif
+          Marge brute estimée — hypothèse générique 65 % (matière + MO, y compris si vous
+          travaillez seul) — indicatif, ne remplace pas votre coût réel
         </p>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm tabular-nums">
           <span>

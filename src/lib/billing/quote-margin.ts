@@ -1,7 +1,16 @@
-/** Estimation du déboursé matière (% du PV fournitures facturées). */
+/**
+ * Hypothèse générique, volontairement non personnalisée par artisan (cf. commentaire
+ * de `computeQuoteMarginPreview` plus bas) : estimation du déboursé matière (% du PV
+ * fournitures facturées).
+ */
 export const DEFAULT_MATERIAL_COST_RATIO = 0.65;
 
-/** Estimation du coût MO interne (% du PV main-d'œuvre). */
+/**
+ * Hypothèse générique de coût de main-d'œuvre (% du PV MO). Pour un solo sans salarié,
+ * ce "coût" représente une valorisation forfaitaire de son propre temps (charges,
+ * matériel, temps non facturable...), pas un salaire réellement versé — la marge
+ * affichée reste donc indicative même dans ce cas.
+ */
 export const DEFAULT_LABOR_COST_RATIO = 0.65;
 
 export type QuoteMarginPreview = {
@@ -15,6 +24,15 @@ export type QuoteMarginPreview = {
   grossMarginPercent: number;
 };
 
+/**
+ * Prévisualisation de marge brute à but purement indicatif (bandeau devis) : aucun
+ * impact sur les totaux HT/TTC, la facturation, ou l'export comptable.
+ *
+ * Les ratios par défaut (65 %) sont une hypothèse générique unique, pas calibrée par
+ * artisan — `materialCostRatio`/`laborCostRatio` permettent déjà de les personnaliser
+ * si un profil (ou un futur réglage) fournit des valeurs plus fines ; en leur absence,
+ * l'estimation reste la même pour tous, solo ou avec salariés.
+ */
 export function computeQuoteMarginPreview(input: {
   grandTotalCents: number;
   laborTotalCents: number;
