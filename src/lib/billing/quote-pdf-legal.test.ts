@@ -16,15 +16,32 @@ describe("validateQuoteLegalProfile", () => {
     expect(res.blocking.length).toBeGreaterThan(0);
   });
 
-  it("accepte un profil minimal valide avec avertissements", () => {
+  it("bloque si l'assurance décennale est absente, même avec le reste du profil complet", () => {
     const res = validateQuoteLegalProfile({
       business_name: "Dupont BTP",
       siret: "12345678901234",
       addressLine1: "1 rue Test",
       postalCode: "75001",
       city: "Paris",
+      decennale_insurer: null,
+      decennale_policy_number: null,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.blocking.some((m) => m.toLowerCase().includes("décennale"))).toBe(true);
+  });
+
+  it("accepte un profil complet (dont décennale) avec avertissements résiduels", () => {
+    const res = validateQuoteLegalProfile({
+      business_name: "Dupont BTP",
+      siret: "12345678901234",
+      addressLine1: "1 rue Test",
+      postalCode: "75001",
+      city: "Paris",
+      decennale_insurer: "AXA",
+      decennale_policy_number: "DEC-123",
     });
     expect(res.ok).toBe(true);
+    // RC Pro, médiateur, TVA intra restent de simples avertissements.
     expect(res.warnings.length).toBeGreaterThan(0);
   });
 });

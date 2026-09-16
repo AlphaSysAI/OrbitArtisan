@@ -30,8 +30,13 @@ export function validateQuoteLegalProfile(profile: QuoteLegalProfile): QuoteLega
     blocking.push("Adresse professionnelle incomplète (Réglages).");
   }
 
+  // Bloquant (et non un simple avertissement) : exercer sans assurance décennale sur des
+  // travaux qui y sont soumis est pénalement sanctionné (art. L243-3 C. assurances — jusqu'à
+  // 6 mois d'emprisonnement et 75 000 € d'amende). Tant que "Facturer" reste gelé, le devis est
+  // le seul document qui atteint réellement un client : il ne doit pas pouvoir partir sans cette
+  // mention, à la différence de la facture où ce contrôle existait déjà (Vague 2, Temps 2).
   if (!profile.decennale_insurer?.trim() && !profile.decennale_policy_number?.trim()) {
-    warnings.push("Assurance décennale non renseignée — obligatoire pour certains travaux du bâtiment.");
+    blocking.push("Assurance décennale non renseignée (Réglages → Mentions légales) — obligatoire pour ce type de travaux, sanction pénale en cas d'absence.");
   }
   if (!profile.rc_pro_insurer?.trim() && !profile.rc_pro_number?.trim()) {
     warnings.push("Assurance RC Pro non renseignée.");
