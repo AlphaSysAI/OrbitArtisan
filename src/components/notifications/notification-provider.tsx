@@ -75,9 +75,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (pathname.startsWith("/app/quotes")) {
       tasks.push(markNotificationCategorySeen("quotes_accepted").then(() => refresh()));
     }
-    if (pathname.startsWith("/app/appels")) {
-      tasks.push(markNotificationCategorySeen("voice_intakes").then(() => refresh()));
-    }
+    // voice_intakes n'est plus marqué "vu" à la visite : le compteur ne
+    // reflète que les appels encore pending_review (Point 12 de l'audit
+    // pré-pilote) — il ne doit baisser qu'après une vraie validation/rejet.
     if (pathname.startsWith("/mes-devis")) {
       tasks.push(markNotificationCategorySeen("quotes_received").then(() => refresh()));
     }

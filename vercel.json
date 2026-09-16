@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/e-reporting",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/voice-intake-reminders",
+      "schedule": "0 * * * *"
     }
   ]
 }
