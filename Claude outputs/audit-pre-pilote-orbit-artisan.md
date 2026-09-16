@@ -163,7 +163,7 @@ Branche : `pilote/vague1-securite-fiabilite` (depuis `master`, commit de départ
 | 7 | `profiles_public_read` — colonnes anon restreintes (Stripe/SIRET/quotas/téléphone masqués) | ✅ Corrigé — ⚠️ migration `17_restrict_profiles_anon_columns.sql` à exécuter manuellement dans Supabase | `adcada9` |
 | 8 | `seed_default_work_library` — vérification ownership `p_user_id = auth.uid()` | ✅ Corrigé — ⚠️ migration `18_fix_seed_default_work_library_ownership.sql` à exécuter manuellement dans Supabase | `d096880` |
 | 11 | Notifications push proposées proactivement (bannière après 1er appel / dès que possible, plus seulement en Réglages) | ✅ Corrigé | `10aa787` |
-| 12 | Badge "à valider" réinitialisé uniquement sur action réelle + cron de relance des devis vocaux oubliés (2h/24h) | ✅ Corrigé — ⚠️ migration `19_voice_intake_reminders_and_badge_fix.sql` à exécuter manuellement + nouveau cron Vercel à vérifier (fréquence horaire, cf. limite plan Hobby) | `59f0556` |
+| 12 | Badge "à valider" réinitialisé uniquement sur action réelle + cron de relance des devis vocaux oubliés (2h/24h) | ✅ Corrigé — ⚠️ migration `19_voice_intake_reminders_and_badge_fix.sql` à exécuter manuellement. Cron repassé en quotidien (`0 9 * * *`, une passe le matin) après confirmation du plan Vercel Hobby (1x/jour max) | `59f0556`, `add975a` |
 | 13 | Taux de TVA en dur (20%) retiré du chemin devis IA vocal ; taux choisi par l'artisan à l'écran de validation ; libellé PDF "Total TTC" → "Total HT (TVA non incluse)" | ✅ Corrigé | `c0d43ce` |
 | 14 | Fiabilité appel vocal en direct : `maxDuration=60`, timeouts Mistral/embeddings, matching matériaux parallélisé, dédup serveur indépendante de `twilio_call_sid`, fallback RDV désactivé vérifié par lecture de code | ✅ Corrigé (code) — ⚠️ **appel test réel encore nécessaire** pour confirmer (a) que l'agent ElevenLabs transmet bien `twilio_call_sid`, (b) le comportement conversationnel du fallback RDV désactivé | `14f207b` |
 
@@ -172,6 +172,7 @@ Branche : `pilote/vague1-securite-fiabilite` (depuis `master`, commit de départ
 - Passer au moins un appel test réel sur le numéro vocal pour valider la latence de bout en bout et le comportement du fallback RDV.
 - Vérifier dans le dashboard ElevenLabs que le tool `create-quote-draft` transmet bien `twilio_call_sid` (le filet de dédup ajouté au point 14 réduit le risque si ce n'est pas le cas, mais ne le remplace pas).
 - `npm run build` n'a pas pu être vérifié en bout en bout dans le bac à sable (Google Fonts bloqué par le proxy réseau du sandbox, sans rapport avec la mise à jour Next.js) — à lancer une fois en local ou laisser Vercel le confirmer au déploiement.
+- Les 3 crons de `vercel.json` sont maintenant à cadence quotidienne unique chacun, compatible avec le plan Hobby. Si le plan Hobby limite aussi le **nombre total** de crons par projet (pas seulement leur fréquence), vérifier dans le dashboard Vercel qu'un déploiement avec 3 crons distincts est bien accepté.
 
 ### VAGUE 2 — en attente (bouton Facturer reste gelé tant que non traité)
 Points 1 à 5 (avoirs 380/381, doublement main-d'œuvre, TVA réduite facture, numérotation séquentielle, mentions légales paiement) + durcissements importants associés (retenue de garantie, avoirs vs `alreadyInvoiced`, `exclude_from_invoice`). **Ne démarre qu'après validation de la spec par un expert-comptable.**
