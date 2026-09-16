@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { mistralChatParse } from "@/lib/ai/mistral";
+import { isMasonryUnitMaterial } from "@/lib/ai/quote-material-sanity";
 import { formatWebSearchForPrompt, searchWebForQuoteContext } from "@/lib/ai/web-search";
 
 function coerceString(v: unknown): string {
@@ -41,6 +42,21 @@ export const MaterialTakeoffSchema = z.object({
       }),
     ),
   ),
+  /**
+   * Surface totale de murs porteurs à monter en parpaings/agglos (m²), quand le
+   * chantier en nécessite. Le LLM ne doit PAS calculer lui-même le nombre de blocs
+   * (chaîne de calcul — surface × ratio — qu'il rate régulièrement d'un facteur 10,
+   * cf. quote-material-sanity.ts) : il estime uniquement cette surface, ratio
+   * appliqué en code dans computeMasonryBlockCount().
+   */
+  masonry_wall_area_m2: z.preprocess(
+    (v) => {
+      if (v == null || v === "") return null;
+      const n = coerceNumber(v);
+      return n > 0 ? n : null;
+    },
+    z.number().positive().nullable(),
+  ),
   labor_hours_estimate: z.preprocess(
     (v) => {
       if (v == null || v === "") return null;
@@ -72,11 +88,34 @@ export const MATERIAL_TAKEOFF_JSON_SCHEMA: Record<string, unknown> = {
         required: ["name_generic", "quantity", "unit"],
       },
     },
+    masonry_wall_area_m2: {
+      type: ["number", "null"],
+      description:
+        "Surface totale des murs porteurs à monter en parpaings/agglos (m²), si le chantier en nécessite. " +
+        "Null sinon. Ne calcule PAS toi-même le nombre de blocs à partir de cette surface : ne liste " +
+        "AUCUN parpaing/agglo dans materials, indique juste la surface ici, le nombre de blocs est calculé " +
+        "automatiquement à partir de ce champ.",
+    },
     labor_hours_estimate: { type: "number", description: "Heures MO estimées" },
     calculation_notes: { type: "string" },
   },
   required: ["work_summary", "assumptions", "materials", "calculation_notes"],
 };
+
+/**
+ * Ratio standard BTP France pour un parpaing/agglo 20×20×50 cm : 2 blocs/m de large
+ * × 5 blocs/m de haut = 10 blocs/m² de mur (source : pratique courante du métier).
+ * Marge de chute : 5 %, cohérent avec le reste du métré (arrondi supérieur).
+ * Constantes volontairement isolées et documentées : à ajuster si l'artisan utilise
+ * un autre format de bloc.
+ */
+export const MASONRY_BLOCKS_PER_M2 = 10;
+export const MASONRY_WASTE_MARGIN = 0.05;
+
+/** Calcule un nombre de parpaings/agglos de façon déterministe — jamais via le LLM. */
+export function computeMasonryBlockCount(wallAreaM2: number): number {
+  return Math.ceil(wallAreaM2 * MASONRY_BLOCKS_PER_M2 * (1 + MASONRY_WASTE_MARGIN));
+}
 
 const WORK_KEYWORDS =
   /mur|parpaing|agglo|brique|bloc|dalle|chape|toiture|carrelage|enduit|cloison|fondation|terrasse|maçonnerie|maconnerie|beton|béton|linteau|poteau|hourdis|planelle|plancher/i;
@@ -137,10 +176,14 @@ export async function runMaterialTakeoff(instruction: string): Promise<MaterialT
 Règles :
 - Applique les ratios métiers standards du BTP en France ; documente chaque hypothèse dimensionnelle dans "assumptions".
 - Les parpaings / agglos concernent les murs porteurs — pas le plancher, la dalle ni la toiture (hourdis, béton, charpente, couverture).
+- IMPORTANT — parpaings/agglos : ne les liste JAMAIS dans "materials" et ne calcule JAMAIS toi-même leur
+  quantité. Indique uniquement la surface totale de murs porteurs à monter dans "masonry_wall_area_m2"
+  (m², déductions des ouvertures si pertinent) — le nombre de blocs est calculé automatiquement à partir
+  de cette surface avec un ratio fixe. Si aucun mur porteur en parpaings n'est nécessaire, laisse ce champ null.
 - Ne cumule pas plusieurs lots en multipliant plusieurs fois la même surface au sol.
-- Prévois une marge de chute réaliste et indique-la dans "assumptions".
+- Prévois une marge de chute réaliste pour les AUTRES matériaux (ciment, sable…) et indique-la dans "assumptions".
 - Détaille les hypothèses dans "assumptions" (dimensions bloc, épaisseur joint, ouvertures non déduites si absentes, etc.).
-- "materials" : noms génériques en français, quantités arrondies à l'entier supérieur pour les U/sacs.
+- "materials" : noms génériques en français, quantités arrondies à l'entier supérieur pour les U/sacs — hors parpaings/agglos (cf. règle ci-dessus).
 - "unit" : U, sacs, m³, kg, L, ml, m²…
 - "labor_hours_estimate" : heures MO réalistes pour l'ouvrage décrit.
 - "calculation_notes" : rappel court que le métré est indicatif et doit être validé sur site.
@@ -173,20 +216,50 @@ Règles :
       jsonSchema: MATERIAL_TAKEOFF_JSON_SCHEMA,
       jsonExample: `{
   "work_summary": "Mur en parpaings 10 ml × 2 m",
-  "assumptions": ["Parpaing 20×20×50 cm", "10 % chute", "Pas d'ouverture déduite"],
+  "assumptions": ["Parpaing 20×20×50 cm", "Pas d'ouverture déduite"],
   "materials": [
-    { "name_generic": "Parpaing creux", "quantity": 440, "unit": "U", "specifications": "20×20×50" },
     { "name_generic": "Mortier ciment", "quantity": 12, "unit": "sacs", "specifications": "35 kg" },
     { "name_generic": "Sable", "quantity": 1.2, "unit": "m³", "specifications": null }
   ],
+  "masonry_wall_area_m2": 20,
   "labor_hours_estimate": 16,
   "calculation_notes": "Métré indicatif — confirmer métrés et accès sur chantier."
 }`,
     },
   );
 
-  if (!takeoff?.materials.length) return null;
-  return takeoff;
+  if (!takeoff) return null;
+
+  // Calcul déterministe des parpaings/agglos à partir de la surface estimée par le
+  // LLM (jamais l'inverse) — voir computeMasonryBlockCount(). Défensif : si le modèle
+  // a quand même listé un parpaing/agglo dans "materials" malgré la consigne, on le
+  // retire pour éviter un doublon avec la ligne calculée.
+  let materials = takeoff.materials;
+  const assumptions = [...takeoff.assumptions];
+
+  if (takeoff.masonry_wall_area_m2) {
+    const ignoredByLlm = materials.filter((m) => isMasonryUnitMaterial(m.name_generic));
+    if (ignoredByLlm.length) {
+      materials = materials.filter((m) => !isMasonryUnitMaterial(m.name_generic));
+    }
+
+    const blockCount = computeMasonryBlockCount(takeoff.masonry_wall_area_m2);
+    materials = [
+      ...materials,
+      {
+        name_generic: "Parpaing creux 20×20×50",
+        quantity: blockCount,
+        unit: "U",
+        specifications: `Calculé : ${takeoff.masonry_wall_area_m2} m² × ${MASONRY_BLOCKS_PER_M2}/m² + ${Math.round(MASONRY_WASTE_MARGIN * 100)} % chute`,
+      },
+    ];
+    assumptions.push(
+      `Parpaings calculés automatiquement à partir de la surface de mur estimée (${takeoff.masonry_wall_area_m2} m²) — ratio ${MASONRY_BLOCKS_PER_M2} blocs/m², pas une estimation directe du modèle.`,
+    );
+  }
+
+  if (!materials.length) return null;
+  return { ...takeoff, materials, assumptions };
 }
 
 export function formatTakeoffForQuotePrompt(takeoff: MaterialTakeoff, webUsed: boolean): string {
