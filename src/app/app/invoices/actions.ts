@@ -133,6 +133,17 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     vat_category_code: string;
   }[] = [];
 
+  // Point 2 audit pré-pilote : on n'ajoute plus JAMAIS de ligne par prestation
+  // catalogue (ex quote_services) en plus de la ligne "Main d'œuvre" globale.
+  // Raison : quote_services.unit_price/line_total sont un instantané du champ
+  // "Prix" du catalogue de prestations (services.price) — un champ purement
+  // décoratif qui n'entre JAMAIS dans le calcul de quote.labor_total (voir
+  // Point Vague 4 "champ Prix jamais utilisé dans grand_total"). Facturer les
+  // deux revenait à additionner deux sources de montant indépendantes pour la
+  // même main-d'œuvre : la ligne globale (laborShare, dérivée du vrai taux
+  // horaire artisan) ET une deuxième liste de lignes basée sur des prix
+  // catalogue sans rapport avec le total réellement dû — d'où un total HT
+  // facturé supérieur au montant du devis accepté par le client.
   let sort = 0;
   if (laborShare > 0) {
     lines.push({
@@ -142,29 +153,6 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       quantity: 1,
       unit_price: laborShare,
       line_total: laborShare,
-      sort_order: sort++,
-      ...DEFAULT_INVOICE_LINE_VAT,
-    });
-  }
-
-  const { data: qServices } = await supabase
-    .from("quote_services")
-    .select("service_title, duration_minutes, unit_price, line_total")
-    .eq("quote_id", quoteId)
-    .order("created_at", { ascending: true });
-
-  for (const s of qServices ?? []) {
-    if (materialsShare <= 0 && laborShare <= 0) break;
-    const lt = s.line_total ?? s.unit_price ?? 0;
-    const scaled = quote.grand_total > 0 ? Math.round((lt * billableRemaining) / quote.grand_total) : 0;
-    if (scaled <= 0) continue;
-    lines.push({
-      invoice_id: invoice.id,
-      line_kind: "service",
-      label: `${s.service_title} (${s.duration_minutes} min)`,
-      quantity: 1,
-      unit_price: scaled,
-      line_total: scaled,
       sort_order: sort++,
       ...DEFAULT_INVOICE_LINE_VAT,
     });
