@@ -4,8 +4,19 @@ import { z } from "zod";
 
 const MISTRAL_API_BASE = "https://api.mistral.ai/v1";
 
-/** Modèle chat gratuit / experiment (surchargeable via MISTRAL_CHAT_MODEL). */
-export const MISTRAL_CHAT_MODEL = process.env.MISTRAL_CHAT_MODEL?.trim() || "open-mistral-nemo";
+/**
+ * Modèle chat (surchargeable via MISTRAL_CHAT_MODEL).
+ *
+ * Fallback défensif : "open-mistral-nemo" est déprécié côté Mistral depuis le
+ * 22/05/2026 (date déjà passée) — le garder comme valeur par défaut ferait
+ * échouer silencieusement tout appel IA (assistant, devis vocal/chat,
+ * qualification lead) sur un environnement où la variable d'env n'est pas
+ * positionnée (preview Vercel, nouvel environnement, oubli de config).
+ * "mistral-small-latest" est le choix par défaut le plus sûr : alias
+ * toujours à jour, adapté à de l'extraction/classification, coût le plus bas.
+ * Positionner MISTRAL_CHAT_MODEL=mistral-large-latest pour plus de qualité.
+ */
+export const MISTRAL_CHAT_MODEL = process.env.MISTRAL_CHAT_MODEL?.trim() || "mistral-small-latest";
 
 export const MISTRAL_EMBED_MODEL = "mistral-embed";
 
