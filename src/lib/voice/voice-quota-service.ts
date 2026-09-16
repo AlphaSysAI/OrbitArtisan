@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { notifyVoiceQuotaExhausted } from "@/lib/notifications/notify-events";
 import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
 import { logVoiceQuotaThresholds } from "@/lib/voice/voice-quota-alerts";
 
@@ -92,12 +93,18 @@ export async function processTwilioCallStatus(
   }
 
   if (!duplicate && minutesBilled > 0) {
-    logVoiceQuotaThresholds({
+    const crossed = logVoiceQuotaThresholds({
       artisanId: input.artisanId,
       included: quota.voiceMinutesIncluded,
       previousUsed: input.previousUsed ?? Math.max(0, quota.voiceMinutesUsed - minutesBilled),
       newUsed: quota.voiceMinutesUsed,
     });
+    if (crossed === "100") {
+      void notifyVoiceQuotaExhausted(db, {
+        artisanId: input.artisanId,
+        voiceMinutesIncluded: quota.voiceMinutesIncluded,
+      });
+    }
   }
 
   return {

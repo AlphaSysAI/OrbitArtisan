@@ -185,3 +185,30 @@ export async function notifyNewAppointment(
     tag: `appointment-${input.appointmentId}`,
   });
 }
+
+/**
+ * Alerte quota vocal épuisé (point audit pré-pilote, vague 4). Le seuil 80 % reste
+ * un simple log serveur (voice-quota-alerts.ts) ; seul le seuil 100 % — celui qui
+ * bloque effectivement l'agent vocal (sauf dépassement autorisé) — pousse une
+ * notification à l'artisan, en réutilisant l'infra push existante.
+ */
+export async function notifyVoiceQuotaExhausted(
+  supabase: SupabaseClient,
+  input: { artisanId: string; voiceMinutesIncluded: number },
+) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("user_id")
+    .eq("id", input.artisanId)
+    .maybeSingle();
+
+  const userId = profile?.user_id as string | undefined;
+  if (!userId) return;
+
+  notifyUserActivity(userId, {
+    title: "Quota vocal atteint",
+    body: `Ton forfait de ${input.voiceMinutesIncluded} min/mois est épuisé — vérifie tes réglages.`,
+    url: `${siteUrl}/app/reglages?tab=vocal`,
+    tag: "voice-quota-100",
+  });
+}
