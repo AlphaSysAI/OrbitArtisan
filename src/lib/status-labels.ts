@@ -5,12 +5,14 @@ const QUOTE_STATUS_LABELS: Record<string, string> = {
   rejected: "Refusé",
 };
 
+// Statuts possibles : contrainte DB `invoices.status` (migration 06) = draft | sent | paid | overdue.
+// Pas de "cancelled" ici : aucune colonne ne peut jamais tenir cette valeur (CHECK constraint),
+// une facture annulée passe par un avoir (invoice_type = 'credit_note'), pas par ce statut.
 const INVOICE_STATUS_LABELS: Record<string, string> = {
   draft: "Brouillon",
   sent: "Envoyée",
   paid: "Payée",
   overdue: "En retard",
-  cancelled: "Annulée",
 };
 
 const E_INVOICING_STATUS_LABELS: Record<string, string> = {
