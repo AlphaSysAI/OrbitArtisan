@@ -195,12 +195,26 @@ Branche : `pilote/vague2-facturation-legale` (depuis la tête de `pilote/vague1-
 - Exécuter la migration `20_invoice_sequential_numbering.sql` dans l'éditeur SQL Supabase (idempotente, non destructive).
 - Décider de la date de dégel du bouton "Facturer" une fois la validation comptable obtenue.
 
-### VAGUE 3 — en attente (avant réactivation de la vitrine publique)
-Points 9 et 10 (anti double-booking DB + applicatif, notifications RDV vitrine).
+### VAGUE 3 — terminée (16/09/2026), avant réactivation de la vitrine publique
+Branche : `pilote/vague3-rdv-fiabilite` (depuis la tête de `pilote/vague2-facturation-legale`, commit `82e9c86`).
+
+| # | Sujet | Statut | Commit |
+|---|---|---|---|
+| 9 | Anti double-booking : colonne `appointments.end_time` matérialisée par trigger (`start_time` + `services.duration`, 60 min par défaut si service absent/supprimé) ; contrainte `EXCLUDE USING gist (artisan_id WITH =, tstzrange(start_time, end_time) WITH &&) WHERE status <> 'cancelled'` (nécessite `btree_gist`) — protection au niveau base, donc valable même en cas de double soumission concurrente. Les 4 points d'écriture (RDV manuel artisan, RDV connecté vitrine, RDV invité vitrine, finalisation RDV en attente) traduisent l'erreur Postgres 23P01 en message "créneau déjà pris" (dialogue artisan, toast vitrine, écran d'inscription, `/compte`) | ✅ Corrigé — ⚠️ migration `21_appointment_overlap_guard.sql` à exécuter manuellement dans Supabase (contient une requête de contrôle anti-chevauchement à lancer d'abord, voir plus bas) | `e27df5c` |
+| 10 | `notifyNewAppointment` ajoutée (même infra push que messages/devis/factures/appels vocaux) et branchée sur les 3 points d'entrée originaires de la vitrine publique (RDV connecté, RDV invité, finalisation RDV en attente) ; pas d'appel pour un RDV saisi par l'artisan lui-même | ✅ Corrigé | `b750ab4`, `e27df5c` |
+
+**Décision assumée (signalée, pas juste appliquée) :** `notifyAppointmentCancelled`, mentionnée dans l'audit à côté de `notifyNewAppointment`, n'a pas été ajoutée : aucun parcours client existant ne permet d'annuler un RDV (seul l'artisan annule son propre RDV depuis `/app/rdv` — s'auto-notifier n'aurait pas de sens). À ajouter si une annulation côté client est introduite un jour.
+
+**Corrigé au passage (pas dans l'audit initial) :** sur `/compte?pending=...`, un échec de finalisation de RDV en attente était auparavant silencieusement ignoré (aucun message affiché). Un bandeau d'erreur avec libellé par type d'échec a été ajouté.
+
+**Effet de bord à noter (positif) :** la durée d'un RDV est désormais figée à l'insertion plutôt que déduite en lecture depuis `services.duration` — ferme au passage l'item mineur du même point de l'audit ("Durée déduite du service au moment de la lecture, fragile si service supprimé"). Aucun impact sur la facturation, les totaux, ou la génération PDF/XML.
+
+**Non résolu par du code, nécessite une action de ta part avant de réactiver la vitrine publique :**
+- Avant d'exécuter la migration `21_appointment_overlap_guard.sql` : lancer la requête de contrôle placée en commentaire en tête du fichier (doit renvoyer 0 ligne). Si des RDV existants se chevauchent déjà pour un même artisan, en annuler un des deux manuellement avant d'appliquer la contrainte, sinon l'`ALTER TABLE ... ADD CONSTRAINT` échouera au moment de l'exécuter.
 
 ### VAGUE 4 — en attente (hygiène, sans urgence)
 Champ "Prix" prestations, fidélité preview devis, alerte quota vocal, helper `requireArtisanProfileId()`, `.env.example`, statut `cancelled` orphelin, ratio de marge configurable, autoliquidation sous-traitance (bloquée en attente de confirmation : un des 5 artisans pilotes sous-traite-t-il ce mois-ci ?).
 
 ---
 
-**Prochaine étape** : Vague 1 et Vague 2 terminées et vérifiées (eslint + tsc clean, tests unitaires verts sur chaque commit). "Facturer" reste gelé — Vague 2 est du code prêt en attente de validation expert-comptable, pas une mise en prod. En attente de ton feu vert avant d'attaquer la Vague 3, et de ta réponse sur l'autoliquidation sous-traitance pour la Vague 4.
+**Prochaine étape** : Vague 1, Vague 2 et Vague 3 terminées et vérifiées (eslint + tsc clean, tests unitaires verts sur chaque commit ; 144 tests toujours au vert). "Facturer" reste gelé et la vitrine publique reste désactivée — Vague 3 est du code prêt en attente de l'exécution de la migration 21 (voir contrôle anti-chevauchement ci-dessus) avant réactivation de la vitrine. En attente de ton feu vert avant d'attaquer la Vague 4, et de ta réponse sur l'autoliquidation sous-traitance pour la scoper définitivement.
