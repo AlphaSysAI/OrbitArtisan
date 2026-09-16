@@ -179,11 +179,15 @@ ${instruction}`;
     warnings.push("Durée de main d'œuvre non calculée — vérifie les heures dans le formulaire.");
   }
 
-  const supplierMaterials: MatchedSupplierMaterial[] = [];
-
-  for (const material of neededMaterials) {
+  // Point 14 audit pré-pilote : matching fournisseur parallélisé (au lieu d'un
+  // aller-retour embedding + RPC séquentiel par matériau) pour ne pas cumuler
+  // la latence réseau linéairement avec le nombre de matériaux détectés lors
+  // d'un appel en direct. Chaque matériau reste indépendant : un échec isolé
+  // ne bloque pas les autres, et l'ordre des lignes est préservé (Promise.all).
+  async function matchOneMaterial(material: NeededMaterial): Promise<MatchedSupplierMaterial> {
     const query = buildMaterialSearchQuery(material.name_generic, material.specifications);
     let match: MatchedSupplierMaterial["match"] = null;
+    const localWarnings: string[] = [];
 
     try {
       const embedding = await embedText(query);
@@ -196,7 +200,7 @@ ${instruction}`;
 
         if (rpcErr) {
           console.error("[build-quote-from-text] rpc error", rpcErr);
-          warnings.push(`Recherche fournisseur indisponible pour « ${material.name_generic} ».`);
+          localWarnings.push(`Recherche fournisseur indisponible pour « ${material.name_generic} ».`);
         } else {
           const best = (matches as SupplierMatchRow[] | null)?.[0];
           if (best) {
@@ -210,22 +214,28 @@ ${instruction}`;
               similarity: best.similarity,
             };
           } else {
-            warnings.push(`Aucun produit fournisseur trouvé pour « ${material.name_generic} ».`);
+            localWarnings.push(`Aucun produit fournisseur trouvé pour « ${material.name_generic} ».`);
           }
         }
       }
     } catch (err) {
       console.error("[build-quote-from-text] embedding error", err);
-      warnings.push(`Erreur d'indexation pour « ${material.name_generic} ».`);
+      localWarnings.push(`Erreur d'indexation pour « ${material.name_generic} ».`);
     }
 
-    supplierMaterials.push({
+    warnings.push(...localWarnings);
+
+    return {
       requested_name: material.name_generic,
       quantity: material.quantity,
       specifications: material.specifications,
       match,
-    });
+    };
   }
+
+  const supplierMaterials: MatchedSupplierMaterial[] = await Promise.all(
+    neededMaterials.map(matchOneMaterial),
+  );
 
   if (!neededMaterials.length) {
     warnings.push("Aucun matériau détecté dans l'instruction.");

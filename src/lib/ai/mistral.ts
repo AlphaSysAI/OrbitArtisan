@@ -12,6 +12,15 @@ export const MISTRAL_EMBED_MODEL = "mistral-embed";
 /** Dimension des embeddings `mistral-embed` (pgvector). */
 export const MISTRAL_EMBED_DIMENSIONS = 1024;
 
+/**
+ * Timeouts réseau (Point 14 audit pré-pilote — fiabilité appel vocal en direct).
+ * Sans timeout, un appel Mistral qui traîne bloque toute la requête voix jusqu'à
+ * la limite dure de la fonction (maxDuration), au lieu d'échouer proprement et
+ * de laisser le fallback (brouillon vide + warning) prendre le relais.
+ */
+const MISTRAL_CHAT_TIMEOUT_MS = 20_000;
+const MISTRAL_EMBED_TIMEOUT_MS = 10_000;
+
 export type MistralChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -69,6 +78,7 @@ export async function mistralChat(params: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(MISTRAL_CHAT_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -161,6 +171,7 @@ export async function mistralEmbed(text: string): Promise<number[]> {
       model: MISTRAL_EMBED_MODEL,
       input: [input],
     }),
+    signal: AbortSignal.timeout(MISTRAL_EMBED_TIMEOUT_MS),
   });
 
   if (!res.ok) {

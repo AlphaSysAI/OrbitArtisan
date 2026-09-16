@@ -43,6 +43,37 @@ export async function processVoiceCallQuoteIntake(params: {
     return { error: "Email client manquant (customer_email requis pour envoyer le devis)." };
   }
 
+  // Point 14 audit pré-pilote — dédup obligatoire côté serveur, indépendante de
+  // l'agent vocal : la contrainte UNIQUE sur twilio_call_sid ne protège que si
+  // l'agent ElevenLabs transmet bien cet identifiant (config externe, non
+  // vérifiable depuis le code) — deux NULL ne sont jamais égaux pour Postgres,
+  // donc sans SID la table n'empêcherait aucun doublon. Filet de sécurité :
+  // même artisan + même email client dans les 2 dernières minutes = rejeu
+  // probable (retry réseau, double appel outil), pas un nouveau besoin. Ce
+  // contrôle tourne AVANT les appels IA pour éviter de payer la latence
+  // Mistral/embeddings sur un doublon qu'on va de toute façon rejeter.
+  if (!twilioCallSid) {
+    const dedupWindowStart = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const { data: recentDuplicate } = await params.db
+      .from("voice_call_intakes")
+      .select("id, summary, quote_draft")
+      .eq("artisan_id", params.artisanId)
+      .eq("customer_email", customerEmail)
+      .gte("created_at", dedupWindowStart)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (recentDuplicate?.id) {
+      return {
+        intakeId: recentDuplicate.id as string,
+        summary: (recentDuplicate.summary as string) ?? "Appel déjà enregistré.",
+        draft: recentDuplicate.quote_draft as AiQuoteDraft,
+        message: "Proposition de devis déjà enregistrée pour cet appel (doublon détecté sans identifiant Twilio).",
+      };
+    }
+  }
+
   const { data: profile } = await params.db
     .from("profiles")
     .select("id, business_name, description, labor_rate_per_hour")

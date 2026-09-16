@@ -3,6 +3,14 @@ import { NextResponse } from "next/server";
 import { resolveVoiceContext } from "@/features/voice/lib/tool-auth";
 import { processVoiceCallQuoteIntake } from "@/lib/voice/process-voice-call-intake";
 
+/**
+ * Point 14 audit pré-pilote : la génération du brouillon de devis (Mistral +
+ * embeddings + matching fournisseur) peut dépasser la limite par défaut des
+ * fonctions Vercel (10s) — l'agent vocal appelle cette route en direct pendant
+ * un appel client, un timeout prématuré casserait la conversation.
+ */
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const resolved = await resolveVoiceContext(request);
   if (!resolved.ok) return resolved.response;
