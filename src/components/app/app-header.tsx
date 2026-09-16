@@ -39,7 +39,7 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        "relative shrink-0 overflow-visible rounded-xl px-2.5 py-2 pr-3.5 pt-2.5 text-sm font-semibold transition-colors lg:px-3 lg:pr-4 xl:px-3.5 xl:pr-4",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-colors lg:px-3 xl:px-3.5",
         active
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -49,6 +49,7 @@ function NavLink({
       <span className="hidden xl:inline">{item.label}</span>
       <NavBadge
         count={badgeCount}
+        variant="inline"
         className={cn(active && "ring-2 ring-primary-foreground/30")}
       />
     </Link>
@@ -65,8 +66,8 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 overflow-visible border-b border-border/70 bg-background/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-visible px-4 py-3 sm:gap-3 sm:px-6 lg:px-8">
         <Link href="/app" className="group flex shrink-0 items-center gap-2.5 sm:gap-3">
           <div className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-sm transition-transform group-hover:scale-[1.03] sm:size-10">
             <span className="font-display text-base font-semibold tracking-tight sm:text-lg">O</span>
@@ -79,7 +80,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
         </Link>
 
         <nav
-          className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-visible py-1 lg:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto lg:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Navigation principale"
         >
           {APP_NAV_PRIMARY.map((item) => (
@@ -95,7 +96,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                "relative inline-flex shrink-0 items-center gap-1 overflow-visible rounded-xl px-2.5 py-2 pr-3.5 pt-2.5 text-sm font-semibold transition-colors outline-none lg:px-3 lg:pr-4 xl:px-3.5 xl:pr-4",
+                "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition-colors outline-none lg:px-3 xl:px-3.5",
                 moreActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -105,6 +106,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
               <ChevronDown className="size-3.5 opacity-70" />
               <NavBadge
                 count={moreBadgeTotal}
+                variant="inline"
                 className={cn(moreActive && "ring-2 ring-primary-foreground/30")}
               />
             </DropdownMenuTrigger>
@@ -115,11 +117,11 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
                 const count = item.badgeKey ? badgeCount(item.badgeKey) : 0;
                 return (
                   <DropdownMenuItem key={item.href} render={<Link href={item.href} />} className="gap-2">
-                    <span className="relative shrink-0">
-                      <Icon className={cn("size-4", active && "text-primary")} />
-                      <NavBadge count={count} />
+                    <Icon className={cn("size-4 shrink-0", active && "text-primary")} />
+                    <span className={cn("flex flex-1 items-center gap-2", active && "font-semibold text-primary")}>
+                      {item.label}
+                      <NavBadge count={count} variant="inline" className="ml-auto" />
                     </span>
-                    <span className={cn(active && "font-semibold text-primary")}>{item.label}</span>
                   </DropdownMenuItem>
                 );
               })}

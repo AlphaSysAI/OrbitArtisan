@@ -94,14 +94,15 @@ export function AppMobileMenuSheet({
                       : "border-border/70 bg-muted/30 text-foreground hover:bg-muted",
                   )}
                 >
-                  <span className="relative shrink-0">
-                    <Icon className="size-6 opacity-90" />
+                  <Icon className="size-6 shrink-0 opacity-90" />
+                  <span className="flex items-center gap-1.5 leading-tight">
+                    {item.label}
                     <NavBadge
                       count={count}
+                      variant="inline"
                       className={cn(active && "ring-2 ring-primary-foreground/30")}
                     />
                   </span>
-                  <span className="leading-tight">{item.label}</span>
                 </Link>
               );
             })}

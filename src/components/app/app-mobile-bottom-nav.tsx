@@ -48,12 +48,12 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
               >
                 <span
                   className={cn(
-                    "relative flex size-9 items-center justify-center overflow-visible rounded-xl transition-colors",
+                    "relative flex size-9 items-center justify-center rounded-xl transition-colors",
                     active && "bg-primary/10",
                   )}
                 >
                   <Icon className="size-5" />
-                  <NavBadge count={count} />
+                  <NavBadge count={count} className="right-0 top-0" />
                 </span>
                 {item.shortLabel}
               </Link>
@@ -90,12 +90,12 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
               >
                 <span
                   className={cn(
-                    "relative flex size-9 items-center justify-center overflow-visible rounded-xl transition-colors",
+                    "relative flex size-9 items-center justify-center rounded-xl transition-colors",
                     active && "bg-primary/10",
                   )}
                 >
                   <Icon className="size-5" />
-                  <NavBadge count={count} />
+                  <NavBadge count={count} className="right-0 top-0" />
                 </span>
                 {item.shortLabel}
               </Link>

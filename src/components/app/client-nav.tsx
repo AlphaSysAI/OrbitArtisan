@@ -57,11 +57,11 @@ export function ClientNav() {
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
-            <span className="relative shrink-0 overflow-visible py-0.5 pr-1">
-              <Icon className="h-5 w-5 opacity-90" />
-              <NavBadge count={count} />
+            <Icon className="h-5 w-5 shrink-0 opacity-90" />
+            <span className="flex flex-1 items-center gap-2">
+              {label}
+              <NavBadge count={count} variant="inline" className="ml-auto" />
             </span>
-            {label}
           </Link>
         );
       })}
