@@ -24,6 +24,7 @@ import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
 import { InvoiceEditForm } from "./invoice-edit-form";
 import { InvoiceFinalizeForm } from "./invoice-finalize-form";
+import { InvoiceVatCorrectionForm } from "./invoice-vat-correction-form";
 import { InvoiceAccessDeniedPanel, InvoiceLoadErrorPanel } from "./invoice-status-panels";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,14 @@ const FINALIZE_ERROR_LABELS: Record<string, string> = {
   generation_failed: "Échec de génération du document.",
   pa_submission_failed: "Échec d'envoi à la Plateforme Agréée.",
   persist_failed: "Impossible d'enregistrer la finalisation.",
+};
+
+const VALID_VAT_RATES = [0, 5.5, 10, 20];
+
+const ACTION_ERROR_LABELS: Record<string, string> = {
+  vat_rate: "Taux de TVA invalide.",
+  vat_rate_locked: "Facture déjà finalisée : le taux de TVA n'est plus modifiable.",
+  vat_rate_update: "La correction du taux de TVA a échoué.",
 };
 
 const FLOW_LABELS: Record<string, string> = {
@@ -78,6 +87,7 @@ type InvoiceDetailViewProps = {
   /** Bloc recouvrement, rendu par le parent qui détient le client Supabase. */
   recoverySlot?: ReactNode;
   finalizeError?: string;
+  actionError?: string;
   finalized?: string;
   flow?: string;
   download?: string;
@@ -90,6 +100,7 @@ function InvoiceDetailView({
   customerLabel,
   recoverySlot,
   finalizeError,
+  actionError,
   finalized,
   flow,
   download,
@@ -163,6 +174,12 @@ function InvoiceDetailView({
         </div>
       ) : null}
 
+      {actionError ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {ACTION_ERROR_LABELS[actionError] ?? "L'action a échoué."}
+        </div>
+      ) : null}
+
       <InvoiceDocumentActionsCard
         invoiceId={invoiceId}
         emissionFlow={emissionFlow}
@@ -204,6 +221,35 @@ function InvoiceDetailView({
           <CardTitle className="text-lg">Lignes (reprise du devis)</CardTitle>
         </CardHeader>
         <CardContent>
+          {(() => {
+            const vatRates = Array.from(
+              new Set(sortedLines.map((line) => line.vat_rate).filter((r): r is number => r != null)),
+            ).sort((a, b) => a - b);
+            const hasUnresolvedRate = sortedLines.some((line) => line.vat_rate == null);
+            const hasInvalidRate = vatRates.some((r) => !VALID_VAT_RATES.includes(r));
+            if (!sortedLines.length) return null;
+            return (
+              <div className="mb-4 space-y-3">
+                <div
+                  className={
+                    hasInvalidRate || hasUnresolvedRate
+                      ? "rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900"
+                      : "rounded-lg border bg-muted/30 px-4 py-2 text-sm text-muted-foreground"
+                  }
+                >
+                  TVA appliquée : {vatRates.length ? vatRates.map((r) => `${r} %`).join(" / ") : "—"}
+                  {hasUnresolvedRate ? " · taux non résolu sur au moins une ligne" : ""}
+                  {hasInvalidRate ? " · taux invalide détecté, la finalisation sera bloquée" : ""}
+                  {isDraft && (hasInvalidRate || hasUnresolvedRate)
+                    ? " — vérifie le devis d'origine ou corrige ci-dessous avant de finaliser."
+                    : ""}
+                </div>
+                {isDraft ? (
+                  <InvoiceVatCorrectionForm invoiceId={invoiceId} defaultRate={vatRates[0] ?? 20} />
+                ) : null}
+              </div>
+            );
+          })()}
           {sortedLines.length ? (
             <ul className="divide-y rounded-xl border">
               {sortedLines.map((line, i) => (
@@ -289,6 +335,7 @@ export default async function InvoiceEditPage({
   const { invoiceId } = await params;
   const query = await searchParams;
   const finalizeError = queryParam(query.finalize_error);
+  const actionError = queryParam(query.error);
   const finalized = queryParam(query.finalized);
   const flow = queryParam(query.flow);
   const download = queryParam(query.download);
@@ -360,6 +407,7 @@ export default async function InvoiceEditPage({
           <RecoveryPanel supabase={supabase} invoice={invoice} artisanId={profile.id} />
         }
         finalizeError={finalizeError}
+        actionError={actionError}
         finalized={finalized}
         flow={flow}
         download={download}

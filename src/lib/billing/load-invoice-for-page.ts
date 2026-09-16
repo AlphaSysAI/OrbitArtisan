@@ -95,7 +95,7 @@ const RECOVERY_DEFAULTS: RecoveryInvoiceRow = {
 };
 
 const MINIMAL_LINE_SELECT = "label, line_total, sort_order";
-const FULL_LINE_SELECT = "line_kind, label, quantity, unit_price, line_total, sort_order";
+const FULL_LINE_SELECT = "line_kind, label, quantity, unit_price, line_total, sort_order, vat_rate";
 
 export type InvoiceLineForEditPage = {
   line_kind: string;
@@ -104,6 +104,8 @@ export type InvoiceLineForEditPage = {
   unit_price: number | null;
   line_total: number;
   sort_order: number;
+  /** Point 3 audit pré-pilote : null si colonne absente (repli minimal) — à ne pas confondre avec 0 (taux zéro/exonéré). */
+  vat_rate: number | null;
 };
 
 function asOptionalString(value: unknown): string | null {
@@ -173,6 +175,7 @@ function normalizeInvoiceLine(
     unit_price: typeof row.unit_price === "number" ? row.unit_price : null,
     line_total: Number(row.line_total ?? 0),
     sort_order: Number(row.sort_order ?? 0),
+    vat_rate: typeof row.vat_rate === "number" ? row.vat_rate : null,
   };
 }
 
@@ -279,6 +282,7 @@ export async function loadInvoiceLinesForEditPage(
       line_kind: "service",
       quantity: null,
       unit_price: null,
+      vat_rate: null,
       ...(row as Pick<InvoiceLineForEditPage, "label" | "line_total" | "sort_order">),
     }),
   );

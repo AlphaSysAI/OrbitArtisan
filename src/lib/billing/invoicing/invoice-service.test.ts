@@ -59,6 +59,7 @@ type MockConfig = {
   invoiceNumber: string;
   customerUserId: string | null;
   customerProfile: Record<string, unknown> | null;
+  invoiceLines?: typeof invoiceLines;
 };
 
 function createMockSupabase(config: MockConfig) {
@@ -117,7 +118,7 @@ function createMockSupabase(config: MockConfig) {
           return {
             select: () => ({
               eq: () => ({
-                order: async () => ({ data: invoiceLines, error: null }),
+                order: async () => ({ data: config.invoiceLines ?? invoiceLines, error: null }),
               }),
             }),
           };
@@ -222,4 +223,36 @@ describe("InvoiceService.finalize", () => {
     },
     15_000,
   );
+
+  it("bloque la finalisation si une ligne a un taux de TVA invalide", async () => {
+    const submitter = new StubSubmitter();
+    const { supabase, updates } = createMockSupabase({
+      invoiceId: "inv-bad-vat",
+      artisanId: "art-1",
+      invoiceNumber: "FAC-BAD-VAT",
+      customerUserId: null,
+      customerProfile: null,
+      invoiceLines: [
+        {
+          label: "Prestation",
+          quantity: 1,
+          line_total: 10000,
+          sort_order: 0,
+          vat_rate: 8.5,
+          vat_category_code: "S",
+          vat_exemption_reason: null,
+        },
+      ],
+    });
+
+    const service = new InvoiceService(supabase, submitter);
+    const result = await service.finalize("inv-bad-vat", "art-1");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("invalid_vat_rate");
+    expect(submitter.submitEInvoice).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
+  });
 });

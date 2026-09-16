@@ -9,6 +9,8 @@ import { classifyCustomer } from "./classify-customer";
 import { buildEReportingPayload, reportingPeriodFromDate } from "./e-reporting";
 import type { IPayloadSubmitter, PaSubmissionPayload } from "./payload-submitter";
 
+const VALID_VAT_RATES = [0, 5.5, 10, 20];
+
 export type InvoiceEmissionFlow = "e_invoicing" | "e_reporting";
 
 export type FinalizeInvoiceSuccess = {
@@ -31,6 +33,7 @@ export type FinalizeInvoiceError = {
     | "already_finalized"
     | "not_draft"
     | "no_lines"
+    | "invalid_vat_rate"
     | "generation_failed"
     | "pa_submission_failed"
     | "persist_failed";
@@ -79,6 +82,18 @@ export class InvoiceService {
 
     if (document.lines.length === 0) {
       return { ok: false, code: "no_lines", message: "La facture ne contient aucune ligne." };
+    }
+
+    // Point 3 audit pré-pilote : un taux de TVA hors [0, 5.5, 10, 20] signale
+    // une donnée corrompue ou un taux réduit non éligible mal renseigné — on
+    // bloque la finalisation plutôt que d'émettre un document légal erroné.
+    const invalidRateLine = document.lines.find((line) => !VALID_VAT_RATES.includes(line.vatRate));
+    if (invalidRateLine) {
+      return {
+        ok: false,
+        code: "invalid_vat_rate",
+        message: `Taux de TVA invalide (${invalidRateLine.vatRate} %) sur la ligne "${invalidRateLine.label}".`,
+      };
     }
 
     const customerClass = classifyCustomer({
