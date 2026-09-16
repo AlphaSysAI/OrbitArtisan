@@ -25,7 +25,10 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
   return (
     <>
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-border/80 bg-background/95 backdrop-blur-xl lg:hidden"
+        className={cn(
+          "fixed inset-x-0 bottom-0 border-t border-border/80 bg-background/95 backdrop-blur-xl lg:hidden",
+          menuOpen ? "z-[90]" : "z-50",
+        )}
         aria-label="Navigation mobile"
         style={{ paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))" }}
       >
@@ -45,7 +48,7 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
               >
                 <span
                   className={cn(
-                    "relative flex size-9 items-center justify-center rounded-xl transition-colors",
+                    "relative flex size-9 items-center justify-center overflow-visible rounded-xl transition-colors",
                     active && "bg-primary/10",
                   )}
                 >
@@ -57,7 +60,7 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
             );
           })}
 
-          <div className="relative flex justify-center pb-1">
+          <div className="relative z-10 flex justify-center pb-1">
             <button
               type="button"
               aria-expanded={menuOpen}
@@ -65,10 +68,10 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
               onClick={() => setMenuOpen((v) => !v)}
               className={cn(
                 "relative -top-5 flex size-[3.75rem] items-center justify-center rounded-full border-2 border-brand bg-brand text-brand-foreground shadow-lg transition-transform active:scale-95",
-                menuOpen && "bg-foreground text-background border-foreground",
+                menuOpen && "border-foreground bg-foreground text-background",
               )}
             >
-              {menuOpen ? <X className="size-7" /> : <Menu className="size-7" />}
+              {menuOpen ? <X className="size-7" strokeWidth={2.25} /> : <Menu className="size-7" />}
             </button>
           </div>
 
@@ -87,7 +90,7 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
               >
                 <span
                   className={cn(
-                    "relative flex size-9 items-center justify-center rounded-xl transition-colors",
+                    "relative flex size-9 items-center justify-center overflow-visible rounded-xl transition-colors",
                     active && "bg-primary/10",
                   )}
                 >

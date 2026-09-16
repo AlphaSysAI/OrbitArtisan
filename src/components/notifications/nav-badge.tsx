@@ -10,7 +10,7 @@ export function NavBadge({ count, className }: { count: number; className?: stri
   return (
     <span
       className={cn(
-        "pointer-events-none absolute -right-1 -top-1 flex min-w-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground shadow-sm",
+        "pointer-events-none absolute right-0 top-0 z-10 flex min-h-[1.125rem] min-w-[1.125rem] -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground shadow-sm ring-2 ring-background",
         className,
       )}
       aria-hidden

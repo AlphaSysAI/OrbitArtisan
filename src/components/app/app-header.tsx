@@ -39,7 +39,7 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        "relative shrink-0 rounded-xl px-2 py-2 text-sm font-semibold transition-colors lg:px-2.5 xl:px-3",
+        "relative shrink-0 overflow-visible rounded-xl px-2.5 py-2 pr-3.5 pt-2.5 text-sm font-semibold transition-colors lg:px-3 lg:pr-4 xl:px-3.5 xl:pr-4",
         active
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -79,7 +79,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
         </Link>
 
         <nav
-          className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden lg:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-visible py-1 lg:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Navigation principale"
         >
           {APP_NAV_PRIMARY.map((item) => (
@@ -95,7 +95,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                "relative inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 text-sm font-semibold transition-colors outline-none lg:px-2.5 xl:px-3",
+                "relative inline-flex shrink-0 items-center gap-1 overflow-visible rounded-xl px-2.5 py-2 pr-3.5 pt-2.5 text-sm font-semibold transition-colors outline-none lg:px-3 lg:pr-4 xl:px-3.5 xl:pr-4",
                 moreActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -117,7 +117,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
                   <DropdownMenuItem key={item.href} render={<Link href={item.href} />} className="gap-2">
                     <span className="relative shrink-0">
                       <Icon className={cn("size-4", active && "text-primary")} />
-                      <NavBadge count={count} className="-right-2 -top-2" />
+                      <NavBadge count={count} />
                     </span>
                     <span className={cn(active && "font-semibold text-primary")}>{item.label}</span>
                   </DropdownMenuItem>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { notifyNewMessage } from "@/lib/notifications/notify-events";
+import { getUnreadConversationIds } from "@/lib/notifications/unread-items";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function ensureCustomerProfile(displayName?: string) {
@@ -208,38 +209,53 @@ export async function listConversationsForArtisan() {
     .eq("artisan_id", profile.id)
     .order("updated_at", { ascending: false });
 
-  const items = await Promise.all(
-    (convs ?? []).map(async (c) => {
-      if (c.lead_id) {
-        const { data: lead } = await supabase
-          .from("leads")
-          .select("contact_name")
-          .eq("id", c.lead_id)
-          .maybeSingle();
-        return {
-          id: c.id,
-          updated_at: c.updated_at,
-          customer_label: lead?.contact_name?.trim() || "Demande Soline",
-          is_lead: true,
-        };
-      }
+  const convRows = convs ?? [];
+  const convIds = convRows.map((c) => c.id);
+  const unreadIds = await getUnreadConversationIds(supabase, user.id, convIds, profile.id);
 
-      const { data: cp } = await supabase
-        .from("customer_profiles")
-        .select("display_name, email")
-        .eq("user_id", c.customer_user_id)
-        .maybeSingle();
+  const leadIds = [...new Set(convRows.map((c) => c.lead_id).filter(Boolean))] as string[];
+  const customerUserIds = [
+    ...new Set(convRows.filter((c) => !c.lead_id).map((c) => c.customer_user_id)),
+  ];
+
+  const [{ data: leads }, { data: customerProfiles }] = await Promise.all([
+    leadIds.length
+      ? supabase.from("leads").select("id, contact_name").in("id", leadIds)
+      : Promise.resolve({ data: [] as { id: string; contact_name: string | null }[] }),
+    customerUserIds.length
+      ? supabase
+          .from("customer_profiles")
+          .select("user_id, display_name, email")
+          .in("user_id", customerUserIds)
+      : Promise.resolve({ data: [] as { user_id: string; display_name: string | null; email: string | null }[] }),
+  ]);
+
+  const leadNameById = new Map((leads ?? []).map((l) => [l.id, l.contact_name]));
+  const customerByUserId = new Map((customerProfiles ?? []).map((cp) => [cp.user_id, cp]));
+
+  const items = convRows.map((c) => {
+    if (c.lead_id) {
       return {
         id: c.id,
         updated_at: c.updated_at,
-        customer_label: formatContactDisplayName({
-          profileName: cp?.display_name,
-          email: cp?.email,
-        }),
-        is_lead: false,
+        customer_label: leadNameById.get(c.lead_id)?.trim() || "Demande Soline",
+        is_lead: true,
+        unread: unreadIds.has(c.id),
       };
-    }),
-  );
+    }
+
+    const cp = customerByUserId.get(c.customer_user_id);
+    return {
+      id: c.id,
+      updated_at: c.updated_at,
+      customer_label: formatContactDisplayName({
+        profileName: cp?.display_name,
+        email: cp?.email,
+      }),
+      is_lead: false,
+      unread: unreadIds.has(c.id),
+    };
+  });
 
   return { ok: true as const, items };
 }
@@ -248,6 +264,7 @@ export type CustomerConversationItem = {
   id: string;
   updated_at: string;
   artisan_label: string;
+  unread: boolean;
 };
 
 export async function listConversationsForCustomer() {
@@ -263,20 +280,23 @@ export async function listConversationsForCustomer() {
     .eq("customer_user_id", user.id)
     .order("updated_at", { ascending: false });
 
-  const items: CustomerConversationItem[] = await Promise.all(
-    (convs ?? []).map(async (c) => {
-      const { data: artisan } = await supabase
-        .from("profiles")
-        .select("business_name")
-        .eq("id", c.artisan_id)
-        .maybeSingle();
-      return {
-        id: c.id,
-        updated_at: c.updated_at,
-        artisan_label: artisan?.business_name ?? "Artisan",
-      };
-    }),
-  );
+  const convRows = convs ?? [];
+  const convIds = convRows.map((c) => c.id);
+  const unreadIds = await getUnreadConversationIds(supabase, user.id, convIds, null);
+
+  const artisanIds = [...new Set(convRows.map((c) => c.artisan_id))];
+  const { data: artisans } = artisanIds.length
+    ? await supabase.from("profiles").select("id, business_name").in("id", artisanIds)
+    : { data: [] as { id: string; business_name: string }[] };
+
+  const artisanNameById = new Map((artisans ?? []).map((a) => [a.id, a.business_name]));
+
+  const items: CustomerConversationItem[] = convRows.map((c) => ({
+    id: c.id,
+    updated_at: c.updated_at,
+    artisan_label: artisanNameById.get(c.artisan_id) ?? "Artisan",
+    unread: unreadIds.has(c.id),
+  }));
 
   return { ok: true as const, items };
 }

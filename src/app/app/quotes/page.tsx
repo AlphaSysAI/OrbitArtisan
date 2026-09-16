@@ -9,6 +9,10 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { loadCustomerDisplayNames } from "@/lib/contacts/load-profile-display-names";
+import {
+  fetchNotificationWatermark,
+  isQuoteUnreadForArtisan,
+} from "@/lib/notifications/unread-items";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { quoteStatusLabel } from "@/lib/status-labels";
 
@@ -54,13 +58,16 @@ export default async function QuotesPage() {
     );
   }
 
-  const { data: quotes, error } = await supabase
-    .from("quotes")
-    .select(
-      "id, status, customer_user_id, customer_name, customer_email, grand_total, labor_total, materials_total, created_at, updated_at",
-    )
-    .eq("artisan_id", profile.id)
-    .order("created_at", { ascending: false });
+  const [{ data: quotes, error }, quotesAcceptedWatermark] = await Promise.all([
+    supabase
+      .from("quotes")
+      .select(
+        "id, status, customer_user_id, customer_name, customer_email, grand_total, labor_total, materials_total, created_at, updated_at, signed_at",
+      )
+      .eq("artisan_id", profile.id)
+      .order("created_at", { ascending: false }),
+    fetchNotificationWatermark(supabase, user!.id, "quotes_accepted"),
+  ]);
 
   const items = error ? [] : (quotes ?? []);
   const profileNames = await loadCustomerDisplayNames(
@@ -100,6 +107,7 @@ export default async function QuotesPage() {
             <li key={q.id}>
               <AppListItem
                 href={`/app/quotes/${q.id}`}
+                unread={isQuoteUnreadForArtisan(q, quotesAcceptedWatermark)}
                 title={formatContactDisplayName({
                   profileName: q.customer_user_id ? profileNames.get(q.customer_user_id) : null,
                   name: q.customer_name,

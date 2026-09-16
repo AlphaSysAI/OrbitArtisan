@@ -66,6 +66,7 @@ export default async function ArtisanMessagesPage() {
             <li key={item.id}>
               <AppListItem
                 href={`/app/messages/${item.id}`}
+                unread={item.unread}
                 title={item.customer_label}
                 subtitle={
                   item.is_lead

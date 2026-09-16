@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { LogOut, Shield, X } from "lucide-react";
+import { LogOut, Shield } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { APP_NAV_ITEMS, isNavItemActive } from "@/components/app/nav-items";
@@ -46,14 +46,17 @@ export function AppMobileMenuSheet({
 
   if (!open || typeof document === "undefined") return null;
 
+  const bottomNavOffset = "calc(3.75rem + max(0.35rem, env(safe-area-inset-bottom)))";
+
   return createPortal(
     <div className="fixed inset-0 z-[80] lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
-      {/* Backdrop : absorbe le clic sans le transmettre à la page */}
+      {/* Backdrop : laisse la barre du bas (bouton burger) accessible */}
       <button
         type="button"
         tabIndex={-1}
         aria-label="Fermer le menu"
-        className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
+        className="absolute inset-x-0 top-0 bg-black/45 backdrop-blur-[2px]"
+        style={{ bottom: bottomNavOffset }}
         onPointerDown={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -65,12 +68,12 @@ export function AppMobileMenuSheet({
         }}
       />
 
-      <div className="absolute inset-x-0 bottom-0 top-[12vh] flex flex-col rounded-t-3xl border border-border/80 bg-background shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-3">
+      <div
+        className="absolute inset-x-0 top-[12vh] flex flex-col rounded-t-3xl border border-border/80 bg-background shadow-2xl"
+        style={{ bottom: bottomNavOffset }}
+      >
+        <div className="flex shrink-0 items-center border-b border-border/60 px-4 py-3">
           <p className="font-display text-lg font-semibold">Menu</p>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Fermer">
-            <X className="size-5" />
-          </Button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">

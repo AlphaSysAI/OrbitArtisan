@@ -86,18 +86,30 @@ export default async function ClientMessagesPage({
             <li key={item.id}>
               <Link
                 href={`/compte/messages/${item.id}`}
-                className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/50"
+                className={`flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/50 ${item.unread ? "bg-destructive/[0.03]" : ""}`}
               >
-                <div>
-                  <p className="font-medium">{item.artisan_label}</p>
+                <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                  {item.unread ? (
+                    <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-destructive" aria-hidden />
+                  ) : null}
+                  <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className={item.unread ? "font-bold" : "font-medium"}>{item.artisan_label}</p>
+                    {item.unread ? (
+                      <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                        Non lu
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {new Date(item.updated_at).toLocaleString("fr-FR", {
                       dateStyle: "short",
                       timeStyle: "short",
                     })}
                   </p>
+                  </div>
                 </div>
-                <span className="text-sm text-primary">Ouvrir →</span>
+                <span className="shrink-0 text-sm text-primary">Ouvrir →</span>
               </Link>
             </li>
           ))}

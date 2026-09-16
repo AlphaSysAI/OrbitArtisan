@@ -57,7 +57,7 @@ export function ClientNav() {
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
-            <span className="relative shrink-0">
+            <span className="relative shrink-0 overflow-visible py-0.5 pr-1">
               <Icon className="h-5 w-5 opacity-90" />
               <NavBadge count={count} />
             </span>
