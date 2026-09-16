@@ -10,6 +10,8 @@ import {
   isNavItemActive,
   isNavMoreActive,
 } from "@/components/app/nav-items";
+import { NavBadge } from "@/components/notifications/nav-badge";
+import { useNotifications } from "@/components/notifications/notification-provider";
 import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -26,16 +28,18 @@ function NavLink({
   item,
   active,
   compact,
+  badgeCount,
 }: {
   item: (typeof APP_NAV_PRIMARY)[number];
   active: boolean;
   compact?: boolean;
+  badgeCount: number;
 }) {
   return (
     <Link
       href={item.href}
       className={cn(
-        "shrink-0 rounded-xl px-2 py-2 text-sm font-semibold transition-colors lg:px-2.5 xl:px-3",
+        "relative shrink-0 rounded-xl px-2 py-2 text-sm font-semibold transition-colors lg:px-2.5 xl:px-3",
         active
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -43,6 +47,10 @@ function NavLink({
     >
       <span className="xl:hidden">{compact ? item.shortLabel : item.label}</span>
       <span className="hidden xl:inline">{item.label}</span>
+      <NavBadge
+        count={badgeCount}
+        className={cn(active && "ring-2 ring-primary-foreground/30")}
+      />
     </Link>
   );
 }
@@ -50,6 +58,11 @@ function NavLink({
 export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const pathname = usePathname();
   const moreActive = isNavMoreActive(pathname);
+  const { badgeCount } = useNotifications();
+  const moreBadgeTotal = APP_NAV_MORE.reduce(
+    (sum, item) => sum + (item.badgeKey ? badgeCount(item.badgeKey) : 0),
+    0,
+  );
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl">
@@ -75,13 +88,14 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
               item={item}
               active={isNavItemActive(pathname, item)}
               compact
+              badgeCount={item.badgeKey ? badgeCount(item.badgeKey) : 0}
             />
           ))}
 
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                "inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 text-sm font-semibold transition-colors outline-none lg:px-2.5 xl:px-3",
+                "relative inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 text-sm font-semibold transition-colors outline-none lg:px-2.5 xl:px-3",
                 moreActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -89,14 +103,22 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
             >
               Plus
               <ChevronDown className="size-3.5 opacity-70" />
+              <NavBadge
+                count={moreBadgeTotal}
+                className={cn(moreActive && "ring-2 ring-primary-foreground/30")}
+              />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-44">
               {APP_NAV_MORE.map((item) => {
                 const Icon = item.icon;
                 const active = isNavItemActive(pathname, item);
+                const count = item.badgeKey ? badgeCount(item.badgeKey) : 0;
                 return (
                   <DropdownMenuItem key={item.href} render={<Link href={item.href} />} className="gap-2">
-                    <Icon className={cn("size-4 shrink-0", active && "text-primary")} />
+                    <span className="relative shrink-0">
+                      <Icon className={cn("size-4", active && "text-primary")} />
+                      <NavBadge count={count} className="-right-2 -top-2" />
+                    </span>
                     <span className={cn(active && "font-semibold text-primary")}>{item.label}</span>
                   </DropdownMenuItem>
                 );

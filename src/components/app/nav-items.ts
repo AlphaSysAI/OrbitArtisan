@@ -14,27 +14,51 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { NotificationBadgeKey } from "@/lib/notifications/types";
+
 export type AppNavItem = {
   href: string;
   label: string;
   shortLabel: string;
   icon: LucideIcon;
   exact: boolean;
+  badgeKey?: NotificationBadgeKey;
 };
 
 /** Liens visibles directement dans le header desktop (5 max). */
 export const APP_NAV_PRIMARY: AppNavItem[] = [
   { href: "/app", label: "Accueil", shortLabel: "Accueil", icon: Home, exact: true },
-  { href: "/app/quotes", label: "Devis", shortLabel: "Devis", icon: FileText, exact: false },
+  {
+    href: "/app/quotes",
+    label: "Devis",
+    shortLabel: "Devis",
+    icon: FileText,
+    exact: false,
+    badgeKey: "quotes_accepted",
+  },
   { href: "/app/invoices", label: "Factures", shortLabel: "Factures", icon: Receipt, exact: false },
   { href: "/app/contacts", label: "Contacts", shortLabel: "Clients", icon: Users, exact: false },
-  { href: "/app/messages", label: "Messages", shortLabel: "Msgs", icon: MessageSquare, exact: false },
+  {
+    href: "/app/messages",
+    label: "Messages",
+    shortLabel: "Msgs",
+    icon: MessageSquare,
+    exact: false,
+    badgeKey: "messages",
+  },
 ];
 
 /** Liens regroupés dans le menu « Plus » (header desktop). */
 export const APP_NAV_MORE: AppNavItem[] = [
   { href: "/app/rdv", label: "Mes RDV", shortLabel: "RDV", icon: CalendarClock, exact: false },
-  { href: "/app/appels", label: "Appels Soline", shortLabel: "Appels", icon: Phone, exact: false },
+  {
+    href: "/app/appels",
+    label: "Appels Soline",
+    shortLabel: "Appels",
+    icon: Phone,
+    exact: false,
+    badgeKey: "voice_intakes",
+  },
   { href: "/app/ouvrages", label: "Ouvrages", shortLabel: "Ouvrages", icon: BookOpen, exact: false },
   { href: "/app/chantiers", label: "Chantiers", shortLabel: "Chantiers", icon: Hammer, exact: false },
   { href: "/app/interventions", label: "Interventions", shortLabel: "BI", icon: ClipboardList, exact: false },

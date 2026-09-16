@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
 import { buildLeadRecapMessage } from "@/lib/leads/lead-recap-message";
+import { notifyLeadToArtisan } from "@/lib/notifications/notify-events";
 import { LEAD_MEDIA_BUCKET } from "@/lib/leads/types";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -204,6 +205,12 @@ async function dispatchToArtisan(
     console.error("[dispatch-lead] lead_matches update", updateError.message);
     return false;
   }
+
+  void notifyLeadToArtisan(admin, {
+    artisanId: profile.id,
+    conversationId,
+    contactName: lead.contact_name!.trim(),
+  });
 
   return true;
 }

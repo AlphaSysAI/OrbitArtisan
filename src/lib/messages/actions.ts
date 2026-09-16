@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
+import { notifyNewMessage } from "@/lib/notifications/notify-events";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function ensureCustomerProfile(displayName?: string) {
@@ -178,6 +179,12 @@ export async function sendMessage(conversationId: string, body: string, vitrineS
   });
 
   if (error) return { ok: false as const, error: "insert_failed" as const };
+
+  void notifyNewMessage(supabase, {
+    conversationId,
+    senderUserId: user.id,
+    body: text,
+  });
 
   revalidatePath("/app/messages");
   revalidatePath("/compte/messages");

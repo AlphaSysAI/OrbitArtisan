@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 
 import { AppPageHeader } from "@/components/app/app-page-header";
+import { PushNotificationsSettings } from "@/components/notifications/push-notifications-settings";
 import { ContactSettingsForm } from "@/components/settings/contact-settings-form";
 import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
 import { LeadMatchingReadiness } from "@/components/settings/lead-matching-readiness";
@@ -458,6 +459,10 @@ export default async function ArtisanSettingsPage({
             )}
           </section>
         ) : null}
+
+        <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+          <PushNotificationsSettings />
+        </section>
       </div>
     </div>
   );

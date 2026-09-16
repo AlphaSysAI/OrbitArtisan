@@ -6,6 +6,8 @@ import { LogOut, Shield, X } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { APP_NAV_ITEMS, isNavItemActive } from "@/components/app/nav-items";
+import { NavBadge } from "@/components/notifications/nav-badge";
+import { useNotifications } from "@/components/notifications/notification-provider";
 import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/app/login/actions";
@@ -22,6 +24,8 @@ export function AppMobileMenuSheet({
   pathname: string;
   isPlatformAdmin: boolean;
 }) {
+  const { badgeCount } = useNotifications();
+
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -74,6 +78,7 @@ export function AppMobileMenuSheet({
             {APP_NAV_ITEMS.map((item) => {
               const active = isNavItemActive(pathname, item);
               const Icon = item.icon;
+              const count = item.badgeKey ? badgeCount(item.badgeKey) : 0;
               return (
                 <Link
                   key={item.href}
@@ -86,7 +91,13 @@ export function AppMobileMenuSheet({
                       : "border-border/70 bg-muted/30 text-foreground hover:bg-muted",
                   )}
                 >
-                  <Icon className="size-6 shrink-0 opacity-90" />
+                  <span className="relative shrink-0">
+                    <Icon className="size-6 opacity-90" />
+                    <NavBadge
+                      count={count}
+                      className={cn(active && "ring-2 ring-primary-foreground/30")}
+                    />
+                  </span>
                   <span className="leading-tight">{item.label}</span>
                 </Link>
               );

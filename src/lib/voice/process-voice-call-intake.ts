@@ -6,6 +6,8 @@ import { buildQuoteFromText } from "@/lib/ai/build-quote-from-text";
 import { mapApiResponseToDraft } from "@/lib/ai/map-quote-draft-core";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 
+import { notifyVoiceIntake } from "@/lib/notifications/notify-events";
+
 import { summarizeCallTranscript } from "./summarize-call-transcript";
 
 type ServiceRow = { id: string; title: string; duration: number; price: number | null };
@@ -171,6 +173,12 @@ export async function processVoiceCallQuoteIntake(params: {
   draft = { ...draft, draftKey: `voice-intake:${intakeId}` };
 
   await params.db.from("voice_call_intakes").update({ quote_draft: draft }).eq("id", intakeId);
+
+  void notifyVoiceIntake(params.db, {
+    artisanId: params.artisanId,
+    intakeId,
+    customerName,
+  });
 
   return {
     intakeId,

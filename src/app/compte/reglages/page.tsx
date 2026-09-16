@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { splitPersonName } from "@/lib/contacts/display-name";
+import { PushNotificationsSettings } from "@/components/notifications/push-notifications-settings";
 import { ContactSettingsForm } from "@/components/settings/contact-settings-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -52,6 +53,10 @@ export default async function ClientSettingsPage() {
         emailEditable
         saveAction={updateCustomerSettings}
       />
+
+      <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+        <PushNotificationsSettings />
+      </section>
     </div>
   );
 }

@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 
 import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
 
+import { NotificationProvider } from "@/components/notifications/notification-provider";
+
 import { ClientNav } from "./client-nav";
 import { signOut } from "@/app/login/actions";
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
   return (
+    <NotificationProvider>
     <div className="min-h-screen bg-muted/40">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
@@ -41,5 +44,6 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         <main className="min-w-0">{children}</main>
       </div>
     </div>
+    </NotificationProvider>
   );
 }

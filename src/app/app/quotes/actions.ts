@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
+import { notifyQuoteSentToCustomer } from "@/lib/notifications/notify-events";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
 import { sendQuotePdfInConversation } from "@/lib/quotes/send-quote-pdf";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -300,6 +301,14 @@ export async function createQuote(formData: FormData) {
     });
     emailSent = emailResult.ok;
     if (!emailResult.ok) notifyFailed = true;
+  }
+
+  if (quoteStatus === "sent" && linkedCustomerUserId) {
+    void notifyQuoteSentToCustomer(supabase, {
+      quoteId: createdQuote.id,
+      customerUserId: linkedCustomerUserId,
+      artisanName: profile.business_name ?? "Votre artisan",
+    });
   }
 
   const voiceIntakeId = String(formData.get("voice_intake_id") ?? "").trim();

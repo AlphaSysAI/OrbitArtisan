@@ -2,6 +2,7 @@ import { AppHeader } from "@/components/app/app-header";
 import { AppMobileBottomNav } from "@/components/app/app-mobile-bottom-nav";
 import { ArtisanAssistant } from "@/components/app/artisan-assistant";
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner";
+import { NotificationProvider } from "@/components/notifications/notification-provider";
 
 export function AppShell({
   children,
@@ -11,6 +12,7 @@ export function AppShell({
   isPlatformAdmin?: boolean;
 }) {
   return (
+    <NotificationProvider>
     <div className="app-grain min-h-svh bg-background">
       <AppHeader isPlatformAdmin={isPlatformAdmin} />
 
@@ -22,5 +24,6 @@ export function AppShell({
       <AppMobileBottomNav isPlatformAdmin={isPlatformAdmin} />
       <ArtisanAssistant />
     </div>
+    </NotificationProvider>
   );
 }

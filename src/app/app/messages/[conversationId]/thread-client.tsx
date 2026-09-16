@@ -13,7 +13,9 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { markConversationRead } from "@/lib/notifications/actions";
 import { sendMessage, listMessages, type MessageRow } from "@/lib/messages/actions";
+import { useNotifications } from "@/components/notifications/notification-provider";
 import { cn } from "@/lib/utils";
 
 function telHref(phone: string): string {
@@ -50,6 +52,12 @@ export function ArtisanThreadClient({
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const lastMessageIdRef = React.useRef<string | null>(null);
   const supabaseRef = React.useRef(createSupabaseBrowserClient());
+  const { refresh: refreshNotificationCounts } = useNotifications();
+
+  const markRead = React.useCallback(async () => {
+    await markConversationRead(conversationId);
+    await refreshNotificationCounts();
+  }, [conversationId, refreshNotificationCounts]);
 
   const refreshMessages = React.useCallback(async () => {
     return listMessages(conversationId);
@@ -62,13 +70,14 @@ export function ArtisanThreadClient({
       if (!cancelled && listed.ok) {
         setMessages(listed.messages);
         lastMessageIdRef.current = listed.messages.at(-1)?.id ?? null;
+        await markRead();
       }
       if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [conversationId, refreshMessages]);
+  }, [conversationId, refreshMessages, markRead]);
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -90,6 +99,7 @@ export function ArtisanThreadClient({
           if (listed.ok) {
             setMessages(listed.messages);
             lastMessageIdRef.current = listed.messages.at(-1)?.id ?? null;
+            void markRead();
           }
         },
       )
@@ -97,7 +107,7 @@ export function ArtisanThreadClient({
     return () => {
       supabaseRef.current.removeChannel(channel);
     };
-  }, [conversationId, refreshMessages]);
+  }, [conversationId, refreshMessages, markRead]);
 
   // Fallback robuste: si le realtime n'arrive pas (latence, canal perdu, config),
   // on recharge périodiquement le fil pour afficher les nouveaux messages sans refresh manuel.

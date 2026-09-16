@@ -7,6 +7,7 @@ import {
   MESSAGE_DOCUMENTS_BUCKET,
   messageDocumentStoragePath,
 } from "@/lib/messages/document-bucket";
+import { notifyNewMessage } from "@/lib/notifications/notify-events";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function sendMessageWithPdfAttachment(
@@ -66,6 +67,12 @@ export async function sendMessageWithPdfAttachment(
     await supabase.from("messages").delete().eq("id", message.id);
     return { ok: false, error: "attachment_failed" };
   }
+
+  void notifyNewMessage(supabase, {
+    conversationId: params.conversationId,
+    senderUserId: params.senderUserId,
+    body: text,
+  });
 
   revalidatePath("/app/messages");
   revalidatePath("/compte/messages");

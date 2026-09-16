@@ -6,12 +6,15 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
 import { APP_NAV_BOTTOM, isNavItemActive } from "@/components/app/nav-items";
+import { NavBadge } from "@/components/notifications/nav-badge";
+import { useNotifications } from "@/components/notifications/notification-provider";
 import { AppMobileMenuSheet } from "@/components/app/app-mobile-menu-sheet";
 import { cn } from "@/lib/utils";
 
 export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { badgeCount } = useNotifications();
 
   useEffect(() => {
     setMenuOpen(false);
@@ -30,6 +33,7 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
           {[leftA, leftB].map((item) => {
             const active = isNavItemActive(pathname, item);
             const Icon = item.icon;
+            const count = item.badgeKey ? badgeCount(item.badgeKey) : 0;
             return (
               <Link
                 key={item.href}
@@ -41,11 +45,12 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
               >
                 <span
                   className={cn(
-                    "flex size-9 items-center justify-center rounded-xl transition-colors",
+                    "relative flex size-9 items-center justify-center rounded-xl transition-colors",
                     active && "bg-primary/10",
                   )}
                 >
                   <Icon className="size-5" />
+                  <NavBadge count={count} />
                 </span>
                 {item.shortLabel}
               </Link>
@@ -70,6 +75,7 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
           {[rightA, rightB].map((item) => {
             const active = isNavItemActive(pathname, item);
             const Icon = item.icon;
+            const count = item.badgeKey ? badgeCount(item.badgeKey) : 0;
             return (
               <Link
                 key={item.href}
@@ -81,11 +87,12 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
               >
                 <span
                   className={cn(
-                    "flex size-9 items-center justify-center rounded-xl transition-colors",
+                    "relative flex size-9 items-center justify-center rounded-xl transition-colors",
                     active && "bg-primary/10",
                   )}
                 >
                   <Icon className="size-5" />
+                  <NavBadge count={count} />
                 </span>
                 {item.shortLabel}
               </Link>
