@@ -24,8 +24,8 @@ import {
   type MySendingBoxAddress,
 } from "@/lib/services/mysendingbox";
 import { createRecoveryCase, type RubypayeurDocument } from "@/lib/services/rubypayeur";
+import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type RecoveryActionResult =
   | { ok: true }
@@ -46,23 +46,22 @@ type AuthenticatedCaller = {
   artisanId: string;
 };
 
+/**
+ * Point audit pré-pilote (vague 4, hygiène) : délègue au helper partagé
+ * requireArtisanProfileId() (src/lib/auth/require-artisan.ts) tout en gardant
+ * la même forme de retour ({ caller: { artisanId, ... } }) pour ne pas
+ * toucher les appelants existants de ce fichier.
+ */
 async function authenticateArtisan(): Promise<
   { ok: true; caller: AuthenticatedCaller } | { ok: false; error: string }
 > {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "profile" };
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (!profile?.id) return { ok: false, error: "profile" };
-
-  return { ok: true, caller: { supabase, userId: user.id, artisanId: profile.id } };
+  return {
+    ok: true,
+    caller: { supabase: auth.supabase, userId: auth.userId, artisanId: auth.profileId },
+  };
 }
 
 function toMySendingBoxAddress(party: {

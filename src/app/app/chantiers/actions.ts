@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 
 export async function createProject(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
@@ -13,14 +13,12 @@ export async function createProject(formData: FormData): Promise<void> {
 
   if (!name) return;
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return;
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login");
+    return;
+  }
+  const { supabase, profileId } = auth;
 
   let budgetTotalCents = 0;
   if (budgetEur) {
@@ -33,7 +31,7 @@ export async function createProject(formData: FormData): Promise<void> {
       .from("quotes")
       .select("grand_total, labor_total, materials_total")
       .eq("id", quoteId)
-      .eq("artisan_id", profile.id)
+      .eq("artisan_id", profileId)
       .maybeSingle();
     if (quote) {
       budgetTotalCents = quote.grand_total ?? budgetTotalCents;
@@ -43,7 +41,7 @@ export async function createProject(formData: FormData): Promise<void> {
   const { data: project, error } = await supabase
     .from("projects")
     .insert({
-      artisan_id: profile.id,
+      artisan_id: profileId,
       quote_id: quoteId,
       name,
       client_name: clientName,
@@ -75,16 +73,14 @@ export async function addTimeEntry(formData: FormData): Promise<void> {
     return;
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const auth = await requireArtisanProfileId(["labor_rate_per_hour"]);
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login");
+    return;
+  }
+  const { supabase, profileId, profile } = auth;
 
-  const { data: profile } = await supabase.from("profiles").select("id, labor_rate_per_hour").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return;
-
-  let hourlyRateCents = profile.labor_rate_per_hour ?? 4500;
+  let hourlyRateCents = (profile.labor_rate_per_hour as number | null) ?? 4500;
   if (hourlyRateEur) {
     const n = Number(hourlyRateEur.replace(",", "."));
     if (Number.isFinite(n)) hourlyRateCents = Math.round(n * 100);
@@ -94,7 +90,7 @@ export async function addTimeEntry(formData: FormData): Promise<void> {
 
   const { error } = await supabase.from("project_time_entries").insert({
     project_id: projectId,
-    artisan_id: profile.id,
+    artisan_id: profileId,
     duration_minutes: Math.round(durationMinutes),
     hourly_rate_cents: hourlyRateCents,
     cost_cents: costCents,
@@ -118,21 +114,19 @@ export async function createWorkOrder(formData: FormData): Promise<void> {
 
   if (!title) return;
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return;
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login");
+    return;
+  }
+  const { supabase, profileId } = auth;
 
   const ref = `BI-${Date.now().toString(36).toUpperCase()}`;
 
   const { error } = await supabase
     .from("work_orders")
     .insert({
-      artisan_id: profile.id,
+      artisan_id: profileId,
       project_id: projectId,
       quote_id: quoteId,
       title,
@@ -153,17 +147,15 @@ export async function createSupplier(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return;
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login");
+    return;
+  }
+  const { supabase, profileId } = auth;
 
   const { error } = await supabase.from("suppliers").insert({
-    artisan_id: profile.id,
+    artisan_id: profileId,
     name,
     contact_name: String(formData.get("contact_name") ?? "").trim() || null,
     email: String(formData.get("email") ?? "").trim() || null,

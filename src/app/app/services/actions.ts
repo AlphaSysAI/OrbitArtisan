@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function parseServiceFields(formData: FormData) {
@@ -38,22 +39,15 @@ export async function createService(formData: FormData) {
 
   const { title, duration, price } = parsed;
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/reglages?tab=prestations");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!profile?.id) return { ok: false as const, error: "missing_profile" as const };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login?next=/app/reglages?tab=prestations");
+    return { ok: false as const, error: "missing_profile" as const };
+  }
+  const { supabase, profileId } = auth;
 
   const { error } = await supabase.from("services").insert({
-    artisan_id: profile.id,
+    artisan_id: profileId,
     title,
     duration,
     price,
@@ -72,25 +66,18 @@ export async function updateService(formData: FormData) {
 
   const { title, duration, price } = parsed;
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/reglages?tab=prestations");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!profile?.id) return { ok: false as const, error: "missing_profile" as const };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login?next=/app/reglages?tab=prestations");
+    return { ok: false as const, error: "missing_profile" as const };
+  }
+  const { supabase, profileId } = auth;
 
   const { data: existing } = await supabase
     .from("services")
     .select("id")
     .eq("id", serviceId)
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .maybeSingle();
 
   if (!existing) return { ok: false as const, error: "not_found" as const };

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireArtisanProfileIdOrRedirect } from "@/lib/auth/require-artisan";
 import { vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 
 export async function updateInvoiceDetail(formData: FormData): Promise<void> {
@@ -14,17 +14,10 @@ export async function updateInvoiceDetail(formData: FormData): Promise<void> {
   if (!invoiceId) redirect("/app/invoices");
   if (!["draft", "sent", "paid", "overdue"].includes(status)) redirect(`/app/invoices/${invoiceId}?error=status`);
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) redirect("/login");
+  const { supabase, profileId } = await requireArtisanProfileIdOrRedirect();
 
   const { data: inv } = await supabase.from("invoices").select("id, artisan_id").eq("id", invoiceId).maybeSingle();
-  if (!inv || inv.artisan_id !== profile.id) redirect("/app/invoices");
+  if (!inv || inv.artisan_id !== profileId) redirect("/app/invoices");
 
   // Point 4 audit pré-pilote : invoice_number n'est plus jamais écrit depuis
   // ce formulaire — il est attribué automatiquement à la finalisation
@@ -63,14 +56,7 @@ export async function correctInvoiceVatRate(formData: FormData): Promise<void> {
     redirect(`/app/invoices/${invoiceId}?error=vat_rate`);
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) redirect("/login");
+  const { supabase, profileId } = await requireArtisanProfileIdOrRedirect();
 
   const { data: inv } = await supabase
     .from("invoices")
@@ -78,7 +64,7 @@ export async function correctInvoiceVatRate(formData: FormData): Promise<void> {
     .eq("id", invoiceId)
     .maybeSingle();
 
-  if (!inv || inv.artisan_id !== profile.id) redirect("/app/invoices");
+  if (!inv || inv.artisan_id !== profileId) redirect("/app/invoices");
   if (inv.status !== "draft" || inv.finalized_at) {
     redirect(`/app/invoices/${invoiceId}?error=vat_rate_locked`);
   }
@@ -113,18 +99,11 @@ export async function finalizeInvoiceDetailForm(formData: FormData): Promise<voi
   const invoiceId = String(formData.get("invoice_id") ?? "").trim();
   if (!invoiceId) redirect("/app/invoices?error=missing");
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/invoices");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) redirect("/login");
+  const { supabase, profileId } = await requireArtisanProfileIdOrRedirect([], "/login?next=/app/invoices");
 
   const { createInvoiceService } = await import("@/lib/billing/invoicing");
   const service = createInvoiceService(supabase);
-  const result = await service.finalize(invoiceId, profile.id);
+  const result = await service.finalize(invoiceId, profileId);
 
   if (!result.ok) {
     const code = result.code in FINALIZE_ERROR_MESSAGES ? result.code : "persist_failed";

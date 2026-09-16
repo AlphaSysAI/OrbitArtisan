@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export type ArtisanAppointment = {
@@ -14,19 +14,6 @@ export type ArtisanAppointment = {
   customer_phone: string | null;
   service_id: string | null;
 };
-
-async function requireArtisanProfileId() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false as const, error: "auth" as const };
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false as const, error: "missing_profile" as const };
-
-  return { ok: true as const, supabase, userId: user.id, profileId: profile.id };
-}
 
 type SetStatusResult = { ok: true } | { ok: false; error: "auth" | "missing_profile" | "not_found" | "update_failed" };
 

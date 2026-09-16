@@ -7,7 +7,7 @@ import { SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
 import { buildSubscriptionPaymentLinkUrl } from "@/lib/stripe/subscription-payment-links";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
 
 export async function startSubscriptionCheckout(
   planId: SubscriptionPlanId,
@@ -25,27 +25,20 @@ export async function startSubscriptionCheckout(
     return { ok: false, error: "stripe_not_configured" };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user?.email) {
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok || !userAuth.userEmail) {
     return { ok: false, error: "auth_required" };
   }
+  const { supabase, userId, userEmail } = userAuth;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!profile?.id) {
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId);
+  if (!resolvedProfile.ok) {
     return { ok: false, error: "missing_profile" };
   }
 
   const linkResult = buildSubscriptionPaymentLinkUrl(planId, billingInterval, {
-    email: user.email,
-    profileId: profile.id,
+    email: userEmail,
+    profileId: resolvedProfile.profileId,
   });
 
   if (!linkResult.ok) {
@@ -62,16 +55,14 @@ export async function openStripeBillingPortal(): Promise<
     return { ok: false, error: "stripe_not_configured" };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/reglages?tab=abonnement");
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) redirect("/login?next=/app/reglages?tab=abonnement");
+  const { supabase, userId } = userAuth;
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("stripe_customer_id")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   const customerId = profile?.stripe_customer_id?.trim();

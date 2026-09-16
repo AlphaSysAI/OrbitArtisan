@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireArtisanProfileIdOrRedirect, requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
 
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
 import {
@@ -27,34 +27,16 @@ export async function createInvoiceFromQuoteForm(formData: FormData): Promise<vo
 export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   if (INVOICING_FROZEN) redirect(`/app/quotes/${quoteId}?error=invoicing_frozen`);
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) redirect("/login");
+  const { supabase, userId } = userAuth;
 
-  await redirectIfCannotCreateDocuments(supabase, user.id);
+  await redirectIfCannotCreateDocuments(supabase, userId);
 
-  const { data: profileMinimal } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  let defaultRetentionRate = 0;
-  if (profileMinimal?.id) {
-    const { data: profileExtras, error: profileExtrasError } = await supabase
-      .from("profiles")
-      .select("default_retention_rate")
-      .eq("id", profileMinimal.id)
-      .maybeSingle();
-    if (!profileExtrasError && profileExtras) {
-      defaultRetentionRate = Number(profileExtras.default_retention_rate ?? 0);
-    }
-  }
-
-  const profile = profileMinimal?.id ? { id: profileMinimal.id, default_retention_rate: defaultRetentionRate } : null;
-  if (!profile?.id) redirect("/login");
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, ["default_retention_rate"]);
+  if (!resolvedProfile.ok) redirect("/login");
+  const { profileId, profile } = resolvedProfile;
+  const defaultRetentionRate = Number((profile.default_retention_rate as number | null) ?? 0);
 
   const { data: quote } = await supabase
     .from("quotes")
@@ -62,7 +44,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       "id, artisan_id, status, customer_user_id, customer_name, customer_email, labor_total, materials_total, grand_total, labor_duration_minutes, notes, reduced_vat_rate",
     )
     .eq("id", quoteId)
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .maybeSingle();
 
   if (!quote || quote.status !== "accepted") {
@@ -80,8 +62,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   let laborShare = quote.grand_total > 0 ? Math.round((quote.labor_total * remaining) / quote.grand_total) : 0;
   let materialsShare = remaining - laborShare;
 
-  const retentionRate =
-    invoiceType === "final" || alreadyInvoiced > 0 ? Number(profile.default_retention_rate ?? 0) : 0;
+  const retentionRate = invoiceType === "final" || alreadyInvoiced > 0 ? defaultRetentionRate : 0;
   const retentionAmount =
     retentionRate > 0 && remaining === computeRemainingBillableCents(quote.grand_total, alreadyInvoiced)
       ? Math.round((remaining * retentionRate) / 100)
@@ -102,7 +83,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   const { data: invoice, error: invErr } = await supabase
     .from("invoices")
     .insert({
-      artisan_id: profile.id,
+      artisan_id: profileId,
       quote_id: quoteId,
       customer_user_id: quote.customer_user_id,
       customer_name: quote.customer_name,
@@ -231,17 +212,10 @@ export async function updateInvoice(formData: FormData): Promise<void> {
   if (!invoiceId) redirect("/app/invoices");
   if (!["draft", "sent", "paid", "overdue"].includes(status)) redirect(`/app/invoices/${invoiceId}?error=status`);
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) redirect("/login");
+  const { supabase, profileId } = await requireArtisanProfileIdOrRedirect();
 
   const { data: inv } = await supabase.from("invoices").select("id, artisan_id").eq("id", invoiceId).maybeSingle();
-  if (!inv || inv.artisan_id !== profile.id) redirect("/app/invoices");
+  if (!inv || inv.artisan_id !== profileId) redirect("/app/invoices");
 
   // Point 4 audit pré-pilote : invoice_number n'est plus jamais écrit ici —
   // attribué automatiquement à la finalisation (compteur séquentiel).
@@ -276,18 +250,11 @@ export async function finalizeInvoiceForm(formData: FormData): Promise<void> {
   const invoiceId = String(formData.get("invoice_id") ?? "").trim();
   if (!invoiceId) redirect("/app/invoices?error=missing");
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/invoices");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) redirect("/login");
+  const { supabase, profileId } = await requireArtisanProfileIdOrRedirect([], "/login?next=/app/invoices");
 
   const { createInvoiceService } = await import("@/lib/billing/invoicing");
   const service = createInvoiceService(supabase);
-  const result = await service.finalize(invoiceId, profile.id);
+  const result = await service.finalize(invoiceId, profileId);
 
   if (!result.ok) {
     const code = result.code in FINALIZE_ERROR_MESSAGES ? result.code : "persist_failed";
@@ -308,17 +275,16 @@ export async function finalizeInvoiceForm(formData: FormData): Promise<void> {
 export async function startStripeExpressOnboarding(): Promise<void> {
   if (!isStripeConfigured()) redirect("/app/invoices?stripe_error=stripe_not_configured");
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/invoices");
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) redirect("/login?next=/app/invoices");
+  const { supabase, userId } = userAuth;
 
-  const { data: profile } = await supabase.from("profiles").select("id, stripe_account_id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) redirect("/app/invoices");
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, ["stripe_account_id"]);
+  if (!resolvedProfile.ok) redirect("/app/invoices");
+  const { profileId, profile } = resolvedProfile;
 
   const stripe = getStripe();
-  let stripeAccountId = profile.stripe_account_id;
+  let stripeAccountId = profile.stripe_account_id as string | null;
 
   if (!stripeAccountId) {
     const account = await stripe.accounts.create({
@@ -330,7 +296,7 @@ export async function startStripeExpressOnboarding(): Promise<void> {
     });
     stripeAccountId = account.id;
 
-    const { error } = await supabase.from("profiles").update({ stripe_account_id: stripeAccountId }).eq("id", profile.id);
+    const { error } = await supabase.from("profiles").update({ stripe_account_id: stripeAccountId }).eq("id", profileId);
     if (error) redirect("/app/invoices?stripe_error=store_account_failed");
   }
 
@@ -348,23 +314,19 @@ export async function startStripeExpressOnboarding(): Promise<void> {
 export async function withdrawStripeFunds(): Promise<void> {
   if (!isStripeConfigured()) redirect("/app/invoices?withdraw_error=stripe_not_configured");
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/invoices");
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) redirect("/login?next=/app/invoices");
+  const { supabase, userId } = userAuth;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, stripe_account_id, stripe_payouts_enabled")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!profile?.id || !profile.stripe_account_id) redirect("/app/invoices?withdraw_error=missing_stripe_account");
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, ["stripe_account_id", "stripe_payouts_enabled"]);
+  if (!resolvedProfile.ok || !resolvedProfile.profile.stripe_account_id) {
+    redirect("/app/invoices?withdraw_error=missing_stripe_account");
+  }
+  const { profile } = resolvedProfile;
   if (!profile.stripe_payouts_enabled) redirect("/app/invoices?withdraw_error=payouts_not_enabled");
 
   const stripe = getStripe();
-  const stripeAccountId = profile.stripe_account_id;
+  const stripeAccountId = profile.stripe_account_id as string;
 
   let balance: Awaited<ReturnType<typeof stripe.balance.retrieve>>;
   try {
@@ -403,22 +365,21 @@ export async function createDepositInvoice(
 ): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
   if (INVOICING_FROZEN) return frozenInvoicingResult();
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) return { ok: false, error: "auth" };
+  const { supabase, userId } = userAuth;
 
-  await redirectIfCannotCreateDocuments(supabase, user.id);
+  await redirectIfCannotCreateDocuments(supabase, userId);
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false, error: "profile" };
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId);
+  if (!resolvedProfile.ok) return { ok: false, error: "profile" };
+  const { profileId } = resolvedProfile;
 
   const { data: quote } = await supabase
     .from("quotes")
     .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes, reduced_vat_rate")
     .eq("id", quoteId)
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .maybeSingle();
 
   if (!quote) return { ok: false, error: "not_found" };
@@ -427,7 +388,7 @@ export async function createDepositInvoice(
   const amount = computeDepositForQuote(quote.grand_total, percent, alreadyInvoiced);
   if (amount <= 0) return { ok: false, error: "zero_amount" };
 
-  const result = await createTypedInvoiceFromQuote(supabase, profile.id, quote, {
+  const result = await createTypedInvoiceFromQuote(supabase, profileId, quote, {
     invoiceType: "deposit",
     amountCents: amount,
     progressPercentage: percent,
@@ -448,22 +409,21 @@ export async function createProgressInvoice(
 ): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
   if (INVOICING_FROZEN) return frozenInvoicingResult();
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) return { ok: false, error: "auth" };
+  const { supabase, userId } = userAuth;
 
-  await redirectIfCannotCreateDocuments(supabase, user.id);
+  await redirectIfCannotCreateDocuments(supabase, userId);
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false, error: "profile" };
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId);
+  if (!resolvedProfile.ok) return { ok: false, error: "profile" };
+  const { profileId } = resolvedProfile;
 
   const { data: quote } = await supabase
     .from("quotes")
     .select("id, artisan_id, status, customer_user_id, customer_name, customer_email, grand_total, notes, reduced_vat_rate")
     .eq("id", quoteId)
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .maybeSingle();
 
   if (!quote) return { ok: false, error: "not_found" };
@@ -472,7 +432,7 @@ export async function createProgressInvoice(
   const amount = computeProgressForQuote(quote.grand_total, cumulativePercent, alreadyInvoiced);
   if (amount <= 0) return { ok: false, error: "zero_amount" };
 
-  const result = await createTypedInvoiceFromQuote(supabase, profile.id, quote, {
+  const result = await createTypedInvoiceFromQuote(supabase, profileId, quote, {
     invoiceType: "progress",
     amountCents: amount,
     progressPercentage: cumulativePercent,

@@ -7,7 +7,7 @@ import {
   sumInvoicedOnQuote,
 } from "@/lib/billing/create-btp-invoice";
 import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { redirect } from "next/navigation";
 import { INVOICING_FROZEN, frozenInvoicingResult } from "@/lib/billing/invoicing-freeze";
 
@@ -16,20 +16,15 @@ export async function createCreditNoteFromInvoice(
 ): Promise<{ ok: true; creditNoteId: string } | { ok: false; error: string }> {
   if (INVOICING_FROZEN) return frozenInvoicingResult();
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false, error: "profile" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "profile" };
+  const { supabase, profileId } = auth;
 
   const { data: source } = await supabase
     .from("invoices")
     .select("id, artisan_id, quote_id, customer_user_id, customer_name, customer_email, grand_total, invoice_number, status, invoice_type")
     .eq("id", invoiceId)
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .maybeSingle();
 
   if (!source) return { ok: false, error: "not_found" };
@@ -59,7 +54,7 @@ export async function createCreditNoteFromInvoice(
   const { data: creditNote, error: invErr } = await supabase
     .from("invoices")
     .insert({
-      artisan_id: profile.id,
+      artisan_id: profileId,
       quote_id: source.quote_id,
       customer_user_id: source.customer_user_id,
       customer_name: source.customer_name,
@@ -99,20 +94,15 @@ export async function createCreditNoteFromInvoice(
 export async function releaseRetention(invoiceId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   if (INVOICING_FROZEN) return frozenInvoicingResult();
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false, error: "profile" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "profile" };
+  const { supabase, profileId } = auth;
 
   const { data: inv } = await supabase
     .from("invoices")
     .select("id, artisan_id, retention_amount, retention_released_at, quote_id, customer_user_id, customer_name, customer_email, invoice_number")
     .eq("id", invoiceId)
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .maybeSingle();
 
   if (!inv) return { ok: false, error: "not_found" };
@@ -127,7 +117,7 @@ export async function releaseRetention(invoiceId: string): Promise<{ ok: true } 
 
   if (!quote || quote.status !== "accepted") return { ok: false, error: "quote_not_accepted" };
 
-  const result = await createTypedInvoiceFromQuote(supabase, profile.id, quote, {
+  const result = await createTypedInvoiceFromQuote(supabase, profileId, quote, {
       invoiceType: "final",
       amountCents: inv.retention_amount,
       label: `Libération retenue de garantie — ${inv.invoice_number ?? ""}`,
@@ -145,20 +135,15 @@ export async function releaseRetention(invoiceId: string): Promise<{ ok: true } 
 }
 
 export async function duplicateQuote(quoteId: string): Promise<{ ok: true; newQuoteId: string } | { ok: false; error: string }> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false, error: "profile" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "profile" };
+  const { supabase, profileId } = auth;
 
   const { data: quote } = await supabase
     .from("quotes")
     .select("*")
     .eq("id", quoteId)
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .maybeSingle();
 
   if (!quote) return { ok: false, error: "not_found" };
@@ -166,7 +151,7 @@ export async function duplicateQuote(quoteId: string): Promise<{ ok: true; newQu
   const { data: newQuote, error } = await supabase
     .from("quotes")
     .insert({
-      artisan_id: profile.id,
+      artisan_id: profileId,
       customer_user_id: quote.customer_user_id,
       customer_name: quote.customer_name,
       customer_email: quote.customer_email,

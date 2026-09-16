@@ -3,23 +3,18 @@
 import { revalidatePath } from "next/cache";
 
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
+import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { createQuoteFromAiDraft, normalizeVatRate } from "@/lib/quotes/create-quote-from-ai-draft";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function loadVoiceIntakeQuoteDraft(
   intakeId: string,
 ): Promise<{ ok: true; draft: AiQuoteDraft } | { ok: false; error: string }> {
   if (!intakeId?.trim()) return { ok: false, error: "missing_id" };
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false, error: "not_artisan" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "not_artisan" };
+  const { supabase, profileId } = auth;
 
   const { data: intake, error } = await supabase
     .from("voice_call_intakes")
@@ -28,7 +23,7 @@ export async function loadVoiceIntakeQuoteDraft(
     .maybeSingle();
 
   if (error || !intake) return { ok: false, error: "not_found" };
-  if (intake.artisan_id !== profile.id) return { ok: false, error: "forbidden" };
+  if (intake.artisan_id !== profileId) return { ok: false, error: "forbidden" };
   if (intake.status !== "pending_review") return { ok: false, error: "already_processed" };
   if (!intake.quote_draft) return { ok: false, error: "no_draft" };
 
@@ -56,21 +51,11 @@ export async function validateVoiceIntakeQuote(
 > {
   if (!intakeId?.trim()) return { ok: false, error: "missing_id" };
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
+  const auth = await requireArtisanProfileId(["business_name", "labor_rate_per_hour"]);
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "not_artisan" };
+  const { supabase, profileId, profile } = auth;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, business_name, labor_rate_per_hour")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!profile?.id) return { ok: false, error: "not_artisan" };
-
-  const laborRate = profile.labor_rate_per_hour;
+  const laborRate = profile.labor_rate_per_hour as number | null;
   if (laborRate == null || laborRate < 0) {
     return {
       ok: false,
@@ -86,7 +71,7 @@ export async function validateVoiceIntakeQuote(
     .maybeSingle();
 
   if (error || !intake) return { ok: false, error: "not_found" };
-  if (intake.artisan_id !== profile.id) return { ok: false, error: "forbidden" };
+  if (intake.artisan_id !== profileId) return { ok: false, error: "forbidden" };
   if (intake.status !== "pending_review") return { ok: false, error: "already_processed" };
 
   const draft = intake.quote_draft as AiQuoteDraft | null;
@@ -94,7 +79,7 @@ export async function validateVoiceIntakeQuote(
 
   const created = await createQuoteFromAiDraft({
     supabase,
-    artisanId: profile.id,
+    artisanId: profileId,
     draft,
     laborRatePerHourCents: laborRate,
     status: "sent",
@@ -121,10 +106,10 @@ export async function validateVoiceIntakeQuote(
   const emailResult = await sendQuoteByEmail({
     supabase,
     quoteId: created.quoteId,
-    artisanId: profile.id,
+    artisanId: profileId,
     to: String(intake.customer_email ?? draft.customerEmail ?? ""),
     customerName: intake.customer_name ?? draft.customerName,
-    businessName: profile.business_name,
+    businessName: profile.business_name as string | null,
     grandTotalCents: created.grandTotalCents,
   });
 
@@ -135,7 +120,7 @@ export async function validateVoiceIntakeQuote(
       quote_id: created.quoteId,
     })
     .eq("id", intakeId)
-    .eq("artisan_id", profile.id);
+    .eq("artisan_id", profileId);
 
   if (updateErr) {
     return { ok: false, error: "update_failed" };
@@ -155,20 +140,15 @@ export async function validateVoiceIntakeQuote(
 export async function dismissVoiceIntake(intakeId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!intakeId?.trim()) return { ok: false, error: "missing_id" };
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false, error: "not_artisan" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "not_artisan" };
+  const { supabase, profileId } = auth;
 
   const { error } = await supabase
     .from("voice_call_intakes")
     .update({ status: "dismissed" })
     .eq("id", intakeId)
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .eq("status", "pending_review");
 
   if (error) return { ok: false, error: "update_failed" };

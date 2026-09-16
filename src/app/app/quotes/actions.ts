@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
 import { notifyQuoteSentToCustomer } from "@/lib/notifications/notify-events";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
 import { sendQuotePdfInConversation } from "@/lib/quotes/send-quote-pdf";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type ParsedMaterial = {
   label: string;
@@ -92,28 +92,24 @@ export async function createQuote(formData: FormData) {
     return { ok: false as const, error: "invalid_materials" as const };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) {
     return { ok: false as const, error: "auth" as const };
   }
+  const { supabase, userId } = userAuth;
 
-  await redirectIfCannotCreateDocuments(supabase, user.id);
+  await redirectIfCannotCreateDocuments(supabase, userId);
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, business_name, labor_rate_per_hour")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, ["business_name", "labor_rate_per_hour"]);
 
-  if (!profile?.id) {
+  if (!resolvedProfile.ok) {
     return { ok: false as const, error: "missing_profile" as const };
   }
+  const { profileId, profile } = resolvedProfile;
+  const profileLaborRate = profile.labor_rate_per_hour as number | null;
+  const profileBusinessName = profile.business_name as string | null;
 
-  const laborRateCents =
-    laborRateCentsFromForm ?? (profile.labor_rate_per_hour != null ? profile.labor_rate_per_hour : null);
+  const laborRateCents = laborRateCentsFromForm ?? (profileLaborRate != null ? profileLaborRate : null);
 
   if (laborRateCents == null || !Number.isFinite(laborRateCents) || laborRateCents < 0) {
     return { ok: false as const, error: "missing_labor_rate" as const };
@@ -122,7 +118,7 @@ export async function createQuote(formData: FormData) {
   const { data: services } = await supabase
     .from("services")
     .select("id, title, duration, price")
-    .eq("artisan_id", profile.id)
+    .eq("artisan_id", profileId)
     .in("id", serviceIds);
 
   const serviceSet = new Set(serviceIds);
@@ -166,7 +162,7 @@ export async function createQuote(formData: FormData) {
       .select("id, artisan_id, customer_user_id")
       .eq("id", conversationIdRaw)
       .maybeSingle();
-    if (!conv || conv.artisan_id !== profile.id) {
+    if (!conv || conv.artisan_id !== profileId) {
       return { ok: false as const, error: "invalid_conversation" as const };
     }
     // Lead Soline : customer_user_id reste null tant que le prospect n'a pas de compte.
@@ -203,7 +199,7 @@ export async function createQuote(formData: FormData) {
   const { data: createdQuote, error: quoteErr } = await supabase
     .from("quotes")
     .insert({
-      artisan_id: profile.id,
+      artisan_id: profileId,
       customer_name: customerName || null,
       customer_email: customerEmail || null,
       customer_user_id: linkedCustomerUserId,
@@ -273,9 +269,9 @@ export async function createQuote(formData: FormData) {
   if (shouldNotifyConversation) {
     const sent = await sendQuotePdfInConversation(supabase, {
       conversationId: linkedConversationId!,
-      senderUserId: user.id,
+      senderUserId: userId,
       quoteId: createdQuote.id,
-      artisanId: profile.id,
+      artisanId: profileId,
       grandTotalCents,
       directPurchaseItems: materials
         .filter((m) => m.excludeFromInvoice)
@@ -293,10 +289,10 @@ export async function createQuote(formData: FormData) {
     const emailResult = await sendQuoteByEmail({
       supabase,
       quoteId: createdQuote.id,
-      artisanId: profile.id,
+      artisanId: profileId,
       to: customerEmail,
       customerName,
-      businessName: profile.business_name,
+      businessName: profileBusinessName,
       grandTotalCents,
     });
     emailSent = emailResult.ok;
@@ -307,7 +303,7 @@ export async function createQuote(formData: FormData) {
     void notifyQuoteSentToCustomer(supabase, {
       quoteId: createdQuote.id,
       customerUserId: linkedCustomerUserId,
-      artisanName: profile.business_name ?? "Votre artisan",
+      artisanName: profileBusinessName ?? "Votre artisan",
     });
   }
 
@@ -317,7 +313,7 @@ export async function createQuote(formData: FormData) {
       .from("voice_call_intakes")
       .update({ status: "validated", quote_id: createdQuote.id })
       .eq("id", voiceIntakeId)
-      .eq("artisan_id", profile.id)
+      .eq("artisan_id", profileId)
       .eq("status", "pending_review");
     revalidatePath("/app/appels");
   }

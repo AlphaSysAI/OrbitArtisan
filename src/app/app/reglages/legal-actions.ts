@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { validateLegalEntityFields } from "@/lib/billing/legal-entity-validation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 
 export async function updateLegalSettings(formData: FormData) {
   const siren = String(formData.get("siren") ?? "").trim() || null;
@@ -29,14 +29,12 @@ export async function updateLegalSettings(formData: FormData) {
   const paymentTerms = Number.isFinite(paymentTermsRaw) ? Math.min(365, Math.max(0, Math.round(paymentTermsRaw))) : 30;
   const retentionRate = Number.isFinite(retentionRaw) ? Math.min(10, Math.max(0, retentionRaw)) : 5;
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/reglages?tab=facturation");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false as const, error: "save_failed" as const };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login?next=/app/reglages?tab=facturation");
+    return { ok: false as const, error: "save_failed" as const };
+  }
+  const { supabase, profileId } = auth;
 
   const { error } = await supabase
     .from("profiles")
@@ -55,7 +53,7 @@ export async function updateLegalSettings(formData: FormData) {
       default_retention_rate: retentionRate,
       auto_reminder_enabled: autoReminderEnabled,
     })
-    .eq("id", profile.id);
+    .eq("id", profileId);
 
   if (error) return { ok: false as const, error: "save_failed" as const };
 

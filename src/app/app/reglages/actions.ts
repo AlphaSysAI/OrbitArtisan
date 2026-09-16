@@ -9,7 +9,7 @@ import {
   normalizePostalCode,
   parseContactFieldsFromForm,
 } from "@/lib/settings/contact-fields";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 
 export async function updateArtisanSettings(formData: FormData) {
   const displayName = String(formData.get("display_name") ?? "").trim();
@@ -22,14 +22,12 @@ export async function updateArtisanSettings(formData: FormData) {
   const postal_code = contact.postal_code ? normalizePostalCode(contact.postal_code) : null;
   if (contact.postal_code && !postal_code) return { ok: false as const, error: "invalid_postal_code" as const };
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/reglages");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false as const, error: "save_failed" as const };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login?next=/app/reglages");
+    return { ok: false as const, error: "save_failed" as const };
+  }
+  const { supabase, profileId } = auth;
 
   // Coordonnées : d'abord celles figées par l'autocomplétion (champs cachés).
   // Sinon, si une adresse est saisie, on géocode côté serveur en dernier recours.
@@ -62,10 +60,10 @@ export async function updateArtisanSettings(formData: FormData) {
     longitude,
   };
 
-  const { error: nameError } = await supabase.from("profiles").update({ name: displayName }).eq("id", profile.id);
+  const { error: nameError } = await supabase.from("profiles").update({ name: displayName }).eq("id", profileId);
   if (nameError) return { ok: false as const, error: "save_failed" as const };
 
-  const { error: contactError } = await supabase.from("profiles").update(contactPayload).eq("id", profile.id);
+  const { error: contactError } = await supabase.from("profiles").update(contactPayload).eq("id", profileId);
   if (contactError) {
     // Colonnes coordonnées absentes si migration SQL non appliquée — le nom est quand même enregistré.
     const onlyName = !contact.phone && !contact.address_line1 && !contact.postal_code && !contact.city;
@@ -79,19 +77,17 @@ export async function updateArtisanSettings(formData: FormData) {
 
 /** Interrupteur « je reçois des demandes d'estimation » (widget, tunnel public). */
 export async function setLeadMatchingEnabled(enabled: boolean) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/app/reglages");
-
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-  if (!profile?.id) return { ok: false as const, error: "save_failed" as const };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login?next=/app/reglages");
+    return { ok: false as const, error: "save_failed" as const };
+  }
+  const { supabase, profileId } = auth;
 
   const { error } = await supabase
     .from("profiles")
     .update({ lead_matching_enabled: enabled })
-    .eq("id", profile.id);
+    .eq("id", profileId);
   if (error) return { ok: false as const, error: "save_failed" as const };
 
   revalidatePath("/app/reglages");
