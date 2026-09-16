@@ -135,6 +135,8 @@ export type AssistantActionAnswer = {
   label?: string;
 };
 
+export type AssistantQuoteIntakeState = import("@/lib/ai/assistant-quote-intake").QuoteIntakeState;
+
 export type AssistantApiResponse = {
   reply: string;
   intent: AssistantIntent["intent"];
@@ -144,4 +146,6 @@ export type AssistantApiResponse = {
     | AssistantActionNavigate
     | AssistantActionAnswer;
   suggestions?: string[];
+  /** Questionnaire devis en cours — renvoyé au client pour le prochain tour. */
+  quoteIntake?: AssistantQuoteIntakeState | null;
 };

@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { resolveDomainRouting } from "./domain-routing";
+import { resolveDomainRouting, resolvePwaOrAppRootRedirect } from "./domain-routing";
+import { PWA_STANDALONE_COOKIE } from "@/lib/pwa/constants";
 
 const ENV_KEYS = ["NEXT_PUBLIC_SITE_URL", "NEXT_PUBLIC_MARKETING_URL"] as const;
 
@@ -59,5 +60,39 @@ describe("resolveDomainRouting", () => {
       NEXT_PUBLIC_SITE_URL: "https://app.solinebtp.fr",
     });
     expect(resolveDomainRouting(request("https://app.solinebtp.fr/register"))).toBeNull();
+  });
+});
+
+describe("resolvePwaOrAppRootRedirect", () => {
+  it("redirige la racine app vers login si non connecté (domain split)", () => {
+    mockEnv({
+      NEXT_PUBLIC_MARKETING_URL: "https://solinebtp.fr",
+      NEXT_PUBLIC_SITE_URL: "https://app.solinebtp.fr",
+    });
+    const res = resolvePwaOrAppRootRedirect(request("https://app.solinebtp.fr/"), false, false);
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe("https://app.solinebtp.fr/login?role=artisan");
+  });
+
+  it("redirige la racine app vers /app si artisan connecté", () => {
+    mockEnv({
+      NEXT_PUBLIC_MARKETING_URL: "https://solinebtp.fr",
+      NEXT_PUBLIC_SITE_URL: "https://app.solinebtp.fr",
+    });
+    const res = resolvePwaOrAppRootRedirect(request("https://app.solinebtp.fr/"), true, true);
+    expect(res?.headers.get("location")).toBe("https://app.solinebtp.fr/app");
+  });
+
+  it("redirige avec cookie PWA en mono-domaine", () => {
+    mockEnv({ NEXT_PUBLIC_SITE_URL: "http://localhost:3000" });
+    const req = request("http://localhost:3000/");
+    req.cookies.set(PWA_STANDALONE_COOKIE, "1");
+    const res = resolvePwaOrAppRootRedirect(req, false, false);
+    expect(res?.headers.get("location")).toBe("http://localhost:3000/login?role=artisan");
+  });
+
+  it("laisse la landing en navigateur sans cookie PWA (mono-domaine)", () => {
+    mockEnv({ NEXT_PUBLIC_SITE_URL: "http://localhost:3000" });
+    expect(resolvePwaOrAppRootRedirect(request("http://localhost:3000/"), false, false)).toBeNull();
   });
 });

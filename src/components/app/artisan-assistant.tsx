@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import type { AssistantApiResponse } from "@/lib/ai/assistant-schema";
+import type { AssistantApiResponse, AssistantQuoteIntakeState } from "@/lib/ai/assistant-schema";
 import { aiErrorMessage } from "@/lib/ai/error-messages";
 import { persistAiQuoteDraft } from "@/lib/ai/map-quote-draft";
 import { formatIsoDateFr } from "@/lib/ai/resolve-date";
@@ -108,6 +108,7 @@ export function ArtisanAssistant() {
   const silentRunsRef = useRef(0);
   const sendMessageRef = useRef<(raw: string) => Promise<void>>(async () => {});
   const startListeningRef = useRef<() => void>(() => {});
+  const quoteIntakeRef = useRef<AssistantQuoteIntakeState | null>(null);
 
   const stopListening = useCallback(() => {
     handsFreeRef.current = false;
@@ -361,9 +362,22 @@ export function ArtisanAssistant() {
     sendMessageRef.current = sendMessage;
   });
 
+  function messageResetsQuoteIntake(text: string): boolean {
+    const m = text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/[’']/g, " ");
+    return /\b(nouveau devis|nouvel devis|autre client|autre contact|annule|pas pour ce|pas ce client)\b/.test(m);
+  }
+
   async function sendMessage(raw: string) {
     const message = raw.trim();
     if (!message || loading) return;
+
+    if (messageResetsQuoteIntake(message)) {
+      quoteIntakeRef.current = null;
+    }
 
     setInput("");
     setMessages((prev) => [
@@ -397,6 +411,7 @@ export function ArtisanAssistant() {
           message,
           history,
           pendingAction,
+          quoteIntake: quoteIntakeRef.current,
           pageContext: toAssistantPageContextPayload(resolveAssistantPageContext(pathname)),
         }),
       });
@@ -417,8 +432,13 @@ export function ArtisanAssistant() {
         return;
       }
 
+      if (json.quoteIntake !== undefined) {
+        quoteIntakeRef.current = json.quoteIntake;
+      }
+
       if (json.action?.type === "open_quote_form") {
         persistAiQuoteDraft(json.action.draft);
+        quoteIntakeRef.current = null;
       }
 
       setMessages((prev) => [
@@ -428,6 +448,7 @@ export function ArtisanAssistant() {
           role: "assistant",
           content: json.reply,
           action: json.action,
+          suggestions: json.suggestions,
         },
       ]);
 

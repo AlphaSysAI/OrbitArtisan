@@ -191,7 +191,8 @@ export function tryFastNavigate(message: string): FastNavigateResult | null {
 export function looksLikeQuoteRequest(message: string): boolean {
   const m = normalize(message);
   return (
-    /\b(devis|chiffr|facture.*client|prepar.*devis|cree.*devis|créer.*devis)\b/.test(m) &&
-    !/\b(liste|mes devis|voir mes devis|ouvre.*devis|montre.*devis)\b/.test(m)
+    /\b(devis|chiffr|facture.*client|prepar.*devis|cree.*devis|créer.*devis|faire.*devis|nouveau devis|nouvel devis)\b/.test(
+      m,
+    ) && !/\b(liste|mes devis|voir mes devis|ouvre.*devis|montre.*devis)\b/.test(m)
   );
 }

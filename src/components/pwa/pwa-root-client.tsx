@@ -22,6 +22,7 @@ import {
   rememberPwaInstalled,
   shouldSuppressInstallPrompt,
 } from "@/lib/pwa/client-detect";
+import { PWA_STANDALONE_COOKIE, PWA_STANDALONE_COOKIE_MAX_AGE_SEC } from "@/lib/pwa/constants";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type InstallGuide = "main" | "ios" | "android-manual";
@@ -47,13 +48,18 @@ export function PwaRootClient() {
   /** Widget embarqué chez un tiers : ni service worker, ni invitation à installer. */
   const embedded = pathname.startsWith("/embed");
 
+  const rememberStandaloneMode = useCallback(() => {
+    rememberPwaInstalled();
+    document.cookie = `${PWA_STANDALONE_COOKIE}=1; path=/; max-age=${PWA_STANDALONE_COOKIE_MAX_AGE_SEC}; SameSite=Lax`;
+  }, []);
+
   /** Mode appli ou installation passée : mémoriser pour ne plus proposer l’ajout. */
   useEffect(() => {
     if (!mounted) return;
     if (isStandaloneDisplay()) {
-      rememberPwaInstalled();
+      rememberStandaloneMode();
     }
-  }, [mounted]);
+  }, [mounted, rememberStandaloneMode]);
 
   /** Enregistrement du service worker (critère d’éligibilité à l’installation sur Chrome). */
   useEffect(() => {
@@ -76,31 +82,41 @@ export function PwaRootClient() {
   useEffect(() => {
     if (!mounted) return;
     const onInstalled = () => {
-      rememberPwaInstalled();
+      rememberStandaloneMode();
       setDialogOpen(false);
       deferredRef.current = null;
     };
     window.addEventListener("appinstalled", onInstalled);
     return () => window.removeEventListener("appinstalled", onInstalled);
-  }, [mounted]);
+  }, [mounted, rememberStandaloneMode]);
 
-  /** Redirection depuis la page d’accueil en mode « appli » selon le compte connecté. */
+  /** Secours client si `/` s’affiche encore en mode appli (anciennes installs, start_url `/`). */
   useEffect(() => {
     if (!mounted || pathname !== "/") return;
     if (!isStandaloneDisplay()) return;
 
     let cancelled = false;
     (async () => {
+      rememberStandaloneMode();
+
       let supabase;
       try {
         supabase = createSupabaseBrowserClient();
       } catch {
+        if (!cancelled) router.replace("/login?role=artisan");
         return;
       }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (cancelled || !user) return;
+
+      if (cancelled) return;
+
+      if (!user) {
+        router.replace("/login?role=artisan");
+        return;
+      }
 
       const { data: artisanProfile } = await supabase
         .from("profiles")
@@ -121,15 +137,13 @@ export function PwaRootClient() {
         .maybeSingle();
 
       if (cancelled) return;
-      if (customerProfile) {
-        router.replace("/compte");
-      }
+      router.replace(customerProfile ? "/compte" : "/login?role=artisan");
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [mounted, pathname, router]);
+  }, [mounted, pathname, rememberStandaloneMode, router]);
 
   /** Affichage différé de la modale d’installation (mobile, navigateur, pas déjà installé). */
   useEffect(() => {
@@ -161,7 +175,7 @@ export function PwaRootClient() {
         const choice = await deferred.userChoice;
         deferredRef.current = null;
         if (choice.outcome === "accepted") {
-          rememberPwaInstalled();
+          rememberStandaloneMode();
           setDialogOpen(false);
         }
       } catch {

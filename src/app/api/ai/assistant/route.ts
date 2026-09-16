@@ -8,6 +8,18 @@ import {
   tryRdvDataQuestion,
   looksLikeQuoteRequest,
 } from "@/lib/ai/assistant-fast-path";
+import { tryConversationContextQuote } from "@/lib/ai/assistant-conversation-quote";
+import {
+  processQuoteIntakeTurn,
+  extractCustomerHintFromMessage,
+  hasEnoughWorkForQuoteBuild,
+  looksLikeExplicitNewQuoteRequest,
+  looksLikeQuoteForPageContext,
+  looksLikeRejectPageContextCustomer,
+  looksLikeVagueQuoteRequest,
+  shouldStartQuoteIntake,
+  type QuoteIntakeState,
+} from "@/lib/ai/assistant-quote-intake";
 import {
   ASSISTANT_INTENT_JSON_SCHEMA,
   AssistantIntentSchema,
@@ -259,6 +271,139 @@ async function buildAppointmentNamePool(
   return pool;
 }
 
+function parseQuoteIntakeFromBody(body: unknown): QuoteIntakeState | null {
+  const raw =
+    body && typeof body === "object" && "quoteIntake" in body
+      ? (body as { quoteIntake?: unknown }).quoteIntake
+      : null;
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (o.active !== true) return null;
+  if (o.step !== "client_kind" && o.step !== "client_detail" && o.step !== "work") return null;
+  return raw as QuoteIntakeState;
+}
+
+async function buildQuoteDraftResponse(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  profile: {
+    id: string;
+    business_name: string | null;
+    description: string | null;
+    labor_rate_per_hour: number | null;
+  },
+  params: {
+    instruction: string;
+    customerLabel: string | null;
+    matched: ReturnType<typeof matchContactByQuery>;
+    customerEmail?: string | null;
+    customerUserId?: string | null;
+    reply?: string;
+    extraWarnings?: string[];
+  },
+  suggestions: string[],
+): Promise<AssistantApiResponse> {
+  const { data: catalogServices } = await supabase
+    .from("services")
+    .select("id, title, duration, price")
+    .eq("artisan_id", profile.id)
+    .order("title", { ascending: true });
+
+  const services = catalogServices ?? [];
+  if (!services.length) {
+    return navigateResponse(
+      "/app/reglages",
+      "Réglages",
+      "Tu n’as pas encore de prestations. J’ouvre les réglages pour en ajouter.",
+    );
+  }
+
+  const { instruction, customerLabel, matched, customerEmail, customerUserId, reply, extraWarnings } =
+    params;
+
+  let quoteData;
+  try {
+    quoteData = await buildQuoteFromText({
+      supabase,
+      instruction,
+      profile,
+      services,
+      customerLabel,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[assistant] quote build", msg);
+    if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
+      throw new Error("ai_auth_failed");
+    }
+    if (msg === "empty_ai_response") {
+      throw new Error("empty_ai_response");
+    }
+    throw new Error("ai_parse_failed");
+  }
+
+  const draftKey = randomUUID();
+  const warnings = [...quoteData.warnings, ...(extraWarnings ?? [])];
+
+  const resolvedName = customerLabel ?? matched?.contact.label ?? null;
+  const resolvedEmail = matched?.contact.email ?? customerEmail ?? null;
+  const resolvedUserId = matched?.contact.customerUserId ?? customerUserId ?? null;
+
+  const draft: AiQuoteDraft = {
+    version: 1,
+    draftKey,
+    conversationId: matched?.contact.conversationId ?? draftKey,
+    generatedAt: new Date().toISOString(),
+    matchedServiceIds: quoteData.matched_service_ids,
+    laborDurationMinutes: quoteData.labor_duration_minutes,
+    notes: quoteData.notes,
+    supplierMaterials: mapMaterialsToDraftRows(quoteData),
+    warnings,
+    customerName: resolvedName,
+    customerEmail: resolvedEmail,
+    customerUserId: resolvedUserId || null,
+  };
+
+  const urlParams = new URLSearchParams({ aiDraft: "1", draftKey });
+  if (resolvedUserId) {
+    urlParams.set("customerUserId", resolvedUserId);
+  } else if (matched?.contact.conversationId) {
+    urlParams.set("conversationId", matched.contact.conversationId);
+  }
+
+  const serviceTitles = services
+    .filter((s) => quoteData.matched_service_ids.includes(s.id))
+    .map((s) => s.title);
+
+  const laborHours =
+    quoteData.labor_duration_minutes > 0
+      ? Math.round((quoteData.labor_duration_minutes / 60) * 10) / 10
+      : null;
+
+  return {
+    reply:
+      reply?.replace(/\?\s*$/, "") ||
+      `Brouillon prêt${resolvedName ? ` pour ${resolvedName}` : ""}. Ouvre le formulaire pour vérifier.`,
+    intent: "create_quote_draft",
+    quoteIntake: null,
+    action: {
+      type: "open_quote_form",
+      draftKey,
+      href: `/app/quotes/new?${urlParams.toString()}`,
+      preview: {
+        customerName: resolvedName,
+        customerMatched: !!matched,
+        serviceTitles,
+        materialsCount: quoteData.supplier_materials.length,
+        laborHours,
+        notes: quoteData.notes,
+        warnings,
+      },
+      draft,
+    },
+    suggestions,
+  };
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const message = String(body?.message ?? "").trim();
@@ -392,6 +537,96 @@ export async function POST(request: Request) {
     }
   }
 
+  const defaultSuggestions = [
+    "Crée un devis pour mon client…",
+    "Ouvre mes RDV de demain",
+    "Montre mes factures",
+  ];
+
+  // Devis depuis la conversation ouverte — seulement si demandé explicitement
+  if (looksLikeQuoteForPageContext(message) && !looksLikeRejectPageContextCustomer(message)) {
+    const contextQuote = await tryConversationContextQuote({
+      supabase,
+      profile,
+      pageContext,
+      message,
+      suggestions: defaultSuggestions,
+    });
+    if (contextQuote) return NextResponse.json(contextQuote);
+  }
+
+  // Questionnaire devis guidé (client + qualification travaux, style widget)
+  let activeIntake = parseQuoteIntakeFromBody(body);
+  if (looksLikeRejectPageContextCustomer(message) || looksLikeExplicitNewQuoteRequest(message)) {
+    activeIntake = null;
+  }
+  const shouldStartIntake = shouldStartQuoteIntake(message, !!activeIntake) && !activeIntake;
+
+  if (shouldStartIntake || activeIntake) {
+    try {
+      const intakeResult = await processQuoteIntakeTurn({
+        supabase,
+        profile,
+        linked,
+        message,
+        intake: activeIntake,
+        startNew: shouldStartIntake,
+      });
+
+      if (intakeResult?.kind === "cancel") {
+        return NextResponse.json({
+          reply: "OK, j’annule la préparation du devis. Dis-moi si tu veux autre chose.",
+          intent: "clarify",
+          quoteIntake: null,
+          suggestions: defaultSuggestions,
+        } satisfies AssistantApiResponse);
+      }
+
+      if (intakeResult?.kind === "continue") {
+        return NextResponse.json(intakeResult.response);
+      }
+
+      if (intakeResult?.kind === "build") {
+        const instruction = [
+          intakeResult.instruction,
+          intakeResult.customerLabel ? `Client: ${intakeResult.customerLabel}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const response = await buildQuoteDraftResponse(
+          supabase,
+          profile,
+          {
+            instruction,
+            customerLabel: intakeResult.customerLabel,
+            matched: intakeResult.matched,
+            customerEmail: intakeResult.intake.customerEmail,
+            customerUserId: intakeResult.intake.customerUserId,
+            reply: `Brouillon prêt${intakeResult.customerLabel ? ` pour ${intakeResult.customerLabel}` : ""} — vérifie les lignes et le client.`,
+          },
+          defaultSuggestions,
+        );
+        return NextResponse.json(response);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[assistant] quote intake", msg);
+      if (msg === "ai_auth_failed") {
+        return NextResponse.json({ error: "ai_auth_failed" }, { status: 502 });
+      }
+      if (msg === "empty_ai_response") {
+        return NextResponse.json({ error: "empty_ai_response" }, { status: 500 });
+      }
+      if (msg === "ai_parse_failed") {
+        return NextResponse.json({ error: "ai_parse_failed" }, { status: 500 });
+      }
+      if (shouldStartIntake || activeIntake) {
+        return NextResponse.json({ error: "ai_parse_failed" }, { status: 500 });
+      }
+    }
+  }
+
   // 3) Fast-path navigation (sans LLM)
   const fast = tryFastNavigate(message);
   if (fast) {
@@ -418,12 +653,12 @@ Règles d’or :
 2. Questions d’INFO (« ai-je des RDV… », « ai-je reçu un message… », « combien de devis… ») → intent=answer + answer_topic (appointments | messages | pending_quotes | pending_invoices) + date_query si dates citées. Le serveur lit la BDD.
 3. « ouvre / va sur / affiche la page… » → intent=navigate (pas answer). « ouvre le message de X » → navigate vers /app/messages (le serveur résout le fil).
 4. « go / vas-y / oui » après une nav → intent=navigate (historique).
-5. create_quote_draft UNIQUEMENT pour créer/préparer un devis clairement.
+5. create_quote_draft UNIQUEMENT si l’artisan décrit un chantier (work_description) OU cite un client dans son message (customer_query). Sans les deux : intent=clarify — ne devine JAMAIS le client depuis l’historique ou l’écran.
 6. « crée / ajoute / planifie / cale un RDV pour X le … à … » → intent=create_appointment_draft, avec customer_query (le client), date_query (le jour) et time_query (l’heure). Ce n’est JAMAIS answer ni navigate.
 7. clarify seulement si info bloquante pour un devis. Jamais pour une question RDV.
 8. reply courte. Pour answer, une intro suffit (« Je regarde tes RDV… ») — le serveur complète.
 9. date_query et time_query : recopie UNIQUEMENT les termes temporels du message actuel. Si le message n’indique aucun jour, date_query=null — le serveur reprendra le jour de l’historique. N’invente jamais de date.
-10. Contexte écran : si l’artisan consulte un devis, une facture ou un client, interprète « ce devis », « cette facture », « ce client » sans redemander.
+10. Contexte écran : n’utilise le client affiché que si l’artisan le dit (« ce client », « suite à cette demande », « pour lui »). « Je veux un devis » ou « nouveau devis » sans précision → intent=clarify, customer_query=null, work_description=null.
 
 Chemins navigate_path : /app, /app/rdv, /app/contacts, /app/messages, /app/quotes, /app/quotes/new, /app/invoices, /app/reglages.`,
         },
@@ -468,11 +703,7 @@ ${message}`,
     return NextResponse.json({ error: "empty_ai_response" }, { status: 500 });
   }
 
-  const suggestions = [
-    "Crée un devis pour mon client…",
-    "Ouvre mes RDV de demain",
-    "Montre mes factures",
-  ];
+  const suggestions = defaultSuggestions;
 
   // Création de RDV : le formulaire s’ouvre prérempli, l’artisan enregistre lui-même.
   if (
@@ -632,36 +863,62 @@ ${message}`,
     return NextResponse.json(navigateResponse(href, label, reply));
   }
 
-  // create_quote_draft
-  const { data: catalogServices } = await supabase
-    .from("services")
-    .select("id, title, duration, price")
-    .eq("artisan_id", profile.id)
-    .order("title", { ascending: true });
+  // create_quote_draft — jamais sans qualification ; ne pas réutiliser le client du contexte sans consentement
+  const customerFromMessage = extractCustomerHintFromMessage(message);
+  const usePageContextCustomer =
+    looksLikeQuoteForPageContext(message) && !looksLikeRejectPageContextCustomer(message);
 
-  const services = catalogServices ?? [];
-  if (!services.length) {
-    return NextResponse.json(
-      navigateResponse(
-        "/app/reglages",
-        "Réglages",
-        "Tu n’as pas encore de prestations. J’ouvre les réglages pour en ajouter.",
-      ),
-    );
+  let customerQuery = intent.customer_query;
+  if (!customerFromMessage && !usePageContextCustomer) {
+    customerQuery = null;
+  } else if (customerFromMessage) {
+    customerQuery = customerFromMessage;
   }
 
-  // Si pas assez d’infos pour un devis, une seule question claire
-  if (!intent.customer_query && !intent.work_description && message.length < 40) {
-    return NextResponse.json({
-      reply:
-        "Pour le devis, donne-moi le client et le chantier. Ex. « Devis pour Dupont : mur 50 m, 1000 parpaings ».",
-      intent: "clarify",
-      suggestions,
-    } satisfies AssistantApiResponse);
+  const needsIntake =
+    shouldStartQuoteIntake(message, false) ||
+    (!hasEnoughWorkForQuoteBuild(message, intent.work_description) &&
+      !usePageContextCustomer &&
+      looksLikeQuoteRequest(message));
+
+  if (needsIntake) {
+    const intakeResult = await processQuoteIntakeTurn({
+      supabase,
+      profile,
+      linked,
+      message,
+      intake: null,
+      startNew: true,
+    });
+    if (intakeResult?.kind === "continue") {
+      return NextResponse.json(intakeResult.response);
+    }
+    if (intakeResult?.kind === "build") {
+      const instruction = [
+        intakeResult.instruction,
+        intakeResult.customerLabel ? `Client: ${intakeResult.customerLabel}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const response = await buildQuoteDraftResponse(
+        supabase,
+        profile,
+        {
+          instruction,
+          customerLabel: intakeResult.customerLabel,
+          matched: intakeResult.matched,
+          customerEmail: intakeResult.intake.customerEmail,
+          customerUserId: intakeResult.intake.customerUserId,
+          reply: `Brouillon prêt${intakeResult.customerLabel ? ` pour ${intakeResult.customerLabel}` : ""} — vérifie les lignes et le client.`,
+        },
+        suggestions,
+      );
+      return NextResponse.json(response);
+    }
   }
 
-  const matched = intent.customer_query ? matchContactByQuery(intent.customer_query, linked) : null;
-  const customerLabel = matched?.contact.label ?? intent.customer_query ?? null;
+  const matched = customerQuery ? matchContactByQuery(customerQuery, linked) : null;
+  const customerLabel = matched?.contact.label ?? customerQuery ?? null;
 
   const instruction = [
     intent.work_description?.trim() || message,
@@ -670,19 +927,30 @@ ${message}`,
     .filter(Boolean)
     .join("\n");
 
-  let quoteData;
+  const extraWarnings: string[] = [];
+  if (customerQuery && !matched) {
+    extraWarnings.push(
+      `Client « ${customerQuery} » non trouvé dans tes contacts — le nom est prérempli, vérifie-le.`,
+    );
+  }
+
   try {
-    quoteData = await buildQuoteFromText({
+    const response = await buildQuoteDraftResponse(
       supabase,
-      instruction,
       profile,
-      services,
-      customerLabel,
-    });
+      {
+        instruction,
+        customerLabel,
+        matched,
+        reply: intent.reply,
+        extraWarnings,
+      },
+      suggestions,
+    );
+    return NextResponse.json(response);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[assistant] quote build", msg);
-    if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
+    if (msg === "ai_auth_failed") {
       return NextResponse.json({ error: "ai_auth_failed" }, { status: 502 });
     }
     if (msg === "empty_ai_response") {
@@ -690,68 +958,4 @@ ${message}`,
     }
     return NextResponse.json({ error: "ai_parse_failed" }, { status: 500 });
   }
-
-  const draftKey = randomUUID();
-  const warnings = [...quoteData.warnings];
-  if (intent.customer_query && !matched) {
-    warnings.push(
-      `Client « ${intent.customer_query} » non trouvé dans tes contacts — le nom est prérempli, vérifie-le.`,
-    );
-  }
-
-  const draft: AiQuoteDraft = {
-    version: 1,
-    draftKey,
-    conversationId: matched?.contact.conversationId ?? draftKey,
-    generatedAt: new Date().toISOString(),
-    matchedServiceIds: quoteData.matched_service_ids,
-    laborDurationMinutes: quoteData.labor_duration_minutes,
-    notes: quoteData.notes,
-    supplierMaterials: mapMaterialsToDraftRows(quoteData),
-    warnings,
-    customerName: customerLabel,
-    customerEmail: matched?.contact.email ?? null,
-    customerUserId: matched?.contact.customerUserId ?? null,
-  };
-
-  const params = new URLSearchParams({ aiDraft: "1", draftKey });
-  if (matched?.contact.customerUserId) {
-    params.set("customerUserId", matched.contact.customerUserId);
-  } else if (matched?.contact.conversationId) {
-    params.set("conversationId", matched.contact.conversationId);
-  }
-
-  const serviceTitles = services
-    .filter((s) => quoteData.matched_service_ids.includes(s.id))
-    .map((s) => s.title);
-
-  const laborHours =
-    quoteData.labor_duration_minutes > 0
-      ? Math.round((quoteData.labor_duration_minutes / 60) * 10) / 10
-      : null;
-
-  const response: AssistantApiResponse = {
-    reply:
-      intent.reply.replace(/\?\s*$/, "") ||
-      `Brouillon prêt${customerLabel ? ` pour ${customerLabel}` : ""}. Ouvre le formulaire pour vérifier.`,
-    intent: "create_quote_draft",
-    action: {
-      type: "open_quote_form",
-      draftKey,
-      href: `/app/quotes/new?${params.toString()}`,
-      preview: {
-        customerName: customerLabel,
-        customerMatched: !!matched,
-        serviceTitles,
-        materialsCount: quoteData.supplier_materials.length,
-        laborHours,
-        notes: quoteData.notes,
-        warnings,
-      },
-      draft,
-    },
-    suggestions,
-  };
-
-  return NextResponse.json(response);
 }

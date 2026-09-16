@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Soline",
     description:
       "Le SaaS tout‑en‑un pour artisans : devis, factures, planning, et site vitrine avec prise de RDV.",
-    start_url: "/",
+    start_url: "/app",
     scope: "/",
     display: "standalone",
     background_color: "#243447",

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { PWA_STANDALONE_COOKIE } from "@/lib/pwa/constants";
 import {
   getMarketingSiteUrl,
   getPublicSiteOrigin,
@@ -54,21 +55,43 @@ export function resolveDomainRouting(request: NextRequest): NextResponse | null 
   return null;
 }
 
-/** Racine app : login ou espace selon session. */
+function resolveAuthenticatedHomePath(isArtisan: boolean): string {
+  return isArtisan ? "/app" : "/compte";
+}
+
+function resolveUnauthenticatedHomePath(): string {
+  return "/login?role=artisan";
+}
+
+/** Racine `/` en PWA ou sur le domaine app : dashboard ou connexion, jamais la landing. */
+export function resolvePwaOrAppRootRedirect(
+  request: NextRequest,
+  isAuthenticated: boolean,
+  isArtisan: boolean,
+): NextResponse | null {
+  if (request.nextUrl.pathname !== "/") return null;
+
+  const pwaStandalone = request.cookies.get(PWA_STANDALONE_COOKIE)?.value === "1";
+
+  const host = requestHostname(request);
+  const appHost = hostnameFromUrl(getPublicSiteUrl());
+  const onAppHost = Boolean(appHost && host === appHost);
+  const domainSplitAppRoot = isDomainSplitEnabled() && onAppHost;
+
+  if (!pwaStandalone && !domainSplitAppRoot) return null;
+
+  const origin = onAppHost ? getPublicSiteOrigin() : request.nextUrl.origin;
+  if (isAuthenticated) {
+    return absoluteRedirect(resolveAuthenticatedHomePath(isArtisan), origin);
+  }
+  return absoluteRedirect(resolveUnauthenticatedHomePath(), origin);
+}
+
+/** @deprecated Utiliser resolvePwaOrAppRootRedirect */
 export function resolveAppRootRedirect(
   request: NextRequest,
   isAuthenticated: boolean,
   isArtisan: boolean,
 ): NextResponse | null {
-  if (!isDomainSplitEnabled()) return null;
-  if (request.nextUrl.pathname !== "/") return null;
-
-  const host = requestHostname(request);
-  const appHost = hostnameFromUrl(getPublicSiteUrl());
-  if (host !== appHost) return null;
-
-  if (isAuthenticated) {
-    return absoluteRedirect(isArtisan ? "/app" : "/compte", getPublicSiteOrigin());
-  }
-  return absoluteRedirect("/login?role=artisan", getPublicSiteOrigin());
+  return resolvePwaOrAppRootRedirect(request, isAuthenticated, isArtisan);
 }

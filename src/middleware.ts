@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-import { resolveAppRootRedirect, resolveDomainRouting } from "@/lib/domain-routing";
+import { resolveDomainRouting, resolvePwaOrAppRootRedirect } from "@/lib/domain-routing";
 import {
   evaluateSubscriptionAccess,
   isSubscriptionDocumentBlockedPath,
@@ -68,8 +68,8 @@ export async function middleware(request: NextRequest) {
 
   const isArtisan = !!artisanProfile?.id;
 
-  const appRootRedirect = resolveAppRootRedirect(request, !!user, isArtisan);
-  if (appRootRedirect) return appRootRedirect;
+  const pwaRootRedirect = resolvePwaOrAppRootRedirect(request, !!user, isArtisan);
+  if (pwaRootRedirect) return pwaRootRedirect;
 
   let isSuperAdmin = false;
   if (user && pathname.startsWith("/admin")) {
