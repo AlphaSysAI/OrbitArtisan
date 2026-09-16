@@ -63,8 +63,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     void refresh();
     const interval = window.setInterval(() => {
       void refresh();
-    }, 25_000);
-    return () => window.clearInterval(interval);
+    }, 90_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [refresh]);
 
   React.useEffect(() => {

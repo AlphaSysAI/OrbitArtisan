@@ -127,7 +127,7 @@ export function ArtisanThreadClient({
 
     const interval = window.setInterval(() => {
       void refresh();
-    }, 3000);
+    }, 12_000);
 
     return () => {
       cancelled = true;

@@ -68,7 +68,7 @@ export default async function AppHomePage() {
       { count: finalizedCount },
       { count: pendingQuotes },
       { count: pendingPayments },
-      { data: paidInvoices },
+      { data: revenueAgg },
     ] = await Promise.all([
       supabase
         .from("invoices")
@@ -85,13 +85,17 @@ export default async function AppHomePage() {
         .select("id", { count: "exact", head: true })
         .eq("artisan_id", profile.id)
         .eq("status", "sent"),
-      supabase.from("invoices").select("grand_total").eq("artisan_id", profile.id).eq("status", "paid"),
+      supabase
+        .from("invoices")
+        .select("grand_total.sum()")
+        .eq("artisan_id", profile.id)
+        .eq("status", "paid"),
     ]);
 
     finalizedInvoiceCount = finalizedCount ?? 0;
     pendingQuoteCount = pendingQuotes ?? 0;
     pendingPaymentCount = pendingPayments ?? 0;
-    revenueCents = (paidInvoices ?? []).reduce((sum, row) => sum + (row.grand_total ?? 0), 0);
+    revenueCents = revenueAgg?.[0]?.sum ?? 0;
   }
 
   const showOnboarding = !hasProfile || !hasServices;

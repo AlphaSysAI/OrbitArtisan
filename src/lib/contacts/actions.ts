@@ -57,21 +57,45 @@ export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanC
     accountType: row.account_type as "client" | "artisan",
   }));
 
-  const { data: convs } = await supabase
-    .from("conversations")
-    .select("id, customer_user_id, updated_at")
-    .eq("artisan_id", profile.id)
-    .order("updated_at", { ascending: false });
+  const [{ data: convs }, { data: acceptedInvites }] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select("id, customer_user_id, updated_at")
+      .eq("artisan_id", profile.id)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("platform_invitations")
+      .select("accepted_user_id, accepted_at")
+      .eq("artisan_id", profile.id)
+      .eq("account_type", "client")
+      .eq("status", "accepted")
+      .not("accepted_user_id", "is", null),
+  ]);
+
+  const customerUserIds = new Set<string>();
+  for (const c of convs ?? []) customerUserIds.add(c.customer_user_id);
+  for (const inv of acceptedInvites ?? []) {
+    if (inv.accepted_user_id) customerUserIds.add(inv.accepted_user_id as string);
+  }
+
+  const customerProfileByUserId = new Map<
+    string,
+    { display_name: string | null; email: string | null }
+  >();
+  if (customerUserIds.size > 0) {
+    const { data: customerProfiles } = await supabase
+      .from("customer_profiles")
+      .select("user_id, display_name, email")
+      .in("user_id", [...customerUserIds]);
+    for (const cp of customerProfiles ?? []) {
+      customerProfileByUserId.set(cp.user_id, cp);
+    }
+  }
 
   const linkedByUser = new Map<string, LinkedContactItem>();
 
   for (const c of convs ?? []) {
-    const { data: cp } = await supabase
-      .from("customer_profiles")
-      .select("display_name, email")
-      .eq("user_id", c.customer_user_id)
-      .maybeSingle();
-
+    const cp = customerProfileByUserId.get(c.customer_user_id);
     linkedByUser.set(c.customer_user_id, {
       kind: "linked",
       customerUserId: c.customer_user_id,
@@ -85,24 +109,11 @@ export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanC
     });
   }
 
-  const { data: acceptedInvites } = await supabase
-    .from("platform_invitations")
-    .select("accepted_user_id, accepted_at")
-    .eq("artisan_id", profile.id)
-    .eq("account_type", "client")
-    .eq("status", "accepted")
-    .not("accepted_user_id", "is", null);
-
   for (const inv of acceptedInvites ?? []) {
     const uid = inv.accepted_user_id as string;
     if (linkedByUser.has(uid)) continue;
 
-    const { data: cp } = await supabase
-      .from("customer_profiles")
-      .select("display_name, email")
-      .eq("user_id", uid)
-      .maybeSingle();
-
+    const cp = customerProfileByUserId.get(uid);
     linkedByUser.set(uid, {
       kind: "linked",
       customerUserId: uid,
@@ -140,21 +151,46 @@ export async function listCustomerContacts(): Promise<
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "auth", items: [] };
 
-  const { data: convs } = await supabase
-    .from("conversations")
-    .select("id, artisan_id, updated_at")
-    .eq("customer_user_id", user.id)
-    .order("updated_at", { ascending: false });
+  const [{ data: convs }, { data: accepted }] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select("id, artisan_id, updated_at")
+      .eq("customer_user_id", user.id)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("platform_invitations")
+      .select("artisan_id, accepted_at")
+      .eq("accepted_user_id", user.id)
+      .eq("account_type", "client")
+      .eq("status", "accepted")
+      .not("artisan_id", "is", null),
+  ]);
+
+  const artisanIds = new Set<string>();
+  for (const c of convs ?? []) artisanIds.add(c.artisan_id);
+  for (const inv of accepted ?? []) {
+    if (inv.artisan_id) artisanIds.add(inv.artisan_id);
+  }
+
+  const artisanById = new Map<
+    string,
+    { id: string; business_name: string; slug: string }
+  >();
+  if (artisanIds.size > 0) {
+    const { data: artisans } = await supabase
+      .from("profiles")
+      .select("id, business_name, slug")
+      .in("id", [...artisanIds]);
+    for (const artisan of artisans ?? []) {
+      if (artisan.slug) artisanById.set(artisan.id, artisan);
+    }
+  }
 
   const byArtisan = new Map<string, CustomerContactItem>();
 
   for (const c of convs ?? []) {
-    const { data: artisan } = await supabase
-      .from("profiles")
-      .select("id, business_name, slug")
-      .eq("id", c.artisan_id)
-      .maybeSingle();
-    if (!artisan?.slug) continue;
+    const artisan = artisanById.get(c.artisan_id);
+    if (!artisan) continue;
 
     byArtisan.set(artisan.id, {
       artisanId: artisan.id,
@@ -165,22 +201,10 @@ export async function listCustomerContacts(): Promise<
     });
   }
 
-  const { data: accepted } = await supabase
-    .from("platform_invitations")
-    .select("artisan_id, accepted_at")
-    .eq("accepted_user_id", user.id)
-    .eq("account_type", "client")
-    .eq("status", "accepted")
-    .not("artisan_id", "is", null);
-
   for (const inv of accepted ?? []) {
     if (byArtisan.has(inv.artisan_id)) continue;
-    const { data: artisan } = await supabase
-      .from("profiles")
-      .select("id, business_name, slug")
-      .eq("id", inv.artisan_id)
-      .maybeSingle();
-    if (!artisan?.slug) continue;
+    const artisan = artisanById.get(inv.artisan_id);
+    if (!artisan) continue;
 
     byArtisan.set(artisan.id, {
       artisanId: artisan.id,

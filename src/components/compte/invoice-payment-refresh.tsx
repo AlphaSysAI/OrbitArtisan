@@ -14,8 +14,8 @@ export function InvoicePaymentRefresh({ expectPaid }: { expectPaid: boolean }) {
     const id = setInterval(() => {
       router.refresh();
       n += 1;
-      if (n >= 15) clearInterval(id);
-    }, 2000);
+      if (n >= 10) clearInterval(id);
+    }, 4000);
 
     return () => clearInterval(id);
   }, [expectPaid, router]);
