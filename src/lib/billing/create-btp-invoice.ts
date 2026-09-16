@@ -36,9 +36,14 @@ export async function sumInvoicedOnQuote(supabase: SupabaseClient, quoteId: stri
     return (fallback ?? []).reduce((acc, row) => acc + (row.grand_total ?? 0), 0);
   }
 
-  return (data ?? [])
-    .filter((row) => row.invoice_type !== "credit_note")
-    .reduce((acc, row) => acc + (row.grand_total ?? 0), 0);
+  // Importants facturation (Vague 2) : un avoir doit RÉDUIRE le montant déjà
+  // facturé sur le devis (déjà-facturé net), pas en être exclu — sinon un
+  // acompte annulé par avoir reste compté comme "déjà facturé" et bloque
+  // à tort la facturation du solde restant.
+  return (data ?? []).reduce((acc, row) => {
+    if (row.invoice_type === "credit_note") return acc - (row.grand_total ?? 0);
+    return acc + (row.grand_total ?? 0);
+  }, 0);
 }
 
 export async function createTypedInvoiceFromQuote(

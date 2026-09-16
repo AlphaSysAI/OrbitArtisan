@@ -77,7 +77,7 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   const prefix = invoiceNumberPrefix(invoiceType);
   const invoiceNumber = `${prefix}-${quoteId.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
 
-  const laborShare = quote.grand_total > 0 ? Math.round((quote.labor_total * remaining) / quote.grand_total) : 0;
+  let laborShare = quote.grand_total > 0 ? Math.round((quote.labor_total * remaining) / quote.grand_total) : 0;
   let materialsShare = remaining - laborShare;
 
   const retentionRate =
@@ -90,6 +90,11 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   if (retentionAmount > 0) {
     materialsShare = billableRemaining - laborShare;
     if (materialsShare < 0) {
+      // Importants facturation (Vague 2) : la retenue de garantie dépasse la
+      // part matériaux calculée — le surplus est absorbé par la main-d'œuvre
+      // plutôt que simplement tronqué, sinon labor_total + materials_total
+      // ne correspond plus à grand_total sur la facture enregistrée.
+      laborShare = billableRemaining;
       materialsShare = 0;
     }
   }

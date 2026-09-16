@@ -34,6 +34,7 @@ export type FinalizeInvoiceError = {
     | "not_draft"
     | "no_lines"
     | "invalid_vat_rate"
+    | "missing_legal_info"
     | "generation_failed"
     | "pa_submission_failed"
     | "persist_failed";
@@ -93,6 +94,26 @@ export class InvoiceService {
         ok: false,
         code: "invalid_vat_rate",
         message: `Taux de TVA invalide (${invalidRateLine.vatRate} %) sur la ligne "${invalidRateLine.label}".`,
+      };
+    }
+
+    // Importants facturation (Vague 2) : contrôle bloquant si les mentions
+    // légales obligatoires de l'artisan (SIRET, adresse, assurance
+    // décennale) manquent au profil — jamais laisser partir une facture
+    // (ou un Factur-X soumis à la PA) sans ces informations réglementaires.
+    const missingLegalFields: string[] = [];
+    if (!document.seller.siret) missingLegalFields.push("SIRET");
+    if (!document.seller.addressLine1 || !document.seller.postalCode || !document.seller.city) {
+      missingLegalFields.push("adresse");
+    }
+    if (!document.legalMentions?.some((line) => line.startsWith("Assurance décennale"))) {
+      missingLegalFields.push("assurance décennale");
+    }
+    if (missingLegalFields.length > 0) {
+      return {
+        ok: false,
+        code: "missing_legal_info",
+        message: `Informations obligatoires manquantes sur ton profil avant de facturer : ${missingLegalFields.join(", ")}. Complète-les dans Réglages > Mon activité.`,
       };
     }
 

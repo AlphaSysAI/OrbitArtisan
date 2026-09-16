@@ -27,7 +27,25 @@ class StubSubmitter implements IPayloadSubmitter {
   }));
 }
 
-const artisanProfile = {
+const artisanProfile: {
+  business_name: string;
+  phone: string | null;
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country_code: string | null;
+  siren: string | null;
+  siret: string | null;
+  vat_number: string | null;
+  naf_code: string | null;
+  trade_register_number: string | null;
+  decennale_insurer: string | null;
+  decennale_policy_number: string | null;
+  rc_pro_insurer: string | null;
+  rc_pro_number: string | null;
+  mediator_name: string | null;
+  mediator_url: string | null;
+} = {
   business_name: "Artisan Test",
   phone: null,
   address_line1: "1 rue Test",
@@ -39,6 +57,12 @@ const artisanProfile = {
   vat_number: "FR11111111111",
   naf_code: null,
   trade_register_number: null,
+  decennale_insurer: "MAAF Pro",
+  decennale_policy_number: "DEC-123456",
+  rc_pro_insurer: null,
+  rc_pro_number: null,
+  mediator_name: null,
+  mediator_url: null,
 };
 
 const invoiceLines = [
@@ -60,6 +84,7 @@ type MockConfig = {
   customerUserId: string | null;
   customerProfile: Record<string, unknown> | null;
   invoiceLines?: typeof invoiceLines;
+  artisanProfile?: typeof artisanProfile;
 };
 
 function createMockSupabase(config: MockConfig) {
@@ -110,7 +135,7 @@ function createMockSupabase(config: MockConfig) {
           return {
             select: () => ({
               eq: () => ({
-                maybeSingle: async () => ({ data: artisanProfile, error: null }),
+                maybeSingle: async () => ({ data: config.artisanProfile ?? artisanProfile, error: null }),
               }),
             }),
           };
@@ -252,6 +277,33 @@ describe("InvoiceService.finalize", () => {
     if (result.ok) return;
 
     expect(result.code).toBe("invalid_vat_rate");
+    expect(submitter.submitEInvoice).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
+  });
+
+  it("bloque la finalisation si l'assurance décennale de l'artisan est manquante", async () => {
+    const submitter = new StubSubmitter();
+    const { supabase, updates } = createMockSupabase({
+      invoiceId: "inv-no-insurance",
+      artisanId: "art-1",
+      invoiceNumber: "FAC-NO-INSURANCE",
+      customerUserId: null,
+      customerProfile: null,
+      artisanProfile: {
+        ...artisanProfile,
+        decennale_insurer: null,
+        decennale_policy_number: null,
+      },
+    });
+
+    const service = new InvoiceService(supabase, submitter);
+    const result = await service.finalize("inv-no-insurance", "art-1");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("missing_legal_info");
+    expect(result.message).toContain("assurance décennale");
     expect(submitter.submitEInvoice).not.toHaveBeenCalled();
     expect(updates).toHaveLength(0);
   });

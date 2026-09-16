@@ -100,6 +100,7 @@ const FINALIZE_ERROR_MESSAGES: Record<string, string> = {
   not_draft: "Seul un brouillon peut être finalisé.",
   no_lines: "Ajoute des lignes via le devis avant de finaliser.",
   invalid_vat_rate: "Taux de TVA invalide sur une ligne — vérifie/corrige la TVA avant de finaliser.",
+  missing_legal_info: "Informations obligatoires manquantes sur ton profil (SIRET / adresse / assurance décennale) — complète-les avant de finaliser.",
   generation_failed: "Échec de génération du document.",
   pa_submission_failed: "Échec d'envoi à la Plateforme Agréée.",
   persist_failed: "Impossible d'enregistrer la finalisation.",
