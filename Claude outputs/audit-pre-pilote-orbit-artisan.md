@@ -151,4 +151,37 @@ Architecture confirmée : l'agent conversationnel tourne côté ElevenLabs (héb
 
 ---
 
-**Prochaine étape** : ce rapport est en attente de validation. Aucune modification de code n'a été faite. Dis-moi comment tu veux prioriser (je recommande de commencer par le bloc Facturation vu que c'est de l'argent réel et de vrais clients dès la semaine prochaine) et je démarre le Temps 2 sur une branche dédiée, en petits commits.
+## Suivi des correctifs — Temps 2
+
+Branche : `pilote/vague1-securite-fiabilite` (depuis `master`, commit de départ `92ea487`). Périmètre gelé (marketplace / mise en relation multi-artisans / panier matériaux / fourchette de prix lead) non touché. Bouton "Facturer" et vitrine publique restent gelés (voir commit `937b563`).
+
+### VAGUE 1 — terminée (16/09/2026), avant lancement pilote
+
+| # | Sujet | Statut | Commit |
+|---|---|---|---|
+| 6 | Next.js 16.1.7 → 16.3.5 (RCE critique + bypass middleware) | ✅ Corrigé | `e1f86cf` |
+| 7 | `profiles_public_read` — colonnes anon restreintes (Stripe/SIRET/quotas/téléphone masqués) | ✅ Corrigé — ⚠️ migration `17_restrict_profiles_anon_columns.sql` à exécuter manuellement dans Supabase | `adcada9` |
+| 8 | `seed_default_work_library` — vérification ownership `p_user_id = auth.uid()` | ✅ Corrigé — ⚠️ migration `18_fix_seed_default_work_library_ownership.sql` à exécuter manuellement dans Supabase | `d096880` |
+| 11 | Notifications push proposées proactivement (bannière après 1er appel / dès que possible, plus seulement en Réglages) | ✅ Corrigé | `10aa787` |
+| 12 | Badge "à valider" réinitialisé uniquement sur action réelle + cron de relance des devis vocaux oubliés (2h/24h) | ✅ Corrigé — ⚠️ migration `19_voice_intake_reminders_and_badge_fix.sql` à exécuter manuellement + nouveau cron Vercel à vérifier (fréquence horaire, cf. limite plan Hobby) | `59f0556` |
+| 13 | Taux de TVA en dur (20%) retiré du chemin devis IA vocal ; taux choisi par l'artisan à l'écran de validation ; libellé PDF "Total TTC" → "Total HT (TVA non incluse)" | ✅ Corrigé | `c0d43ce` |
+| 14 | Fiabilité appel vocal en direct : `maxDuration=60`, timeouts Mistral/embeddings, matching matériaux parallélisé, dédup serveur indépendante de `twilio_call_sid`, fallback RDV désactivé vérifié par lecture de code | ✅ Corrigé (code) — ⚠️ **appel test réel encore nécessaire** pour confirmer (a) que l'agent ElevenLabs transmet bien `twilio_call_sid`, (b) le comportement conversationnel du fallback RDV désactivé | `14f207b` |
+
+**Non résolu par du code, nécessite une action de ta part avant/pendant le pilote :**
+- Exécuter les 3 migrations SQL ci-dessus dans l'éditeur SQL Supabase (17, 18, 19) — aucune n'est destructive, toutes sont idempotentes.
+- Passer au moins un appel test réel sur le numéro vocal pour valider la latence de bout en bout et le comportement du fallback RDV.
+- Vérifier dans le dashboard ElevenLabs que le tool `create-quote-draft` transmet bien `twilio_call_sid` (le filet de dédup ajouté au point 14 réduit le risque si ce n'est pas le cas, mais ne le remplace pas).
+- `npm run build` n'a pas pu être vérifié en bout en bout dans le bac à sable (Google Fonts bloqué par le proxy réseau du sandbox, sans rapport avec la mise à jour Next.js) — à lancer une fois en local ou laisser Vercel le confirmer au déploiement.
+
+### VAGUE 2 — en attente (bouton Facturer reste gelé tant que non traité)
+Points 1 à 5 (avoirs 380/381, doublement main-d'œuvre, TVA réduite facture, numérotation séquentielle, mentions légales paiement) + durcissements importants associés (retenue de garantie, avoirs vs `alreadyInvoiced`, `exclude_from_invoice`). **Ne démarre qu'après validation de la spec par un expert-comptable.**
+
+### VAGUE 3 — en attente (avant réactivation de la vitrine publique)
+Points 9 et 10 (anti double-booking DB + applicatif, notifications RDV vitrine).
+
+### VAGUE 4 — en attente (hygiène, sans urgence)
+Champ "Prix" prestations, fidélité preview devis, alerte quota vocal, helper `requireArtisanProfileId()`, `.env.example`, statut `cancelled` orphelin, ratio de marge configurable, autoliquidation sous-traitance (bloquée en attente de confirmation : un des 5 artisans pilotes sous-traite-t-il ce mois-ci ?).
+
+---
+
+**Prochaine étape** : Vague 1 terminée et vérifiée (eslint + tsc clean sur chaque commit). En attente de ton feu vert avant d'attaquer la Vague 2 — et de ta réponse sur l'autoliquidation sous-traitance pour la Vague 4.
