@@ -37,7 +37,8 @@ describe("buildQuotePdfTableLines", () => {
     const breakdown = computeVatBreakdown(lines);
     const totals = sumQuoteTotals(breakdown);
     expect(totals.totalHtCents).toBe(12000);
-    expect(totals.totalVatCents).toBe(600 + 600);
-    expect(totals.totalTtcCents).toBe(13200);
+    // MO (9000 c, taux 10 %) + Colle (3000 c, taux 20 %) : 900 + 600, pas 600 + 600.
+    expect(totals.totalVatCents).toBe(900 + 600);
+    expect(totals.totalTtcCents).toBe(13500);
   });
 });
