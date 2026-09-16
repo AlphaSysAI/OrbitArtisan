@@ -97,11 +97,7 @@ export function AppMobileMenuSheet({
                   <Icon className="size-6 shrink-0 opacity-90" />
                   <span className="flex items-center gap-1.5 leading-tight">
                     {item.label}
-                    <NavBadge
-                      count={count}
-                      variant="inline"
-                      className={cn(active && "ring-2 ring-primary-foreground/30")}
-                    />
+                    <NavBadge count={count} variant="inline" />
                   </span>
                 </Link>
               );

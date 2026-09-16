@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 
 const badgeBase =
-  "flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground shadow-sm";
+  "flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-white";
 
 export function NavBadge({
   count,
@@ -29,11 +29,7 @@ export function NavBadge({
 
   return (
     <span
-      className={cn(
-        badgeBase,
-        "pointer-events-none absolute right-0 top-0 z-10 ring-2 ring-background",
-        className,
-      )}
+      className={cn(badgeBase, "pointer-events-none absolute right-0 top-0 z-10", className)}
       aria-hidden
     >
       {label}

@@ -47,11 +47,7 @@ function NavLink({
     >
       <span className="xl:hidden">{compact ? item.shortLabel : item.label}</span>
       <span className="hidden xl:inline">{item.label}</span>
-      <NavBadge
-        count={badgeCount}
-        variant="inline"
-        className={cn(active && "ring-2 ring-primary-foreground/30")}
-      />
+      <NavBadge count={badgeCount} variant="inline" />
     </Link>
   );
 }
@@ -104,11 +100,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
             >
               Plus
               <ChevronDown className="size-3.5 opacity-70" />
-              <NavBadge
-                count={moreBadgeTotal}
-                variant="inline"
-                className={cn(moreActive && "ring-2 ring-primary-foreground/30")}
-              />
+              <NavBadge count={moreBadgeTotal} variant="inline" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-44">
               {APP_NAV_MORE.map((item) => {
