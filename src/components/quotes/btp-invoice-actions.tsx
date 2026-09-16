@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createDepositInvoice, createProgressInvoice } from "@/app/app/invoices/actions";
+import { INVOICING_FROZEN, INVOICING_FROZEN_MESSAGE } from "@/lib/billing/invoicing-freeze";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -88,6 +89,20 @@ export function BtpInvoiceActions({
   if (remaining <= 0) {
     return (
       <p className="text-sm text-muted-foreground">Devis entièrement facturé ({formatEur(quoteGrandTotalCents)}).</p>
+    );
+  }
+
+  if (INVOICING_FROZEN) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Reste à facturer : <strong className="text-foreground">{formatEur(remaining)}</strong>
+          {alreadyInvoicedCents > 0 ? ` (${formatEur(alreadyInvoicedCents)} déjà facturé)` : null}
+        </p>
+        <div className="rounded-xl border border-amber-600/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
+          {INVOICING_FROZEN_MESSAGE}
+        </div>
+      </div>
     );
   }
 

@@ -16,6 +16,7 @@ import { computeRemainingBillableCents, invoiceNumberPrefix } from "@/lib/billin
 import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
+import { INVOICING_FROZEN, frozenInvoicingResult } from "@/lib/billing/invoicing-freeze";
 
 export async function createInvoiceFromQuoteForm(formData: FormData): Promise<void> {
   const quoteId = String(formData.get("quote_id") ?? "").trim();
@@ -24,6 +25,8 @@ export async function createInvoiceFromQuoteForm(formData: FormData): Promise<vo
 }
 
 export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
+  if (INVOICING_FROZEN) redirect(`/app/quotes/${quoteId}?error=invoicing_frozen`);
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -392,6 +395,8 @@ export async function createDepositInvoice(
   quoteId: string,
   percent: number,
 ): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
+  if (INVOICING_FROZEN) return frozenInvoicingResult();
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -435,6 +440,8 @@ export async function createProgressInvoice(
   quoteId: string,
   cumulativePercent: number,
 ): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
+  if (INVOICING_FROZEN) return frozenInvoicingResult();
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },

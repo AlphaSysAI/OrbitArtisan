@@ -9,10 +9,13 @@ import {
 import { DEFAULT_INVOICE_EINVOICING, DEFAULT_INVOICE_LINE_VAT } from "@/lib/billing/einvoicing-types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { INVOICING_FROZEN, frozenInvoicingResult } from "@/lib/billing/invoicing-freeze";
 
 export async function createCreditNoteFromInvoice(
   invoiceId: string,
 ): Promise<{ ok: true; creditNoteId: string } | { ok: false; error: string }> {
+  if (INVOICING_FROZEN) return frozenInvoicingResult();
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -81,6 +84,8 @@ export async function createCreditNoteFromInvoice(
 }
 
 export async function releaseRetention(invoiceId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (INVOICING_FROZEN) return frozenInvoicingResult();
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },

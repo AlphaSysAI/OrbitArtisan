@@ -18,6 +18,7 @@ import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 import { loadInvoicesForQuote } from "@/lib/billing/load-invoice-for-page";
 
 import { createInvoiceFromQuoteForm } from "../../invoices/actions";
+import { INVOICING_FROZEN, INVOICING_FROZEN_MESSAGE } from "@/lib/billing/invoicing-freeze";
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
   const sp = await params;
@@ -294,12 +295,18 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                   />
 
                   {alreadyInvoicedCents < (quote.grand_total ?? 0) ? (
-                    <form action={createInvoiceFromQuoteForm}>
-                      <input type="hidden" name="quote_id" value={quoteId} />
-                      <Button type="submit" className="w-full" variant="default">
-                        {alreadyInvoicedCents > 0 ? "Créer facture de solde" : "Créer la facture à partir du devis"}
-                      </Button>
-                    </form>
+                    INVOICING_FROZEN ? (
+                      <div className="rounded-xl border border-amber-600/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
+                        {INVOICING_FROZEN_MESSAGE}
+                      </div>
+                    ) : (
+                      <form action={createInvoiceFromQuoteForm}>
+                        <input type="hidden" name="quote_id" value={quoteId} />
+                        <Button type="submit" className="w-full" variant="default">
+                          {alreadyInvoicedCents > 0 ? "Créer facture de solde" : "Créer la facture à partir du devis"}
+                        </Button>
+                      </form>
+                    )
                   ) : null}
 
                   {(quote as { generate_vat_attestation?: boolean }).generate_vat_attestation ? (
