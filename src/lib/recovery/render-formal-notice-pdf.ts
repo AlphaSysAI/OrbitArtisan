@@ -1,17 +1,16 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { formatDateForPdf, formatEurosForPdf, sanitizePdfText } from "@/lib/billing/pdf-text";
+// Point 5 audit pré-pilote : constantes désormais partagées avec la mention
+// de pénalités affichée sur la facture elle-même (late-payment-legal.ts),
+// pour ne jamais risquer une divergence de taux/indemnité entre les deux.
+import { DEFAULT_B2B_PENALTY_RATE, B2B_RECOVERY_INDEMNITY_CENTS } from "@/lib/billing/late-payment-legal";
 
 const MARGIN = 56;
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const BODY_SIZE = 10;
 const LINE_HEIGHT = 14;
-
-/** Taux légal des pénalités de retard B2B : taux directeur BCE + 10 points (art. L441-10 C. com.). */
-const DEFAULT_B2B_PENALTY_RATE = 12.15;
-/** Indemnité forfaitaire pour frais de recouvrement B2B (art. D441-5 C. com.). */
-const B2B_RECOVERY_INDEMNITY_CENTS = 4000;
 
 export type FormalNoticeParty = {
   name: string;

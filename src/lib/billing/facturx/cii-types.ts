@@ -28,6 +28,8 @@ export type CrossIndustryInvoice = {
     applicableHeaderTradeSettlement: {
       invoiceCurrencyCode: CiiCode;
       applicableTradeTax: TradeTax[];
+      /** Point 5 audit pré-pilote : BT-9 (échéance de paiement) — absent jusqu'ici, alors qu'EN16931 (BR-CO-25) exige BT-9 ou BT-20 dès qu'un montant est dû. */
+      specifiedTradePaymentTerms?: { dueDateDateTime: CiiDateTime };
       specifiedTradeSettlementHeaderMonetarySummation: {
         lineTotalAmount: CiiAmount;
         taxBasisTotalAmount: CiiAmount;

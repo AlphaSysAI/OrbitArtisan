@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { buildLegalMentionLines } from "@/lib/billing/legal-mentions";
+import { latePaymentMentionLines } from "@/lib/billing/late-payment-legal";
+import { isB2BCustomer } from "@/lib/billing/invoicing/classify-customer";
 
 import type { FacturXInvoiceDocument, FacturXLineInput } from "./types";
 
@@ -17,6 +19,8 @@ type InvoiceRow = {
   vat_collection_nature: string | null;
   /** Point 1 audit pré-pilote : jamais sélectionné auparavant. */
   invoice_type: string | null;
+  /** Point 5 audit pré-pilote : jamais sélectionné auparavant (échéance calculée à finalize() mais jamais lue). */
+  due_date: string | null;
 };
 
 type ProfileRow = {
@@ -40,6 +44,8 @@ type ProfileRow = {
   rc_pro_number: string | null;
   mediator_name: string | null;
   mediator_url: string | null;
+  /** Point 5 audit pré-pilote : jamais sélectionné dans ce chargement (utilisé pour "conditions de règlement"). */
+  default_payment_terms_days: number | null;
 };
 
 type CustomerProfileRow = {
@@ -76,7 +82,7 @@ export async function loadFacturXDocumentFromDb(
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
     .select(
-      "id, invoice_number, customer_name, customer_email, customer_user_id, notes, created_at, operation_type, vat_on_debits, vat_collection_nature, artisan_id, invoice_type",
+      "id, invoice_number, customer_name, customer_email, customer_user_id, notes, created_at, operation_type, vat_on_debits, vat_collection_nature, artisan_id, invoice_type, due_date",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -89,7 +95,7 @@ export async function loadFacturXDocumentFromDb(
     supabase
       .from("profiles")
       .select(
-        "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url",
+        "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days",
       )
       .eq("id", inv.artisan_id)
       .maybeSingle(),
@@ -163,22 +169,37 @@ export async function loadFacturXDocumentFromDb(
     },
     lines: mappedLines,
     notes: inv.notes,
+    dueDate: inv.due_date ? new Date(inv.due_date) : null,
+    paymentTermsDays: seller.default_payment_terms_days ?? null,
     invoiceType: (inv.invoice_type as FacturXInvoiceDocument["invoiceType"]) ?? undefined,
     operationType: (inv.operation_type as FacturXInvoiceDocument["operationType"]) ?? undefined,
     vatOnDebits: inv.vat_on_debits ?? undefined,
     vatCollectionNature: (inv.vat_collection_nature as FacturXInvoiceDocument["vatCollectionNature"]) ?? undefined,
-    legalMentions: buildLegalMentionLines({
-      business_name: seller.business_name,
-      siren: seller.siren,
-      siret: seller.siret,
-      vat_number: seller.vat_number,
-      trade_register_number: seller.trade_register_number,
-      decennale_insurer: seller.decennale_insurer,
-      decennale_policy_number: seller.decennale_policy_number,
-      rc_pro_insurer: seller.rc_pro_insurer,
-      rc_pro_number: seller.rc_pro_number,
-      mediator_name: seller.mediator_name,
-      mediator_url: seller.mediator_url,
-    }),
+    legalMentions: [
+      ...buildLegalMentionLines({
+        business_name: seller.business_name,
+        siren: seller.siren,
+        siret: seller.siret,
+        vat_number: seller.vat_number,
+        trade_register_number: seller.trade_register_number,
+        decennale_insurer: seller.decennale_insurer,
+        decennale_policy_number: seller.decennale_policy_number,
+        rc_pro_insurer: seller.rc_pro_insurer,
+        rc_pro_number: seller.rc_pro_number,
+        mediator_name: seller.mediator_name,
+        mediator_url: seller.mediator_url,
+      }),
+      // Point 5 audit pré-pilote : pénalités de retard + indemnité forfaitaire
+      // 40 € — mentions obligatoires B2B (art. L441-10/D441-5 C. com.),
+      // JAMAIS affichées sur une facture B2C (pas de fondement Code de la
+      // consommation pour ce bloc).
+      ...latePaymentMentionLines({
+        isBusinessBuyer: isB2BCustomer({
+          siren: customerProfile?.siren ?? null,
+          siret: customerProfile?.siret ?? null,
+          vatNumber: customerProfile?.vat_number ?? null,
+        }),
+      }),
+    ],
   };
 }

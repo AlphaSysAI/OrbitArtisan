@@ -41,6 +41,10 @@ export type FacturXInvoiceDocument = {
   buyer: FacturXParty;
   lines: FacturXLineInput[];
   notes?: string | null;
+  /** Point 5 audit pré-pilote : échéance de paiement (invoices.due_date), pour affichage PDF. */
+  dueDate?: Date | null;
+  /** Point 5 audit pré-pilote : délai de règlement en jours (profiles.default_payment_terms_days), pour affichage "conditions de règlement". */
+  paymentTermsDays?: number | null;
   operationType?: InvoiceOperationType;
   vatCollectionNature?: VatCollectionNature;
   vatOnDebits?: boolean;

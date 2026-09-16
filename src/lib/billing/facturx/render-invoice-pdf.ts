@@ -119,6 +119,17 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
   draw(`Total TVA : ${formatEuros(sign * taxTotalCents)}`);
   draw(`Total TTC : ${formatEuros(sign * grandTotalCents)}`, { bold: true, size: 12 });
 
+  // Point 5 audit pré-pilote : conditions de règlement + échéance — jamais
+  // affichées auparavant alors que due_date/default_payment_terms_days sont
+  // déjà calculées et enregistrées à la finalisation (voir
+  // InvoiceService.computeDueDate).
+  if (doc.dueDate || doc.paymentTermsDays) {
+    y -= 4;
+    const terms = doc.paymentTermsDays ? `Conditions de règlement : paiement à ${doc.paymentTermsDays} jours` : null;
+    const due = doc.dueDate ? `Échéance de paiement : ${formatDate(doc.dueDate)}` : null;
+    draw([terms, due].filter(Boolean).join(" — "), { bold: true });
+  }
+
   if (doc.notes?.trim()) {
     y -= 10;
     draw("Notes", { bold: true });

@@ -102,4 +102,29 @@ describe("crossIndustryInvoiceToXml", () => {
     const validation = await validateXsd(xml, Profile.EN16931);
     expect(validation.valid, validation.errors?.map((e) => e.message).join("\n")).toBe(true);
   });
+
+  it("Point 5 audit pré-pilote : porte l'échéance de paiement (BT-9) et reste valide EN16931", async () => {
+    const cii = buildCrossIndustryInvoice(
+      { ...sample, dueDate: new Date("2026-02-14T00:00:00.000Z") },
+      "en16931",
+    );
+    const xml = crossIndustryInvoiceToXml(cii);
+
+    expect(xml).toContain("<ram:SpecifiedTradePaymentTerms>");
+    expect(xml).toContain("<ram:DueDateDateTime>");
+    expect(xml).toContain("20260214");
+
+    const validation = await validateXsd(xml, Profile.EN16931);
+    expect(validation.valid, validation.errors?.map((e) => e.message).join("\n")).toBe(true);
+  });
+
+  it("Point 5 audit pré-pilote : omet SpecifiedTradePaymentTerms si aucune échéance connue (reste valide)", async () => {
+    const cii = buildCrossIndustryInvoice(sample, "en16931");
+    const xml = crossIndustryInvoiceToXml(cii);
+
+    expect(xml).not.toContain("SpecifiedTradePaymentTerms");
+
+    const validation = await validateXsd(xml, Profile.EN16931);
+    expect(validation.valid, validation.errors?.map((e) => e.message).join("\n")).toBe(true);
+  });
 });

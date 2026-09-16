@@ -201,6 +201,13 @@ export function buildCrossIndustryInvoice(
       applicableHeaderTradeSettlement: {
         invoiceCurrencyCode: { value: currency },
         applicableTradeTax: headerTaxes,
+        // Point 5 audit pré-pilote : BT-9 échéance de paiement, jamais porté
+        // jusqu'au CII auparavant (due_date était calculée et enregistrée en
+        // base à la finalisation, mais jamais lue par loadFacturXDocumentFromDb
+        // ni reportée dans le document transmis à la Plateforme Agréée).
+        specifiedTradePaymentTerms: doc.dueDate
+          ? { dueDateDateTime: { dateTimeString: formatIssueDate(doc.dueDate), format: "102" } }
+          : undefined,
         specifiedTradeSettlementHeaderMonetarySummation: {
           lineTotalAmount: amount(lineTotalCents, currency),
           taxBasisTotalAmount: amount(lineTotalCents, currency),
