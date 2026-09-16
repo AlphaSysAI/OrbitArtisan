@@ -21,10 +21,11 @@ export function VoiceIntakeActions({
 }) {
   const router = useRouter();
   const [pending, setPending] = React.useState<"validate" | "dismiss" | null>(null);
+  const [vatRate, setVatRate] = React.useState("20");
 
   async function handleValidate() {
     setPending("validate");
-    const res = await validateVoiceIntakeQuote(intakeId);
+    const res = await validateVoiceIntakeQuote(intakeId, Number(vatRate));
     setPending(null);
 
     if (!res.ok) {
@@ -66,6 +67,21 @@ export function VoiceIntakeActions({
         <Pencil className="size-3.5" />
         Éditer
       </Link>
+      {canValidate ? (
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          TVA
+          <select
+            value={vatRate}
+            onChange={(e) => setVatRate(e.target.value)}
+            disabled={pending !== null}
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-xs outline-none"
+          >
+            <option value="20">20 % (normal)</option>
+            <option value="10">10 % (rénovation)</option>
+            <option value="5.5">5,5 % (rénov. énergie)</option>
+          </select>
+        </label>
+      ) : null}
       <Button
         type="button"
         size="sm"

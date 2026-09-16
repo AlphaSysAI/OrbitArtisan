@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
-import { createQuoteFromAiDraft } from "@/lib/quotes/create-quote-from-ai-draft";
+import { createQuoteFromAiDraft, normalizeVatRate } from "@/lib/quotes/create-quote-from-ai-draft";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -49,6 +49,7 @@ export async function loadVoiceIntakeQuoteDraft(
 
 export async function validateVoiceIntakeQuote(
   intakeId: string,
+  vatRate?: number,
 ): Promise<
   | { ok: true; quoteId: string; emailSent: boolean }
   | { ok: false; error: string; hint?: string }
@@ -99,6 +100,7 @@ export async function validateVoiceIntakeQuote(
     status: "sent",
     customerName: intake.customer_name,
     customerEmail: intake.customer_email,
+    vatRate: normalizeVatRate(vatRate ?? 20),
   });
 
   if (!created.ok) {

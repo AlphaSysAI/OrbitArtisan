@@ -150,7 +150,7 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
   y -= 4;
   draw(`Main d'œuvre : ${formatEuros(doc.laborTotalCents)}`);
   draw(`Fournitures : ${formatEuros(doc.materialsTotalCents)}`);
-  draw(`Total TTC : ${formatEuros(doc.grandTotalCents)}`, { bold: true, size: 12 });
+  draw(`Total HT (TVA non incluse) : ${formatEuros(doc.grandTotalCents)}`, { bold: true, size: 12 });
 
   if (doc.notes?.trim()) {
     y -= 10;
