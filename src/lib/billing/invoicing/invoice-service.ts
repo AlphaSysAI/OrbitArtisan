@@ -181,7 +181,7 @@ export class InvoiceService {
       invoiceId,
       flow: "e_invoicing",
       pdf: facturX.pdf,
-      pdfFilename: pdfFilename(document.invoiceNumber, "factur-x"),
+      pdfFilename: pdfFilename(document.invoiceNumber, "factur-x", document.invoiceType),
       facturXXml: facturX.xml,
       paSubmissionId: paResult.submissionId,
       paSubmissionStatus: paResult.status,
@@ -248,7 +248,7 @@ export class InvoiceService {
       invoiceId,
       flow: "e_reporting",
       pdf,
-      pdfFilename: pdfFilename(document.invoiceNumber, "pdf"),
+      pdfFilename: pdfFilename(document.invoiceNumber, "pdf", document.invoiceType),
       eReportingQueueId: queueRow.id as string,
     };
   }
@@ -267,7 +267,8 @@ export class InvoiceService {
   }
 }
 
-function pdfFilename(invoiceNumber: string, suffix: string): string {
+function pdfFilename(invoiceNumber: string, suffix: string, invoiceType?: string): string {
   const safe = invoiceNumber.replace(/[^\w\-]+/g, "_").replace(/_+/g, "_").slice(0, 80);
-  return `facture-${safe}.${suffix === "factur-x" ? "pdf" : suffix}`;
+  const base = invoiceType === "credit_note" ? "avoir" : "facture";
+  return `${base}-${safe}.${suffix === "factur-x" ? "pdf" : suffix}`;
 }

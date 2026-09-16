@@ -7,6 +7,7 @@ import type {
   FacturXGenerationResult,
   FacturXInvoiceDocument,
 } from "./types";
+import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 
 /**
  * Génère une facture Factur-X complète :
@@ -27,10 +28,14 @@ export async function generateFacturX(
 
   const visualPdf = await renderInvoicePdf(document);
 
+  // Point 1 audit pré-pilote : même correctif que renderInvoicePdf — le
+  // PDF/A-3 final (avec XML Factur-X embarqué) ne doit pas non plus dire
+  // "Facture" en dur pour un avoir.
+  const docLabel = invoiceTypeLabel(document.invoiceType);
   const meta = {
     author: document.seller.name,
-    title: `${document.seller.name}: Facture ${document.invoiceNumber}`,
-    subject: `Facture ${document.invoiceNumber} du ${formatShortDate(document.issueDate)}`,
+    title: `${document.seller.name}: ${docLabel} ${document.invoiceNumber}`,
+    subject: `${docLabel} ${document.invoiceNumber} du ${formatShortDate(document.issueDate)}`,
     date: document.issueDate,
   };
 

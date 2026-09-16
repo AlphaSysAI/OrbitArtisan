@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { formatDateForPdf, formatEurosForPdf, sanitizePdfText } from "@/lib/billing/pdf-text";
+import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 
 import type { FacturXInvoiceDocument } from "./types";
 
@@ -52,7 +53,11 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
     y -= size + 6;
   };
 
-  draw("FACTURE", { size: 20, bold: true });
+  // Point 1 audit pré-pilote : le titre reflète la vraie nature du document
+  // (un avoir affichait "FACTURE" en dur, transmis tel quel au client).
+  const documentTitle = invoiceTypeLabel(doc.invoiceType).toUpperCase();
+  const isCreditNote = doc.invoiceType === "credit_note";
+  draw(documentTitle, { size: 20, bold: true });
   draw(`N° ${doc.invoiceNumber}`, { size: 12, bold: true });
   draw(`Date : ${formatDate(doc.issueDate)}`);
   y -= 8;
@@ -92,9 +97,10 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
       page.drawText(sanitizePdfText(wrapped), { x: MARGIN, y, size: 10, font });
       y -= 14;
     }
-    const detail = `${line.quantity} × ${formatEuros(line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents)} HT · TVA ${line.vatRate} %`;
+    const unitCents = line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents;
+    const detail = `${line.quantity} × ${formatEuros(isCreditNote ? -unitCents : unitCents)} HT · TVA ${line.vatRate} %`;
     page.drawText(sanitizePdfText(detail), { x: MARGIN + 12, y, size: 9, font, color: rgb(0.35, 0.35, 0.35) });
-    page.drawText(formatEuros(line.lineTotalCents), {
+    page.drawText(formatEuros(isCreditNote ? -line.lineTotalCents : line.lineTotalCents), {
       x: PAGE_WIDTH - MARGIN - 80,
       y,
       size: 10,
@@ -104,9 +110,14 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
   }
 
   y -= 8;
-  draw(`Total HT : ${formatEuros(lineTotalCents)}`);
-  draw(`Total TVA : ${formatEuros(taxTotalCents)}`);
-  draw(`Total TTC : ${formatEuros(grandTotalCents)}`, { bold: true, size: 12 });
+  // Affichage avec signe négatif pour un avoir : lisibilité humaine ("vous
+  // devez 500 € de moins"). Ceci est uniquement cosmétique côté PDF — le CII
+  // Factur-X (build-cii-invoice.ts) garde des montants positifs + typeCode
+  // 381, seule convention conforme EN16931 pour la transmission PA.
+  const sign = isCreditNote ? -1 : 1;
+  draw(`Total HT : ${formatEuros(sign * lineTotalCents)}`);
+  draw(`Total TVA : ${formatEuros(sign * taxTotalCents)}`);
+  draw(`Total TTC : ${formatEuros(sign * grandTotalCents)}`, { bold: true, size: 12 });
 
   if (doc.notes?.trim()) {
     y -= 10;
@@ -125,9 +136,9 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
     }
   }
 
-  pdf.setTitle(`Facture ${doc.invoiceNumber}`);
+  pdf.setTitle(`${documentTitle.charAt(0)}${documentTitle.slice(1).toLowerCase()} ${doc.invoiceNumber}`);
   pdf.setAuthor(doc.seller.name);
-  pdf.setSubject(`Facture ${doc.invoiceNumber}`);
+  pdf.setSubject(`${documentTitle.charAt(0)}${documentTitle.slice(1).toLowerCase()} ${doc.invoiceNumber}`);
   pdf.setCreator("Soline");
   pdf.setProducer("Soline Factur-X");
   pdf.setCreationDate(doc.issueDate);

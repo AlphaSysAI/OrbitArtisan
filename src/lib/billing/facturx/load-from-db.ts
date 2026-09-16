@@ -15,6 +15,8 @@ type InvoiceRow = {
   operation_type: string | null;
   vat_on_debits: boolean | null;
   vat_collection_nature: string | null;
+  /** Point 1 audit pré-pilote : jamais sélectionné auparavant. */
+  invoice_type: string | null;
 };
 
 type ProfileRow = {
@@ -74,7 +76,7 @@ export async function loadFacturXDocumentFromDb(
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
     .select(
-      "id, invoice_number, customer_name, customer_email, customer_user_id, notes, created_at, operation_type, vat_on_debits, vat_collection_nature, artisan_id",
+      "id, invoice_number, customer_name, customer_email, customer_user_id, notes, created_at, operation_type, vat_on_debits, vat_collection_nature, artisan_id, invoice_type",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -161,6 +163,7 @@ export async function loadFacturXDocumentFromDb(
     },
     lines: mappedLines,
     notes: inv.notes,
+    invoiceType: (inv.invoice_type as FacturXInvoiceDocument["invoiceType"]) ?? undefined,
     operationType: (inv.operation_type as FacturXInvoiceDocument["operationType"]) ?? undefined,
     vatOnDebits: inv.vat_on_debits ?? undefined,
     vatCollectionNature: (inv.vat_collection_nature as FacturXInvoiceDocument["vatCollectionNature"]) ?? undefined,

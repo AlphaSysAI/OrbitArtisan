@@ -1,4 +1,5 @@
 import type { InvoiceOperationType, VatCollectionNature } from "@/lib/billing/einvoicing-types";
+import type { InvoiceType } from "@/lib/billing/invoice-types";
 
 /** Profil Factur-X cible. */
 export type FacturXProfile = "basic" | "en16931";
@@ -45,6 +46,13 @@ export type FacturXInvoiceDocument = {
   vatOnDebits?: boolean;
   /** Mentions légales artisan (bas de page PDF). */
   legalMentions?: string[];
+  /**
+   * Nature du document (Point 1 audit pré-pilote) : standard/deposit/progress/
+   * final/credit_note. Doit porter jusqu'au titre PDF ("AVOIR" pour un avoir)
+   * et au typeCode CII (381 au lieu de 380) — sans quoi un avoir finalisé est
+   * transmis à la Plateforme Agréée comme une facture positive ordinaire.
+   */
+  invoiceType?: InvoiceType;
 };
 
 export type FacturXGenerationOptions = {

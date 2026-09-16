@@ -165,6 +165,17 @@ export function buildCrossIndustryInvoice(
 
   const notes = doc.notes?.trim() ? [{ content: { value: doc.notes.trim() } }] : undefined;
 
+  // Point 1 audit pré-pilote : typeCode CII porte la nature du document.
+  // 380 = facture, 381 = avoir (UN/CEFACT 1001). Les MONTANTS restent
+  // POSITIFS dans les deux cas — ce n'est PAS une erreur : selon EN16931,
+  // le typeCode seul porte le signal crédit/débit, et négocier les montants
+  // en plus du typeCode 381 crée une double négation qui fait échouer la
+  // validation sémantique (règle BR-27 notamment) chez la plupart des
+  // plateformes de réception, dont potentiellement la Plateforme Agréée.
+  // Vérifié via la documentation Peppol/EN16931 (typeCode 381 + montants
+  // positifs = convention correcte ; ne pas la changer sans revalider).
+  const typeCode = doc.invoiceType === "credit_note" ? "381" : "380";
+
   return {
     exchangedDocumentContext: {
       guidelineSpecifiedDocumentContextParameter: {
@@ -173,7 +184,7 @@ export function buildCrossIndustryInvoice(
     },
     exchangedDocument: {
       id: { value: doc.invoiceNumber },
-      typeCode: { value: "380" },
+      typeCode: { value: typeCode },
       issueDateTime: {
         dateTimeString: formatIssueDate(doc.issueDate),
         format: "102",
