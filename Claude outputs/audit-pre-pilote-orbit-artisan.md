@@ -212,9 +212,86 @@ Branche : `pilote/vague3-rdv-fiabilite` (depuis la tête de `pilote/vague2-factu
 **Non résolu par du code, nécessite une action de ta part avant de réactiver la vitrine publique :**
 - Avant d'exécuter la migration `21_appointment_overlap_guard.sql` : lancer la requête de contrôle placée en commentaire en tête du fichier (doit renvoyer 0 ligne). Si des RDV existants se chevauchent déjà pour un même artisan, en annuler un des deux manuellement avant d'appliquer la contrainte, sinon l'`ALTER TABLE ... ADD CONSTRAINT` échouera au moment de l'exécuter.
 
-### VAGUE 4 — en attente (hygiène, sans urgence)
-Champ "Prix" prestations, fidélité preview devis, alerte quota vocal, helper `requireArtisanProfileId()`, `.env.example`, statut `cancelled` orphelin, ratio de marge configurable, autoliquidation sous-traitance (bloquée en attente de confirmation : un des 5 artisans pilotes sous-traite-t-il ce mois-ci ?).
+### VAGUE 4 — terminée (16/09/2026), hygiène sans urgence
+
+> ⚠️ **Note de synchronisation (17/09/2026)** : un commit `cc26b84` (auteur Florian, co-authored Cursor) a réécrit ce fichier sur la copie device pour repasser cette section en "en attente" et supprimer le détail des commits, avec un message final laissant entendre que la Vague 4 n'avait pas encore été attaquée. Ce n'est pas le cas : les 7 commits ci-dessous existent bel et bien sur `pilote/vague4-hygiene` (vérifié via `git log`), et la Vague 5 (devis/PDF légal) a été construite par-dessus une fois master à jour. Tout porte à croire que Cursor travaillait sur une copie de ce fichier antérieure à la Vague 4 et a écrasé la version à jour sans le vouloir — pas une décision délibérée de revenir sur ces correctifs. Détail et section Vague 5 restaurés ci-dessous ; si la caractérisation "terminée" ne convient plus (relecture volontaire avant validation, par exemple), le dire explicitement plutôt que de la faire disparaître silencieusement — sinon le prochain outil qui synchronise ce fichier répétera le même écrasement.
+
+Branche : `pilote/vague4-hygiene` (depuis la tête de `pilote/vague3-rdv-fiabilite`, commit `f95e27c`).
+
+| # | Sujet | Statut | Commit |
+|---|---|---|---|
+| 1 | Champ "Prix" prestations : ajout d'un sous-texte sous le champ (formulaire + ligne de prestation existante) et clarification de la description Prestations sur le devis précisant que ce prix est un affichage seul, sans effet sur le montant du devis (calculé sur taux horaire × durée) | ✅ Corrigé | `e7004ed` |
+| 2 | Fidélité de la preview devis vocal : extraction d'un calcul partagé (`computeDraftTotals` / `resolveLaborDurationMinutes`) utilisé à la fois par l'aperçu sur `/app/appels` et par la création réelle du devis — même règle de fallback de durée des deux côtés. Détail ligne par ligne (MO + matériaux) ajouté avant validation, au lieu d'un simple total agrégé | ✅ Corrigé | `bcc7aa3` |
+| 3 | Alerte artisan sur quota vocal épuisé : `notifyVoiceQuotaExhausted` ajoutée (même infra push que messages/devis/factures/RDV), déclenchée uniquement au franchissement du seuil 100 % | ✅ Corrigé | `a371eec` |
+| 4 | Helper `requireArtisanProfileId()` : centralisation du pattern `auth.getUser()` → `profiles.user_id` dans `src/lib/auth/require-artisan.ts` (2 primitives composables + 2 wrappers), migration de 13 fichiers (26 fonctions) en préservant à l'identique chaque libellé d'erreur et chaque cible de redirection d'origine — refactor volontairement non-normalisant pour ne rien changer au comportement visible | ✅ Corrigé | `dec1215` |
+| 5 | `.env.example` incomplet : le fichier n'était même pas versionné (exclu par la règle `.env*` du `.gitignore`, donc inutile pour l'onboarding d'un poste de dev) — ajouté explicitement (`git add -f`) et complété avec les variables utilisées dans le code mais absentes : `TWILIO_AUTH_TOKEN`, `TWILIO_STATUS_CALLBACK_URL`, `VOICE_AI_TOOL_SECRET` (agent vocal), `RESEND_API_KEY`, `EMAIL_FROM` | ✅ Corrigé | `664a310` |
+| 6 | Statut `cancelled` orphelin : c'était le libellé `INVOICE_STATUS_LABELS.cancelled` (factures), pas le statut RDV — la contrainte DB `invoices.status` (migration 06) n'admet que `draft/sent/paid/overdue`, une facture annulée passe par un avoir (`credit_note`). Libellé mort retiré, tous les appelants de `invoiceStatusLabel()` vérifiés | ✅ Corrigé | `3fdce47` |
+| 7 | Ratio de marge 65 % en dur (`quote-margin.ts`) : entre les deux pistes proposées (configurable par profil vs. clarifier le libellé), clarification retenue par souci de simplicité (KISS) — le ratio est déjà paramétrable techniquement (params optionnels) et déjà étiqueté "indicatif" ; un réglage par artisan pour une preview sans impact facturation serait de la suringénierie pour 5 artisans pilotes. Libellé bandeau + commentaires code explicitent que c'est une hypothèse générique unique, y compris pour un solo sans salarié | ✅ Corrigé (clarification) | `360cc0d` |
+| 8 | Autoliquidation sous-traitance BTP | ⏸️ Bloquée | — bloquée en attente de ta réponse (voir note ci-dessous) |
+
+**Point 4 — détail des exclusions volontaires (documentées dans le commit) :** `abonnement/actions.ts::openStripeBillingPortal` (ne sélectionne pas `profiles.id`, migré partiellement pour la partie user), `profile/actions.ts` (l'absence de ligne y signifie "à créer", pas une erreur — sémantique différente), `services/actions.ts::deleteService` (aucun contrôle d'auth n'existait déjà sur cette fonction, hors périmètre d'un refactor qui préserve le comportement existant).
+
+**Point 8 — non traité, bloqué sur ta confirmation :** aucune implémentation de l'autoliquidation TVA sous-traitance (code catégorie "K") n'existe dans le repo. Pertinent seulement si un des 5 artisans pilotes facture en sous-traitance pendant le mois de test — **question toujours ouverte, sans réponse à ce jour**. Tant que je n'ai pas ta confirmation, je ne l'implémente pas (comportement actuel : TVA normale appliquée même en sous-traitance, ce qui serait fiscalement incorrect pour ce cas précis).
+
+**Vérification finale Vague 4** : `tsc --noEmit` clean, `eslint .` sur tout le repo → seulement les 2 erreurs préexistantes déjà connues et non liées (`estimation-loading.tsx:22`, `app-mobile-bottom-nav.tsx:20`), `vitest run` → 144/144 tests verts. 7 commits, un par point.
+
+### VAGUE 5 — terminée (17/09/2026), audit devis/édition de devis (PDF inclus) — commande dédiée de Florian
+Branche : `pilote/vague5-devis-legal-dev` (depuis la tête de `master`, commit `31f5783` — Florian avait entre-temps mergé/pushé les Vagues 1 à 4 et continué son propre travail sur le PDF devis et l'assistant). Demande initiale : "analyse la partie devis et édition de devis (PDF inclus)... d'un point de vue légal... d'un point de vue dev", en expert-comptable senior + développeur full-stack senior — indépendante des 4 vagues de l'audit pré-pilote initial.
+
+| # | Sujet | Statut | Commit |
+|---|---|---|---|
+| — | Bug préexistant découvert en vérifiant la suite avant de committer (pas un finding de l'audit) : `build-quote-pdf-lines.test.ts` comparait à une TVA mal recalculée à la main (600+600 au lieu de 900+600) | ✅ Corrigé | `9caf7ba` |
+| 1 | Assurance décennale : simple avertissement à l'envoi d'un devis (le blocage dur n'existait que côté facture, Vague 2) — or "Facturer" reste gelé, le devis est aujourd'hui le seul document qui atteint réellement un client. Exercer sans décennale sur des travaux qui y sont soumis est pénalement sanctionné (art. L243-3 C. assurances, jusqu'à 6 mois + 75 000 €) | ✅ Corrigé — décennale désormais bloquante à l'envoi d'un devis (RC Pro/médiateur/TVA intra restent des avertissements, sanctions purement administratives) | `ce9f5aa` |
+| 2 | Droit de rétractation (art. L221-18 et s. C. consommation) totalement absent — pertinent car un devis artisan est presque toujours signé hors établissement (domicile client, chantier), jamais en boutique. Le produit n'a aucune notion B2B/B2C, donc mention affichée par défaut | ✅ Corrigé — mention du délai de 14 jours + modèle de formulaire de rétractation sur le PDF par défaut ; case "renonciation expresse" côté formulaire artisan (art. L221-28 3°) avec mention + ligne de signature dédiée si cochée | `b70d76c`, `8c08e36` |
+| 3 | Péremption du devis jamais vérifiée : le PDF affiche "valable jusqu'au" (3 mois) mais `client_accept_quote` acceptait un devis "sent" quel que soit son âge | ✅ Corrigé — `quotes.valid_until` figé à la création (au lieu d'être recalculé dans le PDF), vérifié par la RPC d'acceptation ; bandeau + bouton "Valider" masqué côté client si expiré | `57d897d` |
+| 4 | Édition/suppression d'un devis brouillon absentes : seule option pour corriger une erreur de saisie = dupliquer puis retaper, sans pouvoir supprimer l'original raté | ✅ Corrigé — `updateQuote`/`deleteQuote` réservés aux brouillons (`status = 'draft'`), garde anti-course sur le statut au moment de l'écriture ; page `/app/quotes/[quoteId]/edit` + boutons Modifier/Supprimer sur la fiche devis | `6f2ad3b` |
+
+**Confirmé au passage (rassurant) :** les deux points historiquement les plus graves sur ce module dans l'audit initial — libellé "Total TTC" trompeur pour un montant HT, et TVA matériaux codée en dur à 20 % dans le chemin devis IA — étaient déjà corrigés depuis les Vagues 1/2 (le devis calcule et affiche désormais une vraie ventilation HT/TVA/TTC par taux). Seul `business-rules.md` (doc projet séparé, pas synchronisé avec cet audit) décrivait encore l'ancien état — mis à jour au passage (documentation uniquement, aucun changement de code lié).
+
+**Limite assumée (point 4) :** l'édition traite tous les matériaux existants comme des lignes manuelles génériques — le lien vers un éventuel catalogue fournisseur d'origine (`supplier_product_id`/`url`/`sku`) n'est pas reconstitué après une modification. Impact nul en pratique : aucune commande fournisseur n'est jamais passée depuis un brouillon.
+
+**Choix assumé (point 2, à valider) :** le droit de rétractation est traité par une mention légale + formulaire type imprimés sur le PDF, pas par un blocage technique empêchant de démarrer les travaux avant l'expiration des 14 jours — choix KISS déclaré explicitement, pas une omission. À surveiller si ça devient un point de friction réel avec un client pendant le pilote.
+
+**Non résolu par du code, nécessite une action de ta part :**
+- Exécuter les migrations `23_quote_retraction_waived.sql` et `24_quote_valid_until.sql` dans l'éditeur SQL Supabase (idempotentes, non destructives — la 24 recrée aussi la fonction `client_accept_quote`).
+- Valider ou ajuster le choix de rendre la décennale bloquante mais pas RC Pro/médiateur/TVA intra à l'envoi d'un devis — c'est un arbitrage produit, pas une obligation légale uniforme entre ces mentions.
+- Pousser la branche `pilote/vague5-devis-legal-dev` (le push depuis le bac à sable échoue toujours faute d'identifiants Git accessibles — à faire depuis ton propre terminal, comme pour les vagues précédentes).
+
+**Vérification finale Vague 5** : `tsc --noEmit` clean, `eslint` sur tous les fichiers touchés clean, `vitest run` → 155/155 tests verts (dont 3 nouveaux tests dédiés à la décennale bloquante). 6 commits.
+
+### VAGUE 6 — recherche + prépa (17/09/2026), facturation électronique PA — demande dédiée de Florian
+Branche : `pilote/vague6-facturation-electronique-pa` (depuis la tête de `pilote/vague5-devis-legal-dev`, commit `cc26b84`). Demande : "trouve le meilleur moyen d'intégrer ce système à Soline, le moins cher également, et fais le travail nécessaire pour l'intégrer" — suite à une question générale sur l'existence d'un système de facturation électronique gratuit agréé par l'État.
+
+**Constat de départ, important :** l'intégration PA (Plateforme Agréée) existe déjà en grande partie dans le code depuis une vague antérieure — adapters `noop`/`http`/`pennylane` avec retry, webhook entrant signé HMAC, file d'e-reporting B2C, tout documenté dans `integrations.md` §2-3. Ce qui manquait vraiment n'était donc pas du code, mais : (a) le choix d'un vrai fournisseur PDP, question commerciale/contractuelle qui n'appartient qu'à Florian, et (b) la validation de la forme exacte du payload HTTP générique contre la doc réelle de ce fournisseur, chose impossible sans compte/sandbox.
+
+**Recherche menée (comparatif fournisseurs PDP/PA)** :
+
+| Fournisseur | Statut réglementaire | Tarif trouvé | Adapté à un éditeur SaaS multi-artisans ? |
+|---|---|---|---|
+| **Super PDP** | Immatriculé PDP (revendiqué sur le site officiel) | API : ~0,0025€/facture au volume ; compte perso gratuit jusqu'à 1000 factures/mois ; pas d'abonnement minimum trouvé publiquement | ✅ Le moins cher de loin ; API-first, doc dédiée éditeurs — mais support explicite multi-SIREN/"marque grise" non confirmé par la doc publique (page JS non entièrement accessible en lecture automatisée) |
+| Docaposte (marque commerciale : SERES) | Immatriculé, acteur historique (groupe La Poste) | Tarifs "sur devis" — pas de grille publique | Probablement, mais orienté grands comptes/PME établies ; devis sur-mesure peu adapté à un pilote à 5 artisans |
+| Pennylane | Immatriculé, adossé à leur suite compta | Pas de tarif API autonome trouvé publiquement (couplé à leur logiciel) | Adapter déjà codé (`PennylanePayloadSubmitter`), mais suppose probablement un abonnement à leur suite compta complète |
+| Confactura | **Pas une PA** — un simple générateur Factur-X ("Solution Compatible", transmission via une PA tierce) | Gratuit jusqu'à 20 documents/mois, puis 19-149€ selon volume | Non pertinent comme fournisseur PA : redondant avec le pipeline Factur-X déjà maison (`src/lib/billing/facturx/`). Le nom reste dans le code uniquement comme alias de l'adapter HTTP générique — pas d'appel à un vrai service Confactura. |
+
+**Recommandation** : Super PDP, sous réserve de confirmation directe (par Florian, contact commercial) du support multi-SIREN pour un éditeur — c'est le seul point qui pourrait le disqualifier. Coût estimé pour le pilote (5 artisans, quelques factures/mois chacun) : de l'ordre de quelques centimes à 1€/mois, négligeable.
+
+**Travail réalisé (code)** :
+
+| # | Sujet | Statut | Commit |
+|---|---|---|---|
+| 1 | `superpdp` ajouté comme valeur explicite de `PA_PROVIDER` (alias de l'adapter HTTP générique, comme `docaposte`/`confactura` déjà existants) ; commentaires de code + `.env.example` mis à jour pour documenter que la forme du payload HTTP est une hypothèse générique à valider contre la doc réelle avant mise en prod ; 7 nouveaux tests sur la résolution du provider | ✅ Corrigé | `8264d8b` |
+
+**Ce que je n'ai pas pu faire (hors de ma portée, pas juste "pas encore fait") :**
+- Créer un compte / signer un contrat chez Super PDP (ou tout autre PDP) — création de compte et engagement contractuel/financier, action réservée à Florian.
+- Confirmer le support multi-SIREN (un seul contrat/API pour soumettre au nom de plusieurs artisans différents) — nécessite un contact direct avec Super PDP, pas disponible via la doc publique.
+- Valider la forme exacte du payload HTTP générique (`file`/`pdf`/`xml`/`metadata`) contre la vraie spec API — nécessite des identifiants sandbox réels.
+- Aucun impact sur le gel de "Facturer" : `INVOICING_FROZEN = true` (`src/lib/billing/invoicing-freeze.ts`) bloque toute création de facture réelle en amont de tout appel PA, donc ce travail ne rouvre rien côté production.
+
+**Non résolu par du code, nécessite une action de ta part :**
+- Créer un compte Super PDP (ou contacter leur commercial pour une offre éditeur/API) et confirmer le support multi-SIREN.
+- Une fois le compte ouvert : récupérer les identifiants sandbox + la doc API réelle et me les transmettre pour que j'ajuste l'adapter si le format diffère de l'hypothèse générique actuelle, puis teste en sandbox.
+- Configurer `PA_PROVIDER=superpdp`, `PA_API_URL`, `PA_API_KEY` (et `PA_WEBHOOK_SECRET` si Super PDP fournit des webhooks de statut) dans les variables d'environnement Vercel une fois validé.
 
 ---
 
-**Prochaine étape** : Vague 1, Vague 2 et Vague 3 terminées et vérifiées (eslint + tsc clean, tests unitaires verts sur chaque commit ; 144 tests toujours au vert). "Facturer" reste gelé et la vitrine publique reste désactivée — Vague 3 est du code prêt en attente de l'exécution de la migration 21 (voir contrôle anti-chevauchement ci-dessus) avant réactivation de la vitrine. En attente de ton feu vert avant d'attaquer la Vague 4, et de ta réponse sur l'autoliquidation sous-traitance pour la scoper définitivement.
+**Prochaine étape** : Vagues 1 à 6 terminées et vérifiées côté code (voir note de synchronisation Vague 4 ci-dessus — à clarifier avec toi). "Facturer" reste gelé et la vitrine publique reste désactivée. Actions en attente côté Florian : exécuter les migrations SQL 20 à 24 dans Supabase, décider de la date de dégel de "Facturer", pousser les branches Vague 5 et Vague 6 vers `origin`, arbitrer l'autoliquidation sous-traitance (Vague 4, point 8) et le niveau de blocage RC Pro/médiateur/TVA intra sur devis (Vague 5, point 1), et pour la Vague 6 : créer un compte Super PDP et confirmer le support multi-SIREN avant d'aller plus loin sur l'intégration PA réelle.
