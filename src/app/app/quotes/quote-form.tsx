@@ -134,6 +134,7 @@ export function QuoteForm({
   const [workSiteAddress, setWorkSiteAddress] = React.useState("");
   const [workSiteCity, setWorkSiteCity] = React.useState("");
   const [workSitePostalCode, setWorkSitePostalCode] = React.useState("");
+  const [retractionWaived, setRetractionWaived] = React.useState(false);
 
   const [laborRateEur, setLaborRateEur] = React.useState(() => {
     if (profileLaborRatePerHourCents == null) return "";
@@ -460,6 +461,7 @@ export function QuoteForm({
         <input type="hidden" name="reduced_vat_rate" value={reducedVatRate} />
         <input type="hidden" name="generate_vat_attestation" value={generateVatAttestation ? "1" : "0"} />
         <input type="hidden" name="work_site_address" value={workSiteAddress} />
+        <input type="hidden" name="retraction_waived" value={retractionWaived ? "1" : "0"} />
         <input type="hidden" name="work_site_city" value={workSiteCity} />
         <input type="hidden" name="work_site_postal_code" value={workSitePostalCode} />
         {conversationPrefill ? (
@@ -908,6 +910,35 @@ export function QuoteForm({
                     )}
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-none">
+              <CardHeader>
+                <CardTitle className="text-xl">Droit de rétractation</CardTitle>
+                <CardDescription>
+                  Un devis signé hors de ton établissement (domicile du client, chantier) déclenche par défaut
+                  un délai légal de 14 jours avant de pouvoir commencer les travaux.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={retractionWaived}
+                    onChange={(e) => setRetractionWaived(e.target.checked)}
+                    className="mt-1 rounded border"
+                  />
+                  <span>
+                    Le client demande expressément l&apos;exécution immédiate des travaux avant la fin du délai de
+                    rétractation (renonciation expresse, art. L221-28 3° du Code de la consommation).
+                  </span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  {retractionWaived
+                    ? "Le PDF affichera la mention de renonciation avec une ligne de signature dédiée, à la place du délai de 14 jours."
+                    : "Par défaut (recommandé) : le PDF affiche le délai de 14 jours et le formulaire type de rétractation."}
+                </p>
               </CardContent>
             </Card>
 

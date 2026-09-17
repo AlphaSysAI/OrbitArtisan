@@ -203,6 +203,7 @@ export async function createQuote(formData: FormData) {
   const work_site_address = String(formData.get("work_site_address") ?? "").trim() || null;
   const work_site_city = String(formData.get("work_site_city") ?? "").trim() || null;
   const work_site_postal_code = String(formData.get("work_site_postal_code") ?? "").trim() || null;
+  const retraction_waived = String(formData.get("retraction_waived") ?? "") === "1";
 
   const quoteStatus = forceDraft
     ? "draft"
@@ -259,6 +260,7 @@ export async function createQuote(formData: FormData) {
       work_site_address,
       work_site_city,
       work_site_postal_code,
+      retraction_waived,
       sent_at: quoteStatus === "sent" ? new Date().toISOString() : null,
     })
     .select("id")
