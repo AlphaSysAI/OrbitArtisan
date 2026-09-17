@@ -20,6 +20,8 @@ export async function updateLegalSettings(formData: FormData) {
   const paymentTermsRaw = Number(formData.get("default_payment_terms_days"));
   const retentionRaw = Number(String(formData.get("default_retention_rate") ?? "").replace(",", "."));
   const autoReminderEnabled = formData.get("auto_reminder_enabled") === "on";
+  const salesTermsRaw = String(formData.get("sales_terms_text") ?? "").trim();
+  const salesTermsText = salesTermsRaw ? salesTermsRaw.slice(0, 12000) : null;
 
   const legal = validateLegalEntityFields({ siren, siret, vat_number: vatNumber });
   if (!legal.ok) {
@@ -52,6 +54,7 @@ export async function updateLegalSettings(formData: FormData) {
       default_payment_terms_days: paymentTerms,
       default_retention_rate: retentionRate,
       auto_reminder_enabled: autoReminderEnabled,
+      sales_terms_text: salesTermsText,
     })
     .eq("id", profileId);
 
@@ -59,5 +62,6 @@ export async function updateLegalSettings(formData: FormData) {
 
   revalidatePath("/app/reglages");
   revalidatePath("/app/invoices");
+  revalidatePath("/app/quotes");
   return { ok: true as const };
 }

@@ -13,6 +13,7 @@ import {
 } from "@/lib/billing/quote-pdf-legal";
 import type { QuotePdfDocument } from "@/lib/billing/quote-pdf-types";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
+import { splitSalesTermsLines } from "@/lib/legal/default-artisan-sales-terms";
 
 async function fetchLogoBytes(url: string | null | undefined): Promise<Uint8Array | null> {
   if (!url?.trim()) return null;
@@ -55,7 +56,7 @@ export async function loadQuotePdfDocument(
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "business_name, name, phone, email, address_line1, postal_code, city, siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, logo_url, default_payment_terms_days",
+      "business_name, name, phone, email, address_line1, postal_code, city, siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, logo_url, default_payment_terms_days, sales_terms_text",
     )
     .eq("id", artisanId)
     .maybeSingle();
@@ -161,5 +162,6 @@ export async function loadQuotePdfDocument(
       profile: legalProfile,
       retractionWaived: !!quote.retraction_waived,
     }),
+    salesTermsLines: splitSalesTermsLines(profile.sales_terms_text),
   };
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { PasswordInput } from "@/components/auth/password-input";
+import { TermsAcceptanceField } from "@/components/legal/terms-acceptance-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +88,8 @@ export function RegisterForm({ next, prefillEmail, inviteToken }: RegisterFormPr
           required
         />
       </div>
+
+      <TermsAcceptanceField />
 
       <Button className="w-full" type="submit">
         Créer mon compte artisan

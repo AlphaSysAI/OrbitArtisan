@@ -9,6 +9,7 @@ import { notifyQuoteSentToCustomer } from "@/lib/notifications/notify-events";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
 import { validateQuoteLegalProfile, type QuoteLegalValidation } from "@/lib/billing/quote-pdf-legal";
 import { sendQuotePdfInConversation } from "@/lib/quotes/send-quote-pdf";
+import { validateQuoteBeforeSend } from "@/lib/quotes/validate-quote-before-send";
 
 const PROFILE_LEGAL_COLUMNS = [
   "business_name",
@@ -651,4 +652,127 @@ export async function deleteQuote(quoteId: string) {
   revalidatePath("/app/quotes");
   revalidatePath("/mes-devis");
   return { ok: true as const };
+}
+
+export type SendDraftQuoteResult =
+  | { ok: true; emailSent: boolean; notifyFailed: boolean }
+  | { ok: false; error: "auth" | "missing_profile" | "not_found" | "not_draft" | "no_email" | "update_failed" }
+  | { ok: false; error: "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation };
+
+/**
+ * Envoie un brouillon au client : passe le statut à « sent », puis e-mail PDF ou message conversation.
+ */
+export async function sendDraftQuote(quoteId: string): Promise<SendDraftQuoteResult> {
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) {
+    return { ok: false, error: "auth" };
+  }
+  const { supabase, userId } = userAuth;
+
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, PROFILE_LEGAL_COLUMNS);
+  if (!resolvedProfile.ok) {
+    return { ok: false, error: "missing_profile" };
+  }
+  const { profileId, profile } = resolvedProfile;
+  const profileBusinessName = profile.business_name as string | null;
+
+  const { data: quote } = await supabase
+    .from("quotes")
+    .select(
+      "id, artisan_id, status, customer_name, customer_email, customer_user_id, conversation_id, grand_total",
+    )
+    .eq("id", quoteId)
+    .maybeSingle();
+
+  if (!quote || quote.artisan_id !== profileId) {
+    return { ok: false, error: "not_found" };
+  }
+  if (quote.status !== "draft") {
+    return { ok: false, error: "not_draft" };
+  }
+
+  const customerEmail = quote.customer_email?.trim() ?? "";
+  const conversationId = quote.conversation_id as string | null;
+  if (!customerEmail && !conversationId) {
+    return { ok: false, error: "no_email" };
+  }
+
+  const legalCheck = await validateQuoteBeforeSend(supabase, quoteId, profileId);
+  if (!legalCheck.ok) {
+    return { ok: false, error: "quote_pdf_profile_incomplete", validation: legalCheck.validation };
+  }
+
+  const { data: updated } = await supabase
+    .from("quotes")
+    .update({
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", quoteId)
+    .eq("artisan_id", profileId)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
+
+  if (!updated) {
+    return { ok: false, error: "not_draft" };
+  }
+
+  let notifyFailed = false;
+  let emailSent = false;
+  const grandTotalCents = (quote.grand_total as number) ?? 0;
+
+  if (conversationId) {
+    const { data: materialRows } = await supabase
+      .from("quote_materials")
+      .select("label, quantity, exclude_from_invoice, supplier_url, supplier_sku")
+      .eq("quote_id", quoteId);
+
+    const sent = await sendQuotePdfInConversation(supabase, {
+      conversationId,
+      senderUserId: userId,
+      quoteId,
+      artisanId: profileId,
+      grandTotalCents,
+      directPurchaseItems: (materialRows ?? [])
+        .filter((m) => m.exclude_from_invoice)
+        .map((m) => ({
+          label: m.label as string,
+          quantity: m.quantity as number,
+          supplierUrl: (m.supplier_url as string | null) ?? null,
+          supplierSku: (m.supplier_sku as string | null) ?? null,
+        })),
+    });
+    if (!sent.ok) notifyFailed = true;
+  }
+
+  if (customerEmail) {
+    const emailResult = await sendQuoteByEmail({
+      supabase,
+      quoteId,
+      artisanId: profileId,
+      to: customerEmail,
+      customerName: quote.customer_name as string | null,
+      businessName: profileBusinessName,
+      grandTotalCents,
+    });
+    emailSent = emailResult.ok;
+    if (!emailResult.ok) notifyFailed = true;
+  }
+
+  if (quote.customer_user_id) {
+    void notifyQuoteSentToCustomer(supabase, {
+      quoteId,
+      customerUserId: quote.customer_user_id as string,
+      artisanName: profileBusinessName ?? "Votre artisan",
+    });
+  }
+
+  revalidatePath("/app/quotes");
+  revalidatePath(`/app/quotes/${quoteId}`);
+  revalidatePath("/mes-devis");
+  if (conversationId) revalidatePath(`/app/messages/${conversationId}`);
+
+  return { ok: true, emailSent, notifyFailed };
 }

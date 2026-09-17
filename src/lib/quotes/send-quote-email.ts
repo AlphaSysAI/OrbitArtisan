@@ -36,23 +36,32 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
   const pdfBytes = doc ? await renderQuotePdf(doc) : null;
   const pdfBase64 = pdfBytes ? Buffer.from(pdfBytes).toString("base64") : null;
   const fileStem = doc?.quoteNumber.replace(/[^\w-]+/g, "-") ?? params.quoteId.slice(0, 8);
+  const quoteRef = doc?.quoteNumber ?? params.quoteId.slice(0, 8).toUpperCase();
 
-  const subject = `${artisan} — votre devis (${total})`;
+  const subject = `${artisan} — votre devis n° ${quoteRef} (${total})`;
+
+  const legalNotice =
+    "Le document PDF joint reprend l'ensemble des mentions légales obligatoires (identité de l'entreprise, SIRET, assurances, TVA, validité du devis, conditions de paiement et, le cas échéant, droit de rétractation).";
 
   const html = `
     <p>${greeting}</p>
-    <p>Suite à notre échange, ${artisan} vous adresse un devis d'un montant de <strong>${total}</strong>.</p>
-    <p>Le document PDF est en pièce jointe${pdfBase64 ? "" : " (indisponible — contactez votre artisan)"}.</p>
-    <p>Vous pouvez aussi consulter et répondre au devis depuis votre espace client : <a href="${clientQuoteUrl}">Mes devis</a>.</p>
-    <p style="color:#666;font-size:12px;">Envoyé via Soline — secrétariat IA pour artisans du bâtiment.</p>
+    <p><strong>${artisan}</strong> vous adresse son devis n° <strong>${quoteRef}</strong>, d'un montant de <strong>${total}</strong> TTC.</p>
+    <p>Retrouvez le détail des prestations, fournitures et montants dans le PDF en pièce jointe${pdfBase64 ? "" : " (indisponible — contactez directement votre artisan)"}.</p>
+    <p style="font-size:13px;color:#444;">${legalNotice}</p>
+    <p>Vous pouvez consulter ce devis et y répondre (acceptation ou refus) depuis votre espace client : <a href="${clientQuoteUrl}">${clientQuoteUrl}</a>.</p>
+    <p style="color:#666;font-size:12px;margin-top:24px;">Message envoyé par ${artisan} via Soline.</p>
   `.trim();
 
   const text = [
     greeting,
     "",
-    `Suite à notre échange, ${artisan} vous adresse un devis de ${total}.`,
-    pdfBase64 ? "Le PDF est en pièce jointe." : "",
+    `${artisan} vous adresse son devis n° ${quoteRef}, d'un montant de ${total} TTC.`,
+    pdfBase64 ? "Le PDF détaillé est en pièce jointe." : "",
+    legalNotice,
+    "",
     `Espace client : ${clientQuoteUrl}`,
+    "",
+    `Message envoyé par ${artisan} via Soline.`,
   ]
     .filter(Boolean)
     .join("\n");

@@ -14,6 +14,7 @@ type Profile = {
   logo_url: string | null;
   slug: string;
   accent_color: string | null;
+  sales_terms_text: string | null;
 };
 
 type Service = {
@@ -44,6 +45,7 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
       logo_url: null,
       slug,
       accent_color: null,
+      sales_terms_text: null,
     };
     services = [
       { id: "demo-1", title: "Dépannage (visite)", duration: 45, price: 6500 },
@@ -55,7 +57,7 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
 
     const { data: p } = await supabase
       .from("profiles")
-      .select("id, user_id, name, business_name, description, logo_url, slug, accent_color")
+      .select("id, user_id, name, business_name, description, logo_url, slug, accent_color, sales_terms_text")
       .eq("slug", slug)
       .maybeSingle();
 

@@ -229,6 +229,16 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
     writer.drawText(warning, { size: 7, color: rgb(0.55, 0.35, 0.1), maxWidthChars: 110 });
   }
 
+  if (doc.salesTermsLines.length > 0) {
+    writer.ensureSpace(200);
+    writer.drawRule();
+    writer.drawText("CONDITIONS GÉNÉRALES DE VENTE", { size: 9, bold: true, color: PDF_BRAND });
+    for (const line of doc.salesTermsLines) {
+      writer.ensureSpace(90);
+      writer.drawText(line, { size: 7, maxWidthChars: 100, lineGap: 9 });
+    }
+  }
+
   for (const line of doc.legalFooterLines) {
     writer.ensureSpace(90);
     writer.drawText(line, { size: 7, color: PDF_MUTED, maxWidthChars: 110, lineGap: 9 });

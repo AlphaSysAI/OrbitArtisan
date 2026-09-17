@@ -610,6 +610,9 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
             <a href="/cgu" className="hover:text-white">
               CGU
             </a>
+            <a href="/cgv" className="hover:text-white">
+              CGV
+            </a>
             <a href="/mentions-legales" className="hover:text-white">
               Mentions légales
             </a>

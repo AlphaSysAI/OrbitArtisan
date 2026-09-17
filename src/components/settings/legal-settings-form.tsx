@@ -7,6 +7,11 @@ import { updateLegalSettings } from "@/app/app/reglages/legal-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  ARTISAN_SALES_TERMS_PLACEHOLDER,
+  DEFAULT_ARTISAN_SALES_TERMS_TEMPLATE,
+} from "@/lib/legal/default-artisan-sales-terms";
 
 export function LegalSettingsForm({
   initialValues,
@@ -25,8 +30,11 @@ export function LegalSettingsForm({
     default_payment_terms_days: number;
     default_retention_rate: number;
     auto_reminder_enabled: boolean;
+    sales_terms_text: string | null;
   };
 }) {
+  const [salesTerms, setSalesTerms] = React.useState(initialValues.sales_terms_text ?? "");
+
   async function onSubmit(formData: FormData) {
     const res = await updateLegalSettings(formData);
     if (!res.ok) {
@@ -136,6 +144,44 @@ export function LegalSettingsForm({
           />
           Relances automatiques des impayés par email
         </label>
+      </div>
+
+      <div className="space-y-4 border-t pt-4">
+        <div className="space-y-1">
+          <h3 className="font-medium">CGV clients (devis & vitrine)</h3>
+          <p className="text-sm text-muted-foreground">
+            Tes conditions générales de vente vis-à-vis de tes clients. Elles apparaissent en annexe de tes
+            devis PDF et sur ta page vitrine.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="sales_terms_text">Texte des CGV</Label>
+          <Textarea
+            id="sales_terms_text"
+            name="sales_terms_text"
+            rows={12}
+            value={salesTerms}
+            onChange={(event) => setSalesTerms(event.target.value)}
+            placeholder={ARTISAN_SALES_TERMS_PLACEHOLDER}
+            className="font-mono text-sm"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSalesTerms(DEFAULT_ARTISAN_SALES_TERMS_TEMPLATE)}
+            >
+              Insérer le modèle BTP
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSalesTerms("")}>
+              Effacer
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Modèle indicatif — fais-le relire par un professionnel du droit avant utilisation.
+          </p>
+        </div>
       </div>
 
       <Button type="submit">Enregistrer</Button>

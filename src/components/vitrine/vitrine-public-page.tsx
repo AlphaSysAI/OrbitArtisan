@@ -15,6 +15,7 @@ type Profile = {
   description: string | null;
   logo_url: string | null;
   slug: string;
+  sales_terms_text?: string | null;
 };
 
 type Service = {
@@ -187,6 +188,17 @@ export function VitrinePublicPage({
         </section>
 
         <footer className="border-t border-neutral-200 pt-10 text-center text-sm text-neutral-500">
+          {profile.sales_terms_text?.trim() ? (
+            <p className="mb-3">
+              <Link
+                href={`/site/${profile.slug}/cgv`}
+                className="font-medium underline-offset-4 hover:underline"
+                style={{ color: accentDark }}
+              >
+                Conditions générales de vente
+              </Link>
+            </p>
+          ) : null}
           <p>
             Page proposée avec{" "}
             <Link href={getMarketingHomeHref()} className="font-medium underline-offset-4 hover:underline" style={{ color: accentDark }}>

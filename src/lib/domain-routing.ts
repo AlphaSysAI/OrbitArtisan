@@ -10,7 +10,7 @@ import {
   isDomainSplitEnabled,
 } from "@/lib/site-url";
 
-const LEGAL_PATHS = ["/cgu", "/mentions-legales", "/confidentialite"] as const;
+const LEGAL_PATHS = ["/cgu", "/cgv", "/mentions-legales", "/confidentialite"] as const;
 
 const MARKETING_PATHS = new Set<string>(["/", ...LEGAL_PATHS, "/embed.js"]);
 

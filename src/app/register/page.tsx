@@ -65,6 +65,15 @@ export default async function RegisterPage({
             </Alert>
           )}
 
+          {error === "terms_not_accepted" && (
+            <Alert variant="destructive">
+              <AlertTitle>Acceptation requise</AlertTitle>
+              <AlertDescription>
+                Tu dois accepter les CGU et les CGV de Soline pour créer un compte.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error === "signup_failed" && (
             <Alert variant="destructive">
               <AlertTitle>Inscription impossible</AlertTitle>

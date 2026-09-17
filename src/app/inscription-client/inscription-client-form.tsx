@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { PasswordInput } from "@/components/auth/password-input";
+import { TermsAcceptanceField } from "@/components/legal/terms-acceptance-field";
+import { LEGAL_LAST_UPDATED } from "@/lib/legal/site-legal-info";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,6 +96,13 @@ export function InscriptionClientForm({
       return;
     }
 
+    const acceptTerms = fd.get("accept_terms") === "1";
+    if (!acceptTerms) {
+      setError("Tu dois accepter les CGU et les CGV de Soline pour créer un compte.");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createSupabaseBrowserClient();
     const origin = window.location.origin;
     const callbackNext = leadToken
@@ -108,6 +117,10 @@ export function InscriptionClientForm({
       password,
       options: {
         emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
+        data: {
+          terms_accepted_at: new Date().toISOString(),
+          terms_version: LEGAL_LAST_UPDATED,
+        },
       },
     });
 
@@ -259,6 +272,8 @@ export function InscriptionClientForm({
             autoComplete="new-password"
           />
         </div>
+        <TermsAcceptanceField />
+
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Création…" : "Créer mon compte client"}
         </Button>

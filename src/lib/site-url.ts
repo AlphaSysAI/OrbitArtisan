@@ -53,3 +53,11 @@ export function getMarketingHomeHref(): string {
   if (isDomainSplitEnabled()) return getMarketingSiteUrl();
   return "/";
 }
+
+/** Pages légales hébergées sur le domaine marketing en prod. */
+export function getMarketingLegalHref(
+  path: "/cgu" | "/cgv" | "/mentions-legales" | "/confidentialite",
+): string {
+  if (isDomainSplitEnabled()) return `${getMarketingSiteUrl()}${path}`;
+  return path;
+}

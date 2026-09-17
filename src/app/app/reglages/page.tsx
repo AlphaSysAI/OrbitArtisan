@@ -190,13 +190,14 @@ export default async function ArtisanSettingsPage({
     default_payment_terms_days: 30,
     default_retention_rate: 5,
     auto_reminder_enabled: true,
+    sales_terms_text: null as string | null,
   };
 
   if (profile?.id) {
     const legalRes = await supabase
       .from("profiles")
       .select(
-        "siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, default_retention_rate, auto_reminder_enabled",
+        "siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, default_retention_rate, auto_reminder_enabled, sales_terms_text",
       )
       .eq("id", profile.id)
       .maybeSingle();
@@ -215,6 +216,7 @@ export default async function ArtisanSettingsPage({
         default_payment_terms_days: legalRes.data.default_payment_terms_days ?? 30,
         default_retention_rate: Number(legalRes.data.default_retention_rate ?? 5),
         auto_reminder_enabled: legalRes.data.auto_reminder_enabled ?? true,
+        sales_terms_text: legalRes.data.sales_terms_text,
       };
     }
   }

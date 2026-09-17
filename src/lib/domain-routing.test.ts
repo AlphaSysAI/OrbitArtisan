@@ -54,6 +54,15 @@ describe("resolveDomainRouting", () => {
     expect(res?.headers.get("location")).toBe("https://solinebtp.fr/cgu");
   });
 
+  it("redirige /cgv de l'app vers le marketing", () => {
+    mockEnv({
+      NEXT_PUBLIC_MARKETING_URL: "https://solinebtp.fr",
+      NEXT_PUBLIC_SITE_URL: "https://app.solinebtp.fr",
+    });
+    const res = resolveDomainRouting(request("https://app.solinebtp.fr/cgv"));
+    expect(res?.headers.get("location")).toBe("https://solinebtp.fr/cgv");
+  });
+
   it("laisse /register sur le domaine app", () => {
     mockEnv({
       NEXT_PUBLIC_MARKETING_URL: "https://solinebtp.fr",

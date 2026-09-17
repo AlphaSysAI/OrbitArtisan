@@ -1,13 +1,8 @@
 import Link from "next/link";
 import { Building2 } from "lucide-react";
 
+import { LEGAL_PAGE_LINKS } from "@/lib/legal/legal-links";
 import { LEGAL_LAST_UPDATED, LEGAL_PUBLISHER } from "@/lib/legal/site-legal-info";
-
-const LEGAL_LINKS = [
-  { href: "/cgu", label: "CGU" },
-  { href: "/mentions-legales", label: "Mentions légales" },
-  { href: "/confidentialite", label: "Confidentialité" },
-] as const;
 
 type LegalPageShellProps = {
   title: string;
@@ -46,7 +41,7 @@ export function LegalPageShell({ title, children }: LegalPageShellProps) {
       <footer className="border-t border-slate-200 bg-slate-50 py-8">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 px-4 sm:px-6">
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-slate-600">
-            {LEGAL_LINKS.map((link) => (
+            {LEGAL_PAGE_LINKS.map((link) => (
               <Link key={link.href} href={link.href} className="hover:text-slate-900">
                 {link.label}
               </Link>

@@ -51,4 +51,6 @@ export type QuotePdfDocument = {
   legalFooterLines: string[];
   legalWarnings: string[];
   retractionNotice: QuoteRetractionNotice;
+  /** CGV propres de l'artisan (clients finaux), une ligne par paragraphe. */
+  salesTermsLines: string[];
 };

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { LEGAL_LAST_UPDATED } from "@/lib/legal/site-legal-info";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
@@ -37,6 +38,10 @@ export async function signUpWithPassword(formData: FormData) {
     registerRedirect({ ...baseParams, error: "password_mismatch" });
   }
 
+  if (formData.get("accept_terms") !== "1") {
+    registerRedirect({ ...baseParams, error: "terms_not_accepted" });
+  }
+
   const siteUrl = getPublicSiteUrl();
   const callbackNext = invite ? `/app/reglages?tab=activite&invite=${encodeURIComponent(invite)}` : next;
 
@@ -47,6 +52,10 @@ export async function signUpWithPassword(formData: FormData) {
     password,
     options: {
       emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
+      data: {
+        terms_accepted_at: new Date().toISOString(),
+        terms_version: LEGAL_LAST_UPDATED,
+      },
     },
   });
 

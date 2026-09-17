@@ -1,12 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
-import {
-  formatPriceHtEur,
-  FORMAL_NOTICES_INCLUDED_PER_MONTH,
-  SOLINE_RECHARGE_PACKS,
-  SUBSCRIPTION_PLANS,
-} from "@/lib/billing/subscription-plans";
 import { LEGAL_PUBLISHER } from "@/lib/legal/site-legal-info";
 
 export const metadata: Metadata = {
@@ -34,7 +29,11 @@ export default function CguPage() {
         </p>
         <p>
           L&apos;inscription ou l&apos;utilisation du service vaut acceptation pleine et entière des
-          présentes CGU.
+          présentes CGU et des{" "}
+          <Link href="/cgv" className="text-orange-600 underline-offset-2 hover:underline">
+            Conditions générales de vente (CGV)
+          </Link>
+          .
         </p>
       </section>
 
@@ -62,61 +61,20 @@ export default function CguPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-900">3. Offres et tarification</h2>
-        <p>Les offres en vigueur au moment de la souscription sont les suivantes :</p>
-        <ul className="list-disc space-y-2 pl-5">
-          {SUBSCRIPTION_PLANS.map((plan) => (
-            <li key={plan.id}>
-              <strong>Plan {plan.name}</strong> — {formatPriceHtEur(plan.priceMonthlyHtEur)} € HT / mois ou{" "}
-              {formatPriceHtEur(plan.priceAnnualHtEur)} € HT / an :{" "}
-              {plan.solineMinutesIncluded > 0
-                ? `SaaS BTP complet + Soline (${plan.solineMinutesIncluded} min d'appels incluses / mois).`
-                : "SaaS BTP complet, sans secrétaire vocale Soline."}
-            </li>
-          ))}
-          <li>
-            <strong>Essai gratuit</strong> : 15 jours sans carte bancaire, sous réserve des conditions
-            affichées lors de l&apos;inscription.
-          </li>
-        </ul>
+        <h2 className="text-lg font-semibold text-slate-900">3. Abonnement et tarification</h2>
         <p>
-          Chaque offre comprend l&apos;envoi de{" "}
-          <strong>
-            {FORMAL_NOTICES_INCLUDED_PER_MONTH} mise en demeure par lettre recommandée avec accusé de
-            réception par mois civil
-          </strong>
-          , affranchissement inclus. Au-delà de ce quota, les frais d&apos;affranchissement du courrier
-          recommandé restent à la charge de l&apos;artisan et lui sont refacturés au tarif postal en
-          vigueur, sans marge. Un envoi payant n&apos;est déclenché qu&apos;après acceptation expresse
-          du surcoût par l&apos;artisan, et aucun courrier n&apos;est expédié sans sa validation
-          préalable. Le quota non consommé est perdu à la fin de chaque mois civil : il n&apos;est ni
-          reportable, ni cumulable, ni remboursable.
-        </p>
-        <p>
-          La transmission d&apos;un dossier de créance à notre partenaire de recouvrement est
-          subordonnée à l&apos;acceptation expresse, par l&apos;artisan, d&apos;un mandat de
-          recouvrement amiable et judiciaire. La rémunération du partenaire est prélevée sur les sommes
-          effectivement recouvrées : aucun frais n&apos;est dû en l&apos;absence de recouvrement.
-        </p>
-        <p>Des packs de recharge de minutes Soline sont également disponibles à l&apos;achat depuis l&apos;espace artisan :</p>
-        <ul className="list-disc space-y-2 pl-5">
-          {SOLINE_RECHARGE_PACKS.map((pack) => (
-            <li key={pack.id}>
-              <strong>{pack.label}</strong> : {pack.priceHtEur} € HT — {pack.minutes} minutes d&apos;appels
-              créditées sur le compte.
-            </li>
-          ))}
-        </ul>
-        <p>
-          Les tarifs peuvent être modifiés. Toute modification sera notifiée à l&apos;utilisateur avant son
-          application.           L&apos;abonnement est conclu pour une durée mensuelle ou annuelle selon l&apos;offre choisie,
-          renouvelable tacitement, et résiliable à tout moment depuis l&apos;espace utilisateur ou par e-mail à{" "}
-          <a href={`mailto:${LEGAL_PUBLISHER.email}`} className="text-orange-600 underline-offset-2 hover:underline">
-            {LEGAL_PUBLISHER.email}
-          </a>
+          L&apos;accès aux fonctionnalités payantes de {LEGAL_PUBLISHER.productName} est subordonné à la
+          souscription d&apos;un abonnement. Les offres, tarifs, modalités de paiement, durée, renouvellement
+          et résiliation sont détaillés dans les{" "}
+          <Link href="/cgv" className="text-orange-600 underline-offset-2 hover:underline">
+            Conditions générales de vente (CGV)
+          </Link>
           .
         </p>
-        <p>Les paiements sont traités par le prestataire Stripe. Les factures sont émises conformément à la réglementation française.</p>
+        <p>
+          Un essai gratuit peut être proposé lors de l&apos;inscription, sans carte bancaire, pour une durée
+          limitée et selon les conditions affichées au moment de la création du compte.
+        </p>
       </section>
 
       <section className="space-y-3">

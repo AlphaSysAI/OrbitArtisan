@@ -133,6 +133,15 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
         </div>
       </div>
 
+      {quote.status === "draft" ? (
+        <QuoteDocumentActionsCard
+          quoteId={quoteId}
+          status={quote.status}
+          customerEmail={quote.customer_email}
+          conversationId={conversationId}
+        />
+      ) : null}
+
       <div className={cn("grid gap-6 rounded-2xl p-4 lg:grid-cols-[1fr_360px] lg:p-6", frameClass)}>
         <div className="space-y-6">
           <Card className="border-0 shadow-none">
@@ -213,7 +222,14 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
         </div>
 
         <div className="space-y-6">
-          <QuoteDocumentActionsCard quoteId={quoteId} status={quote.status} />
+          {quote.status !== "draft" ? (
+            <QuoteDocumentActionsCard
+              quoteId={quoteId}
+              status={quote.status}
+              customerEmail={quote.customer_email}
+              conversationId={conversationId}
+            />
+          ) : null}
 
           <Card className="border-0 shadow-none">
             <CardHeader>
