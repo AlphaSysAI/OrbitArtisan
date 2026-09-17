@@ -44,7 +44,7 @@ export async function loadQuotePdfDocument(
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id, artisan_id, customer_name, customer_email, labor_rate_per_hour, labor_duration_minutes, labor_total, materials_total, grand_total, notes, created_at, work_site_address, work_site_city, work_site_postal_code, reduced_vat_rate, generate_vat_attestation, quote_number, retraction_waived",
+      "id, artisan_id, customer_name, customer_email, labor_rate_per_hour, labor_duration_minutes, labor_total, materials_total, grand_total, notes, created_at, work_site_address, work_site_city, work_site_postal_code, reduced_vat_rate, generate_vat_attestation, quote_number, retraction_waived, valid_until",
     )
     .eq("id", quoteId)
     .eq("artisan_id", artisanId)
@@ -76,8 +76,15 @@ export async function loadQuotePdfDocument(
   ]);
 
   const issueDate = new Date(quote.created_at);
-  const validUntil = new Date(issueDate);
-  validUntil.setMonth(validUntil.getMonth() + 3);
+  // Priorité à la date figée en base (celle que client_accept_quote vérifie) ;
+  // repli sur l'ancien calcul pour un devis créé avant la migration 24.
+  let validUntil: Date;
+  if (quote.valid_until) {
+    validUntil = new Date(`${quote.valid_until}T00:00:00Z`);
+  } else {
+    validUntil = new Date(issueDate);
+    validUntil.setMonth(validUntil.getMonth() + 3);
+  }
 
   const workSite = [quote.work_site_address, quote.work_site_postal_code, quote.work_site_city]
     .filter(Boolean)

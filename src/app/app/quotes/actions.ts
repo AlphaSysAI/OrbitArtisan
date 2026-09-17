@@ -205,6 +205,13 @@ export async function createQuote(formData: FormData) {
   const work_site_postal_code = String(formData.get("work_site_postal_code") ?? "").trim() || null;
   const retraction_waived = String(formData.get("retraction_waived") ?? "") === "1";
 
+  // Figé à la création (pas recalculé plus tard) pour matcher exactement la date
+  // imprimée sur le PDF envoyé au client — c'est cette valeur que
+  // client_accept_quote vérifie avant d'accepter la signature.
+  const validUntilDate = new Date();
+  validUntilDate.setMonth(validUntilDate.getMonth() + 3);
+  const valid_until = validUntilDate.toISOString().slice(0, 10);
+
   const quoteStatus = forceDraft
     ? "draft"
     : forceSend || (linkedConversationId && linkedCustomerUserId)
@@ -261,6 +268,7 @@ export async function createQuote(formData: FormData) {
       work_site_city,
       work_site_postal_code,
       retraction_waived,
+      valid_until,
       sent_at: quoteStatus === "sent" ? new Date().toISOString() : null,
     })
     .select("id")

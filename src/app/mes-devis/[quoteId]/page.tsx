@@ -32,7 +32,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id,status,customer_user_id,artisan_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at",
+      "id,status,customer_user_id,artisan_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,valid_until",
     )
     .eq("id", quoteId)
     .maybeSingle();
@@ -66,6 +66,9 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
     rejected_at?: string | null;
   };
 
+  const isExpired =
+    q.status === "sent" && !!quote.valid_until && new Date(`${quote.valid_until}T00:00:00Z`) < new Date();
+
   const frameClass =
     q.status === "accepted"
       ? "border-2 border-green-600/70 shadow-sm shadow-green-600/10"
@@ -83,6 +86,12 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
             {artisan?.business_name ?? "Artisan"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">Statut : {quoteStatusLabel(quote.status)}</p>
+          {isExpired && (
+            <p className="mt-1 text-sm font-medium text-amber-700 dark:text-amber-400">
+              Ce devis a dépassé sa date de validité. Contacte l&apos;artisan pour une mise à jour avant de le
+              signer.
+            </p>
+          )}
         </div>
         <Link href="/mes-devis" className={buttonVariants({ variant: "outline", size: "sm" })}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -238,7 +247,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
               )}
 
               <ClientQuotePdfDownloadButton quoteId={quoteId} />
-              <ClientQuoteActions quoteId={quoteId} status={q.status} />
+              <ClientQuoteActions quoteId={quoteId} status={q.status} expired={isExpired} />
             </CardContent>
           </Card>
         </div>

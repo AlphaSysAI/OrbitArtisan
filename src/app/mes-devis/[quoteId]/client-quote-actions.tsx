@@ -20,9 +20,12 @@ import { clientAcceptQuote, clientRejectQuote } from "../actions";
 export function ClientQuoteActions({
   quoteId,
   status,
+  expired = false,
 }: {
   quoteId: string;
   status: string;
+  /** Devis "sent" dont la date de validité (valid_until) est dépassée. */
+  expired?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [signerName, setSignerName] = React.useState("");
@@ -73,9 +76,15 @@ export function ClientQuoteActions({
       <Button type="button" variant="outline" className="border-red-500/60 text-red-700 hover:bg-red-500/10" onClick={onReject} disabled={loading !== null}>
         {loading === "reject" ? "…" : "Refuser le devis"}
       </Button>
-      <Button type="button" onClick={() => setOpen(true)} disabled={loading !== null}>
-        Valider le devis
-      </Button>
+      {expired ? (
+        <p className="text-sm text-muted-foreground">
+          Devis expiré — demande une mise à jour à l&apos;artisan avant de pouvoir le valider.
+        </p>
+      ) : (
+        <Button type="button" onClick={() => setOpen(true)} disabled={loading !== null}>
+          Valider le devis
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
