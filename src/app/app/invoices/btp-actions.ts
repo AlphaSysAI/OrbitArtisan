@@ -9,13 +9,12 @@ import {
 import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { redirect } from "next/navigation";
-import { INVOICING_FROZEN, frozenInvoicingResult } from "@/lib/billing/invoicing-freeze";
+import { frozenInvoicingResult, isDraftInvoicingFrozenForCustomer } from "@/lib/billing/invoicing-freeze";
+import { resolveCustomerClassification } from "@/lib/billing/invoicing/resolve-customer-classification";
 
 export async function createCreditNoteFromInvoice(
   invoiceId: string,
 ): Promise<{ ok: true; creditNoteId: string } | { ok: false; error: string }> {
-  if (INVOICING_FROZEN) return frozenInvoicingResult();
-
   const auth = await requireArtisanProfileId();
   if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "profile" };
   const { supabase, profileId } = auth;
@@ -32,6 +31,10 @@ export async function createCreditNoteFromInvoice(
   if (source.status !== "paid" && source.status !== "sent" && source.status !== "overdue") {
     return { ok: false, error: "invalid_status" };
   }
+
+  // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts).
+  const customerClass = await resolveCustomerClassification(supabase, source.customer_user_id);
+  if (isDraftInvoicingFrozenForCustomer(customerClass)) return frozenInvoicingResult();
 
   const amount = source.grand_total ?? 0;
   if (amount <= 0) return { ok: false, error: "zero_amount" };
@@ -92,8 +95,6 @@ export async function createCreditNoteFromInvoice(
 }
 
 export async function releaseRetention(invoiceId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (INVOICING_FROZEN) return frozenInvoicingResult();
-
   const auth = await requireArtisanProfileId();
   if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "profile" };
   const { supabase, profileId } = auth;
@@ -108,6 +109,10 @@ export async function releaseRetention(invoiceId: string): Promise<{ ok: true } 
   if (!inv) return { ok: false, error: "not_found" };
   if (!inv.retention_amount || inv.retention_amount <= 0) return { ok: false, error: "no_retention" };
   if (inv.retention_released_at) return { ok: false, error: "already_released" };
+
+  // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts).
+  const customerClass = await resolveCustomerClassification(supabase, inv.customer_user_id);
+  if (isDraftInvoicingFrozenForCustomer(customerClass)) return frozenInvoicingResult();
 
   const { data: quote } = await supabase
     .from("quotes")

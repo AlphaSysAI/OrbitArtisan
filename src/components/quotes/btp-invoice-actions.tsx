@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createDepositInvoice, createProgressInvoice } from "@/app/app/invoices/actions";
-import { INVOICING_FROZEN, INVOICING_FROZEN_MESSAGE } from "@/lib/billing/invoicing-freeze";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,10 +25,15 @@ export function BtpInvoiceActions({
   quoteId,
   quoteGrandTotalCents,
   alreadyInvoicedCents,
+  invoicingFrozen,
+  invoicingFrozenMessage,
 }: {
   quoteId: string;
   quoteGrandTotalCents: number;
   alreadyInvoicedCents: number;
+  /** Vague 7 : gel désormais scopé au client (B2B uniquement), calculé côté serveur. */
+  invoicingFrozen: boolean;
+  invoicingFrozenMessage: string;
 }) {
   const router = useRouter();
   const [depositOpen, setDepositOpen] = React.useState(false);
@@ -92,7 +96,7 @@ export function BtpInvoiceActions({
     );
   }
 
-  if (INVOICING_FROZEN) {
+  if (invoicingFrozen) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
@@ -100,7 +104,7 @@ export function BtpInvoiceActions({
           {alreadyInvoicedCents > 0 ? ` (${formatEur(alreadyInvoicedCents)} déjà facturé)` : null}
         </p>
         <div className="rounded-xl border border-amber-600/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
-          {INVOICING_FROZEN_MESSAGE}
+          {invoicingFrozenMessage}
         </div>
       </div>
     );

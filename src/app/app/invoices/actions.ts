@@ -16,7 +16,8 @@ import { computeRemainingBillableCents } from "@/lib/billing/invoice-types";
 import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
-import { INVOICING_FROZEN, frozenInvoicingResult } from "@/lib/billing/invoicing-freeze";
+import { frozenInvoicingResult, isDraftInvoicingFrozenForCustomer } from "@/lib/billing/invoicing-freeze";
+import { resolveCustomerClassification } from "@/lib/billing/invoicing/resolve-customer-classification";
 
 export async function createInvoiceFromQuoteForm(formData: FormData): Promise<void> {
   const quoteId = String(formData.get("quote_id") ?? "").trim();
@@ -25,8 +26,6 @@ export async function createInvoiceFromQuoteForm(formData: FormData): Promise<vo
 }
 
 export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
-  if (INVOICING_FROZEN) redirect(`/app/quotes/${quoteId}?error=invoicing_frozen`);
-
   const userAuth = await requireAuthenticatedUser();
   if (!userAuth.ok) redirect("/login");
   const { supabase, userId } = userAuth;
@@ -49,6 +48,12 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
 
   if (!quote || quote.status !== "accepted") {
     redirect(`/app/quotes/${quoteId}?error=invoice`);
+  }
+
+  // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts).
+  const customerClass = await resolveCustomerClassification(supabase, quote.customer_user_id);
+  if (isDraftInvoicingFrozenForCustomer(customerClass)) {
+    redirect(`/app/quotes/${quoteId}?error=invoicing_frozen`);
   }
 
   const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
@@ -363,8 +368,6 @@ export async function createDepositInvoice(
   quoteId: string,
   percent: number,
 ): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
-  if (INVOICING_FROZEN) return frozenInvoicingResult();
-
   const userAuth = await requireAuthenticatedUser();
   if (!userAuth.ok) return { ok: false, error: "auth" };
   const { supabase, userId } = userAuth;
@@ -383,6 +386,10 @@ export async function createDepositInvoice(
     .maybeSingle();
 
   if (!quote) return { ok: false, error: "not_found" };
+
+  // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts).
+  const customerClass = await resolveCustomerClassification(supabase, quote.customer_user_id);
+  if (isDraftInvoicingFrozenForCustomer(customerClass)) return frozenInvoicingResult();
 
   const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
   const amount = computeDepositForQuote(quote.grand_total, percent, alreadyInvoiced);
@@ -407,8 +414,6 @@ export async function createProgressInvoice(
   quoteId: string,
   cumulativePercent: number,
 ): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
-  if (INVOICING_FROZEN) return frozenInvoicingResult();
-
   const userAuth = await requireAuthenticatedUser();
   if (!userAuth.ok) return { ok: false, error: "auth" };
   const { supabase, userId } = userAuth;
@@ -427,6 +432,10 @@ export async function createProgressInvoice(
     .maybeSingle();
 
   if (!quote) return { ok: false, error: "not_found" };
+
+  // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts).
+  const customerClass = await resolveCustomerClassification(supabase, quote.customer_user_id);
+  if (isDraftInvoicingFrozenForCustomer(customerClass)) return frozenInvoicingResult();
 
   const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
   const amount = computeProgressForQuote(quote.grand_total, cumulativePercent, alreadyInvoiced);

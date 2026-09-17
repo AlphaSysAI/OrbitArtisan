@@ -90,6 +90,8 @@ type InvoiceDetailViewProps = {
   customerLabel: string;
   /** Bloc recouvrement, rendu par le parent qui détient le client Supabase. */
   recoverySlot?: ReactNode;
+  /** Actions BTP (avoir, retenue) — même raison : classification B2B/B2C nécessite le client Supabase. */
+  btpActionsSlot?: ReactNode;
   finalizeError?: string;
   actionError?: string;
   finalized?: string;
@@ -103,6 +105,7 @@ function InvoiceDetailView({
   sortedLines,
   customerLabel,
   recoverySlot,
+  btpActionsSlot,
   finalizeError,
   actionError,
   finalized,
@@ -212,13 +215,7 @@ function InvoiceDetailView({
 
       {recoverySlot}
 
-      {!isDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft" ? (
-        <BtpActionsSection
-          invoiceId={invoiceId}
-          retentionAmount={invoice.retention_amount}
-          retentionReleasedAt={invoice.retention_released_at}
-        />
-      ) : null}
+      {!isDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft" ? btpActionsSlot : null}
 
       <Card>
         <CardHeader>
@@ -310,25 +307,6 @@ async function RecoveryPanel({
   }
 }
 
-async function BtpActionsSection({
-  invoiceId,
-  retentionAmount,
-  retentionReleasedAt,
-}: {
-  invoiceId: string;
-  retentionAmount: number;
-  retentionReleasedAt: string | null;
-}) {
-  const { InvoiceBtpActionsCard } = await import("./invoice-btp-actions-card");
-  return (
-    <InvoiceBtpActionsCard
-      invoiceId={invoiceId}
-      retentionAmount={retentionAmount}
-      retentionReleasedAt={retentionReleasedAt}
-    />
-  );
-}
-
 export default async function InvoiceEditPage({
   params,
   searchParams,
@@ -401,6 +379,30 @@ export default async function InvoiceEditPage({
 
     const sortedLines = await loadInvoiceLinesForEditPage(supabase, invoiceId);
 
+    // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts) — la
+    // classification nécessite le client Supabase, donc calculée ici comme recoverySlot,
+    // pas dans InvoiceDetailView qui ne le détient pas.
+    const invoiceIsDraft = invoice.status === "draft" && !invoice.finalized_at;
+    const showBtpActions = !invoiceIsDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft";
+    let btpActionsSlot: ReactNode = null;
+    if (showBtpActions) {
+      const { InvoiceBtpActionsCard } = await import("./invoice-btp-actions-card");
+      const { resolveCustomerClassification } = await import("@/lib/billing/invoicing/resolve-customer-classification");
+      const { frozenInvoicingMessageFor, isDraftInvoicingFrozenForCustomer } = await import(
+        "@/lib/billing/invoicing-freeze"
+      );
+      const invoicingCustomerClass = await resolveCustomerClassification(supabase, invoice.customer_user_id);
+      btpActionsSlot = (
+        <InvoiceBtpActionsCard
+          invoiceId={invoiceId}
+          retentionAmount={invoice.retention_amount}
+          retentionReleasedAt={invoice.retention_released_at}
+          invoicingFrozen={isDraftInvoicingFrozenForCustomer(invoicingCustomerClass)}
+          invoicingFrozenMessage={frozenInvoicingMessageFor(invoicingCustomerClass)}
+        />
+      );
+    }
+
     return (
       <InvoiceDetailView
         invoiceId={invoiceId}
@@ -410,6 +412,7 @@ export default async function InvoiceEditPage({
         recoverySlot={
           <RecoveryPanel supabase={supabase} invoice={invoice} artisanId={profile.id} />
         }
+        btpActionsSlot={btpActionsSlot}
         finalizeError={finalizeError}
         actionError={actionError}
         finalized={finalized}

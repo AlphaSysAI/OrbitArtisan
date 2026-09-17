@@ -2,16 +2,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { createCreditNoteForm, releaseRetentionForm } from "../btp-actions";
-import { INVOICING_FROZEN, INVOICING_FROZEN_MESSAGE } from "@/lib/billing/invoicing-freeze";
 
 export function InvoiceBtpActionsCard({
   invoiceId,
   retentionAmount,
   retentionReleasedAt,
+  invoicingFrozen,
+  invoicingFrozenMessage,
 }: {
   invoiceId: string;
   retentionAmount: number;
   retentionReleasedAt: string | null;
+  /** Vague 7 : gel désormais scopé au client (B2B uniquement), calculé côté serveur. */
+  invoicingFrozen: boolean;
+  invoicingFrozenMessage: string;
 }) {
   return (
     <Card>
@@ -20,8 +24,8 @@ export function InvoiceBtpActionsCard({
         <CardDescription>Avoir, retenue de garantie</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
-        {INVOICING_FROZEN ? (
-          <p className="text-sm text-muted-foreground">{INVOICING_FROZEN_MESSAGE}</p>
+        {invoicingFrozen ? (
+          <p className="text-sm text-muted-foreground">{invoicingFrozenMessage}</p>
         ) : (
           <>
             <form action={createCreditNoteForm}>

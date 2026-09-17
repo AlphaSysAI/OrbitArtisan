@@ -18,7 +18,8 @@ import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 import { loadInvoicesForQuote } from "@/lib/billing/load-invoice-for-page";
 
 import { createInvoiceFromQuoteForm } from "../../invoices/actions";
-import { INVOICING_FROZEN, INVOICING_FROZEN_MESSAGE } from "@/lib/billing/invoicing-freeze";
+import { frozenInvoicingMessageFor, isDraftInvoicingFrozenForCustomer } from "@/lib/billing/invoicing-freeze";
+import { resolveCustomerClassification } from "@/lib/billing/invoicing/resolve-customer-classification";
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
   const sp = await params;
@@ -50,6 +51,11 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
       </div>
     );
   }
+
+  // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts).
+  const invoicingCustomerClass = await resolveCustomerClassification(supabase, quote.customer_user_id);
+  const invoicingFrozen = isDraftInvoicingFrozenForCustomer(invoicingCustomerClass);
+  const invoicingFrozenMessage = frozenInvoicingMessageFor(invoicingCustomerClass);
 
   const { data: serviceLines } = await supabase
     .from("quote_services")
@@ -308,12 +314,14 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                     quoteId={quoteId}
                     quoteGrandTotalCents={quote.grand_total ?? 0}
                     alreadyInvoicedCents={alreadyInvoicedCents}
+                    invoicingFrozen={invoicingFrozen}
+                    invoicingFrozenMessage={invoicingFrozenMessage}
                   />
 
                   {alreadyInvoicedCents < (quote.grand_total ?? 0) ? (
-                    INVOICING_FROZEN ? (
+                    invoicingFrozen ? (
                       <div className="rounded-xl border border-amber-600/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
-                        {INVOICING_FROZEN_MESSAGE}
+                        {invoicingFrozenMessage}
                       </div>
                     ) : (
                       <form action={createInvoiceFromQuoteForm}>
