@@ -31,7 +31,16 @@ export async function GET(_request: Request, context: { params: Promise<{ quoteI
   }
 
   const doc = await loadQuotePdfDocument(supabase, quoteId, quote.artisan_id);
-  if (!doc) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!doc) {
+    return NextResponse.json(
+      {
+        error: "pdf_failed",
+        message:
+          "Impossible de générer le PDF. Vérifie ton profil artisan (Réglages > Mon activité) et que le devis contient bien des lignes.",
+      },
+      { status: 422 },
+    );
+  }
 
   const pdfBytes = await renderQuotePdf(doc);
 

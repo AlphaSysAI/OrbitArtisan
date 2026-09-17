@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { FileDown, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 import { DuplicateQuoteButton } from "@/components/quotes/duplicate-quote-button";
 import { DeleteQuoteButton } from "@/components/quotes/delete-quote-button";
+import { DownloadQuotePdfButton } from "@/components/quotes/download-quote-pdf-button";
 import { SendDraftQuoteButton } from "@/components/quotes/send-draft-quote-button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -44,14 +45,7 @@ export function QuoteDocumentActionsCard({
           {canSendToClient ? (
             <SendDraftQuoteButton quoteId={quoteId} />
           ) : (
-            <a
-              href={`/api/quotes/${quoteId}/pdf`}
-              download
-              className={cn(buttonVariants({ variant: "default" }), "inline-flex w-full items-center justify-center gap-2")}
-            >
-              <FileDown className="size-4" />
-              Télécharger le devis
-            </a>
+            <DownloadQuotePdfButton quoteId={quoteId} label="Télécharger le devis" fullWidth />
           )}
 
           <Link
@@ -69,10 +63,7 @@ export function QuoteDocumentActionsCard({
           <p className="text-xs text-muted-foreground">
             Le client recevra un e-mail de ton entreprise avec le devis PDF (mentions légales incluses). Tu peux
             aussi{" "}
-            <a href={`/api/quotes/${quoteId}/pdf`} className="font-medium underline-offset-2 hover:underline">
-              télécharger une copie
-            </a>{" "}
-            avant envoi.
+            <DownloadQuotePdfButton quoteId={quoteId} label="télécharger une copie" variant="link" /> avant envoi.
           </p>
         ) : null}
       </div>
@@ -86,14 +77,7 @@ export function QuoteDocumentActionsCard({
         PDF professionnel (tableau détaillé, TVA, bon pour accord, mentions légales).
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <a
-          href={`/api/quotes/${quoteId}/pdf`}
-          download
-          className={cn(buttonVariants({ variant: "default" }), "inline-flex items-center justify-center gap-2")}
-        >
-          <FileDown className="size-4" />
-          Télécharger le PDF
-        </a>
+        <DownloadQuotePdfButton quoteId={quoteId} />
         <DuplicateQuoteButton quoteId={quoteId} />
       </div>
       <p className="text-xs text-muted-foreground">
@@ -105,14 +89,5 @@ export function QuoteDocumentActionsCard({
 
 /** Variante client connecté (espace /mes-devis). */
 export function ClientQuotePdfDownloadButton({ quoteId }: { quoteId: string }) {
-  return (
-    <a
-      href={`/api/quotes/${quoteId}/pdf`}
-      download
-      className={cn(buttonVariants({ variant: "default", className: "w-full gap-2" }))}
-    >
-      <FileDown className="size-4" />
-      Télécharger le devis (PDF)
-    </a>
-  );
+  return <DownloadQuotePdfButton quoteId={quoteId} label="Télécharger le devis (PDF)" fullWidth />;
 }

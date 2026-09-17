@@ -35,6 +35,51 @@ export async function ensureQuoteNumber(
   return typeof data === "string" ? data : null;
 }
 
+type QuotePdfRow = {
+  id: string;
+  artisan_id: string;
+  customer_name: string | null;
+  customer_email: string | null;
+  labor_rate_per_hour: number | null;
+  labor_duration_minutes: number | null;
+  labor_total: number | null;
+  materials_total: number | null;
+  grand_total: number | null;
+  notes: string | null;
+  created_at: string;
+  work_site_address: string | null;
+  work_site_city: string | null;
+  work_site_postal_code: string | null;
+  reduced_vat_rate: number | null;
+  generate_vat_attestation: boolean | null;
+  quote_number?: string | null;
+  retraction_waived?: boolean | null;
+  valid_until?: string | null;
+};
+
+type ProfilePdfRow = {
+  business_name: string | null;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
+  siren: string | null;
+  siret: string | null;
+  vat_number: string | null;
+  trade_register_number: string | null;
+  decennale_insurer: string | null;
+  decennale_policy_number: string | null;
+  rc_pro_insurer: string | null;
+  rc_pro_number: string | null;
+  mediator_name: string | null;
+  mediator_url: string | null;
+  logo_url: string | null;
+  default_payment_terms_days: number | null;
+  sales_terms_text?: string | null;
+};
+
 export async function loadQuotePdfDocument(
   supabase: SupabaseClient,
   quoteId: string,
@@ -42,26 +87,25 @@ export async function loadQuotePdfDocument(
 ): Promise<QuotePdfDocument | null> {
   const quoteNumber = (await ensureQuoteNumber(supabase, quoteId)) ?? null;
 
-  const { data: quote } = await supabase
+  // select("*") : compatible si migrations 22–25 pas encore appliquées (colonnes optionnelles absentes).
+  const { data: quoteRaw, error: quoteError } = await supabase
     .from("quotes")
-    .select(
-      "id, artisan_id, customer_name, customer_email, labor_rate_per_hour, labor_duration_minutes, labor_total, materials_total, grand_total, notes, created_at, work_site_address, work_site_city, work_site_postal_code, reduced_vat_rate, generate_vat_attestation, quote_number, retraction_waived, valid_until",
-    )
+    .select("*")
     .eq("id", quoteId)
     .eq("artisan_id", artisanId)
     .maybeSingle();
 
-  if (!quote) return null;
+  if (quoteError || !quoteRaw) return null;
+  const quote = quoteRaw as QuotePdfRow;
 
-  const { data: profile } = await supabase
+  const { data: profileRaw, error: profileError } = await supabase
     .from("profiles")
-    .select(
-      "business_name, name, phone, email, address_line1, postal_code, city, siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, logo_url, default_payment_terms_days, sales_terms_text",
-    )
+    .select("*")
     .eq("id", artisanId)
     .maybeSingle();
 
-  if (!profile) return null;
+  if (profileError || !profileRaw) return null;
+  const profile = profileRaw as ProfilePdfRow;
 
   const [{ data: services }, { data: materials }] = await Promise.all([
     supabase
@@ -80,7 +124,7 @@ export async function loadQuotePdfDocument(
   // Priorité à la date figée en base (celle que client_accept_quote vérifie) ;
   // repli sur l'ancien calcul pour un devis créé avant la migration 24.
   let validUntil: Date;
-  if (quote.valid_until) {
+  if (quote.valid_until?.trim()) {
     validUntil = new Date(`${quote.valid_until}T00:00:00Z`);
   } else {
     validUntil = new Date(issueDate);
@@ -105,7 +149,7 @@ export async function loadQuotePdfDocument(
   const totals = sumQuoteTotals(vatBreakdown);
 
   const legalProfile = {
-    business_name: profile.business_name,
+    business_name: profile.business_name ?? "",
     name: profile.name,
     siren: profile.siren,
     siret: profile.siret,
