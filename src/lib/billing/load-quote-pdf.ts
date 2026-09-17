@@ -6,7 +6,11 @@ import {
   normalizeVatRate,
   sumQuoteTotals,
 } from "@/lib/billing/build-quote-pdf-lines";
-import { buildQuotePdfFooterLines, validateQuoteLegalProfile } from "@/lib/billing/quote-pdf-legal";
+import {
+  buildQuoteRetractionLines,
+  buildQuotePdfFooterLines,
+  validateQuoteLegalProfile,
+} from "@/lib/billing/quote-pdf-legal";
 import type { QuotePdfDocument } from "@/lib/billing/quote-pdf-types";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 
@@ -40,7 +44,7 @@ export async function loadQuotePdfDocument(
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id, artisan_id, customer_name, customer_email, labor_rate_per_hour, labor_duration_minutes, labor_total, materials_total, grand_total, notes, created_at, work_site_address, work_site_city, work_site_postal_code, reduced_vat_rate, generate_vat_attestation, quote_number",
+      "id, artisan_id, customer_name, customer_email, labor_rate_per_hour, labor_duration_minutes, labor_total, materials_total, grand_total, notes, created_at, work_site_address, work_site_city, work_site_postal_code, reduced_vat_rate, generate_vat_attestation, quote_number, retraction_waived",
     )
     .eq("id", quoteId)
     .eq("artisan_id", artisanId)
@@ -146,5 +150,9 @@ export async function loadQuotePdfDocument(
       generateVatAttestation: !!quote.generate_vat_attestation,
     }),
     legalWarnings: validation.warnings,
+    retractionNotice: buildQuoteRetractionLines({
+      profile: legalProfile,
+      retractionWaived: !!quote.retraction_waived,
+    }),
   };
 }

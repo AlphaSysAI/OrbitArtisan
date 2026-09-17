@@ -1,4 +1,5 @@
 import type { ArtisanLegalProfile } from "@/lib/billing/legal-mentions";
+import type { QuoteRetractionNotice } from "@/lib/billing/quote-pdf-legal";
 
 export type QuotePdfTableLine = {
   designation: string;
@@ -49,4 +50,5 @@ export type QuotePdfDocument = {
   generateVatAttestation?: boolean;
   legalFooterLines: string[];
   legalWarnings: string[];
+  retractionNotice: QuoteRetractionNotice;
 };

@@ -51,6 +51,54 @@ export function validateQuoteLegalProfile(profile: QuoteLegalProfile): QuoteLega
   return { ok: blocking.length === 0, blocking, warnings };
 }
 
+export type QuoteRetractionNotice = {
+  heading: string;
+  body: string[];
+};
+
+/**
+ * Droit de rétractation (art. L221-18 et s. du Code de la consommation) : s'applique quand le
+ * devis est signé hors de l'établissement de l'artisan (domicile du client, chantier) — le cas
+ * quasi systématique pour un artisan du bâtiment B2C. Le client dispose alors de 14 jours pour se
+ * rétracter, et les travaux ne peuvent commencer avant l'expiration du délai sauf demande expresse
+ * et signée du client (renonciation, art. L221-28 3°).
+ *
+ * On ne distingue pas B2B/B2C ici (le produit n'a aucun champ pour ça à ce jour) : la mention est
+ * donc toujours affichée par défaut, ce qui est le choix le plus sûr juridiquement pour un
+ * particulier — un artisan qui facture une entreprise peut ignorer cette section.
+ */
+export function buildQuoteRetractionLines(params: {
+  profile: QuoteLegalProfile;
+  retractionWaived: boolean;
+}): QuoteRetractionNotice {
+  const sellerName = params.profile.business_name?.trim() || "l'entreprise";
+  const sellerAddress = [params.profile.addressLine1, [params.profile.postalCode, params.profile.city].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+
+  if (params.retractionWaived) {
+    return {
+      heading: "EXÉCUTION IMMÉDIATE DES TRAVAUX — RENONCIATION AU DÉLAI DE RÉTRACTATION",
+      body: [
+        "Le client demande expressément la réalisation immédiate de la prestation avant l'expiration du délai de rétractation de 14 jours prévu à l'article L221-18 du Code de la consommation.",
+        "Il reconnaît, conformément à l'article L221-28 3° du même code, qu'il perdra son droit de rétractation une fois la prestation pleinement exécutée.",
+        "Date et signature du client pour cette renonciation expresse : ____ / ____ / ______     Signature :",
+      ],
+    };
+  }
+
+  return {
+    heading: "DROIT DE RÉTRACTATION",
+    body: [
+      `Si ce devis est signé hors de l'établissement de ${sellerName} (domicile du client, chantier), le client dispose d'un délai de 14 jours à compter de sa signature pour se rétracter sans motif ni pénalité (art. L221-18 et s. du Code de la consommation). Les travaux ne peuvent commencer avant l'expiration de ce délai, sauf demande expresse et signée du client figurant sur ce devis.`,
+      "Modèle de formulaire de rétractation (à compléter et renvoyer uniquement en cas de rétractation) :",
+      `À l'attention de ${sellerName}${sellerAddress ? ` (${sellerAddress})` : ""} : je notifie par la présente ma rétractation du contrat portant sur la prestation ci-dessus.`,
+      "Nom du client : ________________________     Date de signature du devis : ____ / ____ / ______",
+      "Date et signature du client (en cas de notification sur papier) : ____ / ____ / ______",
+    ],
+  };
+}
+
 export function buildQuotePdfFooterLines(params: {
   profile: QuoteLegalProfile;
   validUntil: Date;

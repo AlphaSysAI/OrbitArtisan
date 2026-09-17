@@ -216,6 +216,14 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
   writer.drawText("Nom et signature du client :", { size: 9 });
   writer.drawText("_".repeat(55), { size: 9, color: PDF_MUTED });
 
+  writer.ensureSpace(200);
+  writer.drawRule();
+  writer.drawText(doc.retractionNotice.heading, { size: 9, bold: true, color: PDF_BRAND });
+  for (const line of doc.retractionNotice.body) {
+    writer.ensureSpace(90);
+    writer.drawText(line, { size: 8, maxWidthChars: 100, lineGap: 11 });
+  }
+
   for (const warning of doc.legalWarnings) {
     writer.ensureSpace(90);
     writer.drawText(warning, { size: 7, color: rgb(0.55, 0.35, 0.1), maxWidthChars: 110 });
