@@ -1,8 +1,14 @@
 import type { IPayloadSubmitter, PaSubmissionPayload, PaSubmissionResult } from "../payload-submitter";
 
 /**
- * Soumission générique vers une PA via HTTP (AFNOR XP Z12-013 / Iopole, SUPER PDP, etc.).
+ * Soumission générique vers une PA via HTTP (AFNOR XP Z12-013 / Iopole, Super PDP, etc.).
  * Configure PA_API_URL + PA_API_KEY dans l'environnement.
+ *
+ * Forme de payload à valider contre la doc réelle du fournisseur choisi avant mise en
+ * production : ce multipart (file/pdf/xml/metadata) est une hypothèse générique compatible
+ * avec plusieurs PA REST simples, pas une spec confirmée pour un fournisseur en particulier.
+ * Voir integrations.md §2 pour la recommandation Vague 6 (Super PDP, tarif au volume,
+ * immatriculé PDP) et les points encore à confirmer (support multi-SIREN / éditeur).
  */
 export class HttpPayloadSubmitter implements IPayloadSubmitter {
   constructor(

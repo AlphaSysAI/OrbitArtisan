@@ -9,7 +9,14 @@ import type { IPayloadSubmitter, PayloadSubmitterProvider } from "./payload-subm
 
 export function resolvePayloadSubmitterProvider(): PayloadSubmitterProvider {
   const raw = (process.env.PA_PROVIDER ?? "noop").trim().toLowerCase();
-  if (raw === "pennylane" || raw === "docaposte" || raw === "confactura" || raw === "http" || raw === "noop") {
+  if (
+    raw === "pennylane" ||
+    raw === "docaposte" ||
+    raw === "confactura" ||
+    raw === "superpdp" ||
+    raw === "http" ||
+    raw === "noop"
+  ) {
     return raw;
   }
   return "noop";
@@ -36,6 +43,7 @@ export function createPayloadSubmitter(provider = resolvePayloadSubmitterProvide
 
     case "docaposte":
     case "confactura":
+    case "superpdp":
     case "http":
       if (apiUrl && apiKey) {
         return wrapWithRetry(new HttpPayloadSubmitter(apiUrl, apiKey));

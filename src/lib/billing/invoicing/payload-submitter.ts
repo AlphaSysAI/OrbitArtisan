@@ -33,4 +33,17 @@ export interface IPayloadSubmitter {
   submitEInvoice(payload: PaSubmissionPayload): Promise<PaSubmissionResult>;
 }
 
-export type PayloadSubmitterProvider = "noop" | "http" | "pennylane" | "docaposte" | "confactura";
+/**
+ * `docaposte`, `confactura` et `superpdp` ne sont pas des SDK dédiés : ce sont des alias de
+ * l'adapter HTTP générique (`HttpPayloadSubmitter`), qui n'existent que pour que les logs et la
+ * config (`PA_PROVIDER`) restent lisibles selon le vrai fournisseur branché derrière `PA_API_URL`.
+ * Voir `integrations.md` §2 (choix Vague 6) pour la comparaison de coût qui a mené à recommander
+ * Super PDP comme candidat le moins cher pour un éditeur SaaS multi-artisans.
+ */
+export type PayloadSubmitterProvider =
+  | "noop"
+  | "http"
+  | "pennylane"
+  | "docaposte"
+  | "confactura"
+  | "superpdp";
