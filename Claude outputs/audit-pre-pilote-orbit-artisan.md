@@ -294,4 +294,27 @@ Branche : `pilote/vague6-facturation-electronique-pa` (depuis la tête de `pilot
 
 ---
 
-**Prochaine étape** : Vagues 1 à 6 terminées et vérifiées côté code (voir note de synchronisation Vague 4 ci-dessus — à clarifier avec toi). "Facturer" reste gelé et la vitrine publique reste désactivée. Actions en attente côté Florian : exécuter les migrations SQL 20 à 24 dans Supabase, décider de la date de dégel de "Facturer", pousser les branches Vague 5 et Vague 6 vers `origin`, arbitrer l'autoliquidation sous-traitance (Vague 4, point 8) et le niveau de blocage RC Pro/médiateur/TVA intra sur devis (Vague 5, point 1), et pour la Vague 6 : créer un compte Super PDP et confirmer le support multi-SIREN avant d'aller plus loin sur l'intégration PA réelle.
+### VAGUE 7 — dégel ciblé de la facturation B2C (17/09/2026)
+Branche : `pilote/vague7-degel-facturation-b2c` (depuis la tête de `pilote/vague6-facturation-electronique-pa`, commit `7bb9806`).
+
+**Demande de Florian** : proposition initiale de construire "quelque chose à côté" pour pouvoir facturer les particuliers sans attendre l'intégration PA complète, l'émission B2C n'étant pas obligatoire avant le 01/09/2027. Après explication que le code sépare déjà proprement B2B (a besoin d'une PA) et B2C (jamais de PA, simple file d'e-reporting) via `classifyCustomer()`, et que le vrai blocage était un seul booléen `INVOICING_FROZEN` gelant les deux indifféremment — Florian a validé l'approche "dégeler uniquement le B2C, garder le B2B gelé" plutôt qu'un système parallèle. Il a ensuite explicitement demandé de considérer la validation comptable de la Vague 2 comme acquise pour un usage B2C dès maintenant, avec un rendez-vous comptable prévu la semaine du 22/09/2026 pour confirmer, et un correctif prévu "en marge" si besoin après coup.
+
+**Travail réalisé (code)** :
+
+| # | Sujet | Statut | Commit |
+|---|---|---|---|
+| 1 | `INVOICING_FROZEN` (un seul booléen global) remplacé par `B2C_INVOICING_FROZEN = false` / `B2B_INVOICING_FROZEN = true` + `isDraftInvoicingFrozenForCustomer()` ; nouvelle fonction `resolveCustomerClassification()` (lookup `customer_profiles`, même logique que `classifyCustomer()`) appelée aux 5 points de création de brouillon (`createInvoiceFromQuote`, `createDepositInvoice`, `createProgressInvoice`, `createCreditNoteFromInvoice`, `releaseRetention`) ; le check de gel, déplacé après le chargement existant de la ligne (qui sélectionnait déjà `customer_user_id`), ne bloque plus que les clients B2B | ✅ Corrigé | `1b08925` |
+| 2 | Garde-fou : `InvoiceService.finalize()` n'avait *aucun* contrôle de gel propre — il n'était protégé que par l'invariant "aucun brouillon B2B ne peut exister pendant le gel", garanti uniquement côté création (point 1 ci-dessus). Ajout d'une revalidation explicite dès le chargement du document, avant toute allocation de numéro de facture ou soumission PA, pour ne pas dépendre uniquement de cet invariant si un futur point d'entrée créait un brouillon B2B sans repasser par ces contrôles | ✅ Corrigé | `5f30a87` |
+
+**Ce qui n'a pas changé** : les 5 défauts bloquants corrigés en Vague 2 (mentions légales obligatoires, TVA, anti double-submit, etc.) sont dans le moteur de facturation partagé par le B2B et le B2C — ce dégel n'en contourne aucun, il ne fait que rouvrir la porte d'entrée pour les clients sans SIREN+TVA valides. Le B2B reste bloqué à la création du brouillon *et*, depuis le point 2, à la finalisation.
+
+**Non résolu par du code, nécessite une action de ta part :**
+- Confirmer au rendez-vous comptable (semaine du 22/09/2026) que le traitement B2C (mentions légales, calculs TVA, PDF simple + e-reporting différé) est conforme. Si le retour est négatif : remettre `B2C_INVOICING_FROZEN = true` dans `src/lib/billing/invoicing-freeze.ts` referme immédiatement les deux (B2B et B2C) sans autre changement de code.
+- Pousser la branche `pilote/vague7-degel-facturation-b2c` vers `origin` (le push depuis le bac à sable échoue toujours faute d'identifiants Git accessibles).
+- Note pour information, pas une alerte : deux commits de Florian/Cursor (`07b6fa8` CGV/inscription/envoi de brouillons, `7d59df1` correctif téléchargement PDF devis) sont arrivés sur cette même branche entre mes deux commits — non touchés, non audités ici, juste signalés pour traçabilité.
+
+**Vérification finale Vague 7** : `tsc --noEmit` clean, `eslint` sur tous les fichiers touchés clean (seuls avertissements pré-existants, non liés), `vitest run` → 176/176 tests verts (dont 1 nouveau test dédié pour la Vague 6 côté provider, et 2 nouveaux pour le garde-fou `finalize()` de la Vague 7 — un test existant de routage B2B a été isolé de l'état réel du gel via un spy, puisqu'il teste la mécanique de soumission PA et non le gel). 2 commits.
+
+---
+
+**Prochaine étape** : Vagues 1 à 7 terminées et vérifiées côté code (voir note de synchronisation Vague 4 ci-dessus — à clarifier avec toi). La facturation B2C est maintenant active (mentions légales/TVA/anti-double-submit de la Vague 2 s'appliquent), "Facturer" reste gelé pour le B2B et la vitrine publique reste désactivée. Actions en attente côté Florian : exécuter les migrations SQL 20 à 24 dans Supabase, décider de la date de dégel de "Facturer" (B2B, dépend du contrat PA), pousser les branches Vague 5, 6 et 7 vers `origin`, arbitrer l'autoliquidation sous-traitance (Vague 4, point 8) et le niveau de blocage RC Pro/médiateur/TVA intra sur devis (Vague 5, point 1), pour la Vague 6 : créer un compte Super PDP et confirmer le support multi-SIREN, et pour la Vague 7 : confirmer au rendez-vous comptable de la semaine du 22/09/2026 que le traitement B2C est conforme (sinon reverser `B2C_INVOICING_FROZEN` à `true`).
