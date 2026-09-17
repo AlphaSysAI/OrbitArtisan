@@ -1,13 +1,32 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
 import { notifyQuoteSentToCustomer } from "@/lib/notifications/notify-events";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
-import { validateQuoteLegalProfile } from "@/lib/billing/quote-pdf-legal";
+import { validateQuoteLegalProfile, type QuoteLegalValidation } from "@/lib/billing/quote-pdf-legal";
 import { sendQuotePdfInConversation } from "@/lib/quotes/send-quote-pdf";
+
+const PROFILE_LEGAL_COLUMNS = [
+  "business_name",
+  "labor_rate_per_hour",
+  "siren",
+  "siret",
+  "address_line1",
+  "postal_code",
+  "city",
+  "vat_number",
+  "trade_register_number",
+  "decennale_insurer",
+  "decennale_policy_number",
+  "rc_pro_insurer",
+  "rc_pro_number",
+  "mediator_name",
+  "mediator_url",
+];
 
 type ParsedMaterial = {
   label: string;
@@ -50,7 +69,57 @@ function safeParseJsonArray<T>(raw: string): T[] | null {
   }
 }
 
-export async function createQuote(formData: FormData) {
+type QuoteInputError =
+  | {
+      ok: false;
+      error:
+        | "missing_services"
+        | "invalid_materials"
+        | "missing_labor_rate"
+        | "invalid_services"
+        | "invalid_duration"
+        | "invalid_conversation"
+        | "missing_customer";
+    }
+  | { ok: false; error: "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation };
+
+type ResolvedQuoteInput = {
+  customerName: string;
+  customerEmail: string;
+  notes: string;
+  laborRateCents: number;
+  laborDurationMinutes: number;
+  laborTotalCents: number;
+  materialsTotalCents: number;
+  grandTotalCents: number;
+  servicesFound: { id: string; title: string; duration: number; price: number | null }[];
+  materials: ParsedMaterial[];
+  linkedConversationId: string | null;
+  linkedCustomerUserId: string | null;
+  quoteStatus: "draft" | "sent";
+  reducedVatRate: number | null;
+  generateVatAttestation: boolean;
+  workSiteAddress: string | null;
+  workSiteCity: string | null;
+  workSitePostalCode: string | null;
+  retractionWaived: boolean;
+  validUntil: string;
+  voiceIntakeId: string;
+};
+
+/**
+ * Parsing, résolution et validation partagés entre création (`createQuote`) et
+ * édition d'un brouillon (`updateQuote`) — extrait pour que les deux chemins ne
+ * puissent pas diverger sur le calcul du total, le contrôle légal à l'envoi, ou
+ * la résolution de la conversation liée (Vague 5, Temps 2, point 4 de l'audit
+ * devis : édition/suppression de devis absentes).
+ */
+async function resolveQuoteInput(
+  formData: FormData,
+  ctx: { supabase: SupabaseClient; profileId: string; profile: Record<string, unknown> },
+): Promise<{ ok: true; data: ResolvedQuoteInput } | QuoteInputError> {
+  const { supabase, profileId, profile } = ctx;
+
   const customerName = String(formData.get("customer_name") ?? "").trim();
   const customerEmail = String(formData.get("customer_email") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
@@ -61,7 +130,7 @@ export async function createQuote(formData: FormData) {
   const serviceIdsRaw = String(formData.get("service_ids_json") ?? "[]");
   const serviceIds = safeParseJsonArray<string>(serviceIdsRaw);
   if (!serviceIds || serviceIds.length === 0) {
-    return { ok: false as const, error: "missing_services" as const };
+    return { ok: false, error: "missing_services" };
   }
 
   const materialsRaw = String(formData.get("materials_json") ?? "[]");
@@ -90,46 +159,14 @@ export async function createQuote(formData: FormData) {
     .filter((m) => m.label);
 
   if (materials.some((m) => !Number.isFinite(m.quantity) || m.quantity <= 0 || !Number.isFinite(m.unitPriceCents) || m.unitPriceCents < 0)) {
-    return { ok: false as const, error: "invalid_materials" as const };
+    return { ok: false, error: "invalid_materials" };
   }
 
-  const userAuth = await requireAuthenticatedUser();
-  if (!userAuth.ok) {
-    return { ok: false as const, error: "auth" as const };
-  }
-  const { supabase, userId } = userAuth;
-
-  await redirectIfCannotCreateDocuments(supabase, userId);
-
-  const resolvedProfile = await resolveArtisanProfile(supabase, userId, [
-    "business_name",
-    "labor_rate_per_hour",
-    "siren",
-    "siret",
-    "address_line1",
-    "postal_code",
-    "city",
-    "vat_number",
-    "trade_register_number",
-    "decennale_insurer",
-    "decennale_policy_number",
-    "rc_pro_insurer",
-    "rc_pro_number",
-    "mediator_name",
-    "mediator_url",
-  ]);
-
-  if (!resolvedProfile.ok) {
-    return { ok: false as const, error: "missing_profile" as const };
-  }
-  const { profileId, profile } = resolvedProfile;
   const profileLaborRate = profile.labor_rate_per_hour as number | null;
-  const profileBusinessName = profile.business_name as string | null;
-
   const laborRateCents = laborRateCentsFromForm ?? (profileLaborRate != null ? profileLaborRate : null);
 
   if (laborRateCents == null || !Number.isFinite(laborRateCents) || laborRateCents < 0) {
-    return { ok: false as const, error: "missing_labor_rate" as const };
+    return { ok: false, error: "missing_labor_rate" };
   }
 
   const { data: services } = await supabase
@@ -142,12 +179,12 @@ export async function createQuote(formData: FormData) {
   const servicesFound = (services ?? []).filter((s) => serviceSet.has(s.id));
 
   if (servicesFound.length !== serviceIds.length) {
-    return { ok: false as const, error: "invalid_services" as const };
+    return { ok: false, error: "invalid_services" };
   }
 
   const computedDurationMinutes = servicesFound.reduce((acc, s) => acc + (s.duration ?? 0), 0);
   if (computedDurationMinutes <= 0) {
-    return { ok: false as const, error: "invalid_duration" as const };
+    return { ok: false, error: "invalid_duration" };
   }
 
   const laborMinutesRaw = String(formData.get("labor_duration_minutes") ?? "").trim();
@@ -180,16 +217,16 @@ export async function createQuote(formData: FormData) {
       .eq("id", conversationIdRaw)
       .maybeSingle();
     if (!conv || conv.artisan_id !== profileId) {
-      return { ok: false as const, error: "invalid_conversation" as const };
+      return { ok: false, error: "invalid_conversation" };
     }
     // Lead Soline : customer_user_id reste null tant que le prospect n'a pas de compte.
     if (customerUserIdRaw && conv.customer_user_id !== customerUserIdRaw) {
-      return { ok: false as const, error: "invalid_conversation" as const };
+      return { ok: false, error: "invalid_conversation" };
     }
     linkedConversationId = conv.id;
     linkedCustomerUserId = conv.customer_user_id;
   } else if (customerUserIdRaw) {
-    return { ok: false as const, error: "invalid_conversation" as const };
+    return { ok: false, error: "invalid_conversation" };
   }
 
   const saveMode = String(formData.get("save_mode") ?? "").trim();
@@ -197,22 +234,23 @@ export async function createQuote(formData: FormData) {
   const forceSend = saveMode === "send";
 
   const reducedVatRaw = String(formData.get("reduced_vat_rate") ?? "").trim();
-  const reduced_vat_rate =
+  const reducedVatRate =
     reducedVatRaw === "5.5" || reducedVatRaw === "10" || reducedVatRaw === "20" ? Number(reducedVatRaw) : null;
-  const generate_vat_attestation = String(formData.get("generate_vat_attestation") ?? "") === "1";
-  const work_site_address = String(formData.get("work_site_address") ?? "").trim() || null;
-  const work_site_city = String(formData.get("work_site_city") ?? "").trim() || null;
-  const work_site_postal_code = String(formData.get("work_site_postal_code") ?? "").trim() || null;
-  const retraction_waived = String(formData.get("retraction_waived") ?? "") === "1";
+  const generateVatAttestation = String(formData.get("generate_vat_attestation") ?? "") === "1";
+  const workSiteAddress = String(formData.get("work_site_address") ?? "").trim() || null;
+  const workSiteCity = String(formData.get("work_site_city") ?? "").trim() || null;
+  const workSitePostalCode = String(formData.get("work_site_postal_code") ?? "").trim() || null;
+  const retractionWaived = String(formData.get("retraction_waived") ?? "") === "1";
+  const voiceIntakeId = String(formData.get("voice_intake_id") ?? "").trim();
 
-  // Figé à la création (pas recalculé plus tard) pour matcher exactement la date
+  // Figé une seule fois (pas recalculé plus tard) pour matcher exactement la date
   // imprimée sur le PDF envoyé au client — c'est cette valeur que
   // client_accept_quote vérifie avant d'accepter la signature.
   const validUntilDate = new Date();
   validUntilDate.setMonth(validUntilDate.getMonth() + 3);
-  const valid_until = validUntilDate.toISOString().slice(0, 10);
+  const validUntil = validUntilDate.toISOString().slice(0, 10);
 
-  const quoteStatus = forceDraft
+  const quoteStatus: "draft" | "sent" = forceDraft
     ? "draft"
     : forceSend || (linkedConversationId && linkedCustomerUserId)
       ? "sent"
@@ -220,7 +258,7 @@ export async function createQuote(formData: FormData) {
 
   if (quoteStatus === "sent") {
     if (!customerName?.trim() && !customerEmail?.trim()) {
-      return { ok: false as const, error: "missing_customer" as const };
+      return { ok: false, error: "missing_customer" };
     }
     const legalCheck = validateQuoteLegalProfile({
       business_name: profile.business_name as string | null,
@@ -239,48 +277,42 @@ export async function createQuote(formData: FormData) {
       city: profile.city as string | null,
     });
     if (!legalCheck.ok) {
-      return {
-        ok: false as const,
-        error: "quote_pdf_profile_incomplete" as const,
-        validation: legalCheck,
-      };
+      return { ok: false, error: "quote_pdf_profile_incomplete", validation: legalCheck };
     }
   }
 
-  const { data: createdQuote, error: quoteErr } = await supabase
-    .from("quotes")
-    .insert({
-      artisan_id: profileId,
-      customer_name: customerName || null,
-      customer_email: customerEmail || null,
-      customer_user_id: linkedCustomerUserId,
-      conversation_id: linkedConversationId,
-      status: quoteStatus,
-      notes: notes || null,
-      labor_rate_per_hour: laborRateCents,
-      labor_duration_minutes: laborDurationMinutes,
-      labor_total: laborTotalCents,
-      materials_total: materialsTotalCents,
-      grand_total: grandTotalCents,
-      reduced_vat_rate,
-      generate_vat_attestation: generate_vat_attestation && (reduced_vat_rate === 5.5 || reduced_vat_rate === 10),
-      work_site_address,
-      work_site_city,
-      work_site_postal_code,
-      retraction_waived,
-      valid_until,
-      sent_at: quoteStatus === "sent" ? new Date().toISOString() : null,
-    })
-    .select("id")
-    .single();
+  return {
+    ok: true,
+    data: {
+      customerName,
+      customerEmail,
+      notes,
+      laborRateCents,
+      laborDurationMinutes,
+      laborTotalCents,
+      materialsTotalCents,
+      grandTotalCents,
+      servicesFound,
+      materials,
+      linkedConversationId,
+      linkedCustomerUserId,
+      quoteStatus,
+      reducedVatRate,
+      generateVatAttestation,
+      workSiteAddress,
+      workSiteCity,
+      workSitePostalCode,
+      retractionWaived,
+      validUntil,
+      voiceIntakeId,
+    },
+  };
+}
 
-  if (quoteErr || !createdQuote?.id) {
-    return { ok: false as const, error: "create_failed" as const };
-  }
-
-  // Lignes prestations
-  const quoteServiceRows = servicesFound.map((s) => ({
-    quote_id: createdQuote.id,
+/** (Ré)écrit les lignes prestations/matériaux d'un devis (insertion pure — l'appelant a déjà purgé les anciennes lignes en cas d'édition). */
+async function writeQuoteLines(supabase: SupabaseClient, quoteId: string, d: ResolvedQuoteInput) {
+  const quoteServiceRows = d.servicesFound.map((s) => ({
+    quote_id: quoteId,
     service_id: s.id,
     service_title: s.title,
     duration_minutes: s.duration,
@@ -292,11 +324,10 @@ export async function createQuote(formData: FormData) {
     return { ok: false as const, error: "lines_failed" as const };
   }
 
-  // Lignes matériaux
-  const quoteMaterialRows = materials
+  const quoteMaterialRows = d.materials
     .filter((m) => m.label)
     .map((m) => ({
-      quote_id: createdQuote.id,
+      quote_id: quoteId,
       label: m.label,
       quantity: m.quantity,
       unit_price: m.unitPriceCents,
@@ -310,23 +341,34 @@ export async function createQuote(formData: FormData) {
     }));
 
   if (quoteMaterialRows.length) {
-    const { error: materialsLinesErr } = await supabase
-      .from("quote_materials")
-      .insert(quoteMaterialRows);
+    const { error: materialsLinesErr } = await supabase.from("quote_materials").insert(quoteMaterialRows);
     if (materialsLinesErr) return { ok: false as const, error: "materials_failed" as const };
   }
 
+  return { ok: true as const };
+}
+
+/** Notifie/e-maile le client quand le devis passe (ou reste) au statut "sent". */
+async function notifyQuoteIfSent(
+  supabase: SupabaseClient,
+  params: { quoteId: string; profileId: string; userId: string; profileBusinessName: string | null; d: ResolvedQuoteInput },
+): Promise<
+  | { ok: true; notifyFailed: boolean; emailSent: boolean }
+  | { ok: false; error: "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation }
+> {
+  const { quoteId, profileId, userId, profileBusinessName, d } = params;
   let notifyFailed = false;
   let emailSent = false;
-  const shouldNotifyConversation = quoteStatus === "sent" && !!linkedConversationId;
+
+  const shouldNotifyConversation = d.quoteStatus === "sent" && !!d.linkedConversationId;
   if (shouldNotifyConversation) {
     const sent = await sendQuotePdfInConversation(supabase, {
-      conversationId: linkedConversationId!,
+      conversationId: d.linkedConversationId!,
       senderUserId: userId,
-      quoteId: createdQuote.id,
+      quoteId,
       artisanId: profileId,
-      grandTotalCents,
-      directPurchaseItems: materials
+      grandTotalCents: d.grandTotalCents,
+      directPurchaseItems: d.materials
         .filter((m) => m.excludeFromInvoice)
         .map((m) => ({
           label: m.label,
@@ -337,47 +379,116 @@ export async function createQuote(formData: FormData) {
     });
     if (!sent.ok) {
       if (sent.error === "quote_pdf_profile_incomplete") {
-        return {
-          ok: false as const,
-          error: "quote_pdf_profile_incomplete" as const,
-          validation: sent.validation,
-        };
+        return { ok: false, error: "quote_pdf_profile_incomplete", validation: sent.validation };
       }
       notifyFailed = true;
     }
   }
 
-  if (quoteStatus === "sent" && customerEmail && !linkedConversationId) {
+  if (d.quoteStatus === "sent" && d.customerEmail && !d.linkedConversationId) {
     const emailResult = await sendQuoteByEmail({
       supabase,
-      quoteId: createdQuote.id,
+      quoteId,
       artisanId: profileId,
-      to: customerEmail,
-      customerName,
+      to: d.customerEmail,
+      customerName: d.customerName,
       businessName: profileBusinessName,
-      grandTotalCents,
+      grandTotalCents: d.grandTotalCents,
     });
     emailSent = emailResult.ok;
     if (!emailResult.ok) notifyFailed = true;
   }
 
-  if (quoteStatus === "sent" && linkedCustomerUserId) {
+  if (d.quoteStatus === "sent" && d.linkedCustomerUserId) {
     void notifyQuoteSentToCustomer(supabase, {
-      quoteId: createdQuote.id,
-      customerUserId: linkedCustomerUserId,
+      quoteId,
+      customerUserId: d.linkedCustomerUserId,
       artisanName: profileBusinessName ?? "Votre artisan",
     });
   }
 
-  const voiceIntakeId = String(formData.get("voice_intake_id") ?? "").trim();
-  if (voiceIntakeId && quoteStatus === "sent") {
-    await supabase
-      .from("voice_call_intakes")
-      .update({ status: "validated", quote_id: createdQuote.id })
-      .eq("id", voiceIntakeId)
-      .eq("artisan_id", profileId)
-      .eq("status", "pending_review");
-    revalidatePath("/app/appels");
+  return { ok: true, notifyFailed, emailSent };
+}
+
+async function markVoiceIntakeValidated(
+  supabase: SupabaseClient,
+  params: { voiceIntakeId: string; quoteId: string; profileId: string },
+) {
+  await supabase
+    .from("voice_call_intakes")
+    .update({ status: "validated", quote_id: params.quoteId })
+    .eq("id", params.voiceIntakeId)
+    .eq("artisan_id", params.profileId)
+    .eq("status", "pending_review");
+  revalidatePath("/app/appels");
+}
+
+export async function createQuote(formData: FormData) {
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) {
+    return { ok: false as const, error: "auth" as const };
+  }
+  const { supabase, userId } = userAuth;
+
+  await redirectIfCannotCreateDocuments(supabase, userId);
+
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, PROFILE_LEGAL_COLUMNS);
+  if (!resolvedProfile.ok) {
+    return { ok: false as const, error: "missing_profile" as const };
+  }
+  const { profileId, profile } = resolvedProfile;
+  const profileBusinessName = profile.business_name as string | null;
+
+  const input = await resolveQuoteInput(formData, { supabase, profileId, profile });
+  if (!input.ok) return input;
+  const d = input.data;
+
+  const { data: createdQuote, error: quoteErr } = await supabase
+    .from("quotes")
+    .insert({
+      artisan_id: profileId,
+      customer_name: d.customerName || null,
+      customer_email: d.customerEmail || null,
+      customer_user_id: d.linkedCustomerUserId,
+      conversation_id: d.linkedConversationId,
+      status: d.quoteStatus,
+      notes: d.notes || null,
+      labor_rate_per_hour: d.laborRateCents,
+      labor_duration_minutes: d.laborDurationMinutes,
+      labor_total: d.laborTotalCents,
+      materials_total: d.materialsTotalCents,
+      grand_total: d.grandTotalCents,
+      reduced_vat_rate: d.reducedVatRate,
+      generate_vat_attestation: d.generateVatAttestation && (d.reducedVatRate === 5.5 || d.reducedVatRate === 10),
+      work_site_address: d.workSiteAddress,
+      work_site_city: d.workSiteCity,
+      work_site_postal_code: d.workSitePostalCode,
+      retraction_waived: d.retractionWaived,
+      valid_until: d.validUntil,
+      sent_at: d.quoteStatus === "sent" ? new Date().toISOString() : null,
+    })
+    .select("id")
+    .single();
+
+  if (quoteErr || !createdQuote?.id) {
+    return { ok: false as const, error: "create_failed" as const };
+  }
+
+  const linesResult = await writeQuoteLines(supabase, createdQuote.id, d);
+  if (!linesResult.ok) return linesResult;
+
+  const notifyResult = await notifyQuoteIfSent(supabase, {
+    quoteId: createdQuote.id,
+    profileId,
+    userId,
+    profileBusinessName,
+    d,
+  });
+  if (!notifyResult.ok) return notifyResult;
+  const { notifyFailed, emailSent } = notifyResult;
+
+  if (d.voiceIntakeId && d.quoteStatus === "sent") {
+    await markVoiceIntakeValidated(supabase, { voiceIntakeId: d.voiceIntakeId, quoteId: createdQuote.id, profileId });
   }
 
   revalidatePath("/app/quotes");
@@ -387,7 +498,157 @@ export async function createQuote(formData: FormData) {
     quoteId: createdQuote.id,
     notifyFailed,
     emailSent,
-    status: quoteStatus,
+    status: d.quoteStatus,
   };
 }
 
+/**
+ * Édite un devis existant — réservé aux brouillons (`status = 'draft'`).
+ * Un devis déjà envoyé/accepté/refusé ne se modifie pas en place : c'est un
+ * document formel déjà remis au client (et pour un devis accepté, la base
+ * d'une éventuelle facturation) — la seule voie reste la duplication en
+ * nouveau brouillon (`duplicateQuote`). Cf. audit devis Vague 5, point 4 :
+ * jusqu'ici, corriger une erreur de saisie sur un brouillon obligeait à le
+ * dupliquer puis à retaper la correction, sans pouvoir supprimer l'original.
+ */
+export async function updateQuote(quoteId: string, formData: FormData) {
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) {
+    return { ok: false as const, error: "auth" as const };
+  }
+  const { supabase, userId } = userAuth;
+
+  await redirectIfCannotCreateDocuments(supabase, userId);
+
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, PROFILE_LEGAL_COLUMNS);
+  if (!resolvedProfile.ok) {
+    return { ok: false as const, error: "missing_profile" as const };
+  }
+  const { profileId, profile } = resolvedProfile;
+  const profileBusinessName = profile.business_name as string | null;
+
+  const { data: existing } = await supabase
+    .from("quotes")
+    .select("id, artisan_id, status")
+    .eq("id", quoteId)
+    .maybeSingle();
+
+  if (!existing || existing.artisan_id !== profileId) {
+    return { ok: false as const, error: "not_found" as const };
+  }
+  if (existing.status !== "draft") {
+    return { ok: false as const, error: "not_editable" as const };
+  }
+
+  const input = await resolveQuoteInput(formData, { supabase, profileId, profile });
+  if (!input.ok) return input;
+  const d = input.data;
+
+  // Garde anti-course explicite : ne met à jour que si le devis est toujours
+  // "draft" au moment précis de l'écriture (et pas seulement au moment de la
+  // lecture ci-dessus) — même discipline que client_accept_quote.
+  const { data: updated, error: updateErr } = await supabase
+    .from("quotes")
+    .update({
+      customer_name: d.customerName || null,
+      customer_email: d.customerEmail || null,
+      customer_user_id: d.linkedCustomerUserId,
+      conversation_id: d.linkedConversationId,
+      status: d.quoteStatus,
+      notes: d.notes || null,
+      labor_rate_per_hour: d.laborRateCents,
+      labor_duration_minutes: d.laborDurationMinutes,
+      labor_total: d.laborTotalCents,
+      materials_total: d.materialsTotalCents,
+      grand_total: d.grandTotalCents,
+      reduced_vat_rate: d.reducedVatRate,
+      generate_vat_attestation: d.generateVatAttestation && (d.reducedVatRate === 5.5 || d.reducedVatRate === 10),
+      work_site_address: d.workSiteAddress,
+      work_site_city: d.workSiteCity,
+      work_site_postal_code: d.workSitePostalCode,
+      retraction_waived: d.retractionWaived,
+      valid_until: d.validUntil,
+      sent_at: d.quoteStatus === "sent" ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", quoteId)
+    .eq("artisan_id", profileId)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
+
+  if (updateErr) {
+    return { ok: false as const, error: "update_failed" as const };
+  }
+  if (!updated) {
+    return { ok: false as const, error: "not_editable" as const };
+  }
+
+  // Remplacement intégral des lignes plutôt qu'un diff fin — plus simple (KISS) et
+  // sans risque d'incohérence entre ce qu'affichait le formulaire et la base.
+  // Sûr uniquement parce qu'on vient de vérifier status = 'draft' : un devis
+  // envoyé n'a jamais ses lignes touchées par ce chemin.
+  await supabase.from("quote_services").delete().eq("quote_id", quoteId);
+  await supabase.from("quote_materials").delete().eq("quote_id", quoteId);
+
+  const linesResult = await writeQuoteLines(supabase, quoteId, d);
+  if (!linesResult.ok) return linesResult;
+
+  const notifyResult = await notifyQuoteIfSent(supabase, { quoteId, profileId, userId, profileBusinessName, d });
+  if (!notifyResult.ok) return notifyResult;
+  const { notifyFailed, emailSent } = notifyResult;
+
+  if (d.voiceIntakeId && d.quoteStatus === "sent") {
+    await markVoiceIntakeValidated(supabase, { voiceIntakeId: d.voiceIntakeId, quoteId, profileId });
+  }
+
+  revalidatePath("/app/quotes");
+  revalidatePath(`/app/quotes/${quoteId}`);
+  revalidatePath("/mes-devis");
+  return {
+    ok: true as const,
+    quoteId,
+    notifyFailed,
+    emailSent,
+    status: d.quoteStatus,
+  };
+}
+
+/**
+ * Supprime un brouillon (jamais un devis envoyé/accepté/refusé — document
+ * déjà remis au client, ne doit jamais disparaître). Cascade DB sur
+ * quote_services/quote_materials (FK `on delete cascade`, cf. init.sql).
+ */
+export async function deleteQuote(quoteId: string) {
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) {
+    return { ok: false as const, error: "auth" as const };
+  }
+  const { supabase, userId } = userAuth;
+
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId);
+  if (!resolvedProfile.ok) {
+    return { ok: false as const, error: "missing_profile" as const };
+  }
+  const { profileId } = resolvedProfile;
+
+  const { data: deleted, error } = await supabase
+    .from("quotes")
+    .delete()
+    .eq("id", quoteId)
+    .eq("artisan_id", profileId)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false as const, error: "delete_failed" as const };
+  }
+  if (!deleted) {
+    return { ok: false as const, error: "not_deletable" as const };
+  }
+
+  revalidatePath("/app/quotes");
+  revalidatePath("/mes-devis");
+  return { ok: true as const };
+}

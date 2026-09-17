@@ -213,7 +213,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
         </div>
 
         <div className="space-y-6">
-          <QuoteDocumentActionsCard quoteId={quoteId} />
+          <QuoteDocumentActionsCard quoteId={quoteId} status={quote.status} />
 
           <Card className="border-0 shadow-none">
             <CardHeader>

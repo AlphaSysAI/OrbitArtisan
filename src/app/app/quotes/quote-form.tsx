@@ -5,7 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, BookMarked } from "lucide-react";
 
-import { createQuote } from "./actions";
+import { createQuote, updateQuote } from "./actions";
 import { aiErrorMessage } from "@/lib/ai/error-messages";
 import { WorkItemCombobox } from "@/components/work-library/work-item-combobox";
 import { saveQuoteLineToLibrary } from "@/lib/work-library/actions";
@@ -86,6 +86,28 @@ function formatHoursFromMinutes(minutes: number) {
   return (minutes / 60).toFixed(2).replace(".", ",");
 }
 
+export type EditQuoteInitialData = {
+  id: string;
+  customerName: string;
+  customerEmail: string;
+  notes: string;
+  laborDurationMinutes: number;
+  selectedServiceIds: string[];
+  materials: {
+    label: string;
+    quantity: number;
+    unitPriceCents: number;
+    vatRate: string;
+    excludeFromInvoice: boolean;
+  }[];
+  reducedVatRate: string;
+  generateVatAttestation: boolean;
+  workSiteAddress: string;
+  workSiteCity: string;
+  workSitePostalCode: string;
+  retractionWaived: boolean;
+};
+
 export function QuoteForm({
   services,
   accentColor,
@@ -95,6 +117,7 @@ export function QuoteForm({
   aiDraftKey,
   serverAiDraft = null,
   voiceIntakeId = null,
+  editQuote = null,
 }: {
   services: Service[];
   accentColor: string;
@@ -113,6 +136,8 @@ export function QuoteForm({
   serverAiDraft?: AiQuoteDraft | null;
   /** Lien vers l'appel Soline source (validation après envoi). */
   voiceIntakeId?: string | null;
+  /** Édition d'un brouillon existant — bascule le formulaire en mode édition (updateQuote). */
+  editQuote?: EditQuoteInitialData | null;
 }) {
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
   const [materials, setMaterials] = React.useState<MaterialRow[]>([
@@ -199,6 +224,43 @@ export function QuoteForm({
     clearAiQuoteDraft(key);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- charge une seule fois au mount
   }, [loadAiDraft, aiDraftKey, conversationPrefill?.conversationId, serverAiDraft]);
+
+  React.useEffect(() => {
+    if (!editQuote) return;
+    setSelectedServiceIds(editQuote.selectedServiceIds);
+    setCustomerName(editQuote.customerName);
+    setCustomerEmail(editQuote.customerEmail);
+    setNotes(editQuote.notes);
+    setReducedVatRate(editQuote.reducedVatRate);
+    setGenerateVatAttestation(editQuote.generateVatAttestation);
+    setWorkSiteAddress(editQuote.workSiteAddress);
+    setWorkSiteCity(editQuote.workSiteCity);
+    setWorkSitePostalCode(editQuote.workSitePostalCode);
+    setRetractionWaived(editQuote.retractionWaived);
+    // Durée figée telle qu'enregistrée (mode "custom") plutôt que recalculée depuis les
+    // prestations sélectionnées : garantit que le total affiché au chargement correspond
+    // exactement au brouillon existant, même si la liste de prestations a changé depuis.
+    if (editQuote.laborDurationMinutes > 0) {
+      setLaborDurationMode("custom");
+      setCustomLaborHoursStr(formatHoursFromMinutes(editQuote.laborDurationMinutes));
+    }
+    if (editQuote.materials.length) {
+      setMaterials(
+        editQuote.materials.map((m) => ({
+          id: uuid(),
+          label: m.label,
+          description: "",
+          unit: "U",
+          vatRate: m.vatRate,
+          quantity: m.quantity,
+          unitPriceEur: (m.unitPriceCents / 100).toString().replace(".", ","),
+          supplierUrl: "",
+          supplierSku: "",
+          excludeFromInvoice: m.excludeFromInvoice,
+        })),
+      );
+    }
+  }, [editQuote]);
 
   const selectedServices = React.useMemo(() => {
     const set = new Set(selectedServiceIds);
@@ -349,7 +411,7 @@ export function QuoteForm({
     try {
       const fd = new FormData(e.currentTarget);
       fd.set("save_mode", mode);
-      const res = await createQuote(fd);
+      const res = editQuote ? await updateQuote(editQuote.id, fd) : await createQuote(fd);
       if (!res.ok) {
         toast.error(
           res.error === "missing_services"
@@ -364,7 +426,11 @@ export function QuoteForm({
                     ? "Renseigne le nom ou l'e-mail du client avant envoi."
                     : res.error === "quote_pdf_profile_incomplete"
                       ? `Complète ton profil avant envoi : ${("validation" in res ? res.validation.blocking : []).join(" ")}`
-                      : "Impossible de créer le devis. Réessaie.",
+                      : res.error === "not_editable" || res.error === "not_found"
+                        ? "Ce brouillon n'est plus modifiable (déjà envoyé ou supprimé) — recharge la page."
+                        : editQuote
+                          ? "Impossible d'enregistrer les modifications. Réessaie."
+                          : "Impossible de créer le devis. Réessaie.",
         );
         return;
       }
@@ -399,7 +465,7 @@ export function QuoteForm({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-medium text-muted-foreground">Section</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Créer un devis</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{editQuote ? "Modifier le brouillon" : "Créer un devis"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Sélectionne tes prestations, ajoute du matériel si besoin, puis on calcule automatiquement la main-d&apos;œuvre.
           </p>
