@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { classifyCustomer, isB2BCustomer } from "./classify-customer";
+import * as invoicingFreeze from "../invoicing-freeze";
 import { InvoiceService } from "./invoice-service";
 import type { IPayloadSubmitter, PaSubmissionPayload, PaSubmissionResult } from "./payload-submitter";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("classifyCustomer", () => {
   it("B2B si SIREN et TVA valides", () => {
@@ -199,6 +204,10 @@ describe("InvoiceService.finalize", () => {
   it(
     "route B2B vers e-invoicing + soumission PA",
     async () => {
+      // Test des mécanismes de routage/soumission PA, indépendant de l'état
+      // réel du gel B2B (couvert par invoicing-freeze.test.ts et par le test
+      // dédié ci-dessous).
+      vi.spyOn(invoicingFreeze, "isDraftInvoicingFrozenForCustomer").mockReturnValue(false);
       const submitter = new StubSubmitter();
       const { supabase, updates } = createMockSupabase({
         invoiceId: "inv-b2b",
@@ -240,6 +249,54 @@ describe("InvoiceService.finalize", () => {
         status: "sent",
         finalizing_at: null,
       });
+    },
+    30_000,
+  );
+
+  it(
+    "bloque le finalize() d'un client B2B tant que B2B_INVOICING_FROZEN est vrai (garde-fou Vague 7)",
+    async () => {
+      // Aucun mock de invoicingFreeze ici : on vérifie le comportement réel
+      // de production (B2B toujours gelé). Ce garde-fou protège contre tout
+      // futur point d'entrée qui créerait un brouillon B2B sans repasser par
+      // les contrôles de src/app/app/invoices/actions.ts.
+      const submitter = new StubSubmitter();
+      const { supabase, updates } = createMockSupabase({
+        invoiceId: "inv-b2b-frozen",
+        artisanId: "art-1",
+        invoiceNumber: "FAC-B2B-FROZEN",
+        customerUserId: "user-b2b",
+        customerProfile: {
+          display_name: "Entreprise SA",
+          email: "compta@entreprise.fr",
+          phone: null,
+          address_line1: "10 rue Commerce",
+          postal_code: "75001",
+          city: "Paris",
+          country_code: "FR",
+          siren: "987654321",
+          siret: "98765432109876",
+          vat_number: "FR32987654321",
+          naf_code: null,
+          trade_register_number: null,
+        },
+      });
+      const rpcSpy = vi.spyOn(supabase, "rpc");
+
+      const service = new InvoiceService(supabase, submitter);
+      const result = await service.finalize("inv-b2b-frozen", "art-1");
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.code).toBe("invoicing_frozen");
+
+      // Ni numéro alloué, ni soumission PA — l'échec doit survenir avant
+      // tout effet de bord coûteux ou irréversible.
+      expect(rpcSpy).not.toHaveBeenCalled();
+      expect(submitter.submitEInvoice).not.toHaveBeenCalled();
+      // updates[0] = claim anti double-submit, updates[1] = libération du claim.
+      expect(updates).toHaveLength(2);
+      expect(updates[1]).toMatchObject({ finalizing_at: null });
     },
     30_000,
   );

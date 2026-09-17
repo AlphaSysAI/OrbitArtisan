@@ -8,6 +8,11 @@ import type { FacturXInvoiceDocument } from "@/lib/billing/facturx/types";
 import { classifyCustomer } from "./classify-customer";
 import { buildEReportingPayload, reportingPeriodFromDate } from "./e-reporting";
 import type { IPayloadSubmitter, PaSubmissionPayload } from "./payload-submitter";
+import {
+  frozenInvoicingMessageFor,
+  INVOICING_FROZEN_ERROR,
+  isDraftInvoicingFrozenForCustomer,
+} from "../invoicing-freeze";
 
 const VALID_VAT_RATES = [0, 5.5, 10, 20];
 
@@ -43,6 +48,7 @@ export type FinalizeInvoiceError = {
     | "no_lines"
     | "invalid_vat_rate"
     | "missing_legal_info"
+    | "invoicing_frozen"
     | "finalize_in_progress"
     | "number_allocation_failed"
     | "generation_failed"
@@ -118,6 +124,27 @@ export class InvoiceService {
       return { ok: false, code: "not_found", message: "Impossible de charger les données de la facture." };
     }
 
+    // Vague 7 (garde-fou) : le gel ne bloque plus la création de brouillon
+    // que pour le B2B (voir invoicing-freeze.ts). Rien n'empêche
+    // structurellement qu'un brouillon B2B existe déjà malgré ça (import,
+    // changement de client après coup, futur point d'entrée non gardé) —
+    // on revalide donc ici, avant tout autre contrôle et avant d'allouer un
+    // numéro de facture, pour ne jamais gaspiller un numéro séquentiel sur
+    // une finalisation qui doit de toute façon échouer.
+    const customerClass = classifyCustomer({
+      siren: document.buyer.siren,
+      siret: document.buyer.siret,
+      vatNumber: document.buyer.vatNumber,
+    });
+    if (isDraftInvoicingFrozenForCustomer(customerClass)) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      return {
+        ok: false,
+        code: INVOICING_FROZEN_ERROR,
+        message: frozenInvoicingMessageFor(customerClass),
+      };
+    }
+
     if (document.lines.length === 0) {
       await this.releaseFinalizeClaim(invoiceId, artisanId);
       return { ok: false, code: "no_lines", message: "La facture ne contient aucune ligne." };
@@ -174,12 +201,6 @@ export class InvoiceService {
       };
     }
     document.invoiceNumber = allocatedNumber;
-
-    const customerClass = classifyCustomer({
-      siren: document.buyer.siren,
-      siret: document.buyer.siret,
-      vatNumber: document.buyer.vatNumber,
-    });
 
     if (customerClass === "b2b") {
       return this.finalizeB2B(invoiceId, artisanId, document);

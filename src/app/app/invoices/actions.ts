@@ -246,6 +246,8 @@ const FINALIZE_ERROR_MESSAGES: Record<string, string> = {
   already_finalized: "Cette facture est déjà finalisée.",
   not_draft: "Seul un brouillon peut être finalisé.",
   no_lines: "Ajoute des lignes via le devis avant de finaliser.",
+  invoicing_frozen:
+    "Facturation désactivée pour ce client professionnel (SIREN + TVA renseignés) — en attente du raccordement à une Plateforme Agréée pour la transmission Factur-X, obligatoire pour les clients B2B. La facturation des particuliers reste disponible.",
   generation_failed: "Échec de génération du document.",
   pa_submission_failed: "Échec d'envoi à la Plateforme Agréée.",
   persist_failed: "Impossible d'enregistrer la finalisation.",
