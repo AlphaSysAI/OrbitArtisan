@@ -12,6 +12,14 @@ function formatEur(cents: number): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
 
+// Vague 8 : expéditeur dédié aux emails de devis, demandé par Florian —
+// scope volontairement limité à cet envoi (les relances de facture dans
+// invoice-reminders.ts gardent le "from" par défaut de sendEmail(),
+// noreply@solinebtp.fr ou EMAIL_FROM si défini). Suppose que le domaine
+// solinebtp.fr est vérifié côté Resend (SPF/DKIM) avant mise en prod,
+// sinon Resend rejettera l'envoi ou le fera atterrir en spam.
+const QUOTE_EMAIL_FROM = "Soline <support@solinebtp.fr>";
+
 export type SendQuoteEmailParams = {
   supabase: SupabaseClient;
   quoteId: string;
@@ -38,7 +46,12 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
   const fileStem = doc?.quoteNumber.replace(/[^\w-]+/g, "-") ?? params.quoteId.slice(0, 8);
   const quoteRef = doc?.quoteNumber ?? params.quoteId.slice(0, 8).toUpperCase();
 
-  const subject = `${artisan} — votre devis n° ${quoteRef} (${total})`;
+  // Vague 8 : sujet fixe demandé par Florian ("un devis pour vous"), au lieu
+  // du sujet précédent qui incluait artisan/numéro/montant. Compromis assumé :
+  // moins d'info immédiate pour le client (numéro de devis absent du sujet,
+  // donc moins facile à retrouver dans sa boîte mail plus tard), mais reste
+  // dans le corps du message et dans le PDF joint.
+  const subject = "Un devis pour vous";
 
   const legalNotice =
     "Le document PDF joint reprend l'ensemble des mentions légales obligatoires (identité de l'entreprise, SIRET, assurances, TVA, validité du devis, conditions de paiement et, le cas échéant, droit de rétractation).";
@@ -68,6 +81,7 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
 
   return sendEmail({
     to: params.to,
+    from: QUOTE_EMAIL_FROM,
     subject,
     html,
     text,
