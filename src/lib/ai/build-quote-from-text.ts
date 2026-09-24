@@ -13,6 +13,10 @@ import {
   type MaterialTakeoff,
 } from "@/lib/ai/quote-material-takeoff";
 import {
+  estimateMaterialUnitPricesEur,
+  lookupEstimatedUnitPrice,
+} from "@/lib/ai/quote-material-unit-pricing";
+import {
   QUOTE_EXTRACTION_JSON_SCHEMA,
   QuoteExtractionSchema,
   type GenerateQuoteFromChatResponse,
@@ -233,9 +237,36 @@ ${instruction}`;
     };
   }
 
-  const supplierMaterials: MatchedSupplierMaterial[] = await Promise.all(
+  let supplierMaterials: MatchedSupplierMaterial[] = await Promise.all(
     neededMaterials.map(matchOneMaterial),
   );
+
+  const withoutCatalogPrice = supplierMaterials.filter((row) => !row.match);
+  if (withoutCatalogPrice.length) {
+    const estimates = await estimateMaterialUnitPricesEur(
+      withoutCatalogPrice.map((row) => ({
+        name: row.requested_name,
+        quantity: row.quantity,
+        specifications: row.specifications,
+      })),
+      instruction,
+    );
+    if (estimates.size) {
+      supplierMaterials = supplierMaterials.map((row) => {
+        if (row.match) return row;
+        const est = lookupEstimatedUnitPrice(estimates, row.requested_name);
+        if (est == null) return row;
+        return { ...row, estimated_unit_price_eur: est };
+      });
+      warnings.push(
+        "Prix matériaux estimés (web / marché) pour les lignes sans correspondance catalogue — à valider.",
+      );
+    } else if (withoutCatalogPrice.length) {
+      warnings.push(
+        "Certains matériaux n'ont pas de prix catalogue : complète les prix unitaires dans le formulaire.",
+      );
+    }
+  }
 
   if (!neededMaterials.length) {
     warnings.push("Aucun matériau détecté dans l'instruction.");

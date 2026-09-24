@@ -53,4 +53,14 @@ export type QuotePdfDocument = {
   retractionNotice: QuoteRetractionNotice;
   /** CGV propres de l'artisan (clients finaux), une ligne par paragraphe. */
   salesTermsLines: string[];
+  /** Fournitures recommandées en achat direct (hors total TTC). */
+  directPurchaseLines: QuotePdfDirectPurchaseLine[];
+};
+
+export type QuotePdfDirectPurchaseLine = {
+  label: string;
+  quantity: number;
+  unitPriceCents: number;
+  lineTotalCents: number;
+  supplierUrl?: string | null;
 };

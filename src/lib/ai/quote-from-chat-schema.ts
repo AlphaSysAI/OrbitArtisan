@@ -98,6 +98,8 @@ export type MatchedSupplierMaterial = {
     sku: string;
     similarity: number;
   } | null;
+  /** Prix unitaire HT estimé (web / LLM) si aucun produit catalogue. */
+  estimated_unit_price_eur?: number | null;
 };
 
 export type GenerateQuoteFromChatResponse = {

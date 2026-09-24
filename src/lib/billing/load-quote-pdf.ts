@@ -115,7 +115,7 @@ export async function loadQuotePdfDocument(
       .order("created_at", { ascending: true }),
     supabase
       .from("quote_materials")
-      .select("label, quantity, unit_price, line_total, vat_rate, exclude_from_invoice")
+      .select("label, quantity, unit_price, line_total, vat_rate, exclude_from_invoice, supplier_url")
       .eq("quote_id", quoteId)
       .order("created_at", { ascending: true }),
   ]);
@@ -147,6 +147,20 @@ export async function loadQuotePdfDocument(
 
   const vatBreakdown = computeVatBreakdown(tableLines);
   const totals = sumQuoteTotals(vatBreakdown);
+
+  const directPurchaseLines = (materials ?? [])
+    .filter((m) => m.exclude_from_invoice && (m.unit_price ?? 0) > 0)
+    .map((m) => {
+      const unitPriceCents = m.unit_price ?? 0;
+      const quantity = m.quantity ?? 0;
+      return {
+        label: m.label ?? "",
+        quantity,
+        unitPriceCents,
+        lineTotalCents: Math.round(quantity * unitPriceCents),
+        supplierUrl: m.supplier_url ?? null,
+      };
+    });
 
   const legalProfile = {
     business_name: profile.business_name ?? "",
@@ -207,5 +221,6 @@ export async function loadQuotePdfDocument(
       retractionWaived: !!quote.retraction_waived,
     }),
     salesTermsLines: splitSalesTermsLines(profile.sales_terms_text),
+    directPurchaseLines,
   };
 }

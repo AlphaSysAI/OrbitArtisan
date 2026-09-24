@@ -1,5 +1,6 @@
+import { mapSupplierMaterialRowToDraft } from "@/lib/ai/map-supplier-material-draft";
 import type { GenerateQuoteFromChatResponse } from "@/lib/ai/quote-from-chat-schema";
-import type { AiQuoteDraft, AiSupplierMaterialDraft } from "@/lib/ai/quote-draft-storage";
+import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 
 function draftRowId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -15,36 +16,9 @@ export function mapApiResponseToDraft(
     conversationId?: string | null;
   },
 ): AiQuoteDraft {
-  const supplierMaterials: AiSupplierMaterialDraft[] = data.supplier_materials.map((row) => {
-    if (row.match) {
-      return {
-        id: draftRowId(),
-        label: row.match.title,
-        quantity: row.quantity,
-        unitPriceEur: row.match.price_eur.toFixed(2).replace(".", ","),
-        supplierProductId: row.match.id,
-        supplierUrl: row.match.url,
-        supplierSku: row.match.sku,
-        excludeFromInvoice: true,
-        similarity: row.match.similarity,
-        requestedName: row.requested_name,
-        specifications: row.specifications,
-      };
-    }
-    return {
-      id: draftRowId(),
-      label: row.requested_name,
-      quantity: row.quantity,
-      unitPriceEur: "",
-      supplierProductId: null,
-      supplierUrl: null,
-      supplierSku: null,
-      excludeFromInvoice: false,
-      similarity: null,
-      requestedName: row.requested_name,
-      specifications: row.specifications,
-    };
-  });
+  const supplierMaterials = data.supplier_materials.map((row) =>
+    mapSupplierMaterialRowToDraft(row, draftRowId()),
+  );
 
   return {
     version: 1,

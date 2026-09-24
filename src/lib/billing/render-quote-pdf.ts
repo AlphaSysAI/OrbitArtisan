@@ -200,6 +200,28 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
     color: PDF_BRAND,
   });
 
+  if (doc.directPurchaseLines.length > 0) {
+    writer.drawRule();
+    writer.ensureSpace(120);
+    writer.drawText("FOURNITURES EN ACHAT DIRECT (HORS TOTAL CI-DESSUS)", {
+      size: 8,
+      bold: true,
+      color: PDF_BRAND,
+    });
+    writer.drawText(
+      "Prix indicatifs catalogue — à régler directement auprès du fournisseur.",
+      { size: 7, color: PDF_MUTED, maxWidthChars: 100 },
+    );
+    for (const line of doc.directPurchaseLines) {
+      writer.ensureSpace(60);
+      const qtyLabel = Number.isInteger(line.quantity)
+        ? String(line.quantity)
+        : line.quantity.toFixed(2);
+      const pricePart = `${qtyLabel} × ${formatEurosForPdf(line.unitPriceCents)} HT = ${formatEurosForPdf(line.lineTotalCents)} HT`;
+      writer.drawText(`• ${line.label} — ${pricePart}`, { size: 8, maxWidthChars: 100 });
+    }
+  }
+
   if (doc.notes?.trim()) {
     writer.drawRule();
     writer.drawText("OBSERVATIONS", { size: 8, bold: true, color: PDF_BRAND });

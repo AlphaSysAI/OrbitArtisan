@@ -188,7 +188,7 @@ function mapDraftMaterials(rows: AiSupplierMaterialDraft[]) {
   return rows.map((m) => ({
     label: m.label.trim(),
     quantity: m.quantity,
-    unitPriceCents: m.excludeFromInvoice ? 0 : parseEurToCents(m.unitPriceEur),
+    unitPriceCents: parseEurToCents(m.unitPriceEur) ?? 0,
     supplierProductId: m.supplierProductId,
     supplierUrl: m.supplierUrl,
     supplierSku: m.supplierSku,

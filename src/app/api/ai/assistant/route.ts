@@ -36,6 +36,7 @@ import {
   tryOpenMessageNavigation,
 } from "@/lib/ai/assistant-message-query";
 import { buildQuoteFromText } from "@/lib/ai/build-quote-from-text";
+import { mapSupplierMaterialRowToDraft } from "@/lib/ai/map-supplier-material-draft";
 import { extractFrenchDates } from "@/lib/ai/extract-dates";
 import { extractFrenchTime } from "@/lib/ai/extract-time";
 import { matchContactByQuery, type ContactCandidate } from "@/lib/ai/match-contact";
@@ -79,34 +80,7 @@ function mapMaterialsToDraftRows(
 ): AiQuoteDraft["supplierMaterials"] {
   return data.supplier_materials.map((row) => {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    if (row.match) {
-      return {
-        id,
-        label: row.match.title,
-        quantity: row.quantity,
-        unitPriceEur: row.match.price_eur.toFixed(2).replace(".", ","),
-        supplierProductId: row.match.id,
-        supplierUrl: row.match.url,
-        supplierSku: row.match.sku,
-        excludeFromInvoice: true,
-        similarity: row.match.similarity,
-        requestedName: row.requested_name,
-        specifications: row.specifications,
-      };
-    }
-    return {
-      id,
-      label: row.requested_name,
-      quantity: row.quantity,
-      unitPriceEur: "",
-      supplierProductId: null,
-      supplierUrl: null,
-      supplierSku: null,
-      excludeFromInvoice: false,
-      similarity: null,
-      requestedName: row.requested_name,
-      specifications: row.specifications,
-    };
+    return mapSupplierMaterialRowToDraft(row, id);
   });
 }
 
