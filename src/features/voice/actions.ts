@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import { syncArtisanVoiceNumberMapping } from "@/lib/voice/voice-number-registry";
 
 export type VoiceActionResult<T = undefined> =
   | { success: true; data: T }
@@ -96,21 +98,28 @@ export async function setArtisanVoiceNumber(phone: string): Promise<VoiceActionR
       return { success: false, error: "Numéro invalide (format international, ex. +33123456789)." };
     }
 
-    // Un seul numéro par artisan : on remplace l'existant.
-    await supabase.from("artisan_voice_numbers").delete().eq("artisan_id", profile.id);
-
-    if (normalized) {
-      const { error } = await supabase.from("artisan_voice_numbers").insert({
-        phone_e164: normalized,
-        artisan_id: profile.id,
-      });
-      if (error) {
-        const msg = error.message.includes("duplicate")
-          ? "Ce numéro est déjà rattaché à un autre artisan."
-          : error.message;
-        return { success: false, error: msg };
-      }
+    const admin = createSupabaseServiceRoleClient();
+    if (!admin) {
+      return { success: false, error: "Registre télécom indisponible (service role)." };
     }
+
+    const sync = await syncArtisanVoiceNumberMapping({
+      supabase: admin,
+      artisanId: profile.id,
+      phoneE164: normalized || null,
+      assignedBy: "artisan_self_service",
+      releaseReasonWhenCleared: "removed_by_artisan",
+    });
+
+    if (!sync.ok) {
+      const msg =
+        sync.error === "phone_already_assigned"
+          ? "Ce numéro est déjà rattaché à un autre artisan."
+          : sync.error;
+      return { success: false, error: msg };
+    }
+
+    revalidatePath("/app/reglages");
     return { success: true, data: undefined };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Erreur serveur" };

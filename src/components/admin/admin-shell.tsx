@@ -7,6 +7,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   LogOut,
+  Phone,
   Shield,
 } from "lucide-react";
 
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/admin", label: "Vue d'ensemble", icon: LayoutDashboard, exact: true },
   { href: "/admin/tenants", label: "Artisans", icon: Building2 },
+  { href: "/admin/telecom", label: "Registre télécom", icon: Phone },
   { href: "/admin/logs", label: "Logs / Audit", icon: ClipboardList },
 ];
 

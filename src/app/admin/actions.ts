@@ -10,6 +10,7 @@ import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getAdminDb } from "@/lib/admin/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { syncArtisanVoiceNumberMapping } from "@/lib/voice/voice-number-registry";
 
 async function guardAdmin() {
   const res = await requirePlatformAdminSafe();
@@ -182,6 +183,14 @@ export async function archiveTenant(profileId: string): Promise<{ ok: true } | {
     .eq("id", profileId);
 
   if (error) return { ok: false, error: "update_failed" };
+
+  await syncArtisanVoiceNumberMapping({
+    supabase: sbAdmin,
+    artisanId: profileId,
+    phoneE164: null,
+    assignedBy: "platform_admin",
+    releaseReasonWhenCleared: "account_archived",
+  });
 
   await writeAdminAuditLog({
     adminUserId: adminUser.id,

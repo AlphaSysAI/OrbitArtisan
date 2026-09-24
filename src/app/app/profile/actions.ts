@@ -110,6 +110,12 @@ export async function upsertProfile(formData: FormData) {
     trade,
   };
 
+  const meta = user.user_metadata as Record<string, unknown> | undefined;
+  const registrationIp =
+    typeof meta?.registration_ip === "string" ? meta.registration_ip.slice(0, 45) : null;
+  const registrationRecordedAt =
+    typeof meta?.registration_recorded_at === "string" ? meta.registration_recorded_at : null;
+
   if (existing?.id) {
     const { error } = await supabase.from("profiles").update(payload).eq("id", existing.id);
     if (error) return { ok: false as const, error: "update_failed" as const };
@@ -120,6 +126,8 @@ export async function upsertProfile(formData: FormData) {
       subscription_status: "trialing",
       trial_ends_at: computeTrialEndsAt(),
       voice_minutes_included: getPlanVoiceMinutes("base"),
+      registration_ip: registrationIp,
+      registration_recorded_at: registrationRecordedAt,
     });
     if (error) {
       // Cas courant: contrainte d'unicité du slug

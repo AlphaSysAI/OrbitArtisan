@@ -1,7 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { getClientIpFromHeaders } from "@/lib/http/client-ip";
 import { LEGAL_LAST_UPDATED } from "@/lib/legal/site-legal-info";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -50,6 +52,9 @@ export async function signUpWithPassword(formData: FormData) {
       : next;
 
   const supabase = await createSupabaseServerClient();
+  const headerStore = await headers();
+  const registrationIp = getClientIpFromHeaders(headerStore);
+  const registrationRecordedAt = new Date().toISOString();
 
   const { error } = await supabase.auth.signUp({
     email,
@@ -57,8 +62,10 @@ export async function signUpWithPassword(formData: FormData) {
     options: {
       emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
       data: {
-        terms_accepted_at: new Date().toISOString(),
+        terms_accepted_at: registrationRecordedAt,
         terms_version: LEGAL_LAST_UPDATED,
+        registration_ip: registrationIp,
+        registration_recorded_at: registrationRecordedAt,
       },
     },
   });

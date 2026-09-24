@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+import { persistRegistrationIpOnProfile } from "@/lib/auth/persist-registration-ip";
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -27,7 +29,10 @@ export async function GET(request: NextRequest) {
     },
   );
 
-  await supabase.auth.exchangeCodeForSession(code);
+  const { data: sessionData } = await supabase.auth.exchangeCodeForSession(code);
+  if (sessionData.user) {
+    await persistRegistrationIpOnProfile(supabase, sessionData.user);
+  }
 
   return response;
 }
