@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getPlanVoiceMinutes, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
+import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 
 export function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
   const subscriptionRef = invoice.parent?.subscription_details?.subscription;
@@ -103,6 +104,32 @@ export async function syncProfileFromStripeSubscription(
   const { error } = await admin.from("profiles").update(payload).eq("id", profileId);
   if (error) {
     console.error("[stripe subscription] sync profile", { profileId, error });
+    return;
+  }
+
+  let effectivePlanId = planId;
+  if (!effectivePlanId) {
+    const { data: profileRow } = await admin
+      .from("profiles")
+      .select("subscription_plan")
+      .eq("id", profileId)
+      .maybeSingle();
+    const stored = profileRow?.subscription_plan?.trim();
+    if (stored === "base" || stored === "pro" || stored === "premium") {
+      effectivePlanId = stored;
+    }
+  }
+
+  const voiceSync = await syncSubscriptionVoiceNumber(admin, {
+    profileId,
+    planId: effectivePlanId,
+    subscriptionStatus: status,
+  });
+  if (voiceSync.poolEmpty) {
+    console.warn("[stripe subscription] pool vocal vide", { profileId, planId: effectivePlanId });
+  }
+  if (voiceSync.error) {
+    console.error("[stripe subscription] sync numéro vocal", { profileId, error: voiceSync.error });
   }
 }
 
@@ -131,4 +158,10 @@ export async function markProfileSubscriptionCanceled(admin: SupabaseClient, sub
       updated_at: new Date().toISOString(),
     })
     .eq("id", profileId);
+
+  await syncSubscriptionVoiceNumber(admin, {
+    profileId,
+    planId: null,
+    subscriptionStatus: "canceled",
+  });
 }

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AdminTenantVoiceCard } from "@/components/admin/admin-tenant-voice-card";
 import { TenantActions, TenantStatusBadges } from "@/components/admin/tenant-actions";
+import { getAdminDb } from "@/lib/admin/db";
 import { updateTenantPlanForm, updateTenantProfileForm } from "@/app/admin/actions";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Button } from "@/components/ui/button";
@@ -19,6 +21,17 @@ export default async function AdminTenantDetailPage({
   const { profileId } = await params;
   const tenant = await getAdminTenant(profileId);
   if (!tenant) notFound();
+
+  let voicePhoneE164: string | null = null;
+  const adminDb = getAdminDb();
+  if (adminDb) {
+    const { data } = await adminDb
+      .from("artisan_voice_numbers")
+      .select("phone_e164")
+      .eq("artisan_id", profileId)
+      .maybeSingle();
+    voicePhoneE164 = (data?.phone_e164 as string | undefined) ?? null;
+  }
 
   return (
     <div className="space-y-8">
@@ -108,6 +121,8 @@ export default async function AdminTenantDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <AdminTenantVoiceCard profileId={profileId} currentPhoneE164={voicePhoneE164} />
 
       <Card>
         <CardHeader>

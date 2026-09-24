@@ -104,15 +104,8 @@ curl -X POST http://localhost:3000/api/voice/artisan/create-quote-draft \
 
 ### Managing Voice Numbers
 
-```typescript
-// Get artisan's voice number
-const result = await getArtisanVoiceNumber();
-
-// Set/update artisan's voice number
-const result = await setArtisanVoiceNumber("+33612345678");
-```
-
-These actions can be called from Artisan's settings page to configure their voice AI.
+Les numéros sont attribués **automatiquement** depuis `voice_number_pool` à l’abonnement Pro/Premium.
+L’artisan voit son numéro en lecture seule dans Réglages → IA Vocale ; seul le Super Admin peut modifier (`/admin/tenants/[id]`).
 
 ## Security
 

@@ -7,7 +7,7 @@ import { ContactSettingsForm } from "@/components/settings/contact-settings-form
 import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
 import { LeadMatchingReadiness } from "@/components/settings/lead-matching-readiness";
 import { SubscriptionSettingsSection } from "@/components/settings/subscription-settings-section";
-import { VoiceNumberForm } from "@/components/settings/voice-number-form";
+import { VoiceSolineNumberSection } from "@/components/settings/voice-soline-number-section";
 import { VoiceQuotaSettingsForm } from "@/components/settings/voice-quota-settings-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -18,6 +18,7 @@ import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 import { listStripeBillingEventsForProfile } from "@/lib/billing/stripe-billing-events";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 
 import { ProfileForm } from "../profile/profile-form";
@@ -231,7 +232,6 @@ export default async function ArtisanSettingsPage({
 
   let voiceQuota = null as Awaited<ReturnType<typeof resolveVoiceQuota>>;
   let voiceAllowOverage = true;
-
   if (profile?.id) {
     const subscriptionRes = await supabase
       .from("profiles")
@@ -254,6 +254,10 @@ export default async function ArtisanSettingsPage({
     voiceQuota = await resolveVoiceQuota(supabase, profile.id);
   }
 
+  const planId = subscriptionProfile.subscription_plan;
+  const planIncludesVoice =
+    planId === "pro" || planId === "premium" ? getPlanVoiceMinutes(planId) > 0 : false;
+  const solinePhone = (voiceNumber?.phone_e164 as string | undefined) ?? null;
   let billingEvents: Awaited<ReturnType<typeof listStripeBillingEventsForProfile>> = [];
   if (profile?.id && tab === "abonnement") {
     billingEvents = await listStripeBillingEventsForProfile(supabase, profile.id, 8);
@@ -456,7 +460,10 @@ export default async function ArtisanSettingsPage({
                     allowOverage={voiceAllowOverage}
                   />
                 ) : null}
-                <VoiceNumberForm initialPhone={voiceNumber?.phone_e164 ?? null} />
+                <VoiceSolineNumberSection
+                  phoneE164={solinePhone}
+                  planIncludesVoice={planIncludesVoice}
+                />
               </>
             )}
           </section>

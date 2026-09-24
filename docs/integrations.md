@@ -316,6 +316,13 @@ Agent vocal hébergé ElevenLabs appelle les endpoints Soline.
 
 Auth : `Authorization: Bearer ${VOICE_AI_TOOL_SECRET}` (`src/features/voice/lib/tool-auth.ts`).
 
+### Pool numéros (Pro / Premium)
+
+- Table `voice_number_pool` + RPC `claim_voice_number_from_pool` / `release_voice_number_from_pool` (migration `28_voice_number_pool.sql`).
+- À l’abonnement **Pro** ou **Premium** (statut `active`, `trialing` ou `past_due`), un numéro disponible est attribué via `syncSubscriptionVoiceNumber` (webhook Stripe → `syncProfileFromStripeSubscription`).
+- Passage **Base** ou résiliation : libération du mapping + retour du numéro au pool.
+- Gestion ops : **`/admin/telecom/pool`** (ajout des numéros Twilio déjà branchés ElevenLabs).
+
 ---
 
 ## 8. IA & recherche
