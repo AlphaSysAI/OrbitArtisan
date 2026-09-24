@@ -9,9 +9,7 @@ export type AdminAuditAction =
   | "tenant.archive"
   | "tenant.restore"
   | "tenant.plan_change"
-  | "tenant.reset_access"
-  | "impersonation.start"
-  | "impersonation.end";
+  | "tenant.reset_access";
 
 export async function writeAdminAuditLog(input: {
   adminUserId: string;

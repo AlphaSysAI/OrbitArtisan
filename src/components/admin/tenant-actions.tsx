@@ -8,7 +8,6 @@ import {
   archiveTenant,
   reactivateTenant,
   resetTenantAccess,
-  startImpersonation,
   suspendTenant,
 } from "@/app/admin/actions";
 import { Badge } from "@/components/ui/badge";
@@ -39,22 +38,6 @@ export function TenantActions({ tenant }: { tenant: AdminTenantRow }) {
       <Link href={`/admin/tenants/${tenant.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
         Détails
       </Link>
-      <Button
-        type="button"
-        size="sm"
-        variant="secondary"
-        disabled={pending || !tenant.email}
-        onClick={() =>
-          run(
-            () => startImpersonation(tenant.id, false),
-            (res) => {
-              if (res.url) window.location.href = res.url;
-            },
-          )
-        }
-      >
-        Se connecter en tant que
-      </Button>
       <Button
         type="button"
         size="sm"

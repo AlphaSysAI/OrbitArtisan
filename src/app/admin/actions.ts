@@ -1,17 +1,10 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { writeAdminAuditLog } from "@/lib/admin/audit-log";
 import { getAdminTenant, getPlanVoiceMinutes, type ArtisanSubscriptionStatus } from "@/lib/admin/tenants";
-import {
-  ADMIN_IMPERSONATION_COOKIE,
-  ADMIN_RETURN_SESSION_COOKIE,
-  type AdminReturnSessionCookie,
-  type ImpersonationCookie,
-} from "@/lib/auth/impersonation";
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -222,95 +215,6 @@ export async function resetTenantAccess(profileId: string): Promise<{ ok: true; 
   });
 
   return { ok: true, url: data.properties.action_link };
-}
-
-export async function startImpersonation(
-  profileId: string,
-  readOnly = false,
-): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
-  const { user: adminUser, admin: sbAdmin } = await guardAdmin();
-  const tenant = await getAdminTenant(profileId);
-  if (!tenant?.email) return { ok: false, error: "no_email" };
-
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) return { ok: false, error: "auth" };
-
-  const { data, error } = await sbAdmin.auth.admin.generateLink({
-    type: "magiclink",
-    email: tenant.email,
-    options: { redirectTo: `${getPublicSiteUrl()}/app?impersonation=1` },
-  });
-
-  if (error || !data.properties?.action_link) return { ok: false, error: "link_failed" };
-
-  const cookieStore = await cookies();
-  const returnPayload: AdminReturnSessionCookie = {
-    adminUserId: adminUser.id,
-    accessToken: session.access_token,
-    refreshToken: session.refresh_token,
-  };
-  cookieStore.set(ADMIN_RETURN_SESSION_COOKIE, JSON.stringify(returnPayload), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60,
-  });
-
-  const impersonationPayload: ImpersonationCookie = {
-    targetUserId: tenant.userId,
-    targetProfileId: profileId,
-    targetLabel: tenant.businessName,
-    readOnly,
-  };
-  cookieStore.set(ADMIN_IMPERSONATION_COOKIE, JSON.stringify(impersonationPayload), {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60,
-  });
-
-  await writeAdminAuditLog({
-    adminUserId: adminUser.id,
-    action: "impersonation.start",
-    targetUserId: tenant.userId,
-    targetProfileId: profileId,
-    details: { readOnly },
-  });
-
-  return { ok: true, url: data.properties.action_link };
-}
-
-export async function endImpersonation(): Promise<void> {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(ADMIN_RETURN_SESSION_COOKIE)?.value;
-
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as AdminReturnSessionCookie;
-      const supabase = await createSupabaseServerClient();
-      await supabase.auth.setSession({
-        access_token: parsed.accessToken,
-        refresh_token: parsed.refreshToken,
-      });
-
-      await writeAdminAuditLog({
-        adminUserId: parsed.adminUserId,
-        action: "impersonation.end",
-      });
-    } catch {
-      // ignore
-    }
-  }
-
-  cookieStore.delete(ADMIN_RETURN_SESSION_COOKIE);
-  cookieStore.delete(ADMIN_IMPERSONATION_COOKIE);
-
-  redirect("/admin/tenants");
 }
 
 export async function updateTenantProfileForm(profileId: string, formData: FormData) {
