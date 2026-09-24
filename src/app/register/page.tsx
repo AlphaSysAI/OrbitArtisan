@@ -24,7 +24,7 @@ export default async function RegisterPage({
   }
 
   const sp = await searchParams;
-  const next = typeof sp.next === "string" ? sp.next : "/app";
+  const next = typeof sp.next === "string" ? sp.next : "/app/onboarding";
   const error = typeof sp.error === "string" ? sp.error : undefined;
   const prefillEmail = typeof sp.email === "string" ? sp.email : "";
   const inviteToken = typeof sp.invite === "string" ? sp.invite : "";

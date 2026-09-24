@@ -114,10 +114,30 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 
 type SolineBtpLandingProps = {
   appLoginUrl: string;
-  appRegisterUrl: string;
 };
 
-export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandingProps) {
+function LandingComingSoonCta({
+  size = "sm",
+  className,
+}: {
+  size?: "sm" | "lg";
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        buttonVariants({ size }),
+        "inline-flex cursor-not-allowed justify-center border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100",
+        className,
+      )}
+      aria-disabled
+    >
+      Bientôt disponible
+    </span>
+  );
+}
+
+export function SolineBtpLanding({ appLoginUrl }: SolineBtpLandingProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -148,15 +168,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
             <a href={appLoginUrl} className={buttonVariants({ variant: "outline", size: "sm" })}>
               Connexion
             </a>
-            <a
-              href={appRegisterUrl}
-              className={cn(
-                buttonVariants({ size: "sm" }),
-                "border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
-              )}
-            >
-              Essai gratuit 15 jours
-            </a>
+            <LandingComingSoonCta size="sm" />
           </div>
 
           <button
@@ -186,15 +198,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                 <a href={appLoginUrl} className={buttonVariants({ variant: "outline", size: "sm" })}>
                   Connexion
                 </a>
-                <a
-                  href={appRegisterUrl}
-                  className={cn(
-                    buttonVariants({ size: "sm" }),
-                    "border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
-                  )}
-                >
-                  Essai gratuit 15 jours
-                </a>
+                <LandingComingSoonCta size="sm" className="w-full" />
               </div>
             </nav>
           </div>
@@ -224,17 +228,9 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
             </p>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <a
-                href={appRegisterUrl}
-                className={cn(
-                  buttonVariants({ size: "lg" }),
-                  "h-13 w-full border-orange-500 bg-orange-500 px-6 text-base text-white hover:bg-orange-600 sm:w-auto",
-                )}
-              >
-                Démarrer l&apos;essai gratuit de 15 jours
-              </a>
+              <LandingComingSoonCta size="lg" className="h-13 w-full px-6 text-base sm:w-auto" />
             </div>
-            <p className="text-sm text-slate-500">Sans carte bancaire • Configuration en 3 minutes</p>
+            <p className="text-sm text-slate-500">Inscriptions et abonnements — ouverture prochaine</p>
           </div>
 
           {/* Mockup UI */}
@@ -531,7 +527,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
             </p>
           </div>
 
-          <SubscriptionPricingGrid variant="landing" registerUrl={appRegisterUrl} />
+          <SubscriptionPricingGrid variant="landing" />
 
           <div className="mx-auto mt-16 max-w-3xl">
             <div className="mb-8 text-center">
@@ -539,8 +535,7 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                 Rechargez vos minutes Soline
               </h3>
               <p className="mt-2 text-sm text-slate-600 sm:text-base">
-                Besoin de plus d&apos;appels ? Achetez des packs de minutes depuis votre espace artisan, sans
-                changer de plan.
+                Des packs de minutes Soline seront proposés depuis votre espace artisan, sans changer de plan.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -552,11 +547,15 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
                   <Phone className="mb-3 size-8 text-orange-500" />
                   <p className="text-sm font-semibold uppercase tracking-wider text-orange-700">{pack.label}</p>
                   <p className="mt-2 flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-slate-900">{pack.priceHtEur} €</span>
-                    <span className="text-slate-500">HT</span>
+                    <span className="text-3xl font-bold text-slate-900 blur-md select-none" aria-hidden>
+                      {pack.priceHtEur} €
+                    </span>
+                    <span className="text-slate-500 blur-sm select-none" aria-hidden>
+                      HT
+                    </span>
                   </p>
                   <p className="mt-1 text-sm text-slate-600">{pack.minutes} minutes d&apos;appels Soline</p>
-                  <p className="mt-3 text-xs text-slate-500">Crédit ajouté instantanément à votre compte</p>
+                  <p className="mt-3 text-xs font-medium text-slate-500">Bientôt disponible</p>
                 </article>
               ))}
             </div>
@@ -586,16 +585,8 @@ export function SolineBtpLanding({ appLoginUrl, appRegisterUrl }: SolineBtpLandi
           <h2 className="font-display text-2xl font-semibold sm:text-3xl">
             Prêt à quitter la paperasse du soir ?
           </h2>
-          <p className="mt-3 text-slate-300">15 jours gratuits. Sans carte bancaire. Configuration en 3 minutes.</p>
-          <a
-            href={appRegisterUrl}
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "mt-6 border-orange-500 bg-orange-500 text-white hover:bg-orange-600",
-            )}
-          >
-            Essayer Soline gratuitement
-          </a>
+          <p className="mt-3 text-slate-300">Les inscriptions ouvrent très bientôt — restez connecté.</p>
+          <LandingComingSoonCta size="lg" className="mt-6" />
         </div>
       </section>
 

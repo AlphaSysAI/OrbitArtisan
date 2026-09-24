@@ -7,6 +7,10 @@ import {
   isSubscriptionDocumentBlockedPath,
   subscriptionBlockRedirectReason,
 } from "@/lib/billing/subscription-access";
+import {
+  ARTISAN_ONBOARDING_PROFILE_SELECT,
+  artisanNeedsOnboarding,
+} from "@/lib/auth/artisan-onboarding";
 
 export async function middleware(request: NextRequest) {
   const domainRedirect = resolveDomainRouting(request);
@@ -55,12 +59,13 @@ export async function middleware(request: NextRequest) {
     deleted_at: string | null;
     subscription_status: string | null;
     trial_ends_at: string | null;
+    onboarding_completed_at?: string | null;
   } | null = null;
 
   if (user) {
     const { data } = await supabase
       .from("profiles")
-      .select("id, account_status, deleted_at, subscription_status, trial_ends_at")
+      .select(`id, account_status, deleted_at, subscription_status, trial_ends_at, ${ARTISAN_ONBOARDING_PROFILE_SELECT}`)
       .eq("user_id", user.id)
       .maybeSingle();
     artisanProfile = data;
@@ -133,6 +138,17 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isArtisan && pathname.startsWith("/app") && !isSuperAdmin && pathname !== "/app/suspended") {
+      if (
+        artisanProfile &&
+        artisanNeedsOnboarding(artisanProfile) &&
+        !pathname.startsWith("/app/onboarding")
+      ) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/app/onboarding";
+        url.search = "";
+        return NextResponse.redirect(url);
+      }
+
       if (artisanProfile?.account_status === "suspended" || artisanProfile?.deleted_at) {
         const url = request.nextUrl.clone();
         url.pathname = "/app/suspended";

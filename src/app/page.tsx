@@ -18,9 +18,6 @@ export const metadata: Metadata = {
 
 export default function Home() {
   const appUrl = getPublicSiteUrl();
-  const artisanAuthUrl = `${appUrl}/register`;
 
-  return (
-    <SolineBtpLanding appLoginUrl={`${appUrl}/login?role=artisan`} appRegisterUrl={artisanAuthUrl} />
-  );
+  return <SolineBtpLanding appLoginUrl={`${appUrl}/login?role=artisan`} />;
 }

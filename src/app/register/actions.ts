@@ -19,7 +19,7 @@ export async function signUpWithPassword(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const passwordConfirm = String(formData.get("password_confirm") ?? "");
-  const next = String(formData.get("next") ?? "/app");
+  const next = String(formData.get("next") ?? "/app/onboarding");
   const invite = String(formData.get("invite") ?? "").trim();
   const role = String(formData.get("role") ?? "artisan").trim();
 
@@ -43,7 +43,11 @@ export async function signUpWithPassword(formData: FormData) {
   }
 
   const siteUrl = getPublicSiteUrl();
-  const callbackNext = invite ? `/app/reglages?tab=activite&invite=${encodeURIComponent(invite)}` : next;
+  const callbackNext = invite
+    ? `/app/reglages?tab=activite&invite=${encodeURIComponent(invite)}`
+    : next.includes("/app/onboarding")
+      ? "/app/onboarding"
+      : next;
 
   const supabase = await createSupabaseServerClient();
 

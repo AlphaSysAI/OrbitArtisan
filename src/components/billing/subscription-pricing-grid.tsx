@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils";
 type SubscriptionPricingGridProps =
   | {
       variant: "landing";
-      registerUrl: string;
     }
   | {
       variant: "checkout";
@@ -87,17 +86,25 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
                 <span
                   className={cn(
                     "text-4xl font-bold tabular-nums",
-                    props.variant === "landing" && "text-slate-900",
+                    props.variant === "landing" && "text-slate-900 blur-md select-none",
                   )}
+                  aria-hidden={props.variant === "landing"}
                 >
                   {formatPriceHtEur(price)} €
                 </span>
-                <span className={props.variant === "landing" ? "text-slate-500" : "text-muted-foreground"}>
+                <span
+                  className={cn(
+                    props.variant === "landing" ? "text-slate-500 blur-sm select-none" : "text-muted-foreground",
+                  )}
+                  aria-hidden={props.variant === "landing"}
+                >
                   {priceLabel}
                 </span>
               </p>
 
-              {savingsPercent != null && savingsPercent > 0 ? (
+              {props.variant === "landing" ? (
+                <p className="mt-1 text-xs font-medium text-slate-500">Tarifs communiqués prochainement</p>
+              ) : savingsPercent != null && savingsPercent > 0 ? (
                 <p className="mt-1 text-xs font-medium text-orange-600">
                   Économisez {savingsPercent} % vs mensuel
                 </p>
@@ -133,20 +140,18 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
 
               <div className="mt-8">
                 {props.variant === "landing" ? (
-                  <a
-                    href={props.registerUrl}
+                  <span
                     className={cn(
                       buttonVariants({ size: "lg" }),
-                      "w-full",
+                      "inline-flex w-full cursor-not-allowed justify-center opacity-90",
                       plan.popular
-                        ? "border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
-                        : plan.id === "premium"
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
+                        ? "border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-50",
                     )}
+                    aria-disabled
                   >
-                    {plan.id === "base" ? "Démarrer l'essai gratuit" : `Choisir ${plan.name}`}
-                  </a>
+                    Bientôt disponible
+                  </span>
                 ) : (
                   <SubscriptionPlanButton
                     plan={plan}
