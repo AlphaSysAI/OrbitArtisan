@@ -8,6 +8,7 @@ import {
   type RecordStripeBillingEventInput,
 } from "@/lib/billing/stripe-billing-events";
 import { syncProfileFromStripeSubscription } from "@/lib/billing/stripe-subscription-sync";
+import { markPromoEnrollmentActive } from "@/lib/billing/promo-enrollment";
 import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import {
   resolvePlanFromPaymentLinkUrl,
@@ -133,6 +134,11 @@ export async function syncSaasSubscriptionFromCheckoutSession(
   await syncProfileFromStripeSubscription(admin, subscription, profileId, {
     fallbackPlanId,
   });
+
+  // Tarif ambassadeur : la session a été créée côté serveur avec le coupon.
+  if (profileId && session.metadata?.promo_code?.trim()) {
+    await markPromoEnrollmentActive(admin, profileId, subscription.id);
+  }
 
   return { profileId, planId: fallbackPlanId };
 }

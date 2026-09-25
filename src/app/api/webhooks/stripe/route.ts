@@ -10,6 +10,7 @@ import {
   syncSaasSubscriptionFromCheckoutSession,
 } from "@/lib/billing/stripe-checkout-sync";
 import { recordStripeBillingEvent } from "@/lib/billing/stripe-billing-events";
+import { forfeitPromoEnrollmentForSubscription } from "@/lib/billing/promo-enrollment";
 import {
   getInvoiceSubscriptionId,
   markProfileSubscriptionCanceled,
@@ -186,6 +187,7 @@ export async function POST(request: Request) {
       }
       if (admin) {
         await markProfileSubscriptionCanceled(admin, subscription);
+        await forfeitPromoEnrollmentForSubscription(admin, subscription.id);
         await recordStripeBillingEvent(admin, {
           stripeEventId: event.id,
           eventType: event.type,

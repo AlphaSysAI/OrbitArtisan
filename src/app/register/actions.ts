@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { getClientIpFromHeaders } from "@/lib/http/client-ip";
 import { LEGAL_LAST_UPDATED } from "@/lib/legal/site-legal-info";
+import { normalizePromoCode } from "@/lib/billing/promo-program";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
@@ -24,12 +25,15 @@ export async function signUpWithPassword(formData: FormData) {
   const next = String(formData.get("next") ?? "/app/onboarding");
   const invite = String(formData.get("invite") ?? "").trim();
   const role = String(formData.get("role") ?? "artisan").trim();
+  const rawPromoCode = String(formData.get("promo_code") ?? "").trim();
+  const promoCode = normalizePromoCode(rawPromoCode);
 
   const baseParams = {
     next,
     role,
     email,
     invite: invite || undefined,
+    code: rawPromoCode || undefined,
   };
 
   if (password.length < 8) {
@@ -38,6 +42,10 @@ export async function signUpWithPassword(formData: FormData) {
 
   if (password !== passwordConfirm) {
     registerRedirect({ ...baseParams, error: "password_mismatch" });
+  }
+
+  if (rawPromoCode && !promoCode) {
+    registerRedirect({ ...baseParams, error: "promo_invalid" });
   }
 
   if (formData.get("accept_terms") !== "1") {
@@ -66,6 +74,8 @@ export async function signUpWithPassword(formData: FormData) {
         terms_version: LEGAL_LAST_UPDATED,
         registration_ip: registrationIp,
         registration_recorded_at: registrationRecordedAt,
+        // Place réservée à la création du profil (trigger profiles_claim_promo_on_insert).
+        ...(promoCode ? { promo_code: promoCode } : {}),
       },
     },
   });

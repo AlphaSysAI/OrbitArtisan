@@ -20,11 +20,13 @@ export default function MentionsLegalesPage() {
         </p>
         <ul className="list-disc space-y-1 pl-5">
           <li>
+            <strong>{LEGAL_PUBLISHER.legalName}</strong>, exerçant sous le nom commercial{" "}
             <strong>{LEGAL_PUBLISHER.companyName}</strong> — {LEGAL_PUBLISHER.legalForm}
           </li>
-          <li>Siège social : {LEGAL_PUBLISHER.address}</li>
+          <li>Adresse professionnelle : {LEGAL_PUBLISHER.address}</li>
           <li>SIREN : {LEGAL_PUBLISHER.siren}</li>
           <li>SIRET : {LEGAL_PUBLISHER.siret}</li>
+          <li>{LEGAL_PUBLISHER.vatMention}</li>
           <li>
             Directeur de la publication : {LEGAL_PUBLISHER.director}
           </li>
@@ -34,6 +36,7 @@ export default function MentionsLegalesPage() {
               {LEGAL_PUBLISHER.email}
             </a>
           </li>
+          {LEGAL_PUBLISHER.phone ? <li>Téléphone : {LEGAL_PUBLISHER.phone}</li> : null}
         </ul>
       </section>
 
@@ -45,7 +48,6 @@ export default function MentionsLegalesPage() {
             <strong>{LEGAL_HOST.name}</strong>
           </li>
           <li>{LEGAL_HOST.address}</li>
-          <li>SIRET : {LEGAL_HOST.siret}</li>
           <li>
             Site web :{" "}
             <a href={LEGAL_HOST.website} className="text-orange-600 underline-offset-2 hover:underline" rel="noopener noreferrer" target="_blank">
@@ -55,7 +57,12 @@ export default function MentionsLegalesPage() {
         </ul>
         <p>
           Les données applicatives (comptes, devis, factures, messages) sont stockées via{" "}
-          <strong>Supabase</strong>, avec des centres de données situés dans l&apos;Union européenne.
+          <strong>Supabase</strong>, avec des centres de données situés dans l&apos;Union européenne. La liste complète des
+          sous-traitants figure dans la{" "}
+          <a href="/confidentialite" className="text-orange-600 underline-offset-2 hover:underline">
+            Politique de confidentialité
+          </a>
+          .
         </p>
       </section>
 

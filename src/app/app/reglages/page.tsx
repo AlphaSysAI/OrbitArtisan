@@ -7,6 +7,7 @@ import { ContactSettingsForm } from "@/components/settings/contact-settings-form
 import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
 import { LeadMatchingReadiness } from "@/components/settings/lead-matching-readiness";
 import { SubscriptionSettingsSection } from "@/components/settings/subscription-settings-section";
+import { getAmbassadorProgramStatus, getPromoEnrollment } from "@/lib/billing/promo-enrollment";
 import { VoiceSolineNumberSection } from "@/components/settings/voice-soline-number-section";
 import { VoiceQuotaSettingsForm } from "@/components/settings/voice-quota-settings-form";
 import { SupabaseMissing } from "@/components/supabase-missing";
@@ -259,8 +260,14 @@ export default async function ArtisanSettingsPage({
     planId === "pro" || planId === "premium" ? getPlanVoiceMinutes(planId) > 0 : false;
   const solinePhone = (voiceNumber?.phone_e164 as string | undefined) ?? null;
   let billingEvents: Awaited<ReturnType<typeof listStripeBillingEventsForProfile>> = [];
+  let promoEnrollment: Awaited<ReturnType<typeof getPromoEnrollment>> = null;
+  let promoProgramStatus: Awaited<ReturnType<typeof getAmbassadorProgramStatus>> = null;
   if (profile?.id && tab === "abonnement") {
-    billingEvents = await listStripeBillingEventsForProfile(supabase, profile.id, 8);
+    [billingEvents, promoEnrollment, promoProgramStatus] = await Promise.all([
+      listStripeBillingEventsForProfile(supabase, profile.id, 8),
+      getPromoEnrollment(supabase, profile.id),
+      getAmbassadorProgramStatus(supabase),
+    ]);
   }
 
   return (
@@ -377,6 +384,8 @@ export default async function ArtisanSettingsPage({
               voiceQuota={voiceQuota}
               alerts={subscriptionAlerts}
               billingEvents={billingEvents}
+              promoEnrollment={promoEnrollment}
+              promoProgramStatus={promoProgramStatus}
             />
           )
         ) : null}

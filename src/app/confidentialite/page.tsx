@@ -19,13 +19,13 @@ export default function ConfidentialitePage() {
         </p>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            <strong>{LEGAL_PUBLISHER.companyName}</strong> — {LEGAL_PUBLISHER.legalForm}
+            <strong>{LEGAL_PUBLISHER.legalName}</strong> ({LEGAL_PUBLISHER.companyName}) — {LEGAL_PUBLISHER.legalForm}
           </li>
           <li>{LEGAL_PUBLISHER.address}</li>
           <li>SIREN : {LEGAL_PUBLISHER.siren}</li>
           <li>SIRET : {LEGAL_PUBLISHER.siret}</li>
           <li>
-            Contact données personnelles / DPO :{" "}
+            Contact données personnelles :{" "}
             <a href={`mailto:${LEGAL_PUBLISHER.privacyEmail}`} className="text-orange-600 underline-offset-2 hover:underline">
               {LEGAL_PUBLISHER.privacyEmail}
             </a>
@@ -126,9 +126,10 @@ export default function ConfidentialitePage() {
         </ul>
         <p>
           Les données applicatives sont hébergées via <strong>Supabase</strong> dans l&apos;Union européenne.
-          Certains sous-traitants (notamment Mistral AI, ElevenLabs ou Stripe) peuvent traiter des données en
-          dehors de l&apos;UE ; le cas échéant, des garanties appropriées sont mises en place (clauses
-          contractuelles types, mesures de sécurité).
+          Certains sous-traitants (Vercel, ElevenLabs, Twilio, Tavily, Resend, Stripe) sont établis aux
+          États-Unis et peuvent y traiter des données. Ces transferts sont encadrés par la décision
+          d&apos;adéquation « EU-U.S. Data Privacy Framework » lorsque le prestataire y est certifié, et à
+          défaut par les clauses contractuelles types de la Commission européenne.
         </p>
       </section>
 
@@ -148,8 +149,10 @@ export default function ConfidentialitePage() {
         <p>
           Les données peuvent être accessibles à {LEGAL_PUBLISHER.companyName}, à ses sous-traitants listés
           ci-dessus, et — lorsque l&apos;utilisateur interagit avec un artisan — à l&apos;artisan concerné qui
-          agit alors, le cas échéant, en responsable de traitement distinct pour la relation commerciale avec
-          son client.
+          agit alors en responsable de traitement pour la relation commerciale avec son client. Pour les données
+          que l&apos;artisan enregistre dans son espace (fichier clients, devis, factures, appels reçus par la
+          secrétaire Soline), {LEGAL_PUBLISHER.companyName} agit en qualité de sous-traitant de l&apos;artisan,
+          dans les conditions de l&apos;article 28 du RGPD reprises dans les CGU.
         </p>
       </section>
 

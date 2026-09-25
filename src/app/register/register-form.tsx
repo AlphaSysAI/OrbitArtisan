@@ -15,9 +15,10 @@ type RegisterFormProps = {
   next: string;
   prefillEmail: string;
   inviteToken: string;
+  promoCode: string;
 };
 
-export function RegisterForm({ next, prefillEmail, inviteToken }: RegisterFormProps) {
+export function RegisterForm({ next, prefillEmail, inviteToken, promoCode }: RegisterFormProps) {
   const [clientError, setClientError] = useState<string | null>(null);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -87,6 +88,25 @@ export function RegisterForm({ next, prefillEmail, inviteToken }: RegisterFormPr
           minLength={8}
           required
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="promo_code">Code ambassadeur (facultatif)</Label>
+        <Input
+          id="promo_code"
+          name="promo_code"
+          type="text"
+          placeholder="AMBASSADEUR"
+          autoCapitalize="characters"
+          autoComplete="off"
+          maxLength={32}
+          defaultValue={promoCode}
+        />
+        {promoCode ? (
+          <p className="text-xs text-muted-foreground">
+            −25 % sur Pro et Premium, tant que vous restez abonné, pour les 50 premiers abonnés avant le 30 novembre 2026.
+          </p>
+        ) : null}
       </div>
 
       <TermsAcceptanceField />

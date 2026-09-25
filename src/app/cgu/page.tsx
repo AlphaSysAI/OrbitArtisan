@@ -18,13 +18,14 @@ export default function CguPage() {
           Les présentes Conditions Générales d&apos;Utilisation (ci-après « CGU ») régissent l&apos;accès et
           l&apos;utilisation du service <strong>{LEGAL_PUBLISHER.productName}</strong>, accessible via{" "}
           {LEGAL_PUBLISHER.publicDomain} et {LEGAL_PUBLISHER.appDomain}, édité par{" "}
-          <strong>{LEGAL_PUBLISHER.companyName}</strong> ({LEGAL_PUBLISHER.legalForm}), {LEGAL_PUBLISHER.address}
+          <strong>{LEGAL_PUBLISHER.legalName}</strong>, exerçant sous le nom commercial{" "}
+          <strong>{LEGAL_PUBLISHER.companyName}</strong> ({LEGAL_PUBLISHER.legalForm}), {LEGAL_PUBLISHER.address}{" "}
           (SIRET : {LEGAL_PUBLISHER.siret}).
         </p>
         <p>
           {LEGAL_PUBLISHER.productName} est une plateforme SaaS destinée aux artisans du bâtiment pour la
-          gestion de leur activité (devis, factures, rendez-vous, messagerie, site vitrine) et, en option,
-          l&apos;activation d&apos;un secrétariat vocal intelligent. Des espaces clients permettent aux
+          gestion de leur activité (devis, factures, rendez-vous, messagerie, site vitrine) et, dans les
+          formules Pro et Premium, une secrétaire vocale fonctionnant par intelligence artificielle (« Soline »). Des espaces clients permettent aux
           particuliers de suivre leurs échanges, devis et factures avec leur artisan.
         </p>
         <p>
@@ -72,7 +73,7 @@ export default function CguPage() {
           .
         </p>
         <p>
-          Un essai gratuit peut être proposé lors de l&apos;inscription, sans carte bancaire, pour une durée
+          Un essai gratuit de la formule Base peut être proposé lors de l&apos;inscription, sans carte bancaire, pour une durée
           limitée et selon les conditions affichées au moment de la création du compte.
         </p>
       </section>
@@ -81,8 +82,8 @@ export default function CguPage() {
         <h2 className="text-lg font-semibold text-slate-900">4. Fonctionnalités d&apos;intelligence artificielle</h2>
         <p>
           {LEGAL_PUBLISHER.productName} intègre des fonctionnalités assistées par intelligence artificielle
-          (qualification de demandes, suggestions de devis, assistant interne, secrétariat vocal via
-          ElevenLabs).
+          (qualification de demandes, suggestions de devis, estimation de prix de matériaux, assistant interne,
+          secrétaire vocale).
         </p>
         <ul className="list-disc space-y-2 pl-5">
           <li>
@@ -95,9 +96,17 @@ export default function CguPage() {
             contractuelles tant qu&apos;un devis formalisé n&apos;a pas été émis par l&apos;artisan.
           </li>
           <li>
-            L&apos;option Soline (secrétariat vocal IA) implique le traitement de communications téléphoniques. L&apos;artisan
-            doit informer ses interlocuteurs conformément à la réglementation applicable et s&apos;assurer
-            d&apos;être habilité à mettre en place le renvoi d&apos;appel.
+            <strong>Transparence.</strong> Conformément à l&apos;article 50 du règlement (UE) 2024/1689 sur
+            l&apos;intelligence artificielle, la secrétaire Soline indique à chaque correspondant, dès le début
+            de l&apos;appel, qu&apos;il s&apos;adresse à une assistante virtuelle. L&apos;artisan ne doit pas
+            modifier ce message ni présenter l&apos;agent comme une personne humaine.
+          </li>
+          <li>
+            La secrétaire Soline traite des communications téléphoniques (transcription, synthèse, prise de
+            rendez-vous). L&apos;artisan informe ses clients de ce traitement (par exemple dans ses mentions
+            d&apos;information ou sur son site), s&apos;assure d&apos;être titulaire de la ligne ou habilité à
+            mettre en place le renvoi d&apos;appel, et valide les rendez-vous et devis préparés avant tout
+            engagement envers le client.
           </li>
         </ul>
       </section>
@@ -126,8 +135,8 @@ export default function CguPage() {
         <h2 className="text-lg font-semibold text-slate-900">7. Responsabilité</h2>
         <p>
           {LEGAL_PUBLISHER.companyName} ne saurait être tenue responsable des dommages indirects, pertes
-          d&apos;exploitation ou préjudices commerciaux. La responsabilité de l&apos;éditeur, toutes causes
-          confondues, est limitée au montant des sommes effectivement payées par l&apos;utilisateur au titre
+          d&apos;exploitation ou préjudices commerciaux. Sauf faute lourde ou dolosive, la responsabilité de
+          l&apos;éditeur, toutes causes confondues, est limitée au montant des sommes effectivement payées par l&apos;utilisateur au titre
           des douze (12) derniers mois d&apos;abonnement.
         </p>
         <p>
@@ -156,7 +165,65 @@ export default function CguPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-900">10. Données personnelles</h2>
+        <h2 className="text-lg font-semibold text-slate-900">10. Sous-traitance des données personnelles (article 28 RGPD)</h2>
+        <p>
+          Pour les données personnelles que l&apos;artisan enregistre ou reçoit dans son espace (clients et
+          prospects, devis, factures, messages, appels reçus par la secrétaire Soline), l&apos;artisan est
+          responsable de traitement et {LEGAL_PUBLISHER.companyName} agit en qualité de sous-traitant. Le
+          présent article constitue le contrat de sous-traitance prévu à l&apos;article 28 du RGPD.
+        </p>
+        <ul className="list-disc space-y-2 pl-5">
+          <li>
+            <strong>Objet, durée, finalité</strong> : fourniture du service {LEGAL_PUBLISHER.productName}{" "}
+            (gestion commerciale, facturation, prise d&apos;appels et de rendez-vous), pendant la durée du
+            contrat.
+          </li>
+          <li>
+            <strong>Données et personnes concernées</strong> : identité, coordonnées, adresse du chantier,
+            description des travaux, photos transmises, contenu des appels et messages, données de facturation
+            des clients et prospects de l&apos;artisan.
+          </li>
+          <li>
+            <strong>Instructions</strong> : {LEGAL_PUBLISHER.companyName} ne traite ces données que sur
+            instruction documentée de l&apos;artisan, constituée par les présentes et par l&apos;usage du
+            service, et l&apos;informe si une instruction lui paraît contraire à la réglementation.
+          </li>
+          <li>
+            <strong>Confidentialité et sécurité</strong> : accès limité aux personnes habilitées soumises à
+            confidentialité ; isolation des données entre comptes, chiffrement des échanges, sauvegardes et
+            mesures prévues à l&apos;article 32 du RGPD.
+          </li>
+          <li>
+            <strong>Sous-traitants ultérieurs</strong> : l&apos;artisan autorise le recours aux prestataires
+            listés dans la{" "}
+            <a href="/confidentialite" className="text-orange-600 underline-offset-2 hover:underline">
+              Politique de confidentialité
+            </a>
+            , liés par des obligations équivalentes. Tout ajout ou remplacement est notifié au moins trente
+            (30) jours à l&apos;avance ; l&apos;artisan peut s&apos;y opposer en résiliant sans frais.
+          </li>
+          <li>
+            <strong>Transferts hors UE</strong> : encadrés par une décision d&apos;adéquation ou des clauses
+            contractuelles types.
+          </li>
+          <li>
+            <strong>Assistance</strong> : {LEGAL_PUBLISHER.companyName} aide l&apos;artisan à répondre aux
+            demandes d&apos;exercice des droits, et lui notifie toute violation de données le concernant dans
+            les meilleurs délais et au plus tard quarante-huit (48) heures après en avoir pris connaissance.
+          </li>
+          <li>
+            <strong>Fin du contrat</strong> : restitution des données sur demande puis suppression dans les
+            conditions de l&apos;article 12 des CGV, sauf obligation légale de conservation.
+          </li>
+          <li>
+            <strong>Contrôle</strong> : {LEGAL_PUBLISHER.companyName} met à disposition la documentation
+            nécessaire pour démontrer le respect de ces obligations.
+          </li>
+        </ul>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-900">11. Données personnelles</h2>
         <p>
           Le traitement des données personnelles est décrit dans la{" "}
           <a href="/confidentialite" className="text-orange-600 underline-offset-2 hover:underline">
@@ -167,7 +234,7 @@ export default function CguPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-900">11. Litiges et droit applicable</h2>
+        <h2 className="text-lg font-semibold text-slate-900">12. Litiges et droit applicable</h2>
         <p>
           Les présentes CGU sont soumises au droit français. En cas de différend, l&apos;utilisateur est invité
           à contacter {LEGAL_PUBLISHER.email} afin de rechercher une solution amiable.
@@ -178,13 +245,14 @@ export default function CguPage() {
           médiateur compétent seront communiquées sur demande à {LEGAL_PUBLISHER.email}.
         </p>
         <p>
-          À défaut, les tribunaux du ressort du siège social de l&apos;éditeur seront compétents, sous réserve
-          des règles d&apos;ordre public applicables aux consommateurs.
+          Pour les litiges entre professionnels, la clause de compétence de l&apos;article 15 des CGV
+          s&apos;applique. Les utilisateurs consommateurs conservent le bénéfice des règles de compétence
+          d&apos;ordre public qui les protègent.
         </p>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-900">12. Contact</h2>
+        <h2 className="text-lg font-semibold text-slate-900">13. Contact</h2>
         <p>
           Pour toute question relative aux présentes CGU :{" "}
           <a href={`mailto:${LEGAL_PUBLISHER.email}`} className="text-orange-600 underline-offset-2 hover:underline">

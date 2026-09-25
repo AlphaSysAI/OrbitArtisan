@@ -14,6 +14,7 @@ import {
   SUBSCRIPTION_PLANS,
   type BillingInterval,
 } from "@/lib/billing/subscription-plans";
+import { isPlanEligibleForAmbassador } from "@/lib/billing/promo-program";
 import { cn } from "@/lib/utils";
 
 type SubscriptionPricingGridProps =
@@ -24,6 +25,8 @@ type SubscriptionPricingGridProps =
       variant: "checkout";
       currentPlanId: string;
       stripeEnabled: boolean;
+      /** Code ambassadeur enregistré et offre ouverte : badge sur les formules éligibles (montant calculé par Stripe). */
+      ambassadorDiscountPercent?: number | null;
     };
 
 export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
@@ -101,6 +104,14 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
                   {priceLabel}
                 </span>
               </p>
+
+              {props.variant === "checkout" &&
+              props.ambassadorDiscountPercent &&
+              isPlanEligibleForAmbassador(plan.id) ? (
+                <p className="mt-1 inline-flex w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                  Tarif ambassadeur : −{props.ambassadorDiscountPercent} % au paiement (places limitées)
+                </p>
+              ) : null}
 
               {props.variant === "landing" ? (
                 <p className="mt-1 text-xs font-medium text-slate-500">Tarifs communiqués prochainement</p>

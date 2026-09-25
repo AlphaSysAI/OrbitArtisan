@@ -1,4 +1,6 @@
 import { BillingPortalButton } from "@/components/settings/billing-portal-button";
+import { PromoCodeForm } from "@/components/settings/promo-code-form";
+import { AMBASSADOR_PROGRAM, type PromoEnrollment, type PromoProgramStatus } from "@/lib/billing/promo-program";
 import { SubscriptionPricingGrid } from "@/components/billing/subscription-pricing-grid";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -71,6 +73,8 @@ export function SubscriptionSettingsSection({
   voiceQuota,
   alerts,
   billingEvents = [],
+  promoEnrollment = null,
+  promoProgramStatus = null,
 }: {
   profile: SubscriptionProfile;
   voiceQuota?: VoiceQuotaSnapshot | null;
@@ -80,6 +84,8 @@ export function SubscriptionSettingsSection({
     canceled?: string;
   };
   billingEvents?: StripeBillingEventRow[];
+  promoEnrollment?: PromoEnrollment | null;
+  promoProgramStatus?: PromoProgramStatus | null;
 }) {
   const access = evaluateSubscriptionAccess(profile);
   const status = (profile.subscription_status ?? "trialing") as SubscriptionStatus;
@@ -182,6 +188,34 @@ export function SubscriptionSettingsSection({
         ) : null}
       </div>
 
+      {promoEnrollment?.programCode === AMBASSADOR_PROGRAM.code &&
+      (promoEnrollment.status === "registered" || promoEnrollment.status === "pending") ? (
+        <Alert>
+          <AlertTitle>{AMBASSADOR_PROGRAM.label} : −{AMBASSADOR_PROGRAM.discountPercent} %</AlertTitle>
+          <AlertDescription>
+            Code enregistré. La remise s&apos;applique automatiquement si vous vous abonnez en Pro ou Premium
+            (mensuel ou annuel) avant le {AMBASSADOR_PROGRAM.endsAtLabel}, dans la limite des{" "}
+            {AMBASSADOR_PROGRAM.maxSlots} premiers abonnés
+            {promoProgramStatus?.isOpen
+              ? ` — ${promoProgramStatus.remainingSlots} place${promoProgramStatus.remainingSlots > 1 ? "s" : ""} restante${promoProgramStatus.remainingSlots > 1 ? "s" : ""}.`
+              : promoProgramStatus
+                ? " — offre complète ou terminée."
+                : "."}
+          </AlertDescription>
+        </Alert>
+      ) : promoEnrollment?.programCode === AMBASSADOR_PROGRAM.code && promoEnrollment.status === "active" ? (
+        <Alert>
+          <AlertTitle>{AMBASSADOR_PROGRAM.label} : −{AMBASSADOR_PROGRAM.discountPercent} %</AlertTitle>
+          <AlertDescription>
+            Remise appliquée à votre abonnement, conservée tant que vous restez abonné sans interruption.
+          </AlertDescription>
+        </Alert>
+      ) : !promoEnrollment && !canManageBilling ? (
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <PromoCodeForm />
+        </div>
+      ) : null}
+
       {billingEvents.length > 0 ? (
         <div className="space-y-3">
           <h3 className="font-display text-lg font-semibold tracking-tight">Historique des paiements</h3>
@@ -229,6 +263,12 @@ export function SubscriptionSettingsSection({
         variant="checkout"
         currentPlanId={planId}
         stripeEnabled={stripeEnabled}
+        ambassadorDiscountPercent={
+          (promoEnrollment?.status === "registered" || promoEnrollment?.status === "pending") &&
+          promoProgramStatus?.isOpen !== false
+            ? AMBASSADOR_PROGRAM.discountPercent
+            : null
+        }
       />
 
       {!stripeEnabled ? (

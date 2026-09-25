@@ -28,6 +28,7 @@ export default async function RegisterPage({
   const error = typeof sp.error === "string" ? sp.error : undefined;
   const prefillEmail = typeof sp.email === "string" ? sp.email : "";
   const inviteToken = typeof sp.invite === "string" ? sp.invite : "";
+  const promoCode = typeof sp.code === "string" ? sp.code.slice(0, 32) : "";
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -74,6 +75,15 @@ export default async function RegisterPage({
             </Alert>
           )}
 
+          {error === "promo_invalid" && (
+            <Alert variant="destructive">
+              <AlertTitle>Code non reconnu</AlertTitle>
+              <AlertDescription>
+                Vérifie le code ambassadeur (lettres et chiffres uniquement) ou laisse le champ vide.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error === "signup_failed" && (
             <Alert variant="destructive">
               <AlertTitle>Inscription impossible</AlertTitle>
@@ -95,10 +105,10 @@ export default async function RegisterPage({
           <Card>
             <CardHeader>
               <CardTitle>Inscription</CardTitle>
-              <CardDescription>Quelques informations pour démarrer ton essai gratuit.</CardDescription>
+              <CardDescription>Quelques informations pour démarrer ton essai gratuit de 15 jours sur la formule Base.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <RegisterForm next={next} prefillEmail={prefillEmail} inviteToken={inviteToken} />
+              <RegisterForm next={next} prefillEmail={prefillEmail} inviteToken={inviteToken} promoCode={promoCode} />
 
               <p className="text-center text-sm text-muted-foreground">
                 Déjà un compte ?{" "}

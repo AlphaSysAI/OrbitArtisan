@@ -10,6 +10,15 @@ export function subscriptionCheckoutErrorMessage(error: string | undefined): str
       return "Profil artisan introuvable. Complétez d'abord votre activité dans Réglages.";
     case "auth_required":
       return "Connectez-vous pour souscrire à une formule.";
+    case "already_subscribed":
+      return "Vous avez déjà un abonnement : changez de formule via le bouton « Gérer paiement et factures ».";
+    case "promo_full":
+      return "Les 50 places ambassadeur viennent d'être attribuées. Cliquez à nouveau pour vous abonner au tarif normal.";
+    case "promo_expired":
+      return "L'offre ambassadeur est terminée. Cliquez à nouveau pour vous abonner au tarif normal.";
+    case "promo_not_configured":
+    case "price_not_found":
+      return "Le tarif ambassadeur n'est pas encore disponible au paiement. Contactez le support : votre code reste enregistré.";
     case "invalid_plan":
     case "invalid_interval":
       return "Formule sélectionnée invalide.";
