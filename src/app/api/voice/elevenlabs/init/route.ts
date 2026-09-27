@@ -24,6 +24,16 @@ const FALLBACK = {
   accepts_calls: "true",
 };
 
+/** Tolère les variantes de saisie : guillemets, « Bearer », « Bearer: », espaces. */
+function normalizeSecret(raw: string | null | undefined): string {
+  return (raw ?? "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/^bearer\s*:?\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
 function initResponse(dynamicVariables: Record<string, string>) {
   return NextResponse.json({
     type: "conversation_initiation_client_data",
@@ -32,11 +42,20 @@ function initResponse(dynamicVariables: Record<string, string>) {
 }
 
 export async function POST(request: Request) {
-  const expected = process.env.VOICE_AI_TOOL_SECRET?.trim();
-  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
+  const expected = normalizeSecret(process.env.VOICE_AI_TOOL_SECRET);
+  const rawHeader = request.headers.get("authorization");
+  const provided = normalizeSecret(rawHeader);
   const a = Buffer.from(provided);
-  const b = Buffer.from(expected ?? "");
+  const b = Buffer.from(expected);
   if (!expected || a.length !== b.length || !timingSafeEqual(a, b)) {
+    // Diagnostic sans jamais journaliser le secret : présence, préfixe, longueurs.
+    console.warn("[elevenlabs init] 401", {
+      headerPresent: rawHeader != null,
+      bearerPrefix: /^\s*"?bearer/i.test(rawHeader ?? ""),
+      providedLength: provided.length,
+      expectedLength: expected.length,
+      expectedConfigured: expected.length > 0,
+    });
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
