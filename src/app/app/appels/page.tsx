@@ -93,13 +93,18 @@ export default async function AppelsSolinePage() {
   const { data: intakes, error } = await supabase
     .from("voice_call_intakes")
     .select(
-      "id, from_number, customer_name, customer_email, summary, quote_draft, quote_id, status, created_at",
+      "id, from_number, customer_name, customer_email, summary, quote_draft, quote_id, status, created_at, is_urgent, urgency_reason",
     )
     .eq("artisan_id", profile.id)
     .order("created_at", { ascending: false })
     .limit(100);
 
-  const items = error ? [] : (intakes ?? []);
+  // Urgences à traiter en tête de liste, puis ordre chronologique inverse.
+  const items = (error ? [] : (intakes ?? [])).sort((a, b) => {
+    const au = a.is_urgent && a.status === "pending_review" ? 1 : 0;
+    const bu = b.is_urgent && b.status === "pending_review" ? 1 : 0;
+    return bu - au;
+  });
   const pendingCount = items.filter((i) => i.status === "pending_review").length;
 
   // Durées réelles des prestations, chargées une fois pour tout l'artisan : sert à
@@ -158,7 +163,12 @@ export default async function AppelsSolinePage() {
               Boolean(draft?.matchedServiceIds?.length || (draft?.laborDurationMinutes ?? 0) > 0);
 
             return (
-              <li key={item.id} className="app-surface space-y-4 p-5">
+              <li
+                key={item.id}
+                className={`app-surface space-y-4 p-5${
+                  item.is_urgent && item.status === "pending_review" ? " border-2 border-red-500" : ""
+                }`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -166,7 +176,15 @@ export default async function AppelsSolinePage() {
                         {formatPhoneE164(item.from_number)}
                       </p>
                       {statusBadge(item.status)}
+                      {item.is_urgent ? (
+                        <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">
+                          Urgent
+                        </span>
+                      ) : null}
                     </div>
+                    {item.is_urgent && item.urgency_reason ? (
+                      <p className="text-sm font-medium text-red-700">{item.urgency_reason}</p>
+                    ) : null}
                     <p className="text-sm text-muted-foreground">
                       {item.customer_name ?? "Client"} · {item.customer_email ?? "—"} · {formatDate(item.created_at)}
                     </p>

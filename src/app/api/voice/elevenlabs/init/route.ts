@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
+import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
 import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
 
 /**
@@ -26,8 +27,18 @@ const FALLBACK = {
   artisan_prenom: "l'artisan",
   /** Nom de famille seul. Jamais vide. */
   artisan_nom: "l'artisan",
+  /** Métier précis (ex. « Chauffagiste »), pour cadrer les questions de l'agent. */
+  artisan_metier: "artisan du bâtiment",
+  /** Grande famille de métier (ex. « Plomberie, chauffage & climatisation »). */
+  artisan_domaine: "bâtiment",
+  /** Prestations proposées (catalogue), séparées par des virgules. */
+  artisan_prestations: "non précisées",
+  /** Ville de l'entreprise (zone d'intervention approximative). */
+  artisan_zone: "non précisée",
   accepts_calls: "true",
 };
+
+const MAX_PRESTATIONS_CHARS = 600;
 
 /** Tolère les variantes de saisie : guillemets, « Bearer », « Bearer: », espaces. */
 function normalizeSecret(raw: string | null | undefined): string {
@@ -104,8 +115,13 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<R
   }
   const artisanId = mapping.artisan_id as string;
 
-  const [{ data: profile }, quota] = await Promise.all([
-    db.from("profiles").select("business_name, name, first_name, last_name").eq("id", artisanId).maybeSingle(),
+  const [{ data: profile }, { data: services }, quota] = await Promise.all([
+    db
+      .from("profiles")
+      .select("business_name, name, first_name, last_name, trade_category, trade, city")
+      .eq("id", artisanId)
+      .maybeSingle(),
+    db.from("services").select("title").eq("artisan_id", artisanId).order("title", { ascending: true }).limit(40),
     resolveVoiceQuota(db, artisanId).catch(() => null),
   ]);
 
@@ -117,9 +133,23 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<R
   // échouer la conversation côté ElevenLabs.
   const artisanName = fullName || businessName;
 
+  const category = findTradeCategory(profile?.trade_category as string | null);
+  const trade = findTrade(profile?.trade_category as string | null, profile?.trade as string | null);
+
+  let prestations = "";
+  for (const title of (services ?? []).map((s) => String(s.title ?? "").trim()).filter(Boolean)) {
+    const next = prestations ? `${prestations}, ${title}` : title;
+    if (next.length > MAX_PRESTATIONS_CHARS) break;
+    prestations = next;
+  }
+
   return {
     business_name: businessName,
     artisan_name: artisanName,
+    artisan_metier: trade?.label ?? category?.label ?? FALLBACK.artisan_metier,
+    artisan_domaine: category?.label ?? FALLBACK.artisan_domaine,
+    artisan_prestations: prestations || FALLBACK.artisan_prestations,
+    artisan_zone: (profile?.city as string | null)?.trim() || FALLBACK.artisan_zone,
     artisan_prenom: firstName || artisanName,
     artisan_nom: lastName || artisanName,
     accepts_calls: quota && !quota.canAcceptCalls ? "false" : "true",

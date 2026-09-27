@@ -2,15 +2,18 @@ import "server-only";
 
 import { mistralChat } from "@/lib/ai/mistral";
 
-import { normalizeCallContact, type CallContact } from "./call-contact";
+import { normalizeCallDetails, type CallDetails } from "./call-contact";
+
+const EMPTY: CallDetails = { customerName: null, customerEmail: null, urgent: false, urgencyReason: null };
 
 /**
- * Extrait le nom et l'e-mail de l'appelant depuis la transcription, pour
- * pré-remplir le devis. Ne devine jamais : champ absent ou douteux → null.
+ * Extrait de la transcription : nom et e-mail de l'appelant (pré-remplissage du
+ * devis) et urgence (alerte push prioritaire). Ne devine jamais : champ absent
+ * ou douteux → null ; urgence seulement sur des faits explicites.
  */
-export async function extractCallContact(transcript: string): Promise<CallContact> {
+export async function extractCallDetails(transcript: string): Promise<CallDetails> {
   const trimmed = transcript.trim();
-  if (!trimmed) return { customerName: null, customerEmail: null };
+  if (!trimmed) return EMPTY;
 
   try {
     const raw = await mistralChat({
@@ -18,23 +21,28 @@ export async function extractCallContact(transcript: string): Promise<CallContac
         {
           role: "system",
           content:
-            "Tu extrais les coordonnées de l'APPELANT (le client) d'une transcription d'appel entre un client et " +
-            "Soline, la secrétaire virtuelle d'un artisan. Réponds uniquement en JSON : " +
-            '{"customer_name": string|null, "customer_email": string|null}. ' +
-            "customer_name : prénom et nom tels que donnés par l'appelant (jamais ceux de l'artisan ou de Soline). " +
+            "Tu analyses la transcription d'un appel entre un client et Soline, la secrétaire virtuelle d'un artisan " +
+            "du bâtiment. Réponds uniquement en JSON : " +
+            '{"customer_name": string|null, "customer_email": string|null, "is_urgent": boolean, "urgency_reason": string|null}. ' +
+            "customer_name : prénom et nom tels que donnés par l'APPELANT (jamais l'artisan ni Soline). " +
             "customer_email : reconstitue l'adresse dictée (« arobase » → @, « point » → ., lettres épelées), " +
-            "en privilégiant la version confirmée en fin d'échange. Si une information n'a pas été donnée ou reste " +
-            "incertaine, mets null. N'invente rien.",
+            "version confirmée en fin d'échange ; null si incertaine. " +
+            "is_urgent = true UNIQUEMENT si l'appelant décrit une situation en cours qui cause des dégâts ou un " +
+            "danger et ne peut pas attendre : fuite d'eau active ou dégât des eaux, odeur de gaz, risque électrique " +
+            "(étincelles, fils à nu, disjonction permanente), plus de chauffage ou d'eau chaude avec personne " +
+            "vulnérable ou par grand froid, toiture ou vitrage cassé exposant aux intempéries, effondrement, " +
+            "logement non fermable après effraction. Un simple souhait de rapidité, un devis ou des travaux prévus " +
+            "ne sont PAS urgents. urgency_reason : 6 à 12 mots décrivant le fait urgent, sinon null. N'invente rien.",
         },
         { role: "user", content: trimmed.slice(0, 8000) },
       ],
       temperature: 0,
-      maxTokens: 200,
+      maxTokens: 250,
       responseFormat: "json_object",
     });
-    return normalizeCallContact(JSON.parse(raw));
+    return normalizeCallDetails(JSON.parse(raw));
   } catch (err) {
-    console.error("[voice-contact] extraction", err instanceof Error ? err.message : err);
-    return { customerName: null, customerEmail: null };
+    console.error("[voice-details] extraction", err instanceof Error ? err.message : err);
+    return EMPTY;
   }
 }

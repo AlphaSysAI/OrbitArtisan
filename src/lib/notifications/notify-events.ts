@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { notifyUserActivity } from "@/lib/notifications/send-push";
+import { notifyUserActivity, sendPushToUser } from "@/lib/notifications/send-push";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 const siteUrl = getPublicSiteUrl();
@@ -131,7 +131,14 @@ export async function notifyQuoteSentToCustomer(
 
 export async function notifyVoiceIntake(
   admin: SupabaseClient,
-  input: { artisanId: string; intakeId: string; customerName?: string | null },
+  input: {
+    artisanId: string;
+    intakeId: string;
+    customerName?: string | null;
+    urgent?: boolean;
+    urgencyReason?: string | null;
+    callerNumber?: string | null;
+  },
 ) {
   const { data: profile } = await admin
     .from("profiles")
@@ -142,8 +149,25 @@ export async function notifyVoiceIntake(
   const userId = profile?.user_id as string | undefined;
   if (!userId) return;
 
-  const who = input.customerName?.trim() || "Un appelant";
-  notifyUserActivity(userId, {
+  const who = input.customerName?.trim() || input.callerNumber?.trim() || "Un appelant";
+
+  if (input.urgent) {
+    // Urgence : priorité haute (réveille le téléphone), reste affichée jusqu'à action.
+    await sendPushToUser(
+      userId,
+      {
+        title: `🚨 Appel urgent — ${who}`,
+        body: `${input.urgencyReason ?? "Urgence signalée"}. Rappelez le client au plus vite.`,
+        url: `${siteUrl}/app/appels`,
+        tag: `voice-urgent-${input.intakeId}`,
+        urgent: true,
+      },
+      { urgent: true },
+    );
+    return;
+  }
+
+  await sendPushToUser(userId, {
     title: "Appel Soline traité",
     body: `${who} — proposition de devis à valider.`,
     url: `${siteUrl}/app/appels`,

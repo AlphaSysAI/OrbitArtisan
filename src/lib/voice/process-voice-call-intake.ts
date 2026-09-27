@@ -8,7 +8,7 @@ import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 
 import { notifyVoiceIntake } from "@/lib/notifications/notify-events";
 
-import { extractCallContact } from "./extract-call-contact";
+import { extractCallDetails } from "./extract-call-contact";
 import { summarizeCallTranscript } from "./summarize-call-transcript";
 
 type ServiceRow = { id: string; title: string; duration: number; price: number | null };
@@ -99,9 +99,9 @@ export async function processVoiceCallQuoteIntake(params: {
   const serviceList = (services ?? []) as ServiceRow[];
   const canBuildQuote = !params.skipQuoteDraft && serviceList.length > 0;
 
-  // Coordonnées non fournies par l'agent : extraites de la transcription
+  // Coordonnées manquantes + niveau d'urgence, extraits de la transcription
   // (en parallèle du résumé et du chiffrage, pas de latence ajoutée).
-  const needsContact = !params.skipQuoteDraft && (!customerName || !customerEmail);
+  const needsDetails = !params.skipQuoteDraft;
 
   const [summary, quoteData, extracted] = await Promise.all([
     params.skipQuoteDraft ? Promise.resolve(transcript.slice(0, 500)) : summarizeCallTranscript(transcript),
@@ -133,7 +133,7 @@ export async function processVoiceCallQuoteIntake(params: {
       console.error("[voice-quote-draft] buildQuoteFromText", err instanceof Error ? err.message : err);
       return null;
     }),
-    needsContact ? extractCallContact(transcript) : Promise.resolve(null),
+    needsDetails ? extractCallDetails(transcript) : Promise.resolve(null),
   ]);
 
   customerName = customerName ?? extracted?.customerName ?? null;
@@ -187,6 +187,8 @@ export async function processVoiceCallQuoteIntake(params: {
     summary,
     quote_draft: draft,
     status: "pending_review",
+    is_urgent: extracted?.urgent ?? false,
+    urgency_reason: extracted?.urgencyReason ?? null,
   };
 
   if (twilioCallSid) {
@@ -223,11 +225,16 @@ export async function processVoiceCallQuoteIntake(params: {
 
   await params.db.from("voice_call_intakes").update({ quote_draft: draft }).eq("id", intakeId);
 
-  void notifyVoiceIntake(params.db, {
+  // Attendu (et non « fire-and-forget ») : sur Vercel, la fonction peut être gelée
+  // dès la réponse envoyée, et la notification ne partirait jamais.
+  await notifyVoiceIntake(params.db, {
     artisanId: params.artisanId,
     intakeId,
     customerName,
-  });
+    urgent: extracted?.urgent ?? false,
+    urgencyReason: extracted?.urgencyReason ?? null,
+    callerNumber: params.callerNumber,
+  }).catch((err) => console.error("[voice-intake] notification", err));
 
   return {
     intakeId,

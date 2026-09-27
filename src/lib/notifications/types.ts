@@ -26,4 +26,6 @@ export type PushPayload = {
   body: string;
   url: string;
   tag?: string;
+  /** Alerte prioritaire : vibration, reste affichée jusqu'à action. */
+  urgent?: boolean;
 };

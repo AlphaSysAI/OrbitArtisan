@@ -22,7 +22,7 @@ function ensureVapid() {
 }
 
 /** Envoie une notification push à un utilisateur (fire-and-forget côté appelant). */
-export async function sendPushToUser(userId: string, payload: PushPayload) {
+export async function sendPushToUser(userId: string, payload: PushPayload, options?: { urgent?: boolean }) {
   if (!ensureVapid()) return;
 
   const admin = createSupabaseServiceRoleClient();
@@ -50,6 +50,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
             },
           },
           body,
+          // Priorité haute : délivrée même téléphone en veille / économie d'énergie.
+          options?.urgent ? { urgency: "high", TTL: 6 * 3600 } : { urgency: "normal", TTL: 24 * 3600 },
         );
       } catch (err: unknown) {
         const status = (err as { statusCode?: number }).statusCode;

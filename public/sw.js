@@ -26,6 +26,10 @@ self.addEventListener("push", (event) => {
       badge: "/pwa-icons/192",
       tag: payload.tag ?? "soline",
       data: { url: payload.url ?? "/app" },
+      // Appel urgent : reste à l'écran jusqu'à action, vibre, re-sonne si même tag.
+      requireInteraction: !!payload.urgent,
+      renotify: !!payload.urgent,
+      vibrate: payload.urgent ? [300, 150, 300, 150, 600] : undefined,
     }),
   );
 });
