@@ -87,7 +87,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
   const [{ data: serviceLines }, { data: materialLines }] = await Promise.all([
     supabase
       .from("quote_services")
-      .select("service_id")
+      .select("service_id, service_title, duration_minutes")
       .eq("quote_id", quoteId)
       .order("created_at", { ascending: true }),
     supabase
@@ -125,7 +125,11 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
         customerEmail: quote.customer_email ?? "",
         notes: quote.notes ?? "",
         laborDurationMinutes: quote.labor_duration_minutes ?? 0,
-        selectedServiceIds: (serviceLines ?? []).map((s) => s.service_id as string),
+        laborLines: (serviceLines ?? []).map((s) => ({
+          title: (s.service_title as string) ?? "",
+          minutes: (s.duration_minutes as number) ?? 0,
+          serviceId: (s.service_id as string | null) ?? null,
+        })),
         materials: (materialLines ?? []).map((m) => ({
           label: m.label as string,
           quantity: m.quantity as number,

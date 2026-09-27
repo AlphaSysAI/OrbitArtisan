@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { QuoteAiPrompt } from "@/components/quotes/quote-ai-prompt";
 import { QuoteMarginBanner } from "@/components/quotes/quote-margin-banner";
+import { buildQuotePdfTableLines, computeVatBreakdown, sumQuoteTotals } from "@/lib/billing/build-quote-pdf-lines";
 import { cn } from "@/lib/utils";
 
 type Service = {
@@ -32,6 +33,7 @@ type MaterialRow = {
   label: string;
   description: string;
   unit: string;
+  /** "" = suit la TVA du devis ; sinon taux spécifique à la ligne ("20" | "10" | "5.5"). */
   vatRate: string;
   quantity: number;
   unitPriceEur: string;
@@ -46,7 +48,7 @@ function emptyMaterialRow(): MaterialRow {
     label: "",
     description: "",
     unit: "U",
-    vatRate: "20",
+    vatRate: "",
     quantity: 1,
     unitPriceEur: "",
     supplierUrl: "",
@@ -77,8 +79,79 @@ function parseEurToCents(raw: string): number | null {
   return Math.round(asNumber * 100);
 }
 
+const eurFormatter = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+function formatEur(cents: number): string {
+  return eurFormatter.format(cents / 100);
+}
+
+function formatVatRate(rate: string | number): string {
+  return `${String(rate).replace(".", ",")} %`;
+}
+
+/** Total HT d'une ligne (quantité × prix unitaire), null si incomplet. */
+function lineTotalCents(quantity: number, unitPriceEur: string): number | null {
+  const unit = parseEurToCents(unitPriceEur);
+  if (unit == null || !Number.isFinite(quantity) || quantity <= 0) return null;
+  return Math.round(unit * quantity);
+}
+
+function sameVatRate(a: string | number, b: string | number): boolean {
+  return Number(String(a).replace(",", ".")) === Number(String(b).replace(",", "."));
+}
+
 function uuid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+type LaborLine = {
+  id: string;
+  title: string;
+  /** Saisie libre « 2,5 » (heures). */
+  hours: string;
+  /** Prestation du catalogue d'origine, si la ligne en vient. */
+  serviceId: string | null;
+};
+
+function hoursToMinutes(raw: string): number {
+  const cleaned = raw.trim().replace(",", ".").replace(/[^0-9.]/g, "");
+  const hours = Number(cleaned);
+  if (!cleaned || !Number.isFinite(hours) || hours <= 0) return 0;
+  return Math.round(hours * 60);
+}
+
+function emptyLaborLine(): LaborLine {
+  return { id: uuid(), title: "", hours: "", serviceId: null };
+}
+
+/**
+ * Lignes de main-d'œuvre depuis un brouillon IA : une ligne par prestation reconnue,
+ * au prorata si l'IA a estimé une durée totale différente ; sinon une ligne unique.
+ */
+function laborLinesFromDraft(
+  matched: { id: string; title: string; duration: number }[],
+  estimatedMinutes: number,
+): LaborLine[] {
+  const sum = matched.reduce((acc, s) => acc + Math.max(0, s.duration), 0);
+  if (matched.length && sum > 0) {
+    const target = estimatedMinutes > 0 ? estimatedMinutes : sum;
+    return matched.map((s) => ({
+      id: uuid(),
+      title: s.title,
+      hours: formatHoursFromMinutes((target * Math.max(0, s.duration)) / sum),
+      serviceId: s.id,
+    }));
+  }
+  if (estimatedMinutes > 0) {
+    return [
+      {
+        id: uuid(),
+        title: matched.map((s) => s.title).join(", ") || "Main-d'œuvre",
+        hours: formatHoursFromMinutes(estimatedMinutes),
+        serviceId: null,
+      },
+    ];
+  }
+  return [emptyLaborLine()];
 }
 
 function formatHoursFromMinutes(minutes: number) {
@@ -92,7 +165,7 @@ export type EditQuoteInitialData = {
   customerEmail: string;
   notes: string;
   laborDurationMinutes: number;
-  selectedServiceIds: string[];
+  laborLines: { title: string; minutes: number; serviceId: string | null }[];
   materials: {
     label: string;
     quantity: number;
@@ -139,7 +212,7 @@ export function QuoteForm({
   /** Édition d'un brouillon existant — bascule le formulaire en mode édition (updateQuote). */
   editQuote?: EditQuoteInitialData | null;
 }) {
-  const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
+  const [laborLines, setLaborLines] = React.useState<LaborLine[]>([emptyLaborLine()]);
   const [materials, setMaterials] = React.useState<MaterialRow[]>([
     emptyMaterialRow(),
   ]);
@@ -167,8 +240,6 @@ export function QuoteForm({
   });
 
   /** `auto` = somme des durées des prestations ; `custom` = saisie en heures (chantier réel). */
-  const [laborDurationMode, setLaborDurationMode] = React.useState<"auto" | "custom">("auto");
-  const [customLaborHoursStr, setCustomLaborHoursStr] = React.useState("");
 
   function applyAiDraft(draft: AiQuoteDraft) {
     setFromAiDraft(true);
@@ -176,12 +247,11 @@ export function QuoteForm({
     setFromVoiceDraft(draft.source === "voice" || Boolean(voiceIntakeId));
     setPendingSaveMode("draft");
     setAiDraftWarnings(draft.warnings ?? []);
-    if (draft.matchedServiceIds.length) {
-      setSelectedServiceIds(draft.matchedServiceIds);
-    }
-    if (draft.laborDurationMinutes > 0) {
-      setLaborDurationMode("custom");
-      setCustomLaborHoursStr(formatHoursFromMinutes(draft.laborDurationMinutes));
+    if (draft.matchedServiceIds.length || draft.laborDurationMinutes > 0) {
+      const matched = draft.matchedServiceIds
+        .map((id) => services.find((s) => s.id === id))
+        .filter((s): s is Service => !!s);
+      setLaborLines(laborLinesFromDraft(matched, draft.laborDurationMinutes));
     }
     if (draft.notes?.trim()) setNotes(draft.notes);
     if (draft.customerName?.trim() && !conversationPrefill?.customerName) {
@@ -227,7 +297,31 @@ export function QuoteForm({
 
   React.useEffect(() => {
     if (!editQuote) return;
-    setSelectedServiceIds(editQuote.selectedServiceIds);
+    {
+      // Anciens devis : durée facturée parfois ajustée à la main (≠ somme des lignes).
+      // On répartit cette durée au prorata pour conserver exactement le montant enregistré.
+      const lines = editQuote.laborLines;
+      const sum = lines.reduce((acc, l) => acc + Math.max(0, l.minutes), 0);
+      const billed = editQuote.laborDurationMinutes;
+      if (!lines.length) {
+        setLaborLines(
+          billed > 0
+            ? [{ id: uuid(), title: "Main-d'œuvre", hours: formatHoursFromMinutes(billed), serviceId: null }]
+            : [emptyLaborLine()],
+        );
+      } else {
+        setLaborLines(
+          lines.map((l) => ({
+            id: uuid(),
+            title: l.title,
+            hours: formatHoursFromMinutes(
+              billed > 0 && sum > 0 ? (billed * Math.max(0, l.minutes)) / sum : l.minutes,
+            ),
+            serviceId: l.serviceId,
+          })),
+        );
+      }
+    }
     setCustomerName(editQuote.customerName);
     setCustomerEmail(editQuote.customerEmail);
     setNotes(editQuote.notes);
@@ -237,13 +331,6 @@ export function QuoteForm({
     setWorkSiteCity(editQuote.workSiteCity);
     setWorkSitePostalCode(editQuote.workSitePostalCode);
     setRetractionWaived(editQuote.retractionWaived);
-    // Durée figée telle qu'enregistrée (mode "custom") plutôt que recalculée depuis les
-    // prestations sélectionnées : garantit que le total affiché au chargement correspond
-    // exactement au brouillon existant, même si la liste de prestations a changé depuis.
-    if (editQuote.laborDurationMinutes > 0) {
-      setLaborDurationMode("custom");
-      setCustomLaborHoursStr(formatHoursFromMinutes(editQuote.laborDurationMinutes));
-    }
     if (editQuote.materials.length) {
       setMaterials(
         editQuote.materials.map((m) => ({
@@ -251,7 +338,7 @@ export function QuoteForm({
           label: m.label,
           description: "",
           unit: "U",
-          vatRate: m.vatRate,
+          vatRate: sameVatRate(m.vatRate, editQuote.reducedVatRate) ? "" : m.vatRate,
           quantity: m.quantity,
           unitPriceEur: (m.unitPriceCents / 100).toString().replace(".", ","),
           supplierUrl: "",
@@ -262,24 +349,20 @@ export function QuoteForm({
     }
   }, [editQuote]);
 
-  const selectedServices = React.useMemo(() => {
-    const set = new Set(selectedServiceIds);
-    return services.filter((s) => set.has(s.id));
-  }, [selectedServiceIds, services]);
-
-  const referenceDurationMinutes = React.useMemo(
-    () => selectedServices.reduce((acc, s) => acc + (s.duration ?? 0), 0),
-    [selectedServices],
+  const laborLinesPayload = React.useMemo(
+    () =>
+      laborLines
+        .map((l) => ({ title: l.title.trim(), minutes: hoursToMinutes(l.hours), service_id: l.serviceId }))
+        .filter((l) => l.title || l.minutes > 0),
+    [laborLines],
   );
 
-  const effectiveLaborMinutes = React.useMemo(() => {
-    if (laborDurationMode === "auto") return referenceDurationMinutes;
-    const cleaned = customLaborHoursStr.trim().replace(",", ".").replace(/[^0-9.]/g, "");
-    if (!cleaned) return 0;
-    const hours = Number(cleaned);
-    if (!Number.isFinite(hours) || hours <= 0) return 0;
-    return Math.round(hours * 60);
-  }, [laborDurationMode, referenceDurationMinutes, customLaborHoursStr]);
+  const laborLinesInvalid = laborLinesPayload.some((l) => !l.title || l.minutes <= 0);
+
+  const effectiveLaborMinutes = React.useMemo(
+    () => laborLinesPayload.reduce((acc, l) => acc + l.minutes, 0),
+    [laborLinesPayload],
+  );
 
   const laborRateCents = React.useMemo(() => parseEurToCents(laborRateEur) ?? null, [laborRateEur]);
 
@@ -323,7 +406,7 @@ export function QuoteForm({
         label: m.label.trim(),
         quantity: m.quantity,
         unit_price_eur: m.unitPriceEur,
-        vat_rate: m.vatRate,
+        vat_rate: m.vatRate || reducedVatRate,
         supplier_url: m.supplierUrl.trim() || null,
         supplier_sku: m.supplierSku.trim() || null,
         is_supplier_catalog: false,
@@ -340,18 +423,50 @@ export function QuoteForm({
         supplier_sku: m.supplierSku,
         is_supplier_catalog: true,
         exclude_from_invoice: m.excludeFromInvoice,
+        // Matériaux catalogue : toujours au taux du devis (auparavant 20 % forcé).
+        vat_rate: reducedVatRate,
       }));
     return [...custom, ...supplier];
-  }, [materials, supplierMaterials]);
+  }, [materials, supplierMaterials, reducedVatRate]);
 
   const grandTotalCents = laborTotalCents + materialsTotalCents;
 
-  const canCreate =
-    selectedServiceIds.length > 0 &&
-    laborRateCents != null &&
-    laborRateCents >= 0 &&
-    effectiveLaborMinutes > 0 &&
-    (referenceDurationMinutes > 0 || laborDurationMode === "custom");
+  // Aperçu calculé avec EXACTEMENT les mêmes fonctions que le PDF envoyé au client.
+  const documentTotals = React.useMemo(() => {
+    const lines = buildQuotePdfTableLines({
+      services: laborLinesPayload.map((l) => ({
+        service_title: l.title,
+        duration_minutes: l.minutes,
+        line_total: null,
+        unit_price: null,
+      })),
+      materials: allMaterialsJson
+        .filter((m) => !m.exclude_from_invoice)
+        .map((m) => ({
+          label: m.label,
+          quantity: m.quantity,
+          unit_price: parseEurToCents(m.unit_price_eur) ?? 0,
+          line_total: null,
+          vat_rate: Number(String(m.vat_rate).replace(",", ".")),
+          exclude_from_invoice: false,
+        })),
+      laborTotalCents,
+      laborDurationMinutes: effectiveLaborMinutes,
+      laborRatePerHourCents: laborRateCents ?? 0,
+      defaultVatRate: Number(reducedVatRate.replace(",", ".")),
+    });
+    const vatBreakdown = computeVatBreakdown(lines);
+    return { vatBreakdown, ...sumQuoteTotals(vatBreakdown) };
+  }, [laborLinesPayload, allMaterialsJson, laborTotalCents, effectiveLaborMinutes, laborRateCents, reducedVatRate]);
+
+  // Main-d'œuvre facultative : un devis peut ne contenir que des fournitures.
+  const laborRateMissing = effectiveLaborMinutes > 0 && (laborRateCents == null || laborRateCents <= 0);
+  const canCreate = !laborLinesInvalid && !laborRateMissing && grandTotalCents > 0;
+  const cannotCreateReason = laborLinesInvalid
+    ? "Chaque ligne de main-d'œuvre doit avoir une désignation et un nombre d'heures."
+    : laborRateMissing
+      ? "Renseigne le taux horaire."
+      : "Ajoute au moins une ligne de main-d'œuvre ou une fourniture avec un prix.";
 
   async function onAiSuggestNotes() {
     if (!conversationPrefill?.conversationId) return;
@@ -364,10 +479,10 @@ export function QuoteForm({
           conversationId: conversationPrefill.conversationId,
           customerName,
           customerEmail,
-          selectedServices: selectedServices.map((s) => ({
-            title: s.title,
-            duration: s.duration,
-            price: s.price,
+          selectedServices: laborLinesPayload.map((l) => ({
+            title: l.title,
+            duration: l.minutes,
+            price: null,
           })),
           // L'endpoint se base surtout sur label + quantité.
           materials: materials.map((m) => ({
@@ -399,7 +514,7 @@ export function QuoteForm({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canCreate || submitting) {
-      if (!canCreate) toast.error("Sélectionne au moins une prestation et renseigne le taux horaire.");
+      if (!canCreate) toast.error(cannotCreateReason);
       return;
     }
 
@@ -414,8 +529,10 @@ export function QuoteForm({
       const res = editQuote ? await updateQuote(editQuote.id, fd) : await createQuote(fd);
       if (!res.ok) {
         toast.error(
-          res.error === "missing_services"
-            ? "Sélectionne au moins une prestation."
+          res.error === "empty_quote"
+            ? "Ajoute au moins une ligne de main-d'œuvre ou une fourniture avec un prix."
+            : res.error === "invalid_duration"
+              ? "Chaque ligne de main-d'œuvre doit avoir une désignation et un nombre d'heures."
             : res.error === "missing_labor_rate"
               ? "Renseigne le taux horaire dans ton profil."
               : res.error === "invalid_materials"
@@ -454,11 +571,6 @@ export function QuoteForm({
       setSubmitting(false);
     }
   }
-
-  const accentSelected = (active: boolean) =>
-    active
-      ? { backgroundColor: accentColor, borderColor: accentColor, color: "#fff" as const }
-      : undefined;
 
   return (
     <div className="space-y-8">
@@ -516,14 +628,13 @@ export function QuoteForm({
         ) : null}
 
         {/* JSON côté serveur */}
-        <input type="hidden" name="service_ids_json" value={JSON.stringify(selectedServiceIds)} />
+        <input type="hidden" name="labor_lines_json" value={JSON.stringify(laborLinesPayload)} />
         <input
           type="hidden"
           name="materials_json"
           value={JSON.stringify(allMaterialsJson)}
         />
         <input type="hidden" name="labor_rate_per_hour_eur" value={laborRateEur} />
-        <input type="hidden" name="labor_duration_minutes" value={String(effectiveLaborMinutes)} />
         <input type="hidden" name="reduced_vat_rate" value={reducedVatRate} />
         <input type="hidden" name="generate_vat_attestation" value={generateVatAttestation ? "1" : "0"} />
         <input type="hidden" name="work_site_address" value={workSiteAddress} />
@@ -542,48 +653,136 @@ export function QuoteForm({
 
         <Card className="border-0 shadow-none">
           <CardHeader>
-            <CardTitle className="text-xl">Prestations</CardTitle>
+            <CardTitle className="text-xl">Main-d&apos;œuvre</CardTitle>
             <CardDescription>
-              Choisis une ou plusieurs prestations à inclure dans le devis. Le prix affiché sur chaque prestation
-              est indicatif — seule la durée influence le montant du devis (taux horaire × durée, ajustable
-              ci-dessous).
+              Une ligne par poste de travail : désignation + heures, au taux horaire ci-dessous. Facultatif pour un
+              devis de fournitures seules.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {services.map((s) => {
-                const selected = selectedServiceIds.includes(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedServiceIds((prev) =>
-                        prev.includes(s.id) ? prev.filter((id) => id !== s.id) : [...prev, s.id],
-                      );
+            <div className="grid gap-4 sm:grid-cols-[200px_1fr] sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="labor_rate_per_hour_eur">Taux horaire HT (€/h)</Label>
+                <Input
+                  id="labor_rate_per_hour_eur"
+                  inputMode="decimal"
+                  value={laborRateEur}
+                  onChange={(e) => setLaborRateEur(e.target.value)}
+                  placeholder="Ex. 45"
+                />
+              </div>
+              {services.length ? (
+                <div className="space-y-2">
+                  <Label htmlFor="add_from_catalog">Ajouter depuis mes prestations (facultatif)</Label>
+                  <select
+                    id="add_from_catalog"
+                    className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
+                    value=""
+                    onChange={(e) => {
+                      const service = services.find((s) => s.id === e.target.value);
+                      if (!service) return;
+                      const line: LaborLine = {
+                        id: uuid(),
+                        title: service.title,
+                        hours: formatHoursFromMinutes(service.duration),
+                        serviceId: service.id,
+                      };
+                      setLaborLines((prev) => {
+                        const kept = prev.filter((l) => l.title.trim() || l.hours.trim());
+                        return [...kept, line];
+                      });
                     }}
-                    className={cn(
-                      "rounded-xl border px-4 py-3 text-left text-sm transition-colors",
-                      "hover:bg-muted/80",
-                      !accentColor && selected && "border-primary bg-primary text-primary-foreground",
-                    )}
-                    style={accentSelected(selected)}
                   >
-                    <div className="font-medium">{s.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {s.duration} min
-                      {s.price != null ? ` · ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(s.price / 100)}` : ""}
+                    <option value="">Choisir une prestation…</option>
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title}
+                        {s.duration > 0 ? ` (${formatHoursFromMinutes(s.duration)} h)` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-3">
+              {laborLines.map((line) => {
+                const minutes = hoursToMinutes(line.hours);
+                const lineCents =
+                  laborRateCents != null && minutes > 0 ? Math.round((laborRateCents * minutes) / 60) : null;
+                return (
+                  <div key={line.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                    <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto] sm:items-end">
+                      <div className="space-y-2">
+                        <Label>Désignation</Label>
+                        <Input
+                          value={line.title}
+                          placeholder="Ex. Pose de carrelage salle de bain"
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setLaborLines((prev) => prev.map((x) => (x.id === line.id ? { ...x, title: v } : x)));
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Heures</Label>
+                        <Input
+                          inputMode="decimal"
+                          value={line.hours}
+                          placeholder="Ex. 2,5"
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setLaborLines((prev) => prev.map((x) => (x.id === line.id ? { ...x, hours: v } : x)));
+                          }}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() =>
+                          setLaborLines((prev) => {
+                            const next = prev.filter((x) => x.id !== line.id);
+                            return next.length ? next : [emptyLaborLine()];
+                          })
+                        }
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" />
+                        Retirer
+                      </Button>
                     </div>
-                  </button>
+                    <div className="flex items-center justify-between rounded-lg bg-background/70 px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">
+                        {minutes > 0 && laborRateCents != null
+                          ? `${line.hours.trim()} h × ${formatEur(laborRateCents)}/h · TVA ${formatVatRate(reducedVatRate)}`
+                          : "Heures à renseigner"}
+                      </span>
+                      <span className="font-semibold tabular-nums">
+                        {lineCents == null ? "—" : `${formatEur(lineCents)} HT`}
+                      </span>
+                    </div>
+                  </div>
                 );
               })}
             </div>
-            <div className="text-sm text-muted-foreground">
-              Référence (somme des durées des prestations) :{" "}
-              <span className="font-medium text-foreground">{referenceDurationMinutes} min</span>
-              {" — "}
-              tu peux l&apos;ajuster dans la section <span className="font-medium text-foreground">Main d&apos;œuvre</span> si le
-              chantier est plus long ou plus court.
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => setLaborLines((prev) => [...prev, emptyLaborLine()])}
+            >
+              <Plus className="h-4 w-4" />
+              Ajouter une ligne de main-d&apos;œuvre
+            </Button>
+
+            <div className="flex items-center justify-between rounded-xl border bg-muted/20 px-4 py-3 text-sm">
+              <span>
+                Total main-d&apos;œuvre HT
+                {effectiveLaborMinutes > 0 ? ` · ${formatHoursFromMinutes(effectiveLaborMinutes)} h` : ""}
+              </span>
+              <span className="font-semibold tabular-nums">{formatEur(laborTotalCents)}</span>
             </div>
           </CardContent>
         </Card>
@@ -678,6 +877,12 @@ export function QuoteForm({
                             />
                           </div>
                         </div>
+                        <LineTotal
+                          quantity={m.quantity}
+                          unitPriceEur={m.unitPriceEur}
+                          excluded={m.excludeFromInvoice}
+                          vatLabel={formatVatRate(reducedVatRate)}
+                        />
                         <label className="flex items-center gap-2 text-sm">
                           <input
                             type="checkbox"
@@ -725,7 +930,9 @@ export function QuoteForm({
                                         description: item.description ?? "",
                                         unit: item.unit,
                                         unitPriceEur: String(item.unit_price_ht).replace(".", ","),
-                                        vatRate: String(item.default_vat_rate),
+                                        // 20 % = taux par défaut de la bibliothèque : on suit la TVA du devis.
+                                        vatRate:
+                                          Number(item.default_vat_rate) === 20 ? "" : String(item.default_vat_rate),
                                       }
                                     : x,
                                 ),
@@ -798,15 +1005,20 @@ export function QuoteForm({
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>TVA (%)</Label>
-                          <Input
-                            inputMode="decimal"
+                          <Label>TVA</Label>
+                          <select
+                            className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
                             value={m.vatRate}
                             onChange={(e) => {
                               const v = e.target.value;
                               setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, vatRate: v } : x)));
                             }}
-                          />
+                          >
+                            <option value="">Comme le devis ({formatVatRate(reducedVatRate)})</option>
+                            <option value="20">20 % (autre taux)</option>
+                            <option value="10">10 % (autre taux)</option>
+                            <option value="5.5">5,5 % (autre taux)</option>
+                          </select>
                         </div>
                         <div className="flex items-end">
                           <Button
@@ -822,7 +1034,7 @@ export function QuoteForm({
                                 description: m.description.trim() || undefined,
                                 unit: m.unit,
                                 unit_price_ht: price != null ? price / 100 : 0,
-                                default_vat_rate: Number(m.vatRate.replace(",", ".")) || 20,
+                                default_vat_rate: Number((m.vatRate || reducedVatRate).replace(",", ".")) || 20,
                               });
                               if (res.ok) toast.success("Ouvrage enregistré dans ta bibliothèque.");
                               else toast.error("Enregistrement impossible.");
@@ -833,6 +1045,14 @@ export function QuoteForm({
                           </Button>
                         </div>
                       </div>
+
+                      <LineTotal
+                        quantity={m.quantity}
+                        unitPriceEur={m.unitPriceEur}
+                        excluded={m.excludeFromInvoice}
+                        vatLabel={formatVatRate(m.vatRate || reducedVatRate)}
+                        vatOverridden={!!m.vatRate && !sameVatRate(m.vatRate, reducedVatRate)}
+                      />
 
                       <div className="space-y-3">
                         <label className="flex items-center gap-2 text-sm">
@@ -919,14 +1139,16 @@ export function QuoteForm({
 
             <Card className="border-0 shadow-none">
               <CardHeader>
-                <CardTitle className="text-xl">TVA réduite & attestation</CardTitle>
+                <CardTitle className="text-xl">TVA du devis</CardTitle>
                 <CardDescription>
-                  Pour la rénovation (logement &gt; 2 ans) — génère une attestation PDF en annexe du devis.
+                  S&apos;applique à la main-d&apos;œuvre et à toutes les fournitures. Une ligne peut avoir un
+                  autre taux si besoin (menu « TVA » de la ligne). Taux réduits : logement de plus de 2 ans,
+                  avec attestation du client.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="reduced_vat_rate">Taux TVA principal du devis</Label>
+                  <Label htmlFor="reduced_vat_rate">Taux de TVA</Label>
                   <select
                     id="reduced_vat_rate"
                     className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
@@ -1058,128 +1280,48 @@ export function QuoteForm({
           <div className="space-y-6">
             <Card className="border-0 shadow-none">
               <CardHeader>
-                <CardTitle className="text-xl">Main d&apos;œuvre</CardTitle>
-                <CardDescription>Taux horaire pré-rempli depuis ton profil.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="labor_rate_per_hour_eur">Taux (€/h)</Label>
-                  <Input
-                    id="labor_rate_per_hour_eur"
-                    inputMode="decimal"
-                    value={laborRateEur}
-                    onChange={(e) => setLaborRateEur(e.target.value)}
-                    placeholder="Ex. 45"
-                  />
-                </div>
-                <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Durée pour ce devis</p>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLaborDurationMode("auto");
-                          setCustomLaborHoursStr("");
-                        }}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                          laborDurationMode === "auto"
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background hover:bg-muted",
-                        )}
-                      >
-                        Comme les prestations ({referenceDurationMinutes} min)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLaborDurationMode("custom");
-                          setCustomLaborHoursStr((prev) =>
-                            prev || referenceDurationMinutes <= 0 ? prev : formatHoursFromMinutes(referenceDurationMinutes),
-                          );
-                        }}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                          laborDurationMode === "custom"
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background hover:bg-muted",
-                        )}
-                      >
-                        Personnaliser
-                      </button>
-                    </div>
-                  </div>
-                  {laborDurationMode === "custom" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="custom_labor_hours">Heures de main d&apos;œuvre</Label>
-                      <Input
-                        id="custom_labor_hours"
-                        inputMode="decimal"
-                        value={customLaborHoursStr}
-                        onChange={(e) => setCustomLaborHoursStr(e.target.value)}
-                        placeholder="Ex. 2,5"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Remplace la somme des minutes des prestations pour refléter le temps réel sur ce chantier.
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Coût calculé sur la base de la durée ci-dessus et du taux horaire.
-                </div>
-                <div className="space-y-2 rounded-xl border bg-muted/20 p-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Durée retenue</span>
-                    <span className="font-medium">{effectiveLaborMinutes} min</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Total main-d&apos;œuvre</span>
-                    <span className="font-medium">
-                      {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(laborTotalCents / 100)}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-none">
-              <CardHeader>
                 <CardTitle className="text-xl">Total</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2 rounded-xl border bg-muted/20 p-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Main d&apos;œuvre</span>
-                    <span className="font-medium">
-                      {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(laborTotalCents / 100)}
-                    </span>
+                  <TotalRow label="Main-d'œuvre HT" cents={laborTotalCents} />
+                  <TotalRow label="Fournitures HT" cents={materialsTotalCents} />
+                  <div className="border-t pt-2">
+                    <TotalRow label="Total HT" cents={documentTotals.totalHtCents} strong />
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Fournitures (facturées)</span>
-                    <span className="font-medium">
-                      {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(materialsTotalCents / 100)}
-                    </span>
-                  </div>
-                  {supplierDirectTotalCents > 0 && (
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>Matériaux achat direct fournisseur</span>
-                      <span>
-                        {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                          supplierDirectTotalCents / 100,
-                        )}{" "}
-                        (hors facture)
-                      </span>
-                    </div>
+                  {documentTotals.vatBreakdown.length === 0 ? (
+                    <TotalRow label={`TVA (${formatVatRate(reducedVatRate)})`} cents={0} muted />
+                  ) : (
+                    documentTotals.vatBreakdown.map((row) => (
+                      <TotalRow
+                        key={row.rate}
+                        label={`TVA ${formatVatRate(row.rate)}${
+                          documentTotals.vatBreakdown.length > 1 ? ` sur ${formatEur(row.baseHtCents)}` : ""
+                        }`}
+                        cents={row.vatCents}
+                        muted
+                      />
+                    ))
                   )}
-                  <div className="flex items-center justify-between pt-2 text-base font-semibold">
-                    <span>Total facturé par toi</span>
-                    <span>
-                      {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(grandTotalCents / 100)}
-                    </span>
+                  <div className="flex items-center justify-between border-t pt-2 text-lg font-semibold">
+                    <span>Total TTC</span>
+                    <span className="tabular-nums">{formatEur(documentTotals.totalTtcCents)}</span>
                   </div>
+                  <p className="text-xs text-muted-foreground">Montant identique au PDF envoyé au client.</p>
                 </div>
+
+                {supplierDirectTotalCents > 0 && (
+                  <div className="rounded-xl border border-dashed p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Achats directs du client</span>
+                      <span className="tabular-nums">{formatEur(supplierDirectTotalCents)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Payés par le client directement au fournisseur. Non inclus dans le total du devis (listés en
+                      annexe du PDF).
+                    </p>
+                  </div>
+                )}
 
                 {!profileLaborRatePerHourCents && (
                   <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
@@ -1239,6 +1381,65 @@ export function QuoteForm({
         laborTotalCents={laborTotalCents}
         materialsTotalCents={materialsTotalCents}
       />
+    </div>
+  );
+}
+
+function TotalRow({
+  label,
+  cents,
+  strong,
+  muted,
+}: {
+  label: string;
+  cents: number;
+  strong?: boolean;
+  muted?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between text-sm",
+        strong && "font-semibold",
+        muted && "text-muted-foreground",
+      )}
+    >
+      <span>{label}</span>
+      <span className="tabular-nums">{formatEur(cents)}</span>
+    </div>
+  );
+}
+
+/** Total HT de la ligne, visible en permanence sous la saisie. */
+function LineTotal({
+  quantity,
+  unitPriceEur,
+  excluded,
+  vatLabel,
+  vatOverridden,
+}: {
+  quantity: number;
+  unitPriceEur: string;
+  excluded: boolean;
+  vatLabel: string;
+  vatOverridden?: boolean;
+}) {
+  const total = lineTotalCents(quantity, unitPriceEur);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/70 px-3 py-2 text-sm">
+      <span className="text-muted-foreground">
+        {excluded ? (
+          "Achat direct du client — hors total du devis"
+        ) : (
+          <>
+            TVA {vatLabel}
+            {vatOverridden ? <span className="ml-1 font-medium text-amber-700">(taux spécifique)</span> : null}
+          </>
+        )}
+      </span>
+      <span className={cn("tabular-nums", excluded ? "text-muted-foreground" : "font-semibold")}>
+        {total == null ? "Prix à renseigner" : `${formatEur(total)} HT`}
+      </span>
     </div>
   );
 }

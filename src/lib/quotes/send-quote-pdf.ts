@@ -50,9 +50,10 @@ export async function sendQuotePdfInConversation(
 
   const pdfBytes = await renderQuotePdf(doc);
 
-  const totalFmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-    params.grandTotalCents / 100,
-  );
+  // Montant TTC du PDF joint (et non grand_total, qui est HT).
+  const totalFmt = `${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
+    doc.totalTtcCents / 100,
+  )} TTC`;
 
   const body = buildQuoteNotificationMessage({
     totalFormatted: totalFmt,

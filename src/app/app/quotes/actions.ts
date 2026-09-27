@@ -70,10 +70,13 @@ function safeParseJsonArray<T>(raw: string): T[] | null {
   }
 }
 
+type LaborLineJson = { title?: unknown; minutes?: unknown; service_id?: unknown };
+
 type QuoteInputError =
   | {
       ok: false;
       error:
+        | "empty_quote"
         | "missing_services"
         | "invalid_materials"
         | "missing_labor_rate"
@@ -93,7 +96,8 @@ type ResolvedQuoteInput = {
   laborTotalCents: number;
   materialsTotalCents: number;
   grandTotalCents: number;
-  servicesFound: { id: string; title: string; duration: number; price: number | null }[];
+  /** Lignes de main-d'œuvre (catalogue ou saisie libre), écrites dans quote_services. */
+  servicesFound: { id: string | null; title: string; duration: number; price: number | null }[];
   materials: ParsedMaterial[];
   linkedConversationId: string | null;
   linkedCustomerUserId: string | null;
@@ -128,10 +132,19 @@ async function resolveQuoteInput(
   const laborRateRaw = String(formData.get("labor_rate_per_hour_eur") ?? "").trim();
   const laborRateCentsFromForm = laborRateRaw ? parseEurToCents(laborRateRaw) : null;
 
-  const serviceIdsRaw = String(formData.get("service_ids_json") ?? "[]");
-  const serviceIds = safeParseJsonArray<string>(serviceIdsRaw);
-  if (!serviceIds || serviceIds.length === 0) {
-    return { ok: false, error: "missing_services" };
+  // Main-d'œuvre : lignes libres (désignation + durée), éventuellement issues du
+  // catalogue de prestations. Aucune n'est obligatoire (devis fournitures seules).
+  const laborLinesParsed = safeParseJsonArray<LaborLineJson>(String(formData.get("labor_lines_json") ?? "[]")) ?? [];
+  const laborLines = laborLinesParsed
+    .map((l) => ({
+      title: String(l?.title ?? "").trim().slice(0, 300),
+      minutes: Math.round(Number(l?.minutes ?? 0)),
+      serviceId: typeof l?.service_id === "string" && l.service_id.trim() ? l.service_id.trim() : null,
+    }))
+    .filter((l) => l.title || l.minutes > 0);
+
+  if (laborLines.some((l) => !l.title || !Number.isFinite(l.minutes) || l.minutes <= 0 || l.minutes > 1_000_000)) {
+    return { ok: false, error: "invalid_duration" };
   }
 
   const materialsRaw = String(formData.get("materials_json") ?? "[]");
@@ -163,37 +176,33 @@ async function resolveQuoteInput(
     return { ok: false, error: "invalid_materials" };
   }
 
-  const profileLaborRate = profile.labor_rate_per_hour as number | null;
-  const laborRateCents = laborRateCentsFromForm ?? (profileLaborRate != null ? profileLaborRate : null);
+  const laborDurationMinutes = laborLines.reduce((acc, l) => acc + l.minutes, 0);
 
-  if (laborRateCents == null || !Number.isFinite(laborRateCents) || laborRateCents < 0) {
+  const profileLaborRate = profile.labor_rate_per_hour as number | null;
+  const laborRateCents = laborRateCentsFromForm ?? (profileLaborRate != null ? profileLaborRate : 0);
+
+  if (laborDurationMinutes > 0 && (!Number.isFinite(laborRateCents) || laborRateCents <= 0)) {
     return { ok: false, error: "missing_labor_rate" };
   }
 
-  const { data: services } = await supabase
-    .from("services")
-    .select("id, title, duration, price")
-    .eq("artisan_id", profileId)
-    .in("id", serviceIds);
-
-  const serviceSet = new Set(serviceIds);
-  const servicesFound = (services ?? []).filter((s) => serviceSet.has(s.id));
-
-  if (servicesFound.length !== serviceIds.length) {
-    return { ok: false, error: "invalid_services" };
+  // Lien catalogue conservé seulement pour les prestations de l'artisan (isolation tenant).
+  const catalogIds = [...new Set(laborLines.map((l) => l.serviceId).filter((id): id is string => !!id))];
+  let ownedServiceIds = new Set<string>();
+  if (catalogIds.length) {
+    const { data: owned } = await supabase
+      .from("services")
+      .select("id")
+      .eq("artisan_id", profileId)
+      .in("id", catalogIds);
+    ownedServiceIds = new Set((owned ?? []).map((s) => s.id as string));
   }
 
-  const computedDurationMinutes = servicesFound.reduce((acc, s) => acc + (s.duration ?? 0), 0);
-  if (computedDurationMinutes <= 0) {
-    return { ok: false, error: "invalid_duration" };
-  }
-
-  const laborMinutesRaw = String(formData.get("labor_duration_minutes") ?? "").trim();
-  const parsedOverride = Number.parseInt(laborMinutesRaw, 10);
-  const useOverride =
-    laborMinutesRaw !== "" && Number.isFinite(parsedOverride) && parsedOverride > 0 && parsedOverride <= 1_000_000;
-
-  const laborDurationMinutes = useOverride ? parsedOverride : computedDurationMinutes;
+  const servicesFound = laborLines.map((l) => ({
+    id: l.serviceId && ownedServiceIds.has(l.serviceId) ? l.serviceId : null,
+    title: l.title,
+    duration: l.minutes,
+    price: null as number | null,
+  }));
 
   // Centimes = taux (cents/h) * minutes / 60, arrondi.
   const laborTotalCents = Math.round((laborRateCents * laborDurationMinutes) / 60);
@@ -204,6 +213,10 @@ async function resolveQuoteInput(
   }, 0);
 
   const grandTotalCents = laborTotalCents + materialsTotalCents;
+
+  if (grandTotalCents <= 0) {
+    return { ok: false, error: "empty_quote" };
+  }
 
   const conversationIdRaw = String(formData.get("conversation_id") ?? "").trim();
   const customerUserIdRaw = String(formData.get("customer_user_id") ?? "").trim();
@@ -320,9 +333,11 @@ async function writeQuoteLines(supabase: SupabaseClient, quoteId: string, d: Res
     unit_price: s.price ?? null,
   }));
 
-  const { error: servicesLinesErr } = await supabase.from("quote_services").insert(quoteServiceRows);
-  if (servicesLinesErr) {
-    return { ok: false as const, error: "lines_failed" as const };
+  if (quoteServiceRows.length) {
+    const { error: servicesLinesErr } = await supabase.from("quote_services").insert(quoteServiceRows);
+    if (servicesLinesErr) {
+      return { ok: false as const, error: "lines_failed" as const };
+    }
   }
 
   const quoteMaterialRows = d.materials
@@ -775,4 +790,54 @@ export async function sendDraftQuote(quoteId: string): Promise<SendDraftQuoteRes
   if (conversationId) revalidatePath(`/app/messages/${conversationId}`);
 
   return { ok: true, emailSent, notifyFailed };
+}
+
+export type ResendQuoteEmailResult =
+  | { ok: true }
+  | { ok: false; error: "auth" | "missing_profile" | "not_found" | "not_sent" | "no_email" | "email_failed" }
+  | { ok: false; error: "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation };
+
+/**
+ * Renvoie par e-mail un devis déjà envoyé (PDF régénéré à partir des données
+ * actuelles). Ne modifie ni le statut, ni la date d'envoi, ni la validité.
+ */
+export async function resendQuoteEmail(quoteId: string): Promise<ResendQuoteEmailResult> {
+  const userAuth = await requireAuthenticatedUser();
+  if (!userAuth.ok) return { ok: false, error: "auth" };
+  const { supabase, userId } = userAuth;
+
+  const resolvedProfile = await resolveArtisanProfile(supabase, userId, PROFILE_LEGAL_COLUMNS);
+  if (!resolvedProfile.ok) return { ok: false, error: "missing_profile" };
+  const { profileId, profile } = resolvedProfile;
+
+  const { data: quote } = await supabase
+    .from("quotes")
+    .select("id, artisan_id, status, customer_name, customer_email, grand_total")
+    .eq("id", quoteId)
+    .maybeSingle();
+
+  if (!quote || quote.artisan_id !== profileId) return { ok: false, error: "not_found" };
+  // Brouillon : passer par « Envoyer ». Accepté / refusé : plus rien à renvoyer au client.
+  if (quote.status !== "sent") return { ok: false, error: "not_sent" };
+
+  const customerEmail = (quote.customer_email as string | null)?.trim() ?? "";
+  if (!customerEmail) return { ok: false, error: "no_email" };
+
+  const legalCheck = await validateQuoteBeforeSend(supabase, quoteId, profileId);
+  if (!legalCheck.ok) {
+    return { ok: false, error: "quote_pdf_profile_incomplete", validation: legalCheck.validation };
+  }
+
+  const emailResult = await sendQuoteByEmail({
+    supabase,
+    quoteId,
+    artisanId: profileId,
+    to: customerEmail,
+    customerName: quote.customer_name as string | null,
+    businessName: profile.business_name as string | null,
+    grandTotalCents: (quote.grand_total as number) ?? 0,
+  });
+  if (!emailResult.ok) return { ok: false, error: "email_failed" };
+
+  return { ok: true };
 }

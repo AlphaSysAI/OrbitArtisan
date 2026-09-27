@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { validateLegalEntityFields } from "@/lib/billing/legal-entity-validation";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
+import { readPersonName } from "@/lib/profile/person-name";
 import { geocodeAddress } from "@/lib/geo/ban";
 import {
   normalizePhone,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/settings/contact-fields";
 
 export type OnboardingContactError =
+  | "missing_first_name"
   | "missing_name"
   | "missing_business_name"
   | "invalid_phone"
@@ -22,9 +24,10 @@ export type OnboardingContactError =
   | "save_failed";
 
 export async function saveOnboardingContactStep(formData: FormData) {
-  const displayName = String(formData.get("display_name") ?? "").trim();
+  const { firstName, lastName, displayName } = readPersonName(formData);
   const businessName = String(formData.get("business_name") ?? "").trim();
-  if (!displayName) return { ok: false as const, error: "missing_name" as const };
+  if (!firstName) return { ok: false as const, error: "missing_first_name" as const };
+  if (!lastName) return { ok: false as const, error: "missing_name" as const };
   if (!businessName) return { ok: false as const, error: "missing_business_name" as const };
 
   const contact = parseContactFieldsFromForm(formData);
@@ -68,6 +71,8 @@ export async function saveOnboardingContactStep(formData: FormData) {
     .from("profiles")
     .update({
       name: displayName,
+      first_name: firstName,
+      last_name: lastName,
       business_name: businessName,
       phone,
       address_line1: contact.address_line1,

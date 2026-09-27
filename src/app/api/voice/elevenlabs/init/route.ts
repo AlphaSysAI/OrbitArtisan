@@ -20,7 +20,12 @@ export const runtime = "nodejs";
 
 const FALLBACK = {
   business_name: "l'entreprise",
+  /** Nom complet « Prénom Nom » — à privilégier dans le message d'accueil. */
   artisan_name: "l'artisan",
+  /** Prénom seul, pour le prompt (« Jean vous rappellera »). Jamais vide. */
+  artisan_prenom: "l'artisan",
+  /** Nom de famille seul. Jamais vide. */
+  artisan_nom: "l'artisan",
   accepts_calls: "true",
 };
 
@@ -100,16 +105,23 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<R
   const artisanId = mapping.artisan_id as string;
 
   const [{ data: profile }, quota] = await Promise.all([
-    db.from("profiles").select("business_name, name").eq("id", artisanId).maybeSingle(),
+    db.from("profiles").select("business_name, name, first_name, last_name").eq("id", artisanId).maybeSingle(),
     resolveVoiceQuota(db, artisanId).catch(() => null),
   ]);
 
   const businessName = (profile?.business_name as string | null)?.trim() || FALLBACK.business_name;
-  const artisanName = (profile?.name as string | null)?.trim() || businessName;
+  const firstName = (profile?.first_name as string | null)?.trim() || "";
+  const lastName = (profile?.last_name as string | null)?.trim() || "";
+  const fullName = [firstName, lastName].filter(Boolean).join(" ") || (profile?.name as string | null)?.trim() || "";
+  // Chaque variable a une valeur de repli : une variable vide ou absente fait
+  // échouer la conversation côté ElevenLabs.
+  const artisanName = fullName || businessName;
 
   return {
     business_name: businessName,
     artisan_name: artisanName,
+    artisan_prenom: firstName || artisanName,
+    artisan_nom: lastName || artisanName,
     accepts_calls: quota && !quota.canAcceptCalls ? "false" : "true",
   };
 }

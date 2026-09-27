@@ -26,6 +26,8 @@ export function ProfileForm({
 }: {
   initialValues: {
     name: string | null;
+    first_name: string | null;
+    last_name: string | null;
     business_name: string;
     description: string | null;
     logo_url: string | null;
@@ -114,17 +116,36 @@ export function ProfileForm({
         <p className="text-xs text-muted-foreground">Sans accents ni espaces.</p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="name" className="text-base">
-          Ton nom <span className="font-normal text-muted-foreground">(facultatif)</span>
-        </Label>
-        <Input
-          id="name"
-          name="name"
-          className="h-11 text-base"
-          defaultValue={initialValues.name ?? ""}
-          placeholder="Jean Martin"
-        />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="first_name" className="text-base">
+            Ton prénom
+          </Label>
+          <Input
+            id="first_name"
+            name="first_name"
+            className="h-11 text-base"
+            defaultValue={initialValues.first_name ?? ""}
+            placeholder="Jean"
+            autoComplete="given-name"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="last_name" className="text-base">
+            Ton nom
+          </Label>
+          <Input
+            id="last_name"
+            name="last_name"
+            className="h-11 text-base"
+            defaultValue={initialValues.last_name ?? ""}
+            placeholder="Martin"
+            autoComplete="family-name"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground sm:col-span-2">
+          Soline te présente ainsi au téléphone : « pendant que Jean Martin est sur un chantier ».
+        </p>
       </div>
 
       <div className="space-y-2">

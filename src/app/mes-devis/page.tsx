@@ -96,7 +96,8 @@ export default async function MesDevisPage() {
                   <span className="text-sm font-semibold">
                     {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
                       (q.grand_total ?? 0) / 100,
-                    )}
+                    )}{" "}
+                    HT
                   </span>
                   <Link href={`/mes-devis/${q.id}`} className={buttonVariants({ size: "sm" })}>
                     Voir

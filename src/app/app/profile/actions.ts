@@ -1,5 +1,6 @@
 "use server";
 
+import { readPersonName } from "@/lib/profile/person-name";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -20,7 +21,7 @@ function normalizeSlug(input: string) {
 
 export async function upsertProfile(formData: FormData) {
   const businessName = String(formData.get("business_name") ?? "").trim();
-  const name = String(formData.get("name") ?? "").trim();
+  const { firstName, lastName, displayName: name } = readPersonName(formData);
   const description = String(formData.get("description") ?? "").trim();
   const logoUrl = String(formData.get("logo_url") ?? "").trim();
   const accentRaw = String(formData.get("accent_color") ?? "").trim();
@@ -101,6 +102,8 @@ export async function upsertProfile(formData: FormData) {
     user_id: user.id,
     business_name: businessName,
     name: name || null,
+    first_name: firstName || null,
+    last_name: lastName || null,
     description: description || null,
     logo_url: logoUrl || null,
     accent_color,

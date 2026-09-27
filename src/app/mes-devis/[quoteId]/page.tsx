@@ -217,7 +217,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
                   </span>
                 </div>
                 <div className="flex items-center justify-between pt-2 text-base font-semibold">
-                  <span>Total</span>
+                  <span>Total HT</span>
                   <span>
                     {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
                       (quote.grand_total ?? 0) / 100,

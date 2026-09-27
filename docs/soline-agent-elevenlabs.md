@@ -8,9 +8,14 @@ Toute modification de l'agent doit être reportée ici.
 - Agent > onglet **Security** : activer « Fetch conversation initiation data » (initiation client data webhook).
 - Réglages ElevenAgents (workspace) : URL `https://app.solinebtp.fr/api/voice/elevenlabs/init`,
   en-tête secret `Authorization` = `Bearer <VOICE_AI_TOOL_SECRET>`.
-- Variables renvoyées : `business_name`, `artisan_name`, `accepts_calls` ("true"/"false").
-- Dans l'agent, déclarer ces 3 variables dynamiques avec des valeurs par défaut
-  (`l'entreprise`, `l'artisan`, `true`) pour les tests depuis l'interface.
+- Variables renvoyées (jamais vides) :
+  - `business_name` : raison sociale ;
+  - `artisan_name` : « Prénom Nom » (repli : raison sociale) ;
+  - `artisan_prenom` : prénom seul (repli : `artisan_name`) ;
+  - `artisan_nom` : nom de famille seul (repli : `artisan_name`) ;
+  - `accepts_calls` : "true" / "false".
+- Dans l'agent, déclarer ces variables dynamiques avec des valeurs par défaut
+  (`l'entreprise`, `l'artisan`, …, `true`) pour les tests depuis l'interface.
 
 ## 2. Message d'accueil (First message)
 
@@ -72,3 +77,16 @@ Pour pré-remplir la fiche dans « Appels » :
 - Réglages ElevenAgents (workspace) > **Post-call webhook** : URL `https://app.solinebtp.fr/api/webhooks/elevenlabs/post-call`, type transcription.
 - Copier le secret HMAC généré dans Vercel : `ELEVENLABS_WEBHOOK_SECRET`.
 - Chaque appel (même raccroché sans message) crée une fiche « à traiter » dans `/app/appels`, avec résumé, transcription et brouillon de devis si des prestations sont configurées.
+
+## 7. Provisionnement des numéros (Admin > Télécom > Pool)
+
+Bouton « Acheter et brancher » (1 à 10 numéros) et cron quotidien `/api/cron/voice-pool-refill` (06:30 UTC).
+Pour chaque numéro : achat Twilio FR → import ElevenLabs + agent `ELEVENLABS_AGENT_ID` → URL de statut
+reposée → pool « prêt » → attribution aux comptes Pro/Premium en attente.
+
+Prérequis : dossier réglementaire FR approuvé chez Twilio (`TWILIO_FR_BUNDLE_SID`, `TWILIO_FR_ADDRESS_SID`),
+clé API ElevenLabs avec droits ElevenAgents, variables listées dans `.env.example`.
+
+Garde-fous : plafond `VOICE_POOL_MAX_TOTAL` (défaut 30), 10 max par lot admin, `VOICE_POOL_MAX_PER_RUN` par cron,
+réassort désactivé tant que `VOICE_POOL_AUTO_REFILL` ≠ `true`, cron refusé sans `CRON_SECRET`.
+Un numéro acheté dont l'import ElevenLabs échoue entre au pool « non prêt » : bouton « Réessayer ElevenLabs ».

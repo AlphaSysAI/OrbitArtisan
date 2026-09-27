@@ -5,9 +5,12 @@ import { redirect } from "next/navigation";
 
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
-import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
-import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
-import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
+import {
+  provisionVoiceNumbersForAdmin,
+  retryElevenLabsImport,
+  serveWaitingArtisans,
+  type ProvisionResult,
+} from "@/lib/voice/voice-pool-provisioning";
 import { addVoiceNumberToPool, retireVoiceNumberFromPool } from "@/lib/voice/voice-number-pool";
 
 async function guardAdminPool() {
@@ -37,29 +40,11 @@ export async function adminAddVoiceNumberToPool(formData: FormData): Promise<{ o
 
   if (!result.ok) return result;
 
-  // Le pool servait vide : on sert tout de suite le plus ancien compte Pro/Premium
-  // en attente, sinon il reste bloqué sur « Attribution en cours… ».
+  // Le pool servait vide : on sert tout de suite les comptes Pro/Premium en
+  // attente, sinon ils restent bloqués sur « Attribution en cours… ».
   if (elevenlabsReady) {
-    const { data: waiting } = await sb
-      .from("profiles")
-      .select("id, subscription_plan, subscription_status")
-      .not("voice_number_assignment_pending_at", "is", null)
-      .in("subscription_plan", ["pro", "premium"])
-      .in("subscription_status", ["active", "trialing", "past_due"])
-      .order("voice_number_assignment_pending_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (waiting?.id) {
-      const sync = await syncSubscriptionVoiceNumber(sb, {
-        profileId: waiting.id as string,
-        planId: waiting.subscription_plan as SubscriptionPlanId,
-        subscriptionStatus: waiting.subscription_status as SubscriptionStatus,
-      });
-      if (sync.error) console.error("[voice pool] attribution au compte en attente", sync.error);
-      revalidatePath(`/admin/tenants/${waiting.id}`);
-      revalidatePath("/app/reglages");
-    }
+    await serveWaitingArtisans(sb);
+    revalidatePath("/app/reglages");
   }
 
   revalidatePath("/admin/telecom/pool");
@@ -72,4 +57,21 @@ export async function adminRetirePoolNumber(poolId: string): Promise<{ ok: true 
   if (!result.ok) return result;
   revalidatePath("/admin/telecom/pool");
   return { ok: true };
+}
+
+export async function adminProvisionVoiceNumbers(
+  count: number,
+): Promise<{ ok: true; results: ProvisionResult[]; served: number; capped: boolean } | { ok: false; error: string }> {
+  const sb = await guardAdminPool();
+  const result = await provisionVoiceNumbersForAdmin(sb, count);
+  revalidatePath("/admin/telecom/pool");
+  revalidatePath("/app/reglages");
+  return result;
+}
+
+export async function adminRetryElevenLabsImport(poolId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sb = await guardAdminPool();
+  const result = await retryElevenLabsImport(sb, poolId);
+  revalidatePath("/admin/telecom/pool");
+  return result;
 }

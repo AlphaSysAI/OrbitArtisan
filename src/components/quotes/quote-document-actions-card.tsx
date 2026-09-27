@@ -6,6 +6,7 @@ import { Pencil } from "lucide-react";
 import { DuplicateQuoteButton } from "@/components/quotes/duplicate-quote-button";
 import { DeleteQuoteButton } from "@/components/quotes/delete-quote-button";
 import { DownloadQuotePdfButton } from "@/components/quotes/download-quote-pdf-button";
+import { ResendQuoteEmailButton } from "@/components/quotes/resend-quote-email-button";
 import { SendDraftQuoteButton } from "@/components/quotes/send-draft-quote-button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,9 @@ export function QuoteDocumentActionsCard({
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <DownloadQuotePdfButton quoteId={quoteId} />
+        {status === "sent" && hasCustomerEmail ? (
+          <ResendQuoteEmailButton quoteId={quoteId} customerEmail={customerEmail!.trim()} />
+        ) : null}
         <DuplicateQuoteButton quoteId={quoteId} />
       </div>
       <p className="text-xs text-muted-foreground">

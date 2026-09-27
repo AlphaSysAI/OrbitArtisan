@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { saveOnboardingContactStep, type OnboardingContactError } from "./actions";
 
 const ERROR_MESSAGES: Record<OnboardingContactError, string> = {
-  missing_name: "Indique ton nom (contact).",
+  missing_first_name: "Indique ton prénom.",
+  missing_name: "Indique ton nom.",
   missing_business_name: "Indique ta raison sociale ou ton nom commercial.",
   invalid_phone: "Numéro de téléphone obligatoire (6 chiffres minimum).",
   missing_address: "L’adresse est obligatoire.",
@@ -26,7 +27,8 @@ export function OnboardingContactStep({
 }: {
   email: string;
   initialValues: {
-    name: string;
+    firstName: string;
+    lastName: string;
     businessName: string;
     phone: string;
     addressLine1: string;
@@ -37,7 +39,8 @@ export function OnboardingContactStep({
     longitude: number | null;
   };
 }) {
-  const [displayName, setDisplayName] = React.useState(initialValues.name);
+  const [firstName, setFirstName] = React.useState(initialValues.firstName);
+  const [lastName, setLastName] = React.useState(initialValues.lastName);
   const [businessName, setBusinessName] = React.useState(initialValues.businessName);
   const [phone, setPhone] = React.useState(initialValues.phone);
   const [addressLine2, setAddressLine2] = React.useState(initialValues.addressLine2);
@@ -80,15 +83,27 @@ export function OnboardingContactStep({
               required
             />
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="display_name">Nom du contact</Label>
+          <div className="space-y-2">
+            <Label htmlFor="first_name">Prénom</Label>
             <Input
-              id="display_name"
-              name="display_name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Jean Dupont"
-              autoComplete="name"
+              id="first_name"
+              name="first_name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Jean"
+              autoComplete="given-name"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="last_name">Nom</Label>
+            <Input
+              id="last_name"
+              name="last_name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Dupont"
+              autoComplete="family-name"
               required
             />
           </div>

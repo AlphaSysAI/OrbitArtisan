@@ -155,7 +155,7 @@ export default async function AppelsSolinePage() {
             const canValidate =
               item.status === "pending_review" &&
               Boolean(item.customer_email) &&
-              Boolean(draft?.matchedServiceIds?.length);
+              Boolean(draft?.matchedServiceIds?.length || (draft?.laborDurationMinutes ?? 0) > 0);
 
             return (
               <li key={item.id} className="app-surface space-y-4 p-5">

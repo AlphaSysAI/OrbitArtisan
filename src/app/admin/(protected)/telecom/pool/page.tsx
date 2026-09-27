@@ -5,10 +5,21 @@ import { AppPageHeader } from "@/components/app/app-page-header";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { listVoiceNumberPool } from "@/lib/voice/voice-number-pool";
+import { readProvisioningConfig } from "@/lib/voice/voice-pool-provisioning";
+import { readRefillPolicy } from "@/lib/voice/voice-pool-refill";
 
 export default async function AdminVoicePoolPage() {
   const sb = createSupabaseServiceRoleClient();
   const { rows } = sb ? await listVoiceNumberPool(sb) : { rows: [] };
+  const cfg = readProvisioningConfig();
+  const policy = readRefillPolicy();
+  const provisioning = {
+    configured: cfg.ok,
+    missing: cfg.ok ? [] : cfg.missing,
+    autoRefill: process.env.VOICE_POOL_AUTO_REFILL?.trim() === "true",
+    maxTotal: policy.maxTotal,
+    minAvailable: policy.minAvailable,
+  };
 
   return (
     <div className="space-y-8">
@@ -22,7 +33,7 @@ export default async function AdminVoicePoolPage() {
           Registre réquisitions
         </Link>
       </div>
-      <VoicePoolManager initialRows={rows} />
+      <VoicePoolManager initialRows={rows} provisioning={provisioning} />
     </div>
   );
 }

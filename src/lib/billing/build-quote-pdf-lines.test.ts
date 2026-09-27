@@ -42,3 +42,46 @@ describe("buildQuotePdfTableLines", () => {
     expect(totals.totalTtcCents).toBe(13500);
   });
 });
+
+describe("buildQuotePdfTableLines — main-d'oeuvre jamais perdue", () => {
+  const base = { materials: [], laborRatePerHourCents: 4000, defaultVatRate: 20 };
+
+  it("prestations sans durée : une ligne de main-d'oeuvre au lieu de rien", () => {
+    const lines = buildQuotePdfTableLines({
+      ...base,
+      services: [{ service_title: "Rénovation SDB", duration_minutes: 0, line_total: null, unit_price: null }],
+      laborTotalCents: 240000,
+      laborDurationMinutes: 3600,
+    });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ designation: "Rénovation SDB", quantity: 60, lineTotalCents: 240000 });
+  });
+
+  it("durée facturée ≠ somme des prestations : les lignes totalisent labor_total", () => {
+    const lines = buildQuotePdfTableLines({
+      ...base,
+      services: [
+        { service_title: "A", duration_minutes: 60, line_total: null, unit_price: null },
+        { service_title: "B", duration_minutes: 60, line_total: null, unit_price: null },
+      ],
+      laborTotalCents: 16000,
+      laborDurationMinutes: 240,
+    });
+    expect(lines.reduce((s, l) => s + l.lineTotalCents, 0)).toBe(16000);
+    expect(lines.map((l) => l.quantity)).toEqual([2, 2]);
+  });
+
+  it("arrondis : la somme reste exacte au centime", () => {
+    const lines = buildQuotePdfTableLines({
+      ...base,
+      services: [
+        { service_title: "A", duration_minutes: 1, line_total: null, unit_price: null },
+        { service_title: "B", duration_minutes: 1, line_total: null, unit_price: null },
+        { service_title: "C", duration_minutes: 1, line_total: null, unit_price: null },
+      ],
+      laborTotalCents: 1000,
+      laborDurationMinutes: 3,
+    });
+    expect(lines.reduce((s, l) => s + l.lineTotalCents, 0)).toBe(1000);
+  });
+});

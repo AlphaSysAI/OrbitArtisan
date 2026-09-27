@@ -95,7 +95,7 @@ export default async function ArtisanSettingsPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "id, name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, trade_category, trade",
+      "id, name, first_name, last_name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, trade_category, trade",
     )
     .eq("user_id", user!.id)
     .maybeSingle();
@@ -168,6 +168,8 @@ export default async function ArtisanSettingsPage({
 
   const profileInitial = profile ?? {
     name: null,
+    first_name: null,
+    last_name: null,
     business_name: "",
     description: null,
     logo_url: null,

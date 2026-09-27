@@ -33,7 +33,7 @@ export type SendQuoteEmailParams = {
 export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
   const siteUrl = getPublicSiteUrl();
   const clientQuoteUrl = `${siteUrl}/mes-devis/${params.quoteId}`;
-  const total = formatEur(params.grandTotalCents);
+
   const artisan = params.businessName?.trim() || "Votre artisan";
   const greeting = params.customerName?.trim() ? `Bonjour ${params.customerName.trim()},` : "Bonjour,";
 
@@ -45,6 +45,10 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
   const pdfBase64 = pdfBytes ? Buffer.from(pdfBytes).toString("base64") : null;
   const fileStem = doc?.quoteNumber.replace(/[^\w-]+/g, "-") ?? params.quoteId.slice(0, 8);
   const quoteRef = doc?.quoteNumber ?? params.quoteId.slice(0, 8).toUpperCase();
+  // Montant = celui du PDF joint (TTC, TVA par ligne). grand_total est HT :
+  // l'annoncer « TTC » était faux et ne correspondait pas au PDF.
+  const total = doc ? formatEur(doc.totalTtcCents) : `${formatEur(params.grandTotalCents)} HT`;
+  const totalSuffix = doc ? " TTC" : "";
 
   // Vague 8 : sujet fixe demandé par Florian ("un devis pour vous"), au lieu
   // du sujet précédent qui incluait artisan/numéro/montant. Compromis assumé :
@@ -58,7 +62,7 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
 
   const html = `
     <p>${greeting}</p>
-    <p><strong>${artisan}</strong> vous adresse son devis n° <strong>${quoteRef}</strong>, d'un montant de <strong>${total}</strong> TTC.</p>
+    <p><strong>${artisan}</strong> vous adresse son devis n° <strong>${quoteRef}</strong>, d'un montant de <strong>${total}</strong>${totalSuffix}.</p>
     <p>Retrouvez le détail des prestations, fournitures et montants dans le PDF en pièce jointe${pdfBase64 ? "" : " (indisponible — contactez directement votre artisan)"}.</p>
     <p style="font-size:13px;color:#444;">${legalNotice}</p>
     <p>Vous pouvez consulter ce devis et y répondre (acceptation ou refus) depuis votre espace client : <a href="${clientQuoteUrl}">${clientQuoteUrl}</a>.</p>
@@ -68,7 +72,7 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
   const text = [
     greeting,
     "",
-    `${artisan} vous adresse son devis n° ${quoteRef}, d'un montant de ${total} TTC.`,
+    `${artisan} vous adresse son devis n° ${quoteRef}, d'un montant de ${total}${totalSuffix}.`,
     pdfBase64 ? "Le PDF détaillé est en pièce jointe." : "",
     legalNotice,
     "",

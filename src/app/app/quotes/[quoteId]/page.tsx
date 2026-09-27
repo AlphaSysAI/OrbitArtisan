@@ -10,6 +10,12 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { quoteStatusLabel } from "@/lib/status-labels";
 import { cn } from "@/lib/utils";
+import {
+  buildQuotePdfTableLines,
+  computeVatBreakdown,
+  normalizeVatRate,
+  sumQuoteTotals,
+} from "@/lib/billing/build-quote-pdf-lines";
 
 import { QuoteSummary } from "@/components/ai/quote-summary";
 import { BtpInvoiceActions } from "@/components/quotes/btp-invoice-actions";
@@ -65,12 +71,30 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
 
   const { data: materialLines } = await supabase
     .from("quote_materials")
-    .select("label,quantity,unit_price,line_total")
+    .select("label,quantity,unit_price,line_total,vat_rate,exclude_from_invoice")
     .eq("quote_id", quoteId)
     .order("created_at", { ascending: true });
 
   const services = serviceLines ?? [];
   const materials = materialLines ?? [];
+  const eur = (cents: number) =>
+    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+  const quoteVatRate = normalizeVatRate(quote.reduced_vat_rate ?? 20);
+  // Mêmes fonctions que le PDF : les montants affichés ici = ceux du document client.
+  const documentVat = computeVatBreakdown(
+    buildQuotePdfTableLines({
+      services,
+      materials,
+      laborTotalCents: quote.labor_total ?? 0,
+      laborDurationMinutes: quote.labor_duration_minutes ?? 0,
+      laborRatePerHourCents: quote.labor_rate_per_hour ?? 0,
+      defaultVatRate: quoteVatRate,
+    }),
+  );
+  const documentTotals = sumQuoteTotals(documentVat);
+  const directPurchaseCents = materials
+    .filter((m) => m.exclude_from_invoice)
+    .reduce((acc, m) => acc + Math.round((m.quantity ?? 0) * (m.unit_price ?? 0)), 0);
   const conversationId = (quote as { conversation_id?: string | null }).conversation_id ?? null;
 
   let profileDisplayName: string | null = null;
@@ -198,12 +222,14 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                         <div className="min-w-0">
                           <p className="font-medium">{m.label}</p>
                           <p className="text-sm text-muted-foreground">
-                            Qté {m.quantity} ·{" "}
-                            {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((m.unit_price ?? 0) / 100)} / unité
+                            {m.quantity} × {eur(m.unit_price ?? 0)} HT
+                            {m.exclude_from_invoice
+                              ? " · achat direct du client (hors devis)"
+                              : ` · TVA ${String(normalizeVatRate(m.vat_rate)).replace(".", ",")} %`}
                           </p>
                         </div>
-                        <p className="text-sm font-medium">
-                          {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((m.line_total ?? 0) / 100)}
+                        <p className={cn("text-sm font-medium tabular-nums", m.exclude_from_invoice && "text-muted-foreground line-through")}>
+                          {eur(m.line_total ?? Math.round((m.quantity ?? 0) * (m.unit_price ?? 0)))} HT
                         </p>
                       </div>
                     </li>
@@ -245,25 +271,40 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
             <CardContent className="space-y-4">
               <div className="space-y-2 rounded-xl border bg-muted/20 p-4">
                 <div className="flex items-center justify-between text-sm">
-                  <span>Main d&apos;œuvre</span>
-                  <span className="font-medium">
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((quote.labor_total ?? 0) / 100)}
-                  </span>
+                  <span>Main-d&apos;œuvre HT</span>
+                  <span className="font-medium tabular-nums">{eur(quote.labor_total ?? 0)}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{quote.labor_duration_minutes} min · {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((quote.labor_rate_per_hour ?? 0) / 100)}/h</span>
+                <div className="text-xs text-muted-foreground">
+                  {Math.round(((quote.labor_duration_minutes ?? 0) / 60) * 100) / 100} h × {eur(quote.labor_rate_per_hour ?? 0)}/h
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span>Fournitures</span>
-                  <span className="font-medium">
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((quote.materials_total ?? 0) / 100)}
-                  </span>
+                  <span>Fournitures HT</span>
+                  <span className="font-medium tabular-nums">{eur(quote.materials_total ?? 0)}</span>
                 </div>
-                <div className="flex items-center justify-between pt-2 text-base font-semibold">
-                  <span>Total devis</span>
-                  <span>{new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((quote.grand_total ?? 0) / 100)}</span>
+                <div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
+                  <span>Total HT</span>
+                  <span className="tabular-nums">{eur(documentTotals.totalHtCents)}</span>
+                </div>
+                {documentVat.map((row) => (
+                  <div key={row.rate} className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>
+                      TVA {String(row.rate).replace(".", ",")} %
+                      {documentVat.length > 1 ? ` sur ${eur(row.baseHtCents)}` : ""}
+                    </span>
+                    <span className="tabular-nums">{eur(row.vatCents)}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between border-t pt-2 text-lg font-semibold">
+                  <span>Total TTC</span>
+                  <span className="tabular-nums">{eur(documentTotals.totalTtcCents)}</span>
                 </div>
               </div>
+
+              {directPurchaseCents > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  + {eur(directPurchaseCents)} d&apos;achats directs payés par le client au fournisseur (hors devis).
+                </p>
+              ) : null}
 
               <div className="text-xs text-muted-foreground">
                 Créé le {new Date(quote.created_at).toLocaleString("fr-FR")} · Mis à jour le{" "}

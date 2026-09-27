@@ -58,7 +58,7 @@ export default async function ArtisanOnboardingPage({
 
   const contactRes = await supabase
     .from("profiles")
-    .select("name, business_name, phone, address_line1, address_line2, postal_code, city, latitude, longitude")
+    .select("name, first_name, last_name, business_name, phone, address_line1, address_line2, postal_code, city, latitude, longitude")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -92,7 +92,8 @@ export default async function ArtisanOnboardingPage({
           <OnboardingContactStep
             email={user.email ?? ""}
             initialValues={{
-              name: contact?.name?.trim() ?? "",
+              firstName: contact?.first_name?.trim() ?? "",
+              lastName: contact?.last_name?.trim() ?? "",
               businessName: contact?.business_name?.trim() ?? "",
               phone: contact?.phone ?? "",
               addressLine1: contact?.address_line1 ?? "",

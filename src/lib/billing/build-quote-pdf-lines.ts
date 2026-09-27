@@ -55,34 +55,60 @@ export function buildQuotePdfTableLines(params: {
 }): QuotePdfTableLine[] {
   const lines: QuotePdfTableLine[] = [];
   const laborVat = normalizeVatRate(params.defaultVatRate);
-  const totalDuration = params.laborDurationMinutes > 0 ? params.laborDurationMinutes : 0;
+  const laborTotal = Math.max(0, params.laborTotalCents);
+  // Durée facturée (peut différer de la somme des prestations : estimation IA,
+  // ajustement manuel). C'est elle qui fait foi pour le nombre d'heures.
+  const billedMinutes = params.laborDurationMinutes > 0 ? params.laborDurationMinutes : 0;
+  const serviceMinutes = params.services.map((s) => Math.max(0, s.duration_minutes ?? 0));
+  const serviceMinutesSum = serviceMinutes.reduce((a, b) => a + b, 0);
 
-  if (params.services.length > 0 && totalDuration > 0 && params.laborTotalCents > 0) {
-    for (const service of params.services) {
-      const duration = service.duration_minutes ?? 0;
-      const share =
-        duration > 0 ? Math.round((params.laborTotalCents * duration) / totalDuration) : 0;
-      if (share <= 0) continue;
-      const hours = duration / 60;
+  if (laborTotal > 0 && params.services.length > 0 && serviceMinutesSum > 0) {
+    // Répartition au prorata des durées des prestations, sur la durée FACTURÉE,
+    // avec reste au plus fort : la somme des lignes = labor_total au centime près.
+    const exact = serviceMinutes.map((m) => (laborTotal * m) / serviceMinutesSum);
+    const shares = exact.map(Math.floor);
+    let remainder = laborTotal - shares.reduce((a, b) => a + b, 0);
+    exact
+      .map((value, index) => ({ index, frac: value - Math.floor(value) }))
+      .sort((a, b) => b.frac - a.frac)
+      .forEach(({ index }) => {
+        if (remainder > 0) {
+          shares[index] += 1;
+          remainder -= 1;
+        }
+      });
+
+    params.services.forEach((service, index) => {
+      const share = shares[index] ?? 0;
+      if (share <= 0) return;
+      const minutes = billedMinutes > 0 ? (billedMinutes * serviceMinutes[index]) / serviceMinutesSum : serviceMinutes[index];
       lines.push({
         designation: service.service_title,
         detail: "Main d'oeuvre",
-        quantity: Math.round(hours * 100) / 100,
+        quantity: Math.round((minutes / 60) * 100) / 100,
         quantityLabel: "h",
         unitPriceCents: params.laborRatePerHourCents,
         vatRate: laborVat,
         lineTotalCents: share,
       });
-    }
-  } else if (params.laborTotalCents > 0) {
-    const hours = totalDuration > 0 ? totalDuration / 60 : 1;
+    });
+  } else if (laborTotal > 0) {
+    // Prestations sans durée renseignée : une seule ligne, jamais de main-d'œuvre perdue.
+    const titles = params.services.map((s) => s.service_title).filter(Boolean);
+    const hours =
+      billedMinutes > 0
+        ? billedMinutes / 60
+        : params.laborRatePerHourCents > 0
+          ? laborTotal / params.laborRatePerHourCents
+          : 1;
     lines.push({
-      designation: "Main d'oeuvre",
+      designation: titles.length ? titles.join(", ") : "Main d'oeuvre",
+      detail: titles.length ? "Main d'oeuvre" : undefined,
       quantity: Math.round(hours * 100) / 100,
       quantityLabel: "h",
       unitPriceCents: params.laborRatePerHourCents,
       vatRate: laborVat,
-      lineTotalCents: params.laborTotalCents,
+      lineTotalCents: laborTotal,
     });
   }
 

@@ -70,18 +70,20 @@ export async function createQuoteFromAiDraft(
   const vatRate = normalizeVatRate(params.vatRate ?? 20);
   const serviceIds = params.draft.matchedServiceIds ?? [];
 
-  if (!serviceIds.length) {
+  if (!serviceIds.length && !(params.draft.laborDurationMinutes > 0) && !params.draft.supplierMaterials.length) {
     return { ok: false, error: "missing_services" };
   }
   if (!customerEmail) {
     return { ok: false, error: "missing_email" };
   }
 
-  const { data: services } = await params.supabase
-    .from("services")
-    .select("id, title, duration, price")
-    .eq("artisan_id", params.artisanId)
-    .in("id", serviceIds);
+  const { data: services } = serviceIds.length
+    ? await params.supabase
+        .from("services")
+        .select("id, title, duration, price")
+        .eq("artisan_id", params.artisanId)
+        .in("id", serviceIds)
+    : { data: [] as { id: string; title: string; duration: number; price: number | null }[] };
 
   const serviceSet = new Set(serviceIds);
   const servicesFound = (services ?? []).filter((s) => serviceSet.has(s.id));
@@ -97,9 +99,7 @@ export async function createQuoteFromAiDraft(
     serviceDurationsById,
   );
 
-  if (laborDurationMinutes <= 0) {
-    return { ok: false, error: "invalid_duration" };
-  }
+  // Main-d'œuvre facultative (devis fournitures seules possible) ; un devis vide est refusé plus bas.
 
   const laborRateCents = params.laborRatePerHourCents;
   const laborTotalCents = Math.round((laborRateCents * laborDurationMinutes) / 60);
@@ -115,6 +115,9 @@ export async function createQuoteFromAiDraft(
   }, 0);
 
   const grandTotalCents = laborTotalCents + materialsTotalCents;
+  if (grandTotalCents <= 0) {
+    return { ok: false, error: "invalid_duration" };
+  }
 
   const { data: createdQuote, error: quoteErr } = await params.supabase
     .from("quotes")
@@ -141,17 +144,33 @@ export async function createQuoteFromAiDraft(
     return { ok: false, error: "create_failed" };
   }
 
-  const quoteServiceRows = servicesFound.map((s) => ({
-    quote_id: createdQuote.id,
-    service_id: s.id,
-    service_title: s.title,
-    duration_minutes: s.duration,
-    unit_price: s.price ?? null,
-  }));
+  // Lignes de main-d'œuvre : prestations reconnues par l'IA, ou une ligne libre
+  // quand l'IA a estimé une durée sans prestation correspondante.
+  const quoteServiceRows = servicesFound.length
+    ? servicesFound.map((s) => ({
+        quote_id: createdQuote.id,
+        service_id: s.id,
+        service_title: s.title,
+        duration_minutes: s.duration,
+        unit_price: s.price ?? null,
+      }))
+    : laborDurationMinutes > 0
+      ? [
+          {
+            quote_id: createdQuote.id,
+            service_id: null,
+            service_title: "Main-d'œuvre",
+            duration_minutes: laborDurationMinutes,
+            unit_price: null,
+          },
+        ]
+      : [];
 
-  const { error: servicesLinesErr } = await params.supabase.from("quote_services").insert(quoteServiceRows);
-  if (servicesLinesErr) {
-    return { ok: false, error: "lines_failed" };
+  if (quoteServiceRows.length) {
+    const { error: servicesLinesErr } = await params.supabase.from("quote_services").insert(quoteServiceRows);
+    if (servicesLinesErr) {
+      return { ok: false, error: "lines_failed" };
+    }
   }
 
   const quoteMaterialRows = materials
