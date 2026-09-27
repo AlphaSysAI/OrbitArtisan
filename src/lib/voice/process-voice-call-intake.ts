@@ -28,6 +28,8 @@ export async function processVoiceCallQuoteIntake(params: {
   body: Record<string, unknown>;
   callerNumber: string | null;
   calledNumber: string;
+  /** Appel sans demande exploitable (raccroché, silence) : on journalise sans solliciter l'IA. */
+  skipQuoteDraft?: boolean;
 }): Promise<VoiceCallIntakeResult | { error: string }> {
   const customerName = String(params.body.customer_name ?? "").trim() || null;
   const customerEmail = String(params.body.customer_email ?? "").trim() || null;
@@ -39,9 +41,9 @@ export async function processVoiceCallQuoteIntake(params: {
   if (!transcript) {
     return { error: "Transcript ou description des travaux manquante." };
   }
-  if (!customerEmail) {
-    return { error: "Email client manquant (customer_email requis pour envoyer le devis)." };
-  }
+  // Un appel n'est JAMAIS perdu : sans email (souvent mal dicté au téléphone) ni
+  // prestations configurées, on enregistre quand même l'appel ; l'artisan
+  // complète dans l'éditeur (la validation en un clic exige l'email, cf. /app/appels).
 
   // Point 14 audit pré-pilote — dédup obligatoire côté serveur, indépendante de
   // l'agent vocal : la contrainte UNIQUE sur twilio_call_sid ne protège que si
@@ -52,13 +54,16 @@ export async function processVoiceCallQuoteIntake(params: {
   // probable (retry réseau, double appel outil), pas un nouveau besoin. Ce
   // contrôle tourne AVANT les appels IA pour éviter de payer la latence
   // Mistral/embeddings sur un doublon qu'on va de toute façon rejeter.
-  if (!twilioCallSid) {
+  if (!twilioCallSid && (customerEmail || params.callerNumber)) {
     const dedupWindowStart = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-    const { data: recentDuplicate } = await params.db
+    let dedupQuery = params.db
       .from("voice_call_intakes")
       .select("id, summary, quote_draft")
-      .eq("artisan_id", params.artisanId)
-      .eq("customer_email", customerEmail)
+      .eq("artisan_id", params.artisanId);
+    dedupQuery = customerEmail
+      ? dedupQuery.eq("customer_email", customerEmail)
+      : dedupQuery.eq("from_number", params.callerNumber as string);
+    const { data: recentDuplicate } = await dedupQuery
       .gte("created_at", dedupWindowStart)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -91,18 +96,18 @@ export async function processVoiceCallQuoteIntake(params: {
     .order("title", { ascending: true });
 
   const serviceList = (services ?? []) as ServiceRow[];
-  if (!serviceList.length) {
-    return { error: "Aucune prestation configurée pour cet artisan." };
-  }
+  const canBuildQuote = !params.skipQuoteDraft && serviceList.length > 0;
 
   const [summary, quoteData] = await Promise.all([
-    summarizeCallTranscript(transcript),
-    buildQuoteFromText({
+    params.skipQuoteDraft ? Promise.resolve(transcript.slice(0, 500)) : summarizeCallTranscript(transcript),
+    !canBuildQuote
+      ? Promise.resolve(null)
+      : buildQuoteFromText({
       supabase: params.db,
       instruction: [
         `Appel téléphonique reçu par la secrétaire IA Soline.`,
         customerName ? `Client : ${customerName}.` : "",
-        `Email client : ${customerEmail}.`,
+        customerEmail ? `Email client : ${customerEmail}.` : "",
         params.callerNumber ? `Téléphone appelant : ${params.callerNumber}.` : "",
         "",
         "Transcription / besoin exprimé :",
@@ -128,6 +133,10 @@ export async function processVoiceCallQuoteIntake(params: {
   const warnings: string[] = [
     "Proposition générée depuis un appel Soline — à valider ou éditer avant envoi au client.",
   ];
+  if (!customerEmail) warnings.push("Email client non recueilli pendant l'appel : à compléter avant envoi.");
+  if (!params.skipQuoteDraft && !serviceList.length) {
+    warnings.push("Aucune prestation configurée : ajoutez vos prestations pour obtenir un chiffrage automatique.");
+  }
 
   let draft: AiQuoteDraft;
   if (quoteData) {
@@ -215,6 +224,6 @@ export async function processVoiceCallQuoteIntake(params: {
     intakeId,
     summary,
     draft,
-    message: `Proposition de devis enregistrée pour ${customerName ?? customerEmail}. L'artisan la validera avant envoi.`,
+    message: `Demande enregistrée pour ${customerName ?? customerEmail ?? "l'appelant"}. L'artisan la traitera et recontactera le client.`,
   };
 }
