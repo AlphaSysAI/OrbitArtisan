@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
-import { resolveArtisanIdByCalledNumber } from "@/lib/voice/voice-quota-service";
+import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
 
 /**
  * Webhook d'initiation de conversation ElevenLabs (appels Twilio entrants).
@@ -47,24 +47,50 @@ export async function POST(request: Request) {
     // Corps absent : on répond avec les valeurs par défaut pour ne jamais bloquer l'appel.
   }
 
-  const calledNumber = String(body.called_number ?? "").trim();
-  const db = createSupabaseServiceRoleClient();
-  if (!db || !calledNumber) return initResponse(FALLBACK);
+  // Ne JAMAIS faire échouer l'appel : toute erreur → valeurs par défaut (HTTP 200).
+  // Un 500 ici = ElevenLabs refuse la conversation et Twilio joue un message d'erreur.
+  try {
+    return initResponse(await resolveDynamicVariables(body));
+  } catch (error) {
+    console.error("[elevenlabs init] erreur, valeurs par défaut renvoyées", {
+      calledNumber: body.called_number,
+      error: error instanceof Error ? `${error.message}\n${error.stack}` : error,
+    });
+    return initResponse(FALLBACK);
+  }
+}
 
-  const artisanId = await resolveArtisanIdByCalledNumber(db, calledNumber);
-  if (!artisanId) return initResponse(FALLBACK);
+async function resolveDynamicVariables(body: Record<string, unknown>): Promise<Record<string, string>> {
+  const calledNumber = normalizePhoneE164(String(body.called_number ?? ""));
+  const db = createSupabaseServiceRoleClient();
+  if (!db || !calledNumber) {
+    console.warn("[elevenlabs init] numéro appelé ou service role absent", { hasDb: !!db, calledNumber });
+    return FALLBACK;
+  }
+
+  const { data: mapping, error: mappingError } = await db
+    .from("artisan_voice_numbers")
+    .select("artisan_id, is_active")
+    .eq("phone_e164", calledNumber)
+    .maybeSingle();
+  if (mappingError) console.error("[elevenlabs init] lookup numéro", mappingError.message);
+  if (!mapping?.artisan_id || !mapping.is_active) {
+    console.warn("[elevenlabs init] numéro non rattaché", { calledNumber });
+    return FALLBACK;
+  }
+  const artisanId = mapping.artisan_id as string;
 
   const [{ data: profile }, quota] = await Promise.all([
     db.from("profiles").select("business_name, name").eq("id", artisanId).maybeSingle(),
-    resolveVoiceQuota(db, artisanId),
+    resolveVoiceQuota(db, artisanId).catch(() => null),
   ]);
 
   const businessName = (profile?.business_name as string | null)?.trim() || FALLBACK.business_name;
   const artisanName = (profile?.name as string | null)?.trim() || businessName;
 
-  return initResponse({
+  return {
     business_name: businessName,
     artisan_name: artisanName,
     accepts_calls: quota && !quota.canAcceptCalls ? "false" : "true",
-  });
+  };
 }
