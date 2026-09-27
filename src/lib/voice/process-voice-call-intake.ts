@@ -8,6 +8,7 @@ import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 
 import { notifyVoiceIntake } from "@/lib/notifications/notify-events";
 
+import { extractCallContact } from "./extract-call-contact";
 import { summarizeCallTranscript } from "./summarize-call-transcript";
 
 type ServiceRow = { id: string; title: string; duration: number; price: number | null };
@@ -31,8 +32,8 @@ export async function processVoiceCallQuoteIntake(params: {
   /** Appel sans demande exploitable (raccroché, silence) : on journalise sans solliciter l'IA. */
   skipQuoteDraft?: boolean;
 }): Promise<VoiceCallIntakeResult | { error: string }> {
-  const customerName = String(params.body.customer_name ?? "").trim() || null;
-  const customerEmail = String(params.body.customer_email ?? "").trim() || null;
+  let customerName = String(params.body.customer_name ?? "").trim() || null;
+  let customerEmail = String(params.body.customer_email ?? "").trim() || null;
   const transcript = String(
     params.body.transcript ?? params.body.work_description ?? params.body.instruction ?? "",
   ).trim();
@@ -98,7 +99,11 @@ export async function processVoiceCallQuoteIntake(params: {
   const serviceList = (services ?? []) as ServiceRow[];
   const canBuildQuote = !params.skipQuoteDraft && serviceList.length > 0;
 
-  const [summary, quoteData] = await Promise.all([
+  // Coordonnées non fournies par l'agent : extraites de la transcription
+  // (en parallèle du résumé et du chiffrage, pas de latence ajoutée).
+  const needsContact = !params.skipQuoteDraft && (!customerName || !customerEmail);
+
+  const [summary, quoteData, extracted] = await Promise.all([
     params.skipQuoteDraft ? Promise.resolve(transcript.slice(0, 500)) : summarizeCallTranscript(transcript),
     !canBuildQuote
       ? Promise.resolve(null)
@@ -128,7 +133,11 @@ export async function processVoiceCallQuoteIntake(params: {
       console.error("[voice-quote-draft] buildQuoteFromText", err instanceof Error ? err.message : err);
       return null;
     }),
+    needsContact ? extractCallContact(transcript) : Promise.resolve(null),
   ]);
+
+  customerName = customerName ?? extracted?.customerName ?? null;
+  customerEmail = customerEmail ?? extracted?.customerEmail ?? null;
 
   const warnings: string[] = [
     "Proposition générée depuis un appel Soline — à valider ou éditer avant envoi au client.",
