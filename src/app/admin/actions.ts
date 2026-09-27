@@ -12,6 +12,8 @@ import { getAdminDb } from "@/lib/admin/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
 import {
+  planIncludesSolineVoice,
+  subscriptionStatusKeepsVoiceNumber,
   clearVoiceNumberAssignmentPending,
   syncSubscriptionVoiceNumber,
 } from "@/lib/voice/subscription-voice-number-sync";
@@ -313,6 +315,15 @@ export async function assignTenantVoiceFromPool(
   const { user: adminUser, admin: sbAdmin } = await guardAdmin();
   const tenant = await getAdminTenant(profileId);
   if (!tenant) return { ok: false, error: "not_found" };
+
+  // Sans ces garde-fous, la synchro "libère" au lieu d'attribuer et l'action
+  // revient ok sans rien faire (échec silencieux côté admin).
+  if (!planIncludesSolineVoice(tenant.subscriptionPlan)) {
+    return { ok: false, error: "plan_without_voice" };
+  }
+  if (!subscriptionStatusKeepsVoiceNumber(tenant.subscriptionStatus as SubscriptionStatus)) {
+    return { ok: false, error: "subscription_inactive" };
+  }
 
   const result = await syncSubscriptionVoiceNumber(sbAdmin, {
     profileId,
