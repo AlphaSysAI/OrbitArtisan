@@ -21,8 +21,8 @@ import { cn } from "@/lib/utils";
 import { listStripeBillingEventsForProfile } from "@/lib/billing/stripe-billing-events";
 import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
-import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
+import { planIncludesSolineVoice, SOLINE_SUBSCRIPTION_SETTINGS_HREF } from "@/lib/voice/soline-voice-access";
 
 import { listMyVitrineGalleryImages } from "../profile/vitrine-gallery-actions";
 import { ProfileForm } from "../profile/profile-form";
@@ -35,12 +35,12 @@ import { updateArtisanSettings } from "./actions";
 
 const TABS = [
   { id: "activite", label: "Mon activité" },
+  { id: "prestations", label: "Prestations" },
+  { id: "widget", label: "Widget" },
+  { id: "vocal", label: "Appels Soline" },
   { id: "coordonnees", label: "Coordonnées" },
   { id: "facturation", label: "Facturation" },
   { id: "abonnement", label: "Abonnement" },
-  { id: "prestations", label: "Prestations" },
-  { id: "widget", label: "Widget" },
-  { id: "vocal", label: "IA Vocale" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -274,9 +274,7 @@ export default async function ArtisanSettingsPage({
     trade: null as string | null,
   };
 
-  const planId = subscriptionProfile.subscription_plan;
-  const planIncludesVoice =
-    planId === "pro" || planId === "premium" ? getPlanVoiceMinutes(planId) > 0 : false;
+  const planIncludesVoice = planIncludesSolineVoice(subscriptionProfile.subscription_plan);
   const solinePhone = (voiceNumber?.phone_e164 as string | undefined) ?? null;
   let billingEvents: Awaited<ReturnType<typeof listStripeBillingEventsForProfile>> = [];
   let promoEnrollment: Awaited<ReturnType<typeof getPromoEnrollment>> = null;
@@ -296,7 +294,7 @@ export default async function ArtisanSettingsPage({
       <AppPageHeader
         eyebrow="Compte"
         title="Réglages"
-        description="Activité, coordonnées, prestations et IA vocale — tout au même endroit."
+        description="Vitrine, Soline vocale, facturation et abonnement — tout au même endroit."
         action={
           profile?.slug ? (
             <Link
@@ -481,11 +479,19 @@ export default async function ArtisanSettingsPage({
               <SettingsGate />
             ) : (
               <>
-                <div className="space-y-1">
-                  <h2 className="font-display text-xl font-semibold tracking-tight">IA Vocale</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Active l’IA vocale pour recevoir des appels et des demandes de RDV.
-                  </p>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <h2 className="font-display text-xl font-semibold tracking-tight">Appels Soline</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Numéro dédié, quota d&apos;appels et fonctionnement de ta secrétaire vocale IA.
+                    </p>
+                  </div>
+                  <Link
+                    href={SOLINE_SUBSCRIPTION_SETTINGS_HREF}
+                    className={buttonVariants({ variant: planIncludesVoice ? "outline" : "default", className: "shrink-0" })}
+                  >
+                    Booster mon compte
+                  </Link>
                 </div>
                 {voiceQuota ? (
                   <VoiceQuotaSettingsForm
@@ -496,6 +502,7 @@ export default async function ArtisanSettingsPage({
                 <VoiceSolineNumberSection
                   phoneE164={solinePhone}
                   planIncludesVoice={planIncludesVoice}
+                  subscriptionHref={SOLINE_SUBSCRIPTION_SETTINGS_HREF}
                 />
               </>
             )}

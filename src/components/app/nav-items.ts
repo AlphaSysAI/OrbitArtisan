@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import type { NotificationBadgeKey } from "@/lib/notifications/types";
+import { SOLINE_CALLS_HUB_PATH } from "@/lib/voice/soline-voice-access";
 
 export type AppNavItem = {
   href: string;
@@ -52,7 +53,7 @@ export const APP_NAV_PRIMARY: AppNavItem[] = [
 export const APP_NAV_MORE: AppNavItem[] = [
   { href: "/app/rdv", label: "Mes RDV", shortLabel: "RDV", icon: CalendarClock, exact: false },
   {
-    href: "/app/appels",
+    href: SOLINE_CALLS_HUB_PATH,
     label: "Appels Soline",
     shortLabel: "Appels",
     icon: Phone,
@@ -83,6 +84,9 @@ export const APP_NAV_BOTTOM: [
 ];
 
 export function isNavItemActive(pathname: string, item: AppNavItem) {
+  if (item.href === SOLINE_CALLS_HUB_PATH) {
+    return pathname.startsWith("/app/appels") || pathname.startsWith(SOLINE_CALLS_HUB_PATH);
+  }
   return item.exact ? pathname === item.href : pathname.startsWith(item.href);
 }
 

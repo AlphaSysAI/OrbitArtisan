@@ -12,6 +12,7 @@ import {
 } from "@/components/app/nav-items";
 import { NavBadge } from "@/components/notifications/nav-badge";
 import { useNotifications } from "@/components/notifications/notification-provider";
+import { SolineCallsPromoLink } from "@/components/app/soline-calls-promo-link";
 import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
+          <SolineCallsPromoLink variant="header" className="max-[380px]:px-2 max-[380px]:text-xs" />
           {isPlatformAdmin ? (
             <Link
               href="/admin"

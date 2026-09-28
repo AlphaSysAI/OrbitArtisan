@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { SolineCallsPromoLink } from "@/components/app/soline-calls-promo-link";
 import { AppEmptyState } from "@/components/app/app-empty-state";
 import { AppPageHeader } from "@/components/app/app-page-header";
 import { DashboardStatCard } from "@/components/app/dashboard-stat-card";
@@ -127,6 +128,10 @@ export default async function AppHomePage() {
           )
         }
       />
+
+      {hasProfile ? (
+        <SolineCallsPromoLink variant="banner" />
+      ) : null}
 
       {hasProfile ? (
         <section className="space-y-4">

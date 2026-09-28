@@ -6,6 +6,8 @@ import { LogOut, Shield } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { APP_NAV_ITEMS, isNavItemActive } from "@/components/app/nav-items";
+import { SolineCallsPromoLink } from "@/components/app/soline-calls-promo-link";
+import { SOLINE_CALLS_HUB_PATH } from "@/lib/voice/soline-voice-access";
 import { NavBadge } from "@/components/notifications/nav-badge";
 import { useNotifications } from "@/components/notifications/notification-provider";
 import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
@@ -78,7 +80,8 @@ export function AppMobileMenuSheet({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
           <nav className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Navigation complète">
-            {APP_NAV_ITEMS.map((item) => {
+            <SolineCallsPromoLink variant="menuTile" onClick={onClose} />
+            {APP_NAV_ITEMS.filter((item) => item.href !== SOLINE_CALLS_HUB_PATH).map((item) => {
               const active = isNavItemActive(pathname, item);
               const Icon = item.icon;
               const count = item.badgeKey ? badgeCount(item.badgeKey) : 0;

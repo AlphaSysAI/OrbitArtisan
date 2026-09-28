@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Phone } from "lucide-react";
 
 import { AppEmptyState } from "@/components/app/app-empty-state";
@@ -9,6 +10,7 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { computeDraftTotals } from "@/lib/quotes/create-quote-from-ai-draft";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { planIncludesSolineVoice, SOLINE_SUBSCRIPTION_SETTINGS_HREF } from "@/lib/voice/soline-voice-access";
 
 import { VoiceIntakeActions } from "./voice-intake-actions";
 
@@ -64,9 +66,13 @@ export default async function AppelsSolinePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, labor_rate_per_hour")
+    .select("id, business_name, labor_rate_per_hour, subscription_plan")
     .eq("user_id", user!.id)
     .maybeSingle();
+
+  if (profile?.id && !planIncludesSolineVoice(profile.subscription_plan)) {
+    redirect(SOLINE_SUBSCRIPTION_SETTINGS_HREF);
+  }
 
   if (!profile?.id) {
     return (

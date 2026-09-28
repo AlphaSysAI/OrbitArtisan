@@ -1,5 +1,5 @@
-import { getPlanVoiceMinutes, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getArtisanShellProfile, getRequestSupabase } from "@/lib/auth/session";
+import { planIncludesSolineVoice } from "@/lib/voice/soline-voice-access";
 
 import { VoiceNumberPendingDialog } from "./voice-number-pending-dialog";
 
@@ -8,10 +8,7 @@ export async function VoiceNumberPendingGate() {
   const profile = await getArtisanShellProfile();
   if (!profile?.id) return null;
 
-  const plan = profile.subscription_plan as SubscriptionPlanId | null;
-  const planIncludesVoice =
-    plan === "pro" || plan === "premium" ? getPlanVoiceMinutes(plan) > 0 : false;
-  if (!planIncludesVoice) return null;
+  if (!planIncludesSolineVoice(profile.subscription_plan)) return null;
 
   const pendingAt = profile.voice_number_assignment_pending_at as string | null;
   if (!pendingAt) return null;

@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { Phone } from "lucide-react";
 
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -18,9 +20,14 @@ function formatPhoneE164(raw: string | null | undefined): string {
 export type VoiceSolineNumberSectionProps = {
   phoneE164: string | null;
   planIncludesVoice: boolean;
+  subscriptionHref: string;
 };
 
-export function VoiceSolineNumberSection({ phoneE164, planIncludesVoice }: VoiceSolineNumberSectionProps) {
+export function VoiceSolineNumberSection({
+  phoneE164,
+  planIncludesVoice,
+  subscriptionHref,
+}: VoiceSolineNumberSectionProps) {
   const displayValue = phoneE164 ? formatPhoneE164(phoneE164) : "";
   const placeholder = !planIncludesVoice
     ? "Inclus avec les formules Pro et Premium"
@@ -51,6 +58,11 @@ export function VoiceSolineNumberSection({ phoneE164, planIncludesVoice }: Voice
               ? "Ce numéro vous est attribué par Soline. Pour le modifier, contactez le support."
               : "Passez à une formule Pro ou Premium pour activer la secrétaire vocale Soline."}
           </p>
+          {!planIncludesVoice ? (
+            <Link href={subscriptionHref} className={buttonVariants({ className: "mt-2" })}>
+              Voir les formules Pro et Premium
+            </Link>
+          ) : null}
         </div>
 
         <div className="rounded-2xl border border-border/70 bg-muted/40 p-5">
