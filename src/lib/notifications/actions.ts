@@ -2,33 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import type { NotificationCategory, NotificationCounts } from "@/lib/notifications/types";
+import type { NotificationCategory } from "@/lib/notifications/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-export async function fetchNotificationCounts(): Promise<
-  NotificationCounts | { ok: false; error: string }
-> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "auth" };
-
-  const { data, error } = await supabase.rpc("get_notification_counts");
-  if (error || !data || data.ok !== true) {
-    return { ok: false, error: error?.message ?? "rpc_failed" };
-  }
-
-  return {
-    ok: true,
-    messages: Number(data.messages ?? 0),
-    quotes_accepted: Number(data.quotes_accepted ?? 0),
-    quotes_received: Number(data.quotes_received ?? 0),
-    voice_intakes: Number(data.voice_intakes ?? 0),
-    invoices_received: Number(data.invoices_received ?? 0),
-    is_artisan: Boolean(data.is_artisan),
-  };
-}
 
 export async function markConversationRead(conversationId: string) {
   const supabase = await createSupabaseServerClient();
@@ -49,8 +24,11 @@ export async function markNotificationCategorySeen(category: NotificationCategor
   });
   if (error) return { ok: false as const, error: "rpc" as const };
 
-  revalidatePath("/app");
-  revalidatePath("/compte");
+  // Pas de revalidatePath ici (perf, point 4) : dans une server action, il
+  // forçait le re-rendu complet de la page courante et vidait le cache de
+  // navigation client à chaque visite de /app/quotes, /mes-devis,
+  // /compte/factures. Les pages concernées sont dynamiques et relisent le
+  // watermark à chaque navigation.
   return { ok: true as const };
 }
 
