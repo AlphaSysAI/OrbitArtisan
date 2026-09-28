@@ -7,14 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { saveAccountingSettings } from "./actions";
+import { resendAccountantConfirmation, saveAccountingSettings } from "./actions";
 
 export function AccountingSettingsForm({
   initialEmail,
   initialEnabled,
+  confirmed,
 }: {
   initialEmail: string;
   initialEnabled: boolean;
+  /** Le comptable a accepté les envois depuis le lien reçu. */
+  confirmed: boolean;
 }) {
   const [email, setEmail] = useState(initialEmail);
   const [enabled, setEnabled] = useState(initialEnabled);
@@ -27,9 +30,28 @@ export function AccountingSettingsForm({
         toast.error(res.error);
         return;
       }
-      toast.success(enabled ? "Envoi comptable activé." : "Réglages enregistrés.");
+      toast.success(
+        res.confirmationSent
+          ? "Enregistré. Votre comptable a reçu un e-mail pour accepter les envois."
+          : enabled
+            ? "Envoi comptable activé."
+            : "Réglages enregistrés.",
+      );
     });
   }
+
+  function onResend() {
+    startTransition(async () => {
+      const res = await resendAccountantConfirmation();
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("Lien de confirmation renvoyé à votre comptable.");
+    });
+  }
+
+  const savedEmail = initialEmail.trim();
 
   return (
     <div className="space-y-4">
@@ -46,6 +68,23 @@ export function AccountingSettingsForm({
           onChange={(event) => setEmail(event.target.value)}
         />
       </div>
+      {savedEmail && email.trim().toLowerCase() === savedEmail.toLowerCase() ? (
+        confirmed ? (
+          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+            ✓ Votre comptable a accepté les envois.
+          </p>
+        ) : (
+          <div className="space-y-2 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            <p>
+              En attente de confirmation : votre comptable a reçu un e-mail pour accepter les envois. Tant
+              qu&apos;il n&apos;a pas accepté, rien ne lui est envoyé.
+            </p>
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onResend}>
+              Renvoyer le lien
+            </Button>
+          </div>
+        )
+      ) : null}
       <label className="flex items-start gap-3">
         <input
           type="checkbox"

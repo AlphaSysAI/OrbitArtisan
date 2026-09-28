@@ -6,9 +6,11 @@ import {
   batchBySize,
   buildAccountingUploadPath,
   displayNameFromStorageName,
+  jpegFilename,
   parisDay,
   previousPeriodKey,
   sanitizeAccountingFilename,
+  scaledImageSize,
 } from "./export-schedule";
 
 describe("calendrier de l'envoi comptable", () => {
@@ -65,5 +67,18 @@ describe("buildInvoicesCsv", () => {
     expect(csv.startsWith("﻿Numero,")).toBe(true);
     expect(csv).toContain('"Dupont, ""Jean"""');
     expect(csv).toContain(",2026-10-20");
+  });
+});
+
+describe("réduction des photos", () => {
+  it("ramène le plus grand côté à 2000 px sans déformer, jamais d'agrandissement", () => {
+    expect(scaledImageSize(4032, 3024)).toEqual({ width: 2000, height: 1500 });
+    expect(scaledImageSize(3024, 4032)).toEqual({ width: 1500, height: 2000 });
+    expect(scaledImageSize(1200, 900)).toEqual({ width: 1200, height: 900 });
+  });
+
+  it("renomme en .jpg", () => {
+    expect(jpegFilename("IMG_0421.HEIC")).toBe("IMG_0421.jpg");
+    expect(jpegFilename("ticket")).toBe("ticket.jpg");
   });
 });

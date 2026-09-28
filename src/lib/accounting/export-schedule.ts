@@ -7,8 +7,11 @@ export const ACCOUNTING_TIMEZONE = "Europe/Paris";
 export const ACCOUNTING_UPLOADS_BUCKET = "accounting-uploads";
 /** Préavis avant l'envoi (jours). */
 export const ACCOUNTING_NOTICE_DAYS_BEFORE = 2;
-/** Limite d'une pièce ajoutée (identique au bucket). */
-export const ACCOUNTING_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+/** Limite d'une pièce ajoutée, après compression (identique au bucket). */
+export const ACCOUNTING_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+/** Photos réduites côté navigateur avant envoi : ticket lisible, ~300-800 Ko. */
+export const ACCOUNTING_IMAGE_MAX_SIDE_PX = 2000;
+export const ACCOUNTING_IMAGE_JPEG_QUALITY = 0.82;
 /** Pièces en attente max par artisan. */
 export const ACCOUNTING_UPLOAD_MAX_FILES = 40;
 /** Taille brute max des pièces jointes d'un e-mail (Resend : 40 Mo encodés en base64). */
@@ -99,6 +102,24 @@ export function displayNameFromStorageName(storageName: string): string {
 }
 
 export type SizedItem = { size: number };
+
+/** Dimensions cibles d'une photo réduite (ratio conservé, jamais agrandie). */
+export function scaledImageSize(
+  width: number,
+  height: number,
+  maxSide = ACCOUNTING_IMAGE_MAX_SIDE_PX,
+): { width: number; height: number } {
+  const longest = Math.max(width, height);
+  if (longest <= maxSide || longest <= 0) return { width, height };
+  const ratio = maxSide / longest;
+  return { width: Math.round(width * ratio), height: Math.round(height * ratio) };
+}
+
+/** Nom d'une photo convertie en JPEG. */
+export function jpegFilename(name: string): string {
+  const base = name.replace(/\.[^.]+$/, "");
+  return `${base || "photo"}.jpg`;
+}
 
 /**
  * Répartit les pièces jointes en e-mails successifs sous la limite de taille,

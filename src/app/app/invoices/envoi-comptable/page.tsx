@@ -43,7 +43,7 @@ export default async function AccountingExportPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, accountant_email, accounting_export_enabled")
+    .select("id, accountant_email, accounting_export_enabled, accountant_email_confirmed_at")
     .eq("user_id", user.id)
     .maybeSingle();
   if (!profile?.id) redirect("/app/reglages?tab=activite");
@@ -75,7 +75,17 @@ export default async function AccountingExportPage() {
         }
       />
 
-      {enabled ? (
+      {enabled && !profile.accountant_email_confirmed_at ? (
+        <Alert variant="destructive">
+          <AlertTitle>Envoi en pause : votre comptable n&apos;a pas encore accepté</AlertTitle>
+          <AlertDescription>
+            Il a reçu un e-mail de confirmation à {accountant}. Rien ne lui sera envoyé tant qu&apos;il n&apos;a pas
+            cliqué sur « J&apos;accepte ».
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {enabled && profile.accountant_email_confirmed_at ? (
         <Alert>
           <CalendarClock className="size-4" />
           <AlertTitle>Prochain envoi : {nextSendLabel(new Date())} au soir</AlertTitle>
@@ -102,7 +112,11 @@ export default async function AccountingExportPage() {
           <Mail className="size-5 text-brand" aria-hidden />
           <h2 className="font-display text-lg font-semibold">Comptable</h2>
         </div>
-        <AccountingSettingsForm initialEmail={accountant} initialEnabled={enabled} />
+        <AccountingSettingsForm
+          initialEmail={accountant}
+          initialEnabled={enabled}
+          confirmed={Boolean(profile.accountant_email_confirmed_at)}
+        />
       </section>
 
       {history.length > 0 ? (

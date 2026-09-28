@@ -29,6 +29,7 @@ type ExportProfile = {
   user_id: string;
   business_name: string | null;
   accountant_email: string | null;
+  accountant_email_confirmed_at: string | null;
 };
 
 
@@ -59,6 +60,21 @@ async function sendNotice(db: Db, profile: ExportProfile, period: string, now: D
   const url = `${getPublicSiteUrl()}${ACCOUNTING_EXPORT_PAGE_PATH}`;
   const when = nextSendLabel(now);
   const monthLabel = periodLabel(period);
+
+  if (!profile.accountant_email_confirmed_at) {
+    notifyUserActivity(profile.user_id, {
+      title: "Envoi comptable bloqué",
+      body: `Votre comptable (${profile.accountant_email}) n'a pas encore accepté les envois : rien ne partira ${when}. Renvoyez-lui le lien.`,
+      url,
+      tag: `accounting-notice-${period}`,
+    });
+    await db
+      .from("accounting_exports")
+      .update({ notice_sent_at: now.toISOString() })
+      .eq("artisan_id", profile.id)
+      .eq("period_start", period);
+    return;
+  }
 
   notifyUserActivity(profile.user_id, {
     title: "Envoi comptable dans 48 h",
@@ -126,6 +142,8 @@ export async function sendAccountingExport(
 ): Promise<SendExportResult> {
   const recipient = profile.accountant_email?.trim();
   if (!recipient) return { ok: false, error: "no_accountant_email" };
+  // Double confirmation : jamais d'envoi à une adresse qui n'a pas accepté.
+  if (!profile.accountant_email_confirmed_at) return { ok: false, error: "accountant_not_confirmed" };
 
   // Reprise exacte après le dernier envoi réussi : aucune facture oubliée ni doublée.
   const { data: lastSent } = await db
@@ -255,15 +273,19 @@ export async function sendAccountingExport(
   return { ok: true, status: "sent", invoiceCount: invoices.length, attachmentCount: pieces.length, parts: batches.length };
 }
 
-async function markFailed(db: Db, profile: ExportProfile, period: string, error: string) {
+async function markFailed(db: Db, profile: ExportProfile, period: string, error: string, notify = true) {
   await db
     .from("accounting_exports")
     .update({ status: "failed", error_message: error.slice(0, 500) })
     .eq("artisan_id", profile.id)
     .eq("period_start", period);
+  if (!notify) return;
   notifyUserActivity(profile.user_id, {
     title: "Envoi comptable non effectué",
-    body: "Un incident a empêché l'envoi à votre comptable. Nouvelle tentative automatique demain.",
+    body:
+      error === "accountant_not_confirmed"
+        ? "Votre comptable n'a pas encore accepté les envois. Dès qu'il accepte, l'envoi part au passage suivant."
+        : "Un incident a empêché l'envoi à votre comptable. Nouvelle tentative automatique demain.",
     url: `${getPublicSiteUrl()}${ACCOUNTING_EXPORT_PAGE_PATH}`,
     tag: `accounting-failed-${period}`,
   });
@@ -292,7 +314,7 @@ export async function runAccountingExports(
 
   const { data: profiles, error } = await db
     .from("profiles")
-    .select("id, user_id, business_name, accountant_email")
+    .select("id, user_id, business_name, accountant_email, accountant_email_confirmed_at")
     .eq("accounting_export_enabled", true)
     .not("accountant_email", "is", null);
   if (error) {
@@ -317,7 +339,8 @@ export async function runAccountingExports(
         else result.skipped++;
       } else {
         result.failed++;
-        await markFailed(db, profile, previousPeriod, res.error);
+        // Rattrapage quotidien : pas de relance push chaque jour pour un comptable non confirmé.
+        await markFailed(db, profile, previousPeriod, res.error, res.error !== "accountant_not_confirmed");
       }
     }
 

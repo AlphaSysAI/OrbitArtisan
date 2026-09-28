@@ -122,6 +122,60 @@ export default function CguPage() {
         </ul>
       </section>
 
+      <section className="space-y-3" id="envoi-comptable">
+        <h2 className="text-lg font-semibold text-slate-900">5 bis. Envoi comptable et pièces transmises</h2>
+        <p>
+          Le service d&apos;envoi comptable permet à l&apos;utilisateur artisan (ci-après « l&apos;Artisan ») de
+          faire adresser chaque mois par {LEGAL_PUBLISHER.companyName} (ci-après « l&apos;Éditeur ») à son
+          expert-comptable les factures émises avec {LEGAL_PUBLISHER.productName}, ainsi que des pièces qu&apos;il
+          ajoute lui-même (factures d&apos;achat, tickets de caisse, relevés, justificatifs de frais).
+        </p>
+        <ul className="list-disc space-y-2 pl-5">
+          <li>
+            <strong>Destinataire consentant.</strong> Aucun envoi n&apos;a lieu tant que le destinataire indiqué
+            n&apos;a pas expressément accepté, depuis le lien qui lui est adressé, de recevoir les envois de
+            l&apos;Artisan. L&apos;Artisan ne peut désigner qu&apos;un professionnel chargé de sa comptabilité, avec
+            son accord.
+          </li>
+          <li>
+            <strong>Usage exclusivement comptable.</strong> Les pièces transmises doivent être des documents
+            comptables ou justificatifs se rapportant à l&apos;activité professionnelle de l&apos;Artisan. Il est
+            interdit de transmettre tout autre contenu, et notamment : tout contenu à caractère pornographique ou
+            sexuel, tout contenu impliquant des mineurs, tout contenu violent, haineux, diffamatoire ou
+            harcelant, tout contenu portant atteinte à la vie privée ou aux droits d&apos;un tiers, ainsi que tout
+            fichier malveillant.
+          </li>
+          <li>
+            <strong>Responsabilité.</strong> L&apos;Artisan est seul responsable des pièces qu&apos;il transmet et
+            de leur contenu. L&apos;Éditeur agit en simple intermédiaire technique de transmission et ne prend pas
+            connaissance des pièces avant leur envoi.
+          </li>
+          <li>
+            <strong>Conservation.</strong> Les pièces ajoutées sont stockées de façon temporaire, dans un espace
+            privé accessible au seul compte de l&apos;Artisan, jusqu&apos;à leur envoi. Elles sont supprimées dès
+            l&apos;envoi réussi, ou au plus tard quarante-cinq (45) jours après leur dépôt si aucun envoi n&apos;a
+            lieu. L&apos;Éditeur n&apos;en conserve aucune copie ; seuls le nombre de pièces et la date de chaque
+            envoi sont conservés. Les copies reçues par le destinataire et par l&apos;Artisan (en copie de chaque
+            envoi) relèvent de leur seule responsabilité.
+          </li>
+          <li>
+            <strong>Manquements.</strong> En cas d&apos;usage contraire au présent article, l&apos;Éditeur peut
+            suspendre sans délai le service d&apos;envoi comptable, puis le compte de l&apos;Artisan dans les
+            conditions de l&apos;article 9. Tout contenu manifestement illicite porté à sa connaissance est
+            signalé aux autorités compétentes, notamment via la plateforme PHAROS, et les informations
+            d&apos;identification de l&apos;Artisan dont l&apos;Éditeur dispose leur sont communiquées sur
+            réquisition.
+          </li>
+        </ul>
+        <p>
+          Tout destinataire qui estime recevoir des envois sans son accord peut y mettre fin en écrivant à{" "}
+          <a href="mailto:support@solinebtp.fr" className="text-orange-600 underline-offset-2 hover:underline">
+            support@solinebtp.fr
+          </a>
+          .
+        </p>
+      </section>
+
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900">6. Disponibilité et maintenance</h2>
         <p>

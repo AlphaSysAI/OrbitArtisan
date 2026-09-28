@@ -8,10 +8,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   ACCOUNTING_ALLOWED_MIME,
+  ACCOUNTING_IMAGE_JPEG_QUALITY,
   ACCOUNTING_UPLOAD_MAX_BYTES,
   ACCOUNTING_UPLOAD_MAX_FILES,
   ACCOUNTING_UPLOADS_BUCKET,
   buildAccountingUploadPath,
+  jpegFilename,
+  scaledImageSize,
 } from "@/lib/accounting/export-schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -22,6 +25,37 @@ export type PendingPieceView = { path: string; name: string; size: number };
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} Ko`;
   return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`;
+}
+
+const COMPRESSIBLE_MIME = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+
+/**
+ * Réduit une photo (2000 px max, JPEG) avant envoi : un ticket reste lisible et
+ * l'envoi passe même avec une connexion de chantier. Si le navigateur ne sait pas
+ * décoder le format (HEIC hors Safari), le fichier d'origine est conservé.
+ */
+async function compressPhoto(file: File): Promise<File> {
+  if (!COMPRESSIBLE_MIME.includes(file.type)) return file;
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const { width, height } = scaledImageSize(bitmap.width, bitmap.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.fillStyle = "#ffffff"; // PNG transparent → fond blanc
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", ACCOUNTING_IMAGE_JPEG_QUALITY),
+    );
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], jpegFilename(file.name), { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
 }
 
 /**
@@ -56,12 +90,15 @@ export function AccountingPiecesUploader({
     setUploading({ done: 0, total: files.length });
 
     try {
-      for (const [index, file] of files.entries()) {
+      for (const [index, original] of files.entries()) {
+        const file = (ACCOUNTING_ALLOWED_MIME as readonly string[]).includes(original.type)
+          ? await compressPhoto(original)
+          : original;
         if (!(ACCOUNTING_ALLOWED_MIME as readonly string[]).includes(file.type)) {
           toast.error(`${file.name} : format non accepté (photo ou PDF).`);
           failed++;
         } else if (file.size > ACCOUNTING_UPLOAD_MAX_BYTES) {
-          toast.error(`${file.name} : 10 Mo maximum.`);
+          toast.error(`${original.name} : 5 Mo maximum.`);
           failed++;
         } else {
           const path = buildAccountingUploadPath(profileId, file.name, Date.now(), crypto.randomUUID().slice(0, 8));
@@ -126,7 +163,7 @@ export function AccountingPiecesUploader({
         {uploading ? `Envoi ${uploading.done}/${uploading.total}…` : "Ajouter"}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Photos (JPEG, PNG, HEIC) ou PDF, 10 Mo max par pièce, plusieurs à la fois. Elles partent avec vos factures
+        Photos ou PDF, plusieurs à la fois, 5 Mo max par pièce (les photos sont réduites automatiquement). Elles partent avec vos factures
         au prochain envoi puis sont supprimées : Soline n&apos;en garde aucune copie.
       </p>
 

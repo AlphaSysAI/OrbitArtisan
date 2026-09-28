@@ -73,12 +73,12 @@ values (
   'accounting-uploads',
   'accounting-uploads',
   false,
-  10485760,
+  5242880,
   array['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
 )
 on conflict (id) do update set
   public = false,
-  file_size_limit = 10485760,
+  file_size_limit = 5242880,
   allowed_mime_types = array['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 drop policy if exists accounting_uploads_owner_insert on storage.objects;
