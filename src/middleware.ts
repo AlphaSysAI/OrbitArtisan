@@ -11,6 +11,7 @@ import {
   ARTISAN_ONBOARDING_PROFILE_SELECT,
   artisanNeedsOnboarding,
 } from "@/lib/auth/artisan-onboarding";
+import { pathNeedsArtisanProfile, pathUsesSession } from "@/lib/auth/middleware-paths";
 
 export async function middleware(request: NextRequest) {
   const domainRedirect = resolveDomainRouting(request);
@@ -26,6 +27,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (!pathUsesSession(pathname)) {
+    return NextResponse.next({ request });
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -34,7 +39,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
-  const response = NextResponse.next({ request });
+  let response = NextResponse.next({ request });
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -42,6 +47,11 @@ export async function middleware(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
+        // Pattern @supabase/ssr : la session rafraîchie est aussi posée sur la
+        // requête, pour que les Server Components de CETTE requête lisent les
+        // nouveaux jetons au lieu de relancer un refresh avec l'ancien.
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, options),
         );
@@ -49,9 +59,13 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() : signature ES256 vérifiée localement via JWKS (pas d'aller-retour
+  // Supabase Auth), refresh de session si le jeton a expiré. Le middleware ne
+  // fait que de l'aiguillage : pages et server actions gardent getUser()
+  // (lib/auth/session.ts) et la RLS reste la barrière d'accès aux données.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
+  const user = userId ? { id: userId } : null;
 
   let artisanProfile: {
     id: string;
@@ -62,7 +76,7 @@ export async function middleware(request: NextRequest) {
     onboarding_completed_at?: string | null;
   } | null = null;
 
-  if (user) {
+  if (user && pathNeedsArtisanProfile(pathname)) {
     const { data } = await supabase
       .from("profiles")
       .select(`id, account_status, deleted_at, subscription_status, trial_ends_at, ${ARTISAN_ONBOARDING_PROFILE_SELECT}`)
