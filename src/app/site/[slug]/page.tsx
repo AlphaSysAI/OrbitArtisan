@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 
 import type { VitrineOwnerAppointment } from "@/components/vitrine/vitrine-owner-calendar";
-import { VitrinePublicPage } from "@/components/vitrine/vitrine-public-page";
+import { VitrinePublicPage, type VitrineGalleryItem } from "@/components/vitrine/vitrine-public-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { vitrineMediaPublicUrl } from "@/lib/vitrine/gallery";
+import { presetTradeFromProfile } from "@/lib/trades/preset-from-profile";
 import { resolveVitrineAccent } from "@/lib/vitrine-theme";
+import type { TradeSelection } from "@/components/trades/trade-picker";
 
 type Profile = {
   id: string;
@@ -15,6 +18,9 @@ type Profile = {
   slug: string;
   accent_color: string | null;
   sales_terms_text: string | null;
+  trade_category: string | null;
+  trade: string | null;
+  lead_matching_enabled: boolean;
 };
 
 type Service = {
@@ -33,6 +39,7 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
   let viewerUserId: string | null = null;
   let isOwner = false;
   let ownerAppointments: VitrineOwnerAppointment[] = [];
+  let gallery: VitrineGalleryItem[] = [];
 
   if (demoMode) {
     profile = {
@@ -46,6 +53,9 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
       slug,
       accent_color: null,
       sales_terms_text: null,
+      trade_category: "plomberie-chauffage",
+      trade: "plombier",
+      lead_matching_enabled: true,
     };
     services = [
       { id: "demo-1", title: "Dépannage (visite)", duration: 45, price: 6500 },
@@ -57,7 +67,9 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
 
     const { data: p } = await supabase
       .from("profiles")
-      .select("id, user_id, name, business_name, description, logo_url, slug, accent_color, sales_terms_text")
+      .select(
+        "id, user_id, name, business_name, description, logo_url, slug, accent_color, sales_terms_text, trade_category, trade, lead_matching_enabled",
+      )
       .eq("slug", slug)
       .maybeSingle();
 
@@ -71,6 +83,25 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
       .order("title", { ascending: true });
 
     services = (s ?? []) as Service[];
+
+    const { data: galleryRows } = await supabase
+      .from("artisan_vitrine_images")
+      .select("id, storage_path, caption, sort_order")
+      .eq("artisan_id", profile.id)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    gallery = (galleryRows ?? [])
+      .map((row) => {
+        const url = vitrineMediaPublicUrl(row.storage_path as string);
+        if (!url) return null;
+        return {
+          id: row.id as string,
+          url,
+          caption: (row.caption as string | null) ?? null,
+        };
+      })
+      .filter((item): item is VitrineGalleryItem => item != null);
 
     const {
       data: { user },
@@ -99,16 +130,23 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
   }
 
   const accent = resolveVitrineAccent(profile.accent_color, profile.business_name);
+  const estimationEnabled = profile.lead_matching_enabled !== false;
+  const presetTrade: TradeSelection | null = estimationEnabled
+    ? presetTradeFromProfile(profile.trade_category, profile.trade)
+    : null;
 
   return (
     <VitrinePublicPage
       profile={profile}
       services={services}
+      gallery={gallery}
       accent={accent}
       demoMode={demoMode}
       viewerUserId={viewerUserId}
       isOwner={isOwner}
       ownerAppointments={ownerAppointments}
+      estimationEnabled={estimationEnabled}
+      presetTrade={presetTrade}
     />
   );
 }

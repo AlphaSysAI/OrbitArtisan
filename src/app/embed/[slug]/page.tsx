@@ -3,10 +3,9 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 
 import { SupabaseMissing } from "@/components/supabase-missing";
-import type { TradeSelection } from "@/components/trades/trade-picker";
 import { parseEmbedTheme } from "@/lib/leads/embed";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
+import { presetTradeFromProfile } from "@/lib/trades/preset-from-profile";
 
 import { EstimationWizard } from "@/app/estimation/estimation-wizard";
 
@@ -25,18 +24,6 @@ type EmbedProfile = {
   trade_category: string | null;
   trade: string | null;
 };
-
-function presetTradeFor(profile: EmbedProfile): TradeSelection | null {
-  const category = findTradeCategory(profile.trade_category);
-  const trade = findTrade(profile.trade_category, profile.trade);
-  if (!category || !trade) return null;
-  return {
-    categoryId: category.id,
-    categoryLabel: category.label,
-    tradeId: trade.id,
-    tradeLabel: trade.label,
-  };
-}
 
 export default async function EmbedPage({
   params,
@@ -61,7 +48,7 @@ export default async function EmbedPage({
 
   if (!data) notFound();
   const profile = data as EmbedProfile;
-  const presetTrade = presetTradeFor(profile);
+  const presetTrade = presetTradeFromProfile(profile.trade_category, profile.trade);
 
   return (
     <EmbedFrame

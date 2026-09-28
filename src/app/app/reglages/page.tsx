@@ -24,7 +24,9 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 
+import { listMyVitrineGalleryImages } from "../profile/vitrine-gallery-actions";
 import { ProfileForm } from "../profile/profile-form";
+import { VitrineGalleryForm } from "@/components/settings/vitrine-gallery-form";
 import { LegalSettingsForm } from "@/components/settings/legal-settings-form";
 import { CreateServiceForm } from "../services/create-service-form";
 import { ServiceRow } from "../services/service-row";
@@ -287,6 +289,8 @@ export default async function ArtisanSettingsPage({
     ]);
   }
 
+  const vitrineGalleryImages = profile?.id ? await listMyVitrineGalleryImages() : [];
+
   return (
     <div className="space-y-8">
       <AppPageHeader
@@ -334,10 +338,13 @@ export default async function ArtisanSettingsPage({
             <div className="space-y-1">
               <h2 className="font-display text-xl font-semibold tracking-tight">Mon activité</h2>
               <p className="text-sm text-muted-foreground">
-                Ce que les clients voient sur ta page vitrine : nom, description, couleur et taux horaire.
+                Ta vitrine publique : identité, présentation, photos de chantier et couleurs.
               </p>
             </div>
             <ProfileForm initialValues={profileInitial} />
+            {profile?.id ? (
+              <VitrineGalleryForm artisanId={profile.id} initialImages={vitrineGalleryImages} />
+            ) : null}
           </section>
         ) : null}
 
