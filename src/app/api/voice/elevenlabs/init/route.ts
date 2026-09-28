@@ -1,11 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
-
 import { NextResponse } from "next/server";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
 import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
+import { verifyVoiceToolSecret } from "@/lib/voice/voice-secret";
 import { hasAnyVisitRange, parseVisitHours } from "@/lib/appointments/visit-hours";
 
 /**
@@ -51,16 +50,6 @@ function hasVisitHours(raw: unknown): boolean {
   return parsed.ok && hasAnyVisitRange(parsed.value);
 }
 
-/** Tolère les variantes de saisie : guillemets, « Bearer », « Bearer: », espaces. */
-function normalizeSecret(raw: string | null | undefined): string {
-  return (raw ?? "")
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .replace(/^bearer\s*:?\s*/i, "")
-    .replace(/^["']|["']$/g, "")
-    .trim();
-}
-
 function initResponse(dynamicVariables: Record<string, string>) {
   return NextResponse.json({
     type: "conversation_initiation_client_data",
@@ -69,20 +58,10 @@ function initResponse(dynamicVariables: Record<string, string>) {
 }
 
 export async function POST(request: Request) {
-  const expected = normalizeSecret(process.env.VOICE_AI_TOOL_SECRET);
-  const rawHeader = request.headers.get("authorization");
-  const provided = normalizeSecret(rawHeader);
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  if (!expected || a.length !== b.length || !timingSafeEqual(a, b)) {
+  const auth = verifyVoiceToolSecret(request.headers.get("authorization"));
+  if (!auth.ok) {
     // Diagnostic sans jamais journaliser le secret : présence, préfixe, longueurs.
-    console.warn("[elevenlabs init] 401", {
-      headerPresent: rawHeader != null,
-      bearerPrefix: /^\s*"?bearer/i.test(rawHeader ?? ""),
-      providedLength: provided.length,
-      expectedLength: expected.length,
-      expectedConfigured: expected.length > 0,
-    });
+    console.warn("[elevenlabs init] 401", { ...auth.diagnostic, expectedConfigured: auth.configured });
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 

@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
+import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
+import { verifyVoiceToolSecret } from "@/lib/voice/voice-secret";
 import type { SolineVoiceMode } from "@/lib/voice/voice-quota-types";
 
 export type VoiceContext = {
@@ -23,15 +25,6 @@ function unauthorized(message: string) {
   return NextResponse.json({ error: message }, { status: 401 });
 }
 
-function timingSafeEqualStrings(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-}
-
 type ResolveVoiceContextOptions = {
   /** Calcule le mode Soline (complet / message seul) et l'expose dans le contexte. */
   withQuota?: boolean;
@@ -42,13 +35,12 @@ export async function resolveVoiceContext(
   options: ResolveVoiceContextOptions = {},
 ): Promise<VoiceResolveResult> {
   const withQuota = options.withQuota ?? true;
-  const expected = process.env.VOICE_AI_TOOL_SECRET;
-  if (!expected) {
+  const auth = verifyVoiceToolSecret(request.headers.get("authorization"));
+  if (!auth.configured) {
     return { ok: false, response: NextResponse.json({ error: "Voice AI non configuré" }, { status: 503 }) };
   }
-
-  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!provided || !timingSafeEqualStrings(provided, expected)) {
+  if (!auth.ok) {
+    console.warn("[voice tools] 401", { path: new URL(request.url).pathname, ...auth.diagnostic });
     return { ok: false, response: unauthorized("Non autorisé") };
   }
 
@@ -59,7 +51,7 @@ export async function resolveVoiceContext(
     return { ok: false, response: NextResponse.json({ error: "Corps invalide" }, { status: 400 }) };
   }
 
-  const calledNumber = String(body.called_number ?? body.to ?? body.phone ?? "").trim();
+  const calledNumber = normalizePhoneE164(String(body.called_number ?? body.to ?? body.phone ?? ""));
   if (!calledNumber) {
     return { ok: false, response: NextResponse.json({ error: "Numéro appelé manquant" }, { status: 400 }) };
   }
