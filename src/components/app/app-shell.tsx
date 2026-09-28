@@ -1,6 +1,6 @@
 import { AppHeader } from "@/components/app/app-header";
 import { AppMobileBottomNav } from "@/components/app/app-mobile-bottom-nav";
-import { ArtisanAssistant } from "@/components/app/artisan-assistant";
+import { ArtisanAssistantLazy } from "@/components/app/artisan-assistant-lazy";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { PushNotificationsBanner } from "@/components/notifications/push-notifications-banner";
 
@@ -22,7 +22,7 @@ export function AppShell({
       </div>
 
       <AppMobileBottomNav isPlatformAdmin={isPlatformAdmin} />
-      <ArtisanAssistant />
+      <ArtisanAssistantLazy />
     </div>
     </NotificationProvider>
   );
