@@ -1,13 +1,14 @@
 import Link from "next/link";
 
 import { ArrowLeft, FileText, MessageSquare } from "lucide-react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getRequestSupabase } from "@/lib/auth/session";
 import { quoteStatusLabel } from "@/lib/status-labels";
 import { cn } from "@/lib/utils";
 import {
@@ -27,6 +28,22 @@ import { createInvoiceFromQuoteForm } from "../../invoices/actions";
 import { frozenInvoicingMessageFor, isDraftInvoicingFrozenForCustomer } from "@/lib/billing/invoicing-freeze";
 import { resolveCustomerClassification } from "@/lib/billing/invoicing/resolve-customer-classification";
 
+async function loadCustomerProfileDisplayName(
+  supabase: SupabaseClient,
+  customerUserId: string | null,
+): Promise<string | null> {
+  if (!customerUserId) return null;
+  const { data: cp } = await supabase
+    .from("customer_profiles")
+    .select("display_name, email")
+    .eq("user_id", customerUserId)
+    .maybeSingle();
+  return formatContactDisplayName({
+    profileName: cp?.display_name,
+    email: cp?.email,
+  });
+}
+
 export default async function QuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
   const sp = await params;
   const quoteId = sp.quoteId;
@@ -35,15 +52,31 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
     return <SupabaseMissing title="Devis indisponibles" />;
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await getRequestSupabase();
 
-  const { data: quote } = await supabase
-    .from("quotes")
-    .select(
-      "id,status,customer_user_id,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,reduced_vat_rate,generate_vat_attestation,work_site_address,sent_at",
-    )
-    .eq("id", quoteId)
-    .maybeSingle();
+  // Perf (refacto latence, point 6) : devis, lignes et factures liées en une
+  // vague parallèle (avant : 6 requêtes en séquence). Tout est filtré par
+  // quote_id sous RLS ; rien n'est affiché si le devis n'est pas accessible.
+  const [{ data: quote }, { data: serviceLines }, { data: materialLines }, linkedInvoices] = await Promise.all([
+    supabase
+      .from("quotes")
+      .select(
+        "id,status,customer_user_id,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,reduced_vat_rate,generate_vat_attestation,work_site_address,sent_at",
+      )
+      .eq("id", quoteId)
+      .maybeSingle(),
+    supabase
+      .from("quote_services")
+      .select("service_title,duration_minutes,unit_price,line_total")
+      .eq("quote_id", quoteId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("quote_materials")
+      .select("label,quantity,unit_price,line_total,vat_rate,exclude_from_invoice")
+      .eq("quote_id", quoteId)
+      .order("created_at", { ascending: true }),
+    loadInvoicesForQuote(supabase, quoteId),
+  ]);
 
   if (!quote) {
     return (
@@ -59,21 +92,13 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
   }
 
   // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts).
-  const invoicingCustomerClass = await resolveCustomerClassification(supabase, quote.customer_user_id);
+  // Classification et nom du client : indépendants, en parallèle.
+  const [invoicingCustomerClass, profileDisplayName] = await Promise.all([
+    resolveCustomerClassification(supabase, quote.customer_user_id),
+    loadCustomerProfileDisplayName(supabase, quote.customer_user_id),
+  ]);
   const invoicingFrozen = isDraftInvoicingFrozenForCustomer(invoicingCustomerClass);
   const invoicingFrozenMessage = frozenInvoicingMessageFor(invoicingCustomerClass);
-
-  const { data: serviceLines } = await supabase
-    .from("quote_services")
-    .select("service_title,duration_minutes,unit_price,line_total")
-    .eq("quote_id", quoteId)
-    .order("created_at", { ascending: true });
-
-  const { data: materialLines } = await supabase
-    .from("quote_materials")
-    .select("label,quantity,unit_price,line_total,vat_rate,exclude_from_invoice")
-    .eq("quote_id", quoteId)
-    .order("created_at", { ascending: true });
 
   const services = serviceLines ?? [];
   const materials = materialLines ?? [];
@@ -97,26 +122,11 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
     .reduce((acc, m) => acc + Math.round((m.quantity ?? 0) * (m.unit_price ?? 0)), 0);
   const conversationId = (quote as { conversation_id?: string | null }).conversation_id ?? null;
 
-  let profileDisplayName: string | null = null;
-  if (quote.customer_user_id) {
-    const { data: cp } = await supabase
-      .from("customer_profiles")
-      .select("display_name, email")
-      .eq("user_id", quote.customer_user_id)
-      .maybeSingle();
-    profileDisplayName = formatContactDisplayName({
-      profileName: cp?.display_name,
-      email: cp?.email,
-    });
-  }
-
   const customerLabel = formatContactDisplayName({
     profileName: profileDisplayName,
     name: quote.customer_name,
     email: quote.customer_email,
   });
-
-  const linkedInvoices = await loadInvoicesForQuote(supabase, quoteId);
 
   const alreadyInvoicedCents = linkedInvoices
     .filter((inv) => inv.invoice_type !== "credit_note")

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type PendingInvitationItem = {
@@ -31,10 +32,9 @@ export type LinkedContactItem = {
 export type ArtisanContactItem = PendingInvitationItem | LinkedContactItem;
 
 export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanContactItem[] } | { ok: false; error: string; items: [] }> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Session mise en cache par requête (perf, point 6) : appelée depuis le
+  // dashboard, elle réutilise le getUser() déjà résolu par le layout.
+  const [supabase, user] = await Promise.all([getRequestSupabase(), getCurrentUser()]);
   if (!user) return { ok: false, error: "auth", items: [] };
 
   const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();

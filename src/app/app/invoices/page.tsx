@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Banknote, FileText, Plus, Receipt, Wallet } from "lucide-react";
@@ -15,7 +16,7 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { loadCustomerDisplayNames } from "@/lib/contacts/load-profile-display-names";
 import { loadArtisanInvoicesForList } from "@/lib/billing/load-invoice-for-page";
 import { invoiceStatusLabel } from "@/lib/status-labels";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { withdrawErrorMessage } from "@/lib/stripe/user-messages";
 
@@ -23,6 +24,72 @@ import { createInvoiceFromQuoteForm, startStripeExpressOnboarding, withdrawStrip
 
 function formatEur(cents: number) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+}
+
+/** Au-delà, on n'attend plus Stripe (réseau chantier, incident Stripe) : solde affiché à 0 comme en cas d'erreur. */
+const STRIPE_BALANCE_TIMEOUT_MS = 5000;
+
+async function StripeBalance({
+  stripeAccountId,
+  payoutsEnabled,
+}: {
+  stripeAccountId: string;
+  payoutsEnabled: boolean;
+}) {
+  let eurAvailable = 0;
+  try {
+    const stripe = getStripe();
+    const balance = await stripe.balance.retrieve(
+      {},
+      { stripeAccount: stripeAccountId, timeout: STRIPE_BALANCE_TIMEOUT_MS },
+    );
+    eurAvailable = (balance.available ?? [])
+      .filter((b: { currency: string }) => b.currency === "eur")
+      .reduce((sum: number, b: { amount?: number }) => sum + (b.amount ?? 0), 0);
+  } catch {
+    eurAvailable = 0;
+  }
+  return <StripeBalanceView stripeAccountId={stripeAccountId} payoutsEnabled={payoutsEnabled} eurAvailable={eurAvailable} />;
+}
+
+/** `eurAvailable: null` = solde en cours de chargement (bouton de retrait désactivé). */
+function StripeBalanceView({
+  stripeAccountId,
+  payoutsEnabled,
+  eurAvailable,
+}: {
+  stripeAccountId: string;
+  payoutsEnabled: boolean;
+  eurAvailable: number | null;
+}) {
+  return (
+    <>
+      {eurAvailable === null ? (
+        <p className="font-display text-4xl font-semibold tabular-nums tracking-tight text-muted-foreground/60" aria-busy="true">
+          <span className="sr-only">Chargement du solde…</span>
+          <span aria-hidden>— €</span>
+        </p>
+      ) : (
+        <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">{formatEur(eurAvailable)}</p>
+      )}
+      <p className="text-sm text-muted-foreground">
+        {payoutsEnabled
+          ? "Tu peux retirer tes fonds vers ton compte bancaire."
+          : "Retrait en attente de validation du compte de paiement."}
+      </p>
+      <form action={withdrawStripeFunds}>
+        <input type="hidden" name="stripe_account_id" value={stripeAccountId} />
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full sm:w-auto"
+          disabled={!payoutsEnabled || eurAvailable === null || eurAvailable <= 0}
+        >
+          Retirer mes fonds
+        </Button>
+      </form>
+    </>
+  );
 }
 
 export default async function InvoicesPage({
@@ -39,10 +106,7 @@ export default async function InvoicesPage({
   const withdrawError = typeof sp.withdraw_error === "string" ? sp.withdraw_error : undefined;
   const stripeOnboarding = typeof sp.stripe_onboarding === "string" ? sp.stripe_onboarding : undefined;
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([getRequestSupabase(), getCurrentUser()]);
 
   if (!user) redirect("/login?next=/app/invoices");
 
@@ -71,27 +135,19 @@ export default async function InvoicesPage({
   }
 
   const stripeEnabled = isStripeConfigured();
-  let eurAvailable = 0;
-  if (stripeEnabled && profile.stripe_account_id) {
-    try {
-      const stripe = getStripe();
-      const balance = await stripe.balance.retrieve({}, { stripeAccount: profile.stripe_account_id });
-      eurAvailable = (balance.available ?? [])
-        .filter((b: { currency: string }) => b.currency === "eur")
-        .reduce((sum: number, b: { amount?: number }) => sum + (b.amount ?? 0), 0);
-    } catch {
-      eurAvailable = 0;
-    }
-  }
 
-  const { data: acceptedQuotes } = await supabase
-    .from("quotes")
-    .select("id, customer_user_id, customer_name, customer_email, grand_total, created_at, signed_at")
-    .eq("artisan_id", profile.id)
-    .eq("status", "accepted")
-    .order("created_at", { ascending: false });
-
-  const invoiceRows = await loadArtisanInvoicesForList(supabase, profile.id);
+  // Perf (refacto latence, point 6) : devis acceptés et factures en parallèle ;
+  // le solde Stripe (appel externe) n'est plus attendu avant d'afficher la
+  // page : il arrive en streaming dans <StripeBalance> (Suspense).
+  const [{ data: acceptedQuotes }, invoiceRows] = await Promise.all([
+    supabase
+      .from("quotes")
+      .select("id, customer_user_id, customer_name, customer_email, grand_total, created_at, signed_at")
+      .eq("artisan_id", profile.id)
+      .eq("status", "accepted")
+      .order("created_at", { ascending: false }),
+    loadArtisanInvoicesForList(supabase, profile.id),
+  ]);
 
   const profileNames = await loadCustomerDisplayNames(supabase, [
     ...(acceptedQuotes ?? []).map((q) => q.customer_user_id),
@@ -163,35 +219,34 @@ export default async function InvoicesPage({
               </p>
             ) : (
               <>
-                <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">
-                  {formatEur(eurAvailable)}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {profile.stripe_account_id
-                    ? profile.stripe_payouts_enabled
-                      ? "Tu peux retirer tes fonds vers ton compte bancaire."
-                      : "Retrait en attente de validation du compte de paiement."
-                    : "Active les paiements en ligne pour encaisser et retirer."}
-                </p>
                 {!profile.stripe_account_id ? (
-                  <form action={startStripeExpressOnboarding}>
-                    <Button type="submit" size="lg" className="w-full gap-2 sm:w-auto">
-                      <Banknote className="size-4" />
-                      Activer mes paiements
-                    </Button>
-                  </form>
+                  <>
+                    <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">{formatEur(0)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Active les paiements en ligne pour encaisser et retirer.
+                    </p>
+                    <form action={startStripeExpressOnboarding}>
+                      <Button type="submit" size="lg" className="w-full gap-2 sm:w-auto">
+                        <Banknote className="size-4" />
+                        Activer mes paiements
+                      </Button>
+                    </form>
+                  </>
                 ) : (
-                  <form action={withdrawStripeFunds}>
-                    <input type="hidden" name="stripe_account_id" value={profile.stripe_account_id} />
-                    <Button
-                      type="submit"
-                      size="lg"
-                      className="w-full sm:w-auto"
-                      disabled={!profile.stripe_payouts_enabled || eurAvailable <= 0}
-                    >
-                      Retirer mes fonds
-                    </Button>
-                  </form>
+                  <Suspense
+                    fallback={
+                      <StripeBalanceView
+                        stripeAccountId={profile.stripe_account_id}
+                        payoutsEnabled={!!profile.stripe_payouts_enabled}
+                        eurAvailable={null}
+                      />
+                    }
+                  >
+                    <StripeBalance
+                      stripeAccountId={profile.stripe_account_id}
+                      payoutsEnabled={!!profile.stripe_payouts_enabled}
+                    />
+                  </Suspense>
                 )}
               </>
             )}

@@ -20,7 +20,7 @@ import { VitrineShareButton } from "@/components/app/vitrine-share-button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { listArtisanContacts } from "@/lib/contacts/actions";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 
 function formatEur(cents: number): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -31,10 +31,10 @@ export default async function AppHomePage() {
     return <SupabaseMissing title="Espace artisan indisponible" />;
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Perf (refacto latence, point 6) : session en cache par requête, puis tous
+  // les compteurs du tableau de bord en une seule vague parallèle (avant :
+  // prestations → contacts → compteurs, en séquence).
+  const [supabase, user] = await Promise.all([getRequestSupabase(), getCurrentUser()]);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -42,16 +42,7 @@ export default async function AppHomePage() {
     .eq("user_id", user!.id)
     .maybeSingle();
 
-  const { count: serviceCount } = profile?.id
-    ? await supabase
-        .from("services")
-        .select("id", { count: "exact", head: true })
-        .eq("artisan_id", profile.id)
-    : { count: 0 };
-
-  const hasProfile = !!profile;
-  const hasServices = (serviceCount ?? 0) > 0;
-
+  let serviceCount: number | null = 0;
   let contactCount = 0;
   let finalizedInvoiceCount = 0;
   let revenueCents = 0;
@@ -59,17 +50,16 @@ export default async function AppHomePage() {
   let pendingPaymentCount = 0;
 
   if (profile?.id) {
-    const contactsRes = await listArtisanContacts();
-    if (contactsRes.ok) {
-      contactCount = contactsRes.items.filter((i) => i.kind === "linked").length;
-    }
-
     const [
+      { count: services },
+      contactsRes,
       { count: finalizedCount },
       { count: pendingQuotes },
       { count: pendingPayments },
       { data: revenueAgg },
     ] = await Promise.all([
+      supabase.from("services").select("id", { count: "exact", head: true }).eq("artisan_id", profile.id),
+      listArtisanContacts(),
       supabase
         .from("invoices")
         .select("id", { count: "exact", head: true })
@@ -92,12 +82,18 @@ export default async function AppHomePage() {
         .eq("status", "paid"),
     ]);
 
+    serviceCount = services;
+    if (contactsRes.ok) {
+      contactCount = contactsRes.items.filter((i) => i.kind === "linked").length;
+    }
     finalizedInvoiceCount = finalizedCount ?? 0;
     pendingQuoteCount = pendingQuotes ?? 0;
     pendingPaymentCount = pendingPayments ?? 0;
     revenueCents = revenueAgg?.[0]?.sum ?? 0;
   }
 
+  const hasProfile = !!profile;
+  const hasServices = (serviceCount ?? 0) > 0;
   const showOnboarding = !hasProfile || !hasServices;
   const greetingName = hasProfile ? profile!.business_name : "Bienvenue";
 
