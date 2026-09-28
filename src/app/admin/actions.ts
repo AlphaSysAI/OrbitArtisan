@@ -10,7 +10,7 @@ import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getAdminDb } from "@/lib/admin/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
+import { computeTrialEndsAt, type SubscriptionStatus } from "@/lib/billing/subscription-access";
 import {
   planIncludesSolineVoice,
   subscriptionStatusKeepsVoiceNumber,
@@ -103,7 +103,7 @@ export async function updateTenantPlan(
   if (status === "active") {
     updatePayload.trial_ends_at = null;
   } else if (status === "trialing") {
-    updatePayload.trial_ends_at = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
+    updatePayload.trial_ends_at = computeTrialEndsAt();
   }
 
   const { error } = await sbAdmin.from("profiles").update(updatePayload).eq("id", profileId);

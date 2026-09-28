@@ -45,6 +45,8 @@ describe("computeTrialEndsAt", () => {
   it(`ajoute ${TRIAL_DURATION_DAYS} jours`, () => {
     const from = new Date("2026-01-01T12:00:00.000Z");
     const ends = new Date(computeTrialEndsAt(from));
-    expect(ends.getUTCDate()).toBe(16);
+    expect(ends.toISOString()).toBe(
+      new Date(from.getTime() + TRIAL_DURATION_DAYS * 86_400_000).toISOString(),
+    );
   });
 });

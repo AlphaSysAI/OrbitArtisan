@@ -1,5 +1,5 @@
 /** Durée de l'essai gratuit à l'inscription (jours). */
-export const TRIAL_DURATION_DAYS = 15;
+export const TRIAL_DURATION_DAYS = 30;
 
 /** Statuts stockés en base (alignés Stripe). */
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled";

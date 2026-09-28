@@ -16,7 +16,7 @@
 
 ## Essai
 
-- 15 jours sans CB sur la formule **Pro** : 10 appels, sans dépassement (message seul ensuite).
+- 30 jours sans CB sur la formule **Pro** : 10 appels, sans dépassement (message seul ensuite).
 - Numéro attribué à la création du profil ; rendu à l'expiration (cron) s'il n'y a pas d'abonnement.
 - Les profils déjà en essai Essentiel ne sont pas migrés.
 

@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import {
   evaluateSubscriptionAccess,
   SUBSCRIPTION_STATUS_LABELS,
+  TRIAL_DURATION_DAYS,
   type SubscriptionStatus,
 } from "@/lib/billing/subscription-access";
 import type { StripeBillingEventRow } from "@/lib/billing/stripe-billing-events";
@@ -32,7 +33,7 @@ type SubscriptionProfile = {
 function reasonMessage(reason: string | undefined) {
   switch (reason) {
     case "trial_expired":
-      return "Votre essai gratuit de 15 jours est terminé. Choisissez une formule pour continuer à créer des devis et des factures.";
+      return `Votre essai gratuit de ${TRIAL_DURATION_DAYS} jours est terminé. Choisissez une formule pour continuer à créer des devis et des factures.`;
     case "past_due":
       return "Votre dernier paiement a échoué. Régularisez votre abonnement pour retrouver l'accès complet.";
     case "canceled":

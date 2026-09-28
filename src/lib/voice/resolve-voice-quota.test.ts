@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildVoiceQuotaSnapshot, isBillableCall, resolveVoiceEntitlement } from "./resolve-voice-quota";
+import {
+  buildVoiceQuotaSnapshot,
+  isBillableCall,
+  resolveQuotaPeriod,
+  resolveVoiceEntitlement,
+} from "./resolve-voice-quota";
 
 const MID_MONTH = new Date("2026-09-11T12:00:00.000Z");
 const PRO = { isTrial: false, callsIncluded: 40, overageCallCents: 90 };
@@ -93,5 +98,22 @@ describe("buildVoiceQuotaSnapshot", () => {
     });
     expect(q.periodStart).toBe("2026-10-01T00:00:00.000Z");
     expect(q.remainingCalls).toBe(40);
+  });
+});
+
+describe("resolveQuotaPeriod", () => {
+  it("essai : les 10 appels couvrent les 30 jours, même à cheval sur deux mois", () => {
+    const period = resolveQuotaPeriod(
+      { isTrial: true, callsIncluded: 10, overageCallCents: 0 },
+      "2026-10-15T10:00:00.000Z",
+      new Date("2026-10-02T09:00:00.000Z"),
+    );
+    expect(period.start.toISOString()).toBe("2026-09-15T10:00:00.000Z");
+    expect(period.end.toISOString()).toBe("2026-10-15T10:00:00.000Z");
+  });
+
+  it("abonné : mois civil", () => {
+    const period = resolveQuotaPeriod(PRO, null, MID_MONTH);
+    expect(period.start.toISOString()).toBe("2026-09-01T00:00:00.000Z");
   });
 });

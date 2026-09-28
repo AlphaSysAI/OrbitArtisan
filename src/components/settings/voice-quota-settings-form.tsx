@@ -47,9 +47,10 @@ export function VoiceQuotaSettingsForm({ quota }: VoiceQuotaSettingsFormProps) {
             {quota.isTrial ? "Appels Soline de l'essai" : "Appels Soline ce mois-ci"}
           </h3>
           <p className="text-sm text-muted-foreground">
-            Un appel compte s&apos;il dure au moins 30 secondes. Compteur remis à zéro le{" "}
-            {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(quota.periodEnd))}, sans
-            report des appels non utilisés.
+            Un appel compte s&apos;il dure au moins 30 secondes.{" "}
+            {quota.isTrial ? "Appels valables jusqu'à la fin de l'essai, le " : "Compteur remis à zéro le "}
+            {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(quota.periodEnd))}
+            {quota.isTrial ? "." : ", sans report des appels non utilisés."}
           </p>
         </div>
       </div>
@@ -57,7 +58,7 @@ export function VoiceQuotaSettingsForm({ quota }: VoiceQuotaSettingsFormProps) {
       <dl className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border bg-card px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Période</dt>
-          <dd className="mt-1 font-semibold capitalize">{monthLabel}</dd>
+          <dd className="mt-1 font-semibold capitalize">{quota.isTrial ? "Essai" : monthLabel}</dd>
         </div>
         <div className="rounded-xl border bg-card px-4 py-3">
           <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Appels</dt>

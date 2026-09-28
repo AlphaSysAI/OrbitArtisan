@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getCivilMonthPeriod } from "@/lib/billing/civil-month-period";
+import { TRIAL_DURATION_DAYS } from "@/lib/billing/subscription-access";
 import {
   getPlanOverageCallCents,
   getPlanVoiceCalls,
@@ -67,14 +68,33 @@ export function isBillableCall(status: string | null | undefined, durationSecond
   );
 }
 
+/**
+ * Période de décompte : mois civil, sauf pendant l'essai où les appels inclus
+ * couvrent toute la durée de l'essai (pas de remise à zéro au changement de mois).
+ */
+export function resolveQuotaPeriod(
+  entitlement: VoiceEntitlement,
+  trialEndsAt: string | null | undefined,
+  now: Date = new Date(),
+): { start: Date; end: Date } {
+  if (entitlement.isTrial && trialEndsAt) {
+    const end = new Date(trialEndsAt);
+    if (!Number.isNaN(end.getTime())) {
+      return { start: new Date(end.getTime() - TRIAL_DURATION_DAYS * 86_400_000), end };
+    }
+  }
+  return getCivilMonthPeriod(now);
+}
+
 export function buildVoiceQuotaSnapshot(input: {
   artisanId: string;
   entitlement: VoiceEntitlement;
   callsUsed: number;
   overageCapCents: number;
   now?: Date;
+  period?: { start: Date; end: Date };
 }): VoiceQuotaSnapshot {
-  const { start, end } = getCivilMonthPeriod(input.now);
+  const { start, end } = input.period ?? getCivilMonthPeriod(input.now);
   const { isTrial, callsIncluded, overageCallCents } = input.entitlement;
   const callsUsed = Math.max(0, Math.floor(input.callsUsed));
   const cap = Math.max(0, Math.floor(input.overageCapCents));
@@ -142,8 +162,6 @@ export async function resolveVoiceQuota(
   artisanId: string,
   now: Date = new Date(),
 ): Promise<VoiceQuotaSnapshot | null> {
-  const { start, end } = getCivilMonthPeriod(now);
-
   const profileRes = await db
     .from("profiles")
     .select("subscription_plan, subscription_status, trial_ends_at, voice_overage_cap_cents")
@@ -162,7 +180,8 @@ export async function resolveVoiceQuota(
   const entitlement = resolveVoiceEntitlement(profile, now);
   const overageCapCents = profile.voice_overage_cap_cents ?? SOLINE_DEFAULT_OVERAGE_CAP_CENTS;
 
-  const used = await countBillableCalls(db, artisanId, start, end);
+  const period = resolveQuotaPeriod(entitlement, profile.trial_ends_at, now);
+  const used = await countBillableCalls(db, artisanId, period.start, period.end);
 
   return buildVoiceQuotaSnapshot({
     artisanId,
@@ -171,5 +190,6 @@ export async function resolveVoiceQuota(
     callsUsed: used ?? Number.MAX_SAFE_INTEGER,
     overageCapCents: used == null ? 0 : overageCapCents,
     now,
+    period,
   });
 }
