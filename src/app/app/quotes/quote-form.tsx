@@ -18,7 +18,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { QuoteAiPrompt } from "@/components/quotes/quote-ai-prompt";
 import { QuoteMarginBanner } from "@/components/quotes/quote-margin-banner";
-import { buildQuotePdfTableLines, computeVatBreakdown, sumQuoteTotals } from "@/lib/billing/build-quote-pdf-lines";
+import {
+  buildLaborLinesPayload,
+  buildMaterialsPayload,
+  computeDocumentTotals,
+  computeMaterialsTotalCents,
+  computeSupplierDirectTotalCents,
+  hoursToMinutes,
+  laborLineCents,
+  lineTotalCents,
+  parseEurToCents,
+  type LaborLine,
+  type MaterialRow,
+  type SupplierMaterialRow,
+} from "@/lib/quotes/quote-form-totals";
 import { cn } from "@/lib/utils";
 
 type Service = {
@@ -26,20 +39,6 @@ type Service = {
   title: string;
   duration: number;
   price: number | null;
-};
-
-type MaterialRow = {
-  id: string;
-  label: string;
-  description: string;
-  unit: string;
-  /** "" = suit la TVA du devis ; sinon taux spécifique à la ligne ("20" | "10" | "5.5"). */
-  vatRate: string;
-  quantity: number;
-  unitPriceEur: string;
-  supplierUrl: string;
-  supplierSku: string;
-  excludeFromInvoice: boolean;
 };
 
 function emptyMaterialRow(): MaterialRow {
@@ -57,28 +56,6 @@ function emptyMaterialRow(): MaterialRow {
   };
 }
 
-type SupplierMaterialRow = {
-  id: string;
-  label: string;
-  quantity: number;
-  unitPriceEur: string;
-  supplierProductId: string | null;
-  supplierUrl: string | null;
-  supplierSku: string | null;
-  excludeFromInvoice: boolean;
-  similarity: number | null;
-  requestedName: string;
-  specifications: string | null;
-};
-
-function parseEurToCents(raw: string): number | null {
-  const cleaned = raw.trim().replace(",", ".").replace(/[^0-9.]/g, "");
-  if (!cleaned) return null;
-  const asNumber = Number(cleaned);
-  if (!Number.isFinite(asNumber)) return null;
-  return Math.round(asNumber * 100);
-}
-
 const eurFormatter = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 function formatEur(cents: number): string {
   return eurFormatter.format(cents / 100);
@@ -88,35 +65,12 @@ function formatVatRate(rate: string | number): string {
   return `${String(rate).replace(".", ",")} %`;
 }
 
-/** Total HT d'une ligne (quantité × prix unitaire), null si incomplet. */
-function lineTotalCents(quantity: number, unitPriceEur: string): number | null {
-  const unit = parseEurToCents(unitPriceEur);
-  if (unit == null || !Number.isFinite(quantity) || quantity <= 0) return null;
-  return Math.round(unit * quantity);
-}
-
 function sameVatRate(a: string | number, b: string | number): boolean {
   return Number(String(a).replace(",", ".")) === Number(String(b).replace(",", "."));
 }
 
 function uuid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-type LaborLine = {
-  id: string;
-  title: string;
-  /** Saisie libre « 2,5 » (heures). */
-  hours: string;
-  /** Prestation du catalogue d'origine, si la ligne en vient. */
-  serviceId: string | null;
-};
-
-function hoursToMinutes(raw: string): number {
-  const cleaned = raw.trim().replace(",", ".").replace(/[^0-9.]/g, "");
-  const hours = Number(cleaned);
-  if (!cleaned || !Number.isFinite(hours) || hours <= 0) return 0;
-  return Math.round(hours * 60);
 }
 
 function emptyLaborLine(): LaborLine {
@@ -349,13 +303,7 @@ export function QuoteForm({
     }
   }, [editQuote]);
 
-  const laborLinesPayload = React.useMemo(
-    () =>
-      laborLines
-        .map((l) => ({ title: l.title.trim(), minutes: hoursToMinutes(l.hours), service_id: l.serviceId }))
-        .filter((l) => l.title || l.minutes > 0),
-    [laborLines],
-  );
+  const laborLinesPayload = React.useMemo(() => buildLaborLinesPayload(laborLines), [laborLines]);
 
   const laborLinesInvalid = laborLinesPayload.some((l) => !l.title || l.minutes <= 0);
 
@@ -371,93 +319,57 @@ export function QuoteForm({
     return Math.round((laborRateCents * effectiveLaborMinutes) / 60);
   }, [laborRateCents, effectiveLaborMinutes]);
 
-  const materialsTotalCents = React.useMemo(() => {
-    const custom = materials.reduce((acc, m) => {
-      if (m.excludeFromInvoice) return acc;
-      const unit = parseEurToCents(m.unitPriceEur);
-      if (!m.label.trim() || unit == null || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
-      return acc + unit * m.quantity;
-    }, 0);
-    const supplierBillable = supplierMaterials.reduce((acc, m) => {
-      if (m.excludeFromInvoice) return acc;
-      const unit = parseEurToCents(m.unitPriceEur);
-      if (!m.label.trim() || unit == null || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
-      return acc + unit * m.quantity;
-    }, 0);
-    return custom + supplierBillable;
-  }, [materials, supplierMaterials]);
+  const materialsTotalCents = React.useMemo(
+    () => computeMaterialsTotalCents(materials, supplierMaterials),
+    [materials, supplierMaterials],
+  );
 
-  const supplierDirectTotalCents = React.useMemo(() => {
-    // Prix indicatif : une ligne en achat direct peut ne pas en avoir, elle compte alors pour 0.
-    const sum = (rows: { label: string; quantity: number; unitPriceEur: string; excludeFromInvoice: boolean }[]) =>
-      rows.reduce((acc, m) => {
-        if (!m.excludeFromInvoice) return acc;
-        const unit = parseEurToCents(m.unitPriceEur) ?? 0;
-        if (!m.label.trim() || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
-        return acc + unit * m.quantity;
-      }, 0);
-    return sum(supplierMaterials) + sum(materials);
-  }, [supplierMaterials, materials]);
+  const supplierDirectTotalCents = React.useMemo(
+    () => computeSupplierDirectTotalCents(materials, supplierMaterials),
+    [supplierMaterials, materials],
+  );
 
-  const allMaterialsJson = React.useMemo(() => {
-    const custom = materials
-      .filter((m) => m.label.trim())
-      .map((m) => ({
-        label: m.label.trim(),
-        quantity: m.quantity,
-        unit_price_eur: m.unitPriceEur,
-        vat_rate: m.vatRate || reducedVatRate,
-        supplier_url: m.supplierUrl.trim() || null,
-        supplier_sku: m.supplierSku.trim() || null,
-        is_supplier_catalog: false,
-        exclude_from_invoice: m.excludeFromInvoice,
-      }));
-    const supplier = supplierMaterials
-      .filter((m) => m.label.trim())
-      .map((m) => ({
-        label: m.label.trim(),
-        quantity: m.quantity,
-        unit_price_eur: m.unitPriceEur,
-        supplier_product_id: m.supplierProductId,
-        supplier_url: m.supplierUrl,
-        supplier_sku: m.supplierSku,
-        is_supplier_catalog: true,
-        exclude_from_invoice: m.excludeFromInvoice,
-        // Matériaux catalogue : toujours au taux du devis (auparavant 20 % forcé).
-        vat_rate: reducedVatRate,
-      }));
-    return [...custom, ...supplier];
-  }, [materials, supplierMaterials, reducedVatRate]);
+  const allMaterialsJson = React.useMemo(
+    () => buildMaterialsPayload(materials, supplierMaterials, reducedVatRate),
+    [materials, supplierMaterials, reducedVatRate],
+  );
 
   const grandTotalCents = laborTotalCents + materialsTotalCents;
 
   // Aperçu calculé avec EXACTEMENT les mêmes fonctions que le PDF envoyé au client.
-  const documentTotals = React.useMemo(() => {
-    const lines = buildQuotePdfTableLines({
-      services: laborLinesPayload.map((l) => ({
-        service_title: l.title,
-        duration_minutes: l.minutes,
-        line_total: null,
-        unit_price: null,
-      })),
-      materials: allMaterialsJson
-        .filter((m) => !m.exclude_from_invoice)
-        .map((m) => ({
-          label: m.label,
-          quantity: m.quantity,
-          unit_price: parseEurToCents(m.unit_price_eur) ?? 0,
-          line_total: null,
-          vat_rate: Number(String(m.vat_rate).replace(",", ".")),
-          exclude_from_invoice: false,
-        })),
-      laborTotalCents,
-      laborDurationMinutes: effectiveLaborMinutes,
-      laborRatePerHourCents: laborRateCents ?? 0,
-      defaultVatRate: Number(reducedVatRate.replace(",", ".")),
+  const documentTotals = React.useMemo(
+    () =>
+      computeDocumentTotals({
+        laborLinesPayload,
+        materialsPayload: allMaterialsJson,
+        laborTotalCents,
+        effectiveLaborMinutes,
+        laborRateCents,
+        reducedVatRate,
+      }),
+    [laborLinesPayload, allMaterialsJson, laborTotalCents, effectiveLaborMinutes, laborRateCents, reducedVatRate],
+  );
+
+  // Handlers stables (perf) : les lignes sont mémoïsées, taper dans une ligne
+  // ne re-rend plus toutes les autres (ni le catalogue fournisseurs).
+  const updateLaborLine = React.useCallback((id: string, patch: Partial<LaborLine>) => {
+    setLaborLines((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }, []);
+  const removeLaborLine = React.useCallback((id: string) => {
+    setLaborLines((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      return next.length ? next : [emptyLaborLine()];
     });
-    const vatBreakdown = computeVatBreakdown(lines);
-    return { vatBreakdown, ...sumQuoteTotals(vatBreakdown) };
-  }, [laborLinesPayload, allMaterialsJson, laborTotalCents, effectiveLaborMinutes, laborRateCents, reducedVatRate]);
+  }, []);
+  const updateSupplierMaterial = React.useCallback((id: string, patch: Partial<SupplierMaterialRow>) => {
+    setSupplierMaterials((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }, []);
+  const updateMaterial = React.useCallback((id: string, patch: Partial<MaterialRow>) => {
+    setMaterials((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }, []);
+  const removeMaterial = React.useCallback((id: string) => {
+    setMaterials((prev) => prev.filter((x) => x.id !== id));
+  }, []);
 
   // Main-d'œuvre facultative : un devis peut ne contenir que des fournitures.
   const laborRateMissing = effectiveLaborMinutes > 0 && (laborRateCents == null || laborRateCents <= 0);
@@ -706,65 +618,16 @@ export function QuoteForm({
             </div>
 
             <div className="space-y-3">
-              {laborLines.map((line) => {
-                const minutes = hoursToMinutes(line.hours);
-                const lineCents =
-                  laborRateCents != null && minutes > 0 ? Math.round((laborRateCents * minutes) / 60) : null;
-                return (
-                  <div key={line.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
-                    <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto] sm:items-end">
-                      <div className="space-y-2">
-                        <Label>Désignation</Label>
-                        <Input
-                          value={line.title}
-                          placeholder="Ex. Pose de carrelage salle de bain"
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setLaborLines((prev) => prev.map((x) => (x.id === line.id ? { ...x, title: v } : x)));
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Heures</Label>
-                        <Input
-                          inputMode="decimal"
-                          value={line.hours}
-                          placeholder="Ex. 2,5"
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setLaborLines((prev) => prev.map((x) => (x.id === line.id ? { ...x, hours: v } : x)));
-                          }}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() =>
-                          setLaborLines((prev) => {
-                            const next = prev.filter((x) => x.id !== line.id);
-                            return next.length ? next : [emptyLaborLine()];
-                          })
-                        }
-                      >
-                        <Trash2 className="mr-1 h-4 w-4" />
-                        Retirer
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg bg-background/70 px-3 py-2 text-sm">
-                      <span className="text-muted-foreground">
-                        {minutes > 0 && laborRateCents != null
-                          ? `${line.hours.trim()} h × ${formatEur(laborRateCents)}/h · TVA ${formatVatRate(reducedVatRate)}`
-                          : "Heures à renseigner"}
-                      </span>
-                      <span className="font-semibold tabular-nums">
-                        {lineCents == null ? "—" : `${formatEur(lineCents)} HT`}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+              {laborLines.map((line) => (
+                <LaborLineRow
+                  key={line.id}
+                  line={line}
+                  laborRateCents={laborRateCents}
+                  reducedVatRate={reducedVatRate}
+                  onChange={updateLaborLine}
+                  onRemove={removeLaborLine}
+                />
+              ))}
             </div>
 
             <Button
@@ -806,98 +669,12 @@ export function QuoteForm({
                 ) : (
                   <div className="space-y-4">
                     {supplierMaterials.map((m) => (
-                      <div
+                      <SupplierMaterialRowEditor
                         key={m.id}
-                        className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-medium">{m.label}</p>
-                            {m.requestedName !== m.label && (
-                              <p className="text-xs text-muted-foreground">Demandé : {m.requestedName}</p>
-                            )}
-                            {m.specifications && (
-                              <p className="text-xs text-muted-foreground">{m.specifications}</p>
-                            )}
-                            {m.similarity != null && (
-                              <p className="text-xs text-muted-foreground">
-                                Correspondance catalogue : {Math.round(m.similarity * 100)} %
-                              </p>
-                            )}
-                          </div>
-                          {m.supplierUrl && (
-                            <a
-                              href={m.supplierUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs font-medium text-primary underline-offset-4 hover:underline"
-                            >
-                              Voir chez le fournisseur
-                            </a>
-                          )}
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-[1fr_100px_140px] sm:items-end">
-                          <div className="space-y-1">
-                            <Label>Réf. fournisseur</Label>
-                            <p className="text-sm text-muted-foreground">{m.supplierSku ?? "—"}</p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Qté</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={m.quantity}
-                              onChange={(e) => {
-                                const v = Number(e.target.value);
-                                setSupplierMaterials((prev) =>
-                                  prev.map((x) =>
-                                    x.id === m.id ? { ...x, quantity: Number.isFinite(v) ? v : 1 } : x,
-                                  ),
-                                );
-                              }}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>
-                              Prix unit. (€){" "}
-                              {m.excludeFromInvoice && (
-                                <span className="font-normal text-muted-foreground">— facultatif</span>
-                              )}
-                            </Label>
-                            <Input
-                              inputMode="decimal"
-                              placeholder={m.excludeFromInvoice ? "Indicatif" : undefined}
-                              value={m.unitPriceEur}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setSupplierMaterials((prev) =>
-                                  prev.map((x) => (x.id === m.id ? { ...x, unitPriceEur: v } : x)),
-                                );
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <LineTotal
-                          quantity={m.quantity}
-                          unitPriceEur={m.unitPriceEur}
-                          excluded={m.excludeFromInvoice}
-                          vatLabel={formatVatRate(reducedVatRate)}
-                        />
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={m.excludeFromInvoice}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setSupplierMaterials((prev) =>
-                                prev.map((x) => (x.id === m.id ? { ...x, excludeFromInvoice: checked } : x)),
-                              );
-                            }}
-                            className="rounded border"
-                          />
-                          Achat direct fournisseur (exclure de ma facture)
-                        </label>
-                      </div>
+                        m={m}
+                        reducedVatRate={reducedVatRate}
+                        onChange={updateSupplierMaterial}
+                      />
                     ))}
                   </div>
                 )}
@@ -914,212 +691,14 @@ export function QuoteForm({
               <CardContent className="space-y-4">
                 <div className="space-y-4">
                   {materials.map((m) => (
-                    <div key={m.id} className="rounded-xl border bg-muted/20 p-4 space-y-4">
-                      <div className="grid gap-4 lg:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Désignation</Label>
-                          <WorkItemCombobox
-                            value={m.label}
-                            onSelect={(item) => {
-                              setMaterials((prev) =>
-                                prev.map((x) =>
-                                  x.id === m.id
-                                    ? {
-                                        ...x,
-                                        label: item.title,
-                                        description: item.description ?? "",
-                                        unit: item.unit,
-                                        unitPriceEur: String(item.unit_price_ht).replace(".", ","),
-                                        // 20 % = taux par défaut de la bibliothèque : on suit la TVA du devis.
-                                        vatRate:
-                                          Number(item.default_vat_rate) === 20 ? "" : String(item.default_vat_rate),
-                                      }
-                                    : x,
-                                ),
-                              );
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Description</Label>
-                          <Input
-                            value={m.description}
-                            placeholder="Détail technique (facultatif)"
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setMaterials((prev) =>
-                                prev.map((x) => (x.id === m.id ? { ...x, description: v } : x)),
-                              );
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                        <div className="space-y-2">
-                          <Label>Unité</Label>
-                          <select
-                            className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
-                            value={m.unit}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, unit: v } : x)));
-                            }}
-                          >
-                            {WORK_UNITS.map((u) => (
-                              <option key={u} value={u}>
-                                {u}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Qté</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={m.quantity}
-                            onChange={(e) => {
-                              const v = Number(e.target.value);
-                              setMaterials((prev) =>
-                                prev.map((x) => (x.id === m.id ? { ...x, quantity: Number.isFinite(v) ? v : 1 } : x)),
-                              );
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>
-                            Prix unit. HT (€){" "}
-                            {m.excludeFromInvoice && (
-                              <span className="font-normal text-muted-foreground">— facultatif</span>
-                            )}
-                          </Label>
-                          <Input
-                            inputMode="decimal"
-                            placeholder={m.excludeFromInvoice ? "Indicatif" : "Ex. 12,50"}
-                            value={m.unitPriceEur}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, unitPriceEur: v } : x)));
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>TVA</Label>
-                          <select
-                            className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
-                            value={m.vatRate}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setMaterials((prev) => prev.map((x) => (x.id === m.id ? { ...x, vatRate: v } : x)));
-                            }}
-                          >
-                            <option value="">Comme le devis ({formatVatRate(reducedVatRate)})</option>
-                            <option value="20">20 % (autre taux)</option>
-                            <option value="10">10 % (autre taux)</option>
-                            <option value="5.5">5,5 % (autre taux)</option>
-                          </select>
-                        </div>
-                        <div className="flex items-end">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            disabled={!m.label.trim()}
-                            onClick={async () => {
-                              const price = parseEurToCents(m.unitPriceEur);
-                              const res = await saveQuoteLineToLibrary({
-                                title: m.label.trim(),
-                                description: m.description.trim() || undefined,
-                                unit: m.unit,
-                                unit_price_ht: price != null ? price / 100 : 0,
-                                default_vat_rate: Number((m.vatRate || reducedVatRate).replace(",", ".")) || 20,
-                              });
-                              if (res.ok) toast.success("Ouvrage enregistré dans ta bibliothèque.");
-                              else toast.error("Enregistrement impossible.");
-                            }}
-                          >
-                            <BookMarked className="mr-1 size-4" />
-                            Bibliothèque
-                          </Button>
-                        </div>
-                      </div>
-
-                      <LineTotal
-                        quantity={m.quantity}
-                        unitPriceEur={m.unitPriceEur}
-                        excluded={m.excludeFromInvoice}
-                        vatLabel={formatVatRate(m.vatRate || reducedVatRate)}
-                        vatOverridden={!!m.vatRate && !sameVatRate(m.vatRate, reducedVatRate)}
-                      />
-
-                      <div className="space-y-3">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={m.excludeFromInvoice}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setMaterials((prev) =>
-                                prev.map((x) => (x.id === m.id ? { ...x, excludeFromInvoice: checked } : x)),
-                              );
-                            }}
-                            className="rounded border"
-                          />
-                          Achat direct fournisseur (exclure de ma facture)
-                        </label>
-
-                        {m.excludeFromInvoice && (
-                          <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
-                            <div className="space-y-2">
-                              <Label>Lien fournisseur</Label>
-                              <Input
-                                type="url"
-                                inputMode="url"
-                                placeholder="https://www.bricomarche.com/p/..."
-                                value={m.supplierUrl}
-                                onChange={(e) => {
-                                  const v = e.target.value;
-                                  setMaterials((prev) =>
-                                    prev.map((x) => (x.id === m.id ? { ...x, supplierUrl: v } : x)),
-                                  );
-                                }}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Référence</Label>
-                              <Input
-                                placeholder="Ex. 1234567"
-                                value={m.supplierSku}
-                                onChange={(e) => {
-                                  const v = e.target.value;
-                                  setMaterials((prev) =>
-                                    prev.map((x) => (x.id === m.id ? { ...x, supplierSku: v } : x)),
-                                  );
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className={cn("text-destructive hover:text-destructive")}
-                          onClick={() => {
-                            setMaterials((prev) => prev.filter((x) => x.id !== m.id));
-                          }}
-                          disabled={materials.length <= 1}
-                        >
-                          <Trash2 className="mr-1 h-4 w-4" />
-                          Retirer
-                        </Button>
-                      </div>
-                    </div>
+                    <MaterialRowEditor
+                      key={m.id}
+                      m={m}
+                      reducedVatRate={reducedVatRate}
+                      canRemove={materials.length > 1}
+                      onChange={updateMaterial}
+                      onRemove={removeMaterial}
+                    />
                   ))}
                 </div>
 
@@ -1444,3 +1023,329 @@ function LineTotal({
   );
 }
 
+
+/**
+ * Lignes mémoïsées (refacto latence, point 8) : une frappe dans une ligne ne
+ * re-rend que cette ligne et le bloc Total, plus tout le formulaire. Les
+ * calculs restent ceux de `lib/quotes/quote-form-totals` (mêmes fonctions
+ * que le PDF).
+ */
+const LaborLineRow = React.memo(function LaborLineRow({
+  line,
+  laborRateCents,
+  reducedVatRate,
+  onChange,
+  onRemove,
+}: {
+  line: LaborLine;
+  laborRateCents: number | null;
+  reducedVatRate: string;
+  onChange: (id: string, patch: Partial<LaborLine>) => void;
+  onRemove: (id: string) => void;
+}) {
+  const minutes = hoursToMinutes(line.hours);
+  const lineCents = laborLineCents(laborRateCents, minutes);
+  return (
+    <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+      <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto] sm:items-end">
+        <div className="space-y-2">
+          <Label>Désignation</Label>
+          <Input
+            value={line.title}
+            placeholder="Ex. Pose de carrelage salle de bain"
+            onChange={(e) => onChange(line.id, { title: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Heures</Label>
+          <Input
+            inputMode="decimal"
+            value={line.hours}
+            placeholder="Ex. 2,5"
+            onChange={(e) => onChange(line.id, { hours: e.target.value })}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive"
+          onClick={() => onRemove(line.id)}
+        >
+          <Trash2 className="mr-1 h-4 w-4" />
+          Retirer
+        </Button>
+      </div>
+      <div className="flex items-center justify-between rounded-lg bg-background/70 px-3 py-2 text-sm">
+        <span className="text-muted-foreground">
+          {minutes > 0 && laborRateCents != null
+            ? `${line.hours.trim()} h × ${formatEur(laborRateCents)}/h · TVA ${formatVatRate(reducedVatRate)}`
+            : "Heures à renseigner"}
+        </span>
+        <span className="font-semibold tabular-nums">{lineCents == null ? "—" : `${formatEur(lineCents)} HT`}</span>
+      </div>
+    </div>
+  );
+});
+
+const SupplierMaterialRowEditor = React.memo(function SupplierMaterialRowEditor({
+  m,
+  reducedVatRate,
+  onChange,
+}: {
+  m: SupplierMaterialRow;
+  reducedVatRate: string;
+  onChange: (id: string, patch: Partial<SupplierMaterialRow>) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-medium">{m.label}</p>
+          {m.requestedName !== m.label && <p className="text-xs text-muted-foreground">Demandé : {m.requestedName}</p>}
+          {m.specifications && <p className="text-xs text-muted-foreground">{m.specifications}</p>}
+          {m.similarity != null && (
+            <p className="text-xs text-muted-foreground">
+              Correspondance catalogue : {Math.round(m.similarity * 100)} %
+            </p>
+          )}
+        </div>
+        {m.supplierUrl && (
+          <a
+            href={m.supplierUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Voir chez le fournisseur
+          </a>
+        )}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-[1fr_100px_140px] sm:items-end">
+        <div className="space-y-1">
+          <Label>Réf. fournisseur</Label>
+          <p className="text-sm text-muted-foreground">{m.supplierSku ?? "—"}</p>
+        </div>
+        <div className="space-y-2">
+          <Label>Qté</Label>
+          <Input
+            type="number"
+            min={1}
+            value={m.quantity}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              onChange(m.id, { quantity: Number.isFinite(v) ? v : 1 });
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>
+            Prix unit. (€){" "}
+            {m.excludeFromInvoice && <span className="font-normal text-muted-foreground">— facultatif</span>}
+          </Label>
+          <Input
+            inputMode="decimal"
+            placeholder={m.excludeFromInvoice ? "Indicatif" : undefined}
+            value={m.unitPriceEur}
+            onChange={(e) => onChange(m.id, { unitPriceEur: e.target.value })}
+          />
+        </div>
+      </div>
+      <LineTotal
+        quantity={m.quantity}
+        unitPriceEur={m.unitPriceEur}
+        excluded={m.excludeFromInvoice}
+        vatLabel={formatVatRate(reducedVatRate)}
+      />
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={m.excludeFromInvoice}
+          onChange={(e) => onChange(m.id, { excludeFromInvoice: e.target.checked })}
+          className="rounded border"
+        />
+        Achat direct fournisseur (exclure de ma facture)
+      </label>
+    </div>
+  );
+});
+
+const MaterialRowEditor = React.memo(function MaterialRowEditor({
+  m,
+  reducedVatRate,
+  canRemove,
+  onChange,
+  onRemove,
+}: {
+  m: MaterialRow;
+  reducedVatRate: string;
+  canRemove: boolean;
+  onChange: (id: string, patch: Partial<MaterialRow>) => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Désignation</Label>
+          <WorkItemCombobox
+            value={m.label}
+            onSelect={(item) => {
+              onChange(m.id, {
+                label: item.title,
+                description: item.description ?? "",
+                unit: item.unit,
+                unitPriceEur: String(item.unit_price_ht).replace(".", ","),
+                // 20 % = taux par défaut de la bibliothèque : on suit la TVA du devis.
+                vatRate: Number(item.default_vat_rate) === 20 ? "" : String(item.default_vat_rate),
+              });
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Description</Label>
+          <Input
+            value={m.description}
+            placeholder="Détail technique (facultatif)"
+            onChange={(e) => onChange(m.id, { description: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="space-y-2">
+          <Label>Unité</Label>
+          <select
+            className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
+            value={m.unit}
+            onChange={(e) => onChange(m.id, { unit: e.target.value })}
+          >
+            {WORK_UNITS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label>Qté</Label>
+          <Input
+            type="number"
+            min={1}
+            step={1}
+            value={m.quantity}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              onChange(m.id, { quantity: Number.isFinite(v) ? v : 1 });
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>
+            Prix unit. HT (€){" "}
+            {m.excludeFromInvoice && <span className="font-normal text-muted-foreground">— facultatif</span>}
+          </Label>
+          <Input
+            inputMode="decimal"
+            placeholder={m.excludeFromInvoice ? "Indicatif" : "Ex. 12,50"}
+            value={m.unitPriceEur}
+            onChange={(e) => onChange(m.id, { unitPriceEur: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>TVA</Label>
+          <select
+            className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
+            value={m.vatRate}
+            onChange={(e) => onChange(m.id, { vatRate: e.target.value })}
+          >
+            <option value="">Comme le devis ({formatVatRate(reducedVatRate)})</option>
+            <option value="20">20 % (autre taux)</option>
+            <option value="10">10 % (autre taux)</option>
+            <option value="5.5">5,5 % (autre taux)</option>
+          </select>
+        </div>
+        <div className="flex items-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            disabled={!m.label.trim()}
+            onClick={async () => {
+              const price = parseEurToCents(m.unitPriceEur);
+              const res = await saveQuoteLineToLibrary({
+                title: m.label.trim(),
+                description: m.description.trim() || undefined,
+                unit: m.unit,
+                unit_price_ht: price != null ? price / 100 : 0,
+                default_vat_rate: Number((m.vatRate || reducedVatRate).replace(",", ".")) || 20,
+              });
+              if (res.ok) toast.success("Ouvrage enregistré dans ta bibliothèque.");
+              else toast.error("Enregistrement impossible.");
+            }}
+          >
+            <BookMarked className="mr-1 size-4" />
+            Bibliothèque
+          </Button>
+        </div>
+      </div>
+
+      <LineTotal
+        quantity={m.quantity}
+        unitPriceEur={m.unitPriceEur}
+        excluded={m.excludeFromInvoice}
+        vatLabel={formatVatRate(m.vatRate || reducedVatRate)}
+        vatOverridden={!!m.vatRate && !sameVatRate(m.vatRate, reducedVatRate)}
+      />
+
+      <div className="space-y-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={m.excludeFromInvoice}
+            onChange={(e) => onChange(m.id, { excludeFromInvoice: e.target.checked })}
+            className="rounded border"
+          />
+          Achat direct fournisseur (exclure de ma facture)
+        </label>
+
+        {m.excludeFromInvoice && (
+          <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
+            <div className="space-y-2">
+              <Label>Lien fournisseur</Label>
+              <Input
+                type="url"
+                inputMode="url"
+                placeholder="https://www.bricomarche.com/p/..."
+                value={m.supplierUrl}
+                onChange={(e) => onChange(m.id, { supplierUrl: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Référence</Label>
+              <Input
+                placeholder="Ex. 1234567"
+                value={m.supplierSku}
+                onChange={(e) => onChange(m.id, { supplierSku: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("text-destructive hover:text-destructive")}
+          onClick={() => onRemove(m.id)}
+          disabled={!canRemove}
+        >
+          <Trash2 className="mr-1 h-4 w-4" />
+          Retirer
+        </Button>
+      </div>
+    </div>
+  );
+});
