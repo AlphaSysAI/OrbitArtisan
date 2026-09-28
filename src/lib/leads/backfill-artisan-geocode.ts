@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { geocodeAddress } from "@/lib/geo/ban";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -5,8 +7,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * Si l’artisan a une adresse textuelle mais pas de coordonnées GPS, on géocode
  * côté serveur pour qu’il soit éligible au matching /estimation.
  */
-export async function backfillArtisanGeocode(profileId: string): Promise<boolean> {
-  const supabase = await createSupabaseServerClient();
+export async function backfillArtisanGeocode(
+  profileId: string,
+  /** Client à utiliser (ex. service role hors requête, via `after()`). Par défaut : session courante. */
+  client?: SupabaseClient,
+): Promise<boolean> {
+  const supabase = client ?? (await createSupabaseServerClient());
   const { data: profile } = await supabase
     .from("profiles")
     .select("address_line1, postal_code, city, latitude, longitude")

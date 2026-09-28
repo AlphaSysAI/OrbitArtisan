@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { ExternalLink } from "lucide-react";
 
 import { AppPageHeader } from "@/components/app/app-page-header";
@@ -18,7 +19,8 @@ import { buildEmbedSnippet } from "@/lib/leads/embed";
 import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 import { listStripeBillingEventsForProfile } from "@/lib/billing/stripe-billing-events";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 
@@ -87,10 +89,7 @@ export default async function ArtisanSettingsPage({
     canceled: typeof sp.canceled === "string" ? sp.canceled : undefined,
   };
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([getRequestSupabase(), getCurrentUser()]);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -110,75 +109,9 @@ export default async function ArtisanSettingsPage({
     longitude: null as number | null,
   };
 
-  if (profile?.id) {
-    await backfillArtisanGeocode(profile.id);
-
-    const contactRes = await supabase
-      .from("profiles")
-      .select("phone, address_line1, address_line2, postal_code, city, latitude, longitude")
-      .eq("id", profile.id)
-      .maybeSingle();
-    if (!contactRes.error && contactRes.data) {
-      contact = contactRes.data;
-    }
-  }
-
   // Colonne ajoutée par lead_qualification.sql : on reste tolérant si la
   // migration n'est pas encore passée.
   let leadMatchingEnabled = true;
-  if (profile?.id) {
-    const matchingRes = await supabase
-      .from("profiles")
-      .select("lead_matching_enabled")
-      .eq("id", profile.id)
-      .maybeSingle();
-    if (!matchingRes.error && matchingRes.data) {
-      leadMatchingEnabled = matchingRes.data.lead_matching_enabled ?? true;
-    }
-  }
-
-  const matchingReadiness = profile
-    ? getArtisanMatchingReadiness({
-        leadMatchingEnabled,
-        trade: profile.trade,
-        tradeCategory: profile.trade_category,
-        addressLine1: contact.address_line1,
-        postalCode: contact.postal_code,
-        city: contact.city,
-        latitude: contact.latitude,
-        longitude: contact.longitude,
-      })
-    : null;
-
-  const { data: services } = profile?.id
-    ? await supabase
-        .from("services")
-        .select("id, title, duration, price")
-        .eq("artisan_id", profile.id)
-        .order("title", { ascending: true })
-    : { data: [] as { id: string; title: string; duration: number; price: number | null }[] };
-
-  const { data: voiceNumber } = profile?.id
-    ? await supabase
-        .from("artisan_voice_numbers")
-        .select("phone_e164")
-        .eq("artisan_id", profile.id)
-        .maybeSingle()
-    : { data: null };
-
-  const profileInitial = profile ?? {
-    name: null,
-    first_name: null,
-    last_name: null,
-    business_name: "",
-    description: null,
-    logo_url: null,
-    slug: "",
-    accent_color: null as string | null,
-    labor_rate_per_hour: null as number | null,
-    trade_category: null as string | null,
-    trade: null as string | null,
-  };
 
   let legalInitial = {
     siren: null as string | null,
@@ -197,14 +130,88 @@ export default async function ArtisanSettingsPage({
     sales_terms_text: null as string | null,
   };
 
+  let subscriptionProfile = {
+    subscription_plan: "base" as string,
+    subscription_status: "trialing" as string,
+    trial_ends_at: null as string | null,
+    stripe_customer_id: null as string | null,
+    stripe_subscription_id: null as string | null,
+  };
+
+  let services: { id: string; title: string; duration: number; price: number | null }[] | null = [];
+  let voiceNumber: { phone_e164: unknown } | null = null;
+  let voiceQuota = null as Awaited<ReturnType<typeof resolveVoiceQuota>>;
+  let voiceAllowOverage = true;
+
   if (profile?.id) {
-    const legalRes = await supabase
-      .from("profiles")
-      .select(
-        "siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, default_retention_rate, auto_reminder_enabled, sales_terms_text",
-      )
-      .eq("id", profile.id)
-      .maybeSingle();
+    // Perf (refacto latence, point 9) : toutes les lectures indépendantes en
+    // une vague parallèle (avant : 8 requêtes en séquence + géocodage BAN
+    // bloquant à chaque visite).
+    const [contactRes, matchingRes, servicesRes, voiceNumberRes, legalRes, subscriptionRes, quota] =
+      await Promise.all([
+        supabase
+          .from("profiles")
+          .select("phone, address_line1, address_line2, postal_code, city, latitude, longitude")
+          .eq("id", profile.id)
+          .maybeSingle(),
+        supabase.from("profiles").select("lead_matching_enabled").eq("id", profile.id).maybeSingle(),
+        supabase
+          .from("services")
+          .select("id, title, duration, price")
+          .eq("artisan_id", profile.id)
+          .order("title", { ascending: true }),
+        supabase.from("artisan_voice_numbers").select("phone_e164").eq("artisan_id", profile.id).maybeSingle(),
+        supabase
+          .from("profiles")
+          .select(
+            "siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, default_retention_rate, auto_reminder_enabled, sales_terms_text",
+          )
+          .eq("id", profile.id)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select(
+            "subscription_plan, subscription_status, trial_ends_at, stripe_customer_id, stripe_subscription_id, voice_allow_overage",
+          )
+          .eq("id", profile.id)
+          .maybeSingle(),
+        resolveVoiceQuota(supabase, profile.id),
+      ]);
+
+    if (!contactRes.error && contactRes.data) {
+      contact = contactRes.data;
+    }
+
+    // Géocodage de rattrapage (anciens profils : adresse sans GPS) exécuté
+    // APRÈS la réponse : l'appel à l'API BAN ne bloque plus l'affichage. Les
+    // enregistrements d'adresse (réglages, onboarding) géocodent déjà.
+    const needsGeocode =
+      (contact.latitude == null || contact.longitude == null) &&
+      Boolean(contact.address_line1?.trim() || contact.postal_code?.trim() || contact.city?.trim());
+    if (needsGeocode) {
+      const profileId = profile.id;
+      const serviceClient = createSupabaseServiceRoleClient();
+      if (serviceClient) {
+        after(async () => {
+          try {
+            await backfillArtisanGeocode(profileId, serviceClient);
+          } catch (error) {
+            console.error("[reglages] geocode backfill failed", error);
+          }
+        });
+      } else {
+        // Sans clé service role (dev local) : comportement historique, bloquant.
+        await backfillArtisanGeocode(profileId);
+      }
+    }
+
+    if (!matchingRes.error && matchingRes.data) {
+      leadMatchingEnabled = matchingRes.data.lead_matching_enabled ?? true;
+    }
+
+    services = servicesRes.data;
+    voiceNumber = voiceNumberRes.data;
+
     if (legalRes.data) {
       legalInitial = {
         siren: legalRes.data.siren,
@@ -223,26 +230,7 @@ export default async function ArtisanSettingsPage({
         sales_terms_text: legalRes.data.sales_terms_text,
       };
     }
-  }
 
-  let subscriptionProfile = {
-    subscription_plan: "base" as string,
-    subscription_status: "trialing" as string,
-    trial_ends_at: null as string | null,
-    stripe_customer_id: null as string | null,
-    stripe_subscription_id: null as string | null,
-  };
-
-  let voiceQuota = null as Awaited<ReturnType<typeof resolveVoiceQuota>>;
-  let voiceAllowOverage = true;
-  if (profile?.id) {
-    const subscriptionRes = await supabase
-      .from("profiles")
-      .select(
-        "subscription_plan, subscription_status, trial_ends_at, stripe_customer_id, stripe_subscription_id, voice_allow_overage",
-      )
-      .eq("id", profile.id)
-      .maybeSingle();
     if (subscriptionRes.data) {
       subscriptionProfile = {
         subscription_plan: subscriptionRes.data.subscription_plan ?? "base",
@@ -254,8 +242,35 @@ export default async function ArtisanSettingsPage({
       voiceAllowOverage = subscriptionRes.data.voice_allow_overage ?? true;
     }
 
-    voiceQuota = await resolveVoiceQuota(supabase, profile.id);
+    voiceQuota = quota;
   }
+
+  const matchingReadiness = profile
+    ? getArtisanMatchingReadiness({
+        leadMatchingEnabled,
+        trade: profile.trade,
+        tradeCategory: profile.trade_category,
+        addressLine1: contact.address_line1,
+        postalCode: contact.postal_code,
+        city: contact.city,
+        latitude: contact.latitude,
+        longitude: contact.longitude,
+      })
+    : null;
+
+  const profileInitial = profile ?? {
+    name: null,
+    first_name: null,
+    last_name: null,
+    business_name: "",
+    description: null,
+    logo_url: null,
+    slug: "",
+    accent_color: null as string | null,
+    labor_rate_per_hour: null as number | null,
+    trade_category: null as string | null,
+    trade: null as string | null,
+  };
 
   const planId = subscriptionProfile.subscription_plan;
   const planIncludesVoice =
