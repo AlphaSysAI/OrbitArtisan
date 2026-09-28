@@ -38,3 +38,34 @@ export const getIsPlatformAdmin = cache(async (userId: string): Promise<boolean>
     .maybeSingle();
   return !!data?.user_id;
 });
+
+/**
+ * Colonnes du profil artisan nécessaires au shell `/app` (bandeau
+ * d'abonnement, gate numéro vocal). Une seule lecture de `profiles` par
+ * requête au lieu d'une par composant.
+ */
+const ARTISAN_SHELL_PROFILE_SELECT =
+  "id, subscription_status, subscription_plan, trial_ends_at, account_status, deleted_at, voice_number_assignment_pending_at";
+
+export type ArtisanShellProfile = {
+  id: string;
+  subscription_status: string | null;
+  subscription_plan: string | null;
+  trial_ends_at: string | null;
+  account_status: string | null;
+  deleted_at: string | null;
+  voice_number_assignment_pending_at: string | null;
+};
+
+/** Profil artisan du shell `/app`, ou null (non connecté / pas artisan). */
+export const getArtisanShellProfile = cache(async (): Promise<ArtisanShellProfile | null> => {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const supabase = await getRequestSupabase();
+  const { data } = await supabase
+    .from("profiles")
+    .select(ARTISAN_SHELL_PROFILE_SELECT)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return (data as ArtisanShellProfile | null) ?? null;
+});

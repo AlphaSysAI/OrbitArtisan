@@ -7,21 +7,10 @@ import {
   SUBSCRIPTION_STATUS_LABELS,
   type SubscriptionStatus,
 } from "@/lib/billing/subscription-access";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getArtisanShellProfile } from "@/lib/auth/session";
 
 export async function SubscriptionBanner() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("subscription_status, trial_ends_at, account_status, deleted_at")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
+  const profile = await getArtisanShellProfile();
   if (!profile) return null;
 
   const access = evaluateSubscriptionAccess(profile);
