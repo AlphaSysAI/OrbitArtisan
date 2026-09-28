@@ -3,7 +3,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 
 /**
  * Point audit pré-pilote (vague 4, hygiène) : le pattern
@@ -19,10 +19,7 @@ export type RequireArtisanUserResult =
 
 /** Étape 1 : vérifie la session, sans regarder le profil artisan. */
 export async function requireAuthenticatedUser(): Promise<RequireArtisanUserResult> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([getRequestSupabase(), getCurrentUser()]);
   if (!user) return { ok: false, error: "auth" };
   return { ok: true, supabase, userId: user.id, userEmail: user.email ?? null };
 }
