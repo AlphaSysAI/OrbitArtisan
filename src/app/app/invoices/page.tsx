@@ -168,9 +168,14 @@ export default async function InvoicesPage({
         title="Factures"
         description="Transforme un devis accepté en facture, puis suis tes paiements."
         action={
-          <a href="/api/invoices/export-accounting" className={buttonVariants({ variant: "outline", size: "lg" })}>
-            Export comptable (CSV)
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/app/invoices/envoi-comptable" className={buttonVariants({ size: "lg" })}>
+              Envoi comptable
+            </Link>
+            <a href="/api/invoices/export-accounting" className={buttonVariants({ variant: "outline", size: "lg" })}>
+              Export CSV
+            </a>
+          </div>
         }
       />
 

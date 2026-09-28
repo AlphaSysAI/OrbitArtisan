@@ -2,6 +2,7 @@ import "server-only";
 
 export type EmailAttachment = {
   filename: string;
+  /** Contenu encodé en base64. */
   content: string;
 };
 
@@ -11,6 +12,8 @@ export type SendEmailInput = {
   html: string;
   text?: string;
   from?: string;
+  cc?: string[];
+  replyTo?: string;
   attachments?: EmailAttachment[];
 };
 
@@ -43,6 +46,8 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     body: JSON.stringify({
       from,
       to: [input.to],
+      ...(input.cc?.length ? { cc: input.cc } : {}),
+      ...(input.replyTo ? { reply_to: input.replyTo } : {}),
       subject: input.subject,
       html: input.html,
       text: input.text,
