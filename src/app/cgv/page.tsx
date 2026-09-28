@@ -6,8 +6,11 @@ import { AMBASSADOR_PROGRAM } from "@/lib/billing/promo-program";
 import { TRIAL_DURATION_DAYS } from "@/lib/billing/subscription-access";
 import {
   formatPriceHtEur,
+  formatCentsHtEur,
   FORMAL_NOTICES_INCLUDED_PER_MONTH,
-  SOLINE_RECHARGE_PACKS,
+  SOLINE_BILLABLE_CALL_MIN_SECONDS,
+  SOLINE_CALL_MAX_DURATION_SECONDS,
+  SOLINE_TRIAL_CALLS_INCLUDED,
   SUBSCRIPTION_PLANS,
 } from "@/lib/billing/subscription-plans";
 import { LEGAL_PUBLISHER } from "@/lib/legal/site-legal-info";
@@ -69,8 +72,8 @@ export default function CgvPage() {
             <li key={plan.id}>
               <strong>Formule {plan.name}</strong> — {formatPriceHtEur(plan.priceMonthlyHtEur)} € HT par mois ou{" "}
               {formatPriceHtEur(plan.priceAnnualHtEur)} € HT par an :{" "}
-              {plan.solineMinutesIncluded > 0
-                ? `logiciel de gestion complet et secrétaire vocale Soline (${plan.solineMinutesIncluded} minutes d'appels incluses par mois civil, non reportables).`
+              {plan.solineCallsIncluded > 0
+                ? `logiciel de gestion complet et secrétaire vocale Soline (${plan.solineCallsIncluded} appels inclus par mois civil, non reportables ; au-delà, ${formatCentsHtEur(plan.solineOverageCallCents)} € HT par appel dans la limite du plafond choisi par l'Artisan).`
                 : "logiciel de gestion complet, sans secrétaire vocale Soline."}
             </li>
           ))}
@@ -91,23 +94,32 @@ export default function CgvPage() {
           l&apos;Artisan au tarif postal en vigueur, sans marge, et seulement après son acceptation expresse du
           surcoût avant chaque envoi.
         </p>
-        <p>Des recharges de minutes Soline peuvent être achetées depuis l&apos;espace artisan :</p>
-        <ul className="list-disc space-y-2 pl-5">
-          {SOLINE_RECHARGE_PACKS.map((pack) => (
-            <li key={pack.id}>
-              <strong>{pack.label}</strong> : {pack.priceHtEur} € HT — {pack.minutes} minutes d&apos;appels.
-            </li>
-          ))}
-        </ul>
+        <p>
+          <strong>Décompte des appels Soline.</strong> Un appel est décompté lorsqu&apos;il aboutit et dure au
+          moins {SOLINE_BILLABLE_CALL_MIN_SECONDS} secondes ; Soline conclut tout appel au plus tard au bout de{" "}
+          {SOLINE_CALL_MAX_DURATION_SECONDS / 60} minutes. Au-delà des appels inclus, chaque appel est facturé au
+          prix indiqué ci-dessus, dans la limite d&apos;un plafond mensuel que l&apos;Artisan fixe dans ses
+          réglages (0 € possible). Une fois ce plafond atteint, Soline continue de décrocher mais se limite à la
+          prise de message jusqu&apos;à la fin du mois civil. Le dépassement d&apos;un mois est facturé au début
+          du mois suivant, sur le moyen de paiement de l&apos;abonnement.
+        </p>
+        <p>
+          <strong>Rendez-vous pris par Soline.</strong> Soline propose uniquement des créneaux compris dans les
+          plages de visite définies par l&apos;Artisan. Chaque rendez-vous reste « à confirmer » jusqu&apos;à sa
+          validation par l&apos;Artisan ; sans validation sous 24 heures, il est annulé et le créneau libéré. Le
+          client est informé par SMS de la confirmation.
+        </p>
       </section>
 
       <section className="space-y-3">
         <h2 className={h2Class}>3. Essai gratuit</h2>
         <p>
           Tout nouveau compte artisan bénéficie d&apos;un essai gratuit de {TRIAL_DURATION_DAYS} jours, sans
-          carte bancaire, <strong>portant uniquement sur la formule Base</strong>. Les formules Pro et Premium
-          (secrétaire vocale Soline incluse) ne font l&apos;objet d&apos;aucune période d&apos;essai : elles sont
-          payantes dès leur souscription, qui peut intervenir à tout moment, y compris pendant l&apos;essai.
+          carte bancaire, <strong>sur la formule Pro</strong>, secrétaire vocale Soline comprise dans la limite
+          de {SOLINE_TRIAL_CALLS_INCLUDED} appels (sans dépassement possible ; au-delà, Soline prend uniquement
+          les messages). Le numéro Soline attribué pendant l&apos;essai est retiré à son terme si aucune
+          formule avec secrétaire vocale n&apos;est souscrite. Une formule payante peut être souscrite à tout
+          moment, y compris pendant l&apos;essai.
         </p>
         <p>
           À la fin de l&apos;essai, aucun prélèvement n&apos;est effectué et aucun abonnement n&apos;est souscrit
@@ -134,14 +146,14 @@ export default function CgvPage() {
         <p>
           <strong>Avantage.</strong> Remise de <strong>{AMBASSADOR_PROGRAM.discountPercent} %</strong> sur le prix
           HT des formules {eligiblePlanNames}, en paiement mensuel comme annuel, appliquée automatiquement lors
-          de la souscription. La remise ne s&apos;applique ni à la formule Base, ni aux recharges de minutes, ni
+          de la souscription. La remise ne s&apos;applique ni à la formule Essentiel, ni aux appels hors forfait, ni
           aux frais d&apos;affranchissement.
         </p>
         <p>
           <strong>Durée.</strong> La remise est conservée <strong>tant que l&apos;abonnement reste actif sans
           interruption</strong>, y compris en cas de passage de Pro à Premium (ou inversement) et en cas
           d&apos;évolution des tarifs, auquel cas le pourcentage de remise s&apos;applique au nouveau tarif. Elle
-          est sans effet pendant une éventuelle période en formule Base et s&apos;applique de nouveau en cas de
+          est sans effet pendant une éventuelle période en formule Essentiel et s&apos;applique de nouveau en cas de
           retour à Pro ou Premium au sein du même abonnement.
         </p>
         <p>
@@ -190,8 +202,8 @@ export default function CgvPage() {
         <h2 className={h2Class}>7. Paiement et facturation</h2>
         <p>
           Les paiements sont traités par Stripe. L&apos;abonnement est payable d&apos;avance, au début de chaque
-          période mensuelle ou annuelle. Les achats ponctuels (recharges de minutes, affranchissements acceptés)
-          sont payables à la commande.
+          période mensuelle ou annuelle. Les affranchissements acceptés sont payables à la commande ; les appels Soline hors forfait sont
+          facturés au début du mois suivant.
         </p>
         <p>
           Une facture est émise pour chaque paiement et mise à disposition dans l&apos;espace artisan (portail de

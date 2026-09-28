@@ -3,7 +3,7 @@ import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getPlanVoiceMinutes, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
 import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 
@@ -90,7 +90,6 @@ export async function syncProfileFromStripeSubscription(
 
   if (planId) {
     payload.subscription_plan = planId;
-    payload.voice_minutes_included = getPlanVoiceMinutes(planId);
   }
 
   if (status === "trialing" && trialEndsAt) {

@@ -302,10 +302,25 @@ function AppointmentRow({
         <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         {a.customer_name}
       </p>
-      <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-        <Mail className="h-3.5 w-3.5 shrink-0" />
-        {a.customer_email}
-      </p>
+      {a.customer_email ? (
+        <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+          <Mail className="h-3.5 w-3.5 shrink-0" />
+          {a.customer_email}
+        </p>
+      ) : null}
+      {a.source === "voice" ? (
+        <p className="mt-2 text-xs font-medium text-orange-700 dark:text-orange-300">
+          Pris par Soline au téléphone
+          {a.status === "pending" && a.expires_at
+            ? ` — à valider avant ${new Date(a.expires_at).toLocaleString("fr-FR", {
+                weekday: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}, sinon le créneau est libéré. Le client reçoit un SMS à la validation.`
+            : null}
+        </p>
+      ) : null}
+      {a.notes ? <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">{a.notes}</p> : null}
       {serviceTitle && <p className="mt-2 text-xs text-muted-foreground">Prestation : {serviceTitle}</p>}
 
       <div className="mt-3 flex flex-wrap gap-2">

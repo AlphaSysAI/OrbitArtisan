@@ -6,12 +6,13 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
 import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
+import { hasAnyVisitRange, parseVisitHours } from "@/lib/appointments/visit-hours";
 
 /**
  * Webhook d'initiation de conversation ElevenLabs (appels Twilio entrants).
  * Appelé AVANT que Soline ne décroche : fournit les variables dynamiques
  * utilisées dans le message d'accueil et le prompt de l'agent
- * ({{business_name}}, {{artisan_name}}, {{accepts_calls}}).
+ * ({{business_name}}, {{artisan_name}}, {{soline_mode}}, {{rdv_enabled}}…).
  *
  * Auth : en-tête `Authorization: Bearer <VOICE_AI_TOOL_SECRET>`, à déclarer comme
  * secret d'en-tête dans les réglages du webhook ElevenLabs.
@@ -36,9 +37,19 @@ const FALLBACK = {
   /** Ville de l'entreprise (zone d'intervention approximative). */
   artisan_zone: "non précisée",
   accepts_calls: "true",
+  /** « full » : qualification, devis, RDV. « message_only » : forfait/plafond atteint, message seul. */
+  soline_mode: "full",
+  /** « true » si l'artisan a ouvert des plages de visite : Soline peut proposer un RDV. */
+  rdv_enabled: "false",
 };
 
 const MAX_PRESTATIONS_CHARS = 600;
+
+function hasVisitHours(raw: unknown): boolean {
+  if (raw == null) return false;
+  const parsed = parseVisitHours(raw);
+  return parsed.ok && hasAnyVisitRange(parsed.value);
+}
 
 /** Tolère les variantes de saisie : guillemets, « Bearer », « Bearer: », espaces. */
 function normalizeSecret(raw: string | null | undefined): string {
@@ -118,7 +129,7 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<R
   const [{ data: profile }, { data: services }, quota] = await Promise.all([
     db
       .from("profiles")
-      .select("business_name, name, first_name, last_name, trade_category, trade, city")
+      .select("business_name, name, first_name, last_name, trade_category, trade, city, visit_hours")
       .eq("id", artisanId)
       .maybeSingle(),
     db.from("services").select("title").eq("artisan_id", artisanId).order("title", { ascending: true }).limit(40),
@@ -152,6 +163,9 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<R
     artisan_zone: (profile?.city as string | null)?.trim() || FALLBACK.artisan_zone,
     artisan_prenom: firstName || artisanName,
     artisan_nom: lastName || artisanName,
-    accepts_calls: quota && !quota.canAcceptCalls ? "false" : "true",
+    accepts_calls: "true",
+    soline_mode: quota?.mode ?? "message_only",
+    rdv_enabled:
+      quota?.mode === "full" && hasVisitHours(profile?.visit_hours) ? "true" : "false",
   };
 }

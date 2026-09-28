@@ -5,7 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type VoiceNumberPoolRow = {
   id: string;
   phone_e164: string;
-  status: "available" | "assigned" | "retired";
+  status: "available" | "assigned" | "quarantine" | "retired";
+  quarantine_until?: string | null;
   twilio_incoming_phone_sid: string | null;
   elevenlabs_ready: boolean;
   assigned_artisan_id: string | null;

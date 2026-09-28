@@ -183,7 +183,14 @@ export async function notifyVoiceIntake(
  */
 export async function notifyNewAppointment(
   supabase: SupabaseClient,
-  input: { artisanId: string; appointmentId: string; customerName: string; startTime: string },
+  input: {
+    artisanId: string;
+    appointmentId: string;
+    customerName: string;
+    startTime: string;
+    /** RDV pris par Soline : à valider sous 24 h, sinon le créneau est libéré. */
+    pendingValidation?: boolean;
+  },
 ) {
   const { data: profile } = await supabase
     .from("profiles")
@@ -194,31 +201,41 @@ export async function notifyNewAppointment(
   const userId = profile?.user_id as string | undefined;
   if (!userId) return;
 
-  const when = new Date(input.startTime).toLocaleString("fr-FR", {
+  const start = new Date(input.startTime);
+  const when = start.toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
     weekday: "short",
     day: "numeric",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(start);
 
   notifyUserActivity(userId, {
-    title: "Nouveau rendez-vous",
-    body: `${input.customerName} — ${when}`,
-    url: `${siteUrl}/app/rdv`,
+    title: input.pendingValidation ? "RDV pris par Soline — à valider" : "Nouveau rendez-vous",
+    body: input.pendingValidation
+      ? `${input.customerName} — ${when}. Sans validation sous 24 h, le créneau est libéré.`
+      : `${input.customerName} — ${when}`,
+    url: `${siteUrl}/app/rdv?date=${day}`,
     tag: `appointment-${input.appointmentId}`,
   });
 }
 
 /**
- * Alerte quota vocal épuisé (point audit pré-pilote, vague 4). Le seuil 80 % reste
- * un simple log serveur (voice-quota-alerts.ts) ; seul le seuil 100 % — celui qui
- * bloque effectivement l'agent vocal (sauf dépassement autorisé) — pousse une
- * notification à l'artisan, en réutilisant l'infra push existante.
+ * Alerte quota d'appels Soline : push à 80 % et à 100 % des appels inclus.
+ * À 100 %, précise ce qui se passe ensuite (dépassement facturé ou message seul).
  */
-export async function notifyVoiceQuotaExhausted(
+export async function notifyVoiceQuotaThreshold(
   supabase: SupabaseClient,
-  input: { artisanId: string; voiceMinutesIncluded: number },
+  input: {
+    artisanId: string;
+    threshold: "80" | "100";
+    callsIncluded: number;
+    isTrial: boolean;
+    overageCallCents: number;
+    overageCapCents: number;
+  },
 ) {
   const { data: profile } = await supabase
     .from("profiles")
@@ -229,10 +246,24 @@ export async function notifyVoiceQuotaExhausted(
   const userId = profile?.user_id as string | undefined;
   if (!userId) return;
 
+  const euros = (cents: number) =>
+    (cents / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  let body: string;
+  if (input.threshold === "80") {
+    body = `80 % de tes ${input.callsIncluded} appels Soline du mois sont utilisés.`;
+  } else if (input.isTrial) {
+    body = `Tes ${input.callsIncluded} appels d'essai sont utilisés : Soline prend désormais seulement les messages. Abonne-toi pour la réactiver entièrement.`;
+  } else if (input.overageCallCents > 0 && input.overageCapCents >= input.overageCallCents) {
+    body = `Forfait de ${input.callsIncluded} appels atteint. Soline continue : ${euros(input.overageCallCents)} € HT par appel, plafonné à ${euros(input.overageCapCents)} € ce mois-ci.`;
+  } else {
+    body = `Forfait de ${input.callsIncluded} appels atteint. Soline prend désormais seulement les messages (plafond de dépassement à 0 €).`;
+  }
+
   notifyUserActivity(userId, {
-    title: "Quota vocal atteint",
-    body: `Ton forfait de ${input.voiceMinutesIncluded} min/mois est épuisé — vérifie tes réglages.`,
+    title: input.threshold === "80" ? "Appels Soline : 80 %" : "Forfait d'appels Soline atteint",
+    body,
     url: `${siteUrl}/app/reglages?tab=vocal`,
-    tag: "voice-quota-100",
+    tag: `voice-quota-${input.threshold}`,
   });
 }

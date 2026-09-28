@@ -1,4 +1,4 @@
-/** Grille tarifaire Soline — source unique pour landing, CGU et billing. */
+/** Grille tarifaire Soline — source unique pour landing, CGV/CGU, quota vocal et billing. */
 
 export type SubscriptionPlanId = "base" | "pro" | "premium";
 export type BillingInterval = "monthly" | "annual";
@@ -8,7 +8,10 @@ export type SubscriptionPlan = {
   name: string;
   priceMonthlyHtEur: number;
   priceAnnualHtEur: number;
-  solineMinutesIncluded: number;
+  /** Appels Soline inclus par mois civil (0 = pas de secrétaire vocale). */
+  solineCallsIncluded: number;
+  /** Prix HT d'un appel au-delà du forfait, en centimes (0 = pas de voix). */
+  solineOverageCallCents: number;
   /** Mises en demeure LRAR incluses par mois (affranchissement offert). */
   formalNoticesIncluded: number;
   description: string;
@@ -16,12 +19,19 @@ export type SubscriptionPlan = {
   popular?: boolean;
 };
 
-export type SolineRechargePack = {
-  id: "60" | "150";
-  minutes: number;
-  priceHtEur: number;
-  label: string;
-};
+/**
+ * Règles de décompte d'un appel Soline :
+ * - seul un appel `completed` d'au moins 30 s compte (raccrochés, faux numéros exclus) ;
+ * - l'agent conclut l'appel au bout de 8 min (plafond de coût, réglé côté ElevenLabs).
+ */
+export const SOLINE_BILLABLE_CALL_MIN_SECONDS = 30;
+export const SOLINE_CALL_MAX_DURATION_SECONDS = 8 * 60;
+
+/** Plafond de dépassement par défaut (modifiable par l'artisan), en centimes HT. */
+export const SOLINE_DEFAULT_OVERAGE_CAP_CENTS = 3000;
+
+/** Appels inclus pendant l'essai gratuit (formule Pro), sans dépassement possible. */
+export const SOLINE_TRIAL_CALLS_INCLUDED = 10;
 
 /**
  * LRAR offertes par mois civil, identique sur tous les plans.
@@ -47,10 +57,11 @@ const SHARED_SAAS_FEATURES = [
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "base",
-    name: "Base",
-    priceMonthlyHtEur: 44.9,
-    priceAnnualHtEur: 449.9,
-    solineMinutesIncluded: 0,
+    name: "Essentiel",
+    priceMonthlyHtEur: 29,
+    priceAnnualHtEur: 290,
+    solineCallsIncluded: 0,
+    solineOverageCallCents: 0,
     formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,
     description: "Tout le SaaS BTP pour gérer votre activité au quotidien.",
     features: [...SHARED_SAAS_FEATURES, "Sans secrétaire vocale Soline"],
@@ -58,41 +69,49 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "pro",
     name: "Pro",
-    priceMonthlyHtEur: 69.9,
-    priceAnnualHtEur: 699.9,
-    solineMinutesIncluded: 60,
+    priceMonthlyHtEur: 69,
+    priceAnnualHtEur: 690,
+    solineCallsIncluded: 40,
+    solineOverageCallCents: 90,
     formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,
-    description: "Le plan Base avec Soline, votre secrétaire vocale IA.",
+    description: "Le plan Essentiel avec Soline, votre secrétaire vocale IA.",
     features: [
       ...SHARED_SAAS_FEATURES,
       "Soline — secrétaire vocale IA",
-      "60 min d'appels incluses / mois",
-      "Prise de RDV automatique",
+      "40 appels inclus / mois",
+      "Prise de RDV sur vos plages de visite (vous validez)",
+      "Au-delà : 0,90 € HT / appel, sans coupure",
     ],
     popular: true,
   },
   {
     id: "premium",
     name: "Premium",
-    priceMonthlyHtEur: 99.9,
-    priceAnnualHtEur: 999.9,
-    solineMinutesIncluded: 150,
+    priceMonthlyHtEur: 109,
+    priceAnnualHtEur: 1090,
+    solineCallsIncluded: 100,
+    solineOverageCallCents: 70,
     formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,
-    description: "Le plan Base avec plus de minutes Soline pour les artisans très sollicités.",
+    description: "Le plan Pro pour les artisans très sollicités au téléphone.",
     features: [
       ...SHARED_SAAS_FEATURES,
       "Soline — secrétaire vocale IA",
-      "150 min d'appels incluses / mois",
-      "Prise de RDV automatique",
+      "100 appels inclus / mois",
+      "Prise de RDV sur vos plages de visite (vous validez)",
+      "Au-delà : 0,70 € HT / appel, sans coupure",
     ],
   },
 ];
 
 export function formatPriceHtEur(amount: number): string {
   return amount.toLocaleString("fr-FR", {
-    minimumFractionDigits: 2,
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
     maximumFractionDigits: 2,
   });
+}
+
+export function formatCentsHtEur(cents: number): string {
+  return formatPriceHtEur(cents / 100);
 }
 
 export function getPlanPriceHtEur(planId: SubscriptionPlanId, interval: BillingInterval): number {
@@ -111,26 +130,20 @@ export function getPlanAnnualSavingsPercent(plan: SubscriptionPlan): number {
   return Math.round(((monthlyTotal - plan.priceAnnualHtEur) / monthlyTotal) * 100);
 }
 
-export function getPlanVoiceMinutes(planId: SubscriptionPlanId): number {
+export function getPlanVoiceCalls(planId: SubscriptionPlanId): number {
   const plan = SUBSCRIPTION_PLANS.find((item) => item.id === planId);
-  return plan?.solineMinutesIncluded ?? 0;
+  return plan?.solineCallsIncluded ?? 0;
+}
+
+export function getPlanOverageCallCents(planId: SubscriptionPlanId): number {
+  const plan = SUBSCRIPTION_PLANS.find((item) => item.id === planId);
+  return plan?.solineOverageCallCents ?? 0;
 }
 
 export function findSubscriptionPlan(planId: string): SubscriptionPlan | undefined {
   return SUBSCRIPTION_PLANS.find((item) => item.id === planId);
 }
 
-export const SOLINE_RECHARGE_PACKS: SolineRechargePack[] = [
-  {
-    id: "60",
-    minutes: 60,
-    priceHtEur: 39,
-    label: "Pack 60 min",
-  },
-  {
-    id: "150",
-    minutes: 150,
-    priceHtEur: 79,
-    label: "Pack 150 min",
-  },
-];
+export function isSubscriptionPlanId(value: string | null | undefined): value is SubscriptionPlanId {
+  return value === "base" || value === "pro" || value === "premium";
+}

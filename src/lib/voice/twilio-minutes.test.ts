@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { computeTwilioMinutesBilled, normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
-import { logVoiceQuotaThresholds } from "@/lib/voice/voice-quota-alerts";
+import { detectVoiceQuotaThreshold } from "@/lib/voice/voice-quota-alerts";
 
 describe("computeTwilioMinutesBilled", () => {
   it("décompte 1 minute pour 12 secondes (minute entamée)", () => {
@@ -38,11 +38,14 @@ describe("normalizePhoneE164", () => {
   });
 });
 
-describe("logVoiceQuotaThresholds", () => {
-  it("ne log pas si le quota inclus est nul", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    logVoiceQuotaThresholds({ artisanId: "a1", included: 0, previousUsed: 0, newUsed: 10 });
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
+describe("detectVoiceQuotaThreshold", () => {
+  it("aucun seuil si aucun appel inclus", () => {
+    expect(detectVoiceQuotaThreshold({ included: 0, previousUsed: 0, newUsed: 10 })).toBeNull();
+  });
+
+  it("détecte 80 % puis 100 %", () => {
+    expect(detectVoiceQuotaThreshold({ included: 40, previousUsed: 31, newUsed: 32 })).toBe("80");
+    expect(detectVoiceQuotaThreshold({ included: 40, previousUsed: 39, newUsed: 40 })).toBe("100");
+    expect(detectVoiceQuotaThreshold({ included: 40, previousUsed: 40, newUsed: 41 })).toBeNull();
   });
 });

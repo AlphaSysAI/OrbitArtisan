@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { writeAdminAuditLog } from "@/lib/admin/audit-log";
-import { getAdminTenant, getPlanVoiceMinutes, type ArtisanSubscriptionStatus } from "@/lib/admin/tenants";
+import { getAdminTenant, type ArtisanSubscriptionStatus } from "@/lib/admin/tenants";
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -97,7 +97,6 @@ export async function updateTenantPlan(
   const updatePayload: Record<string, unknown> = {
     subscription_plan: plan,
     subscription_status: status,
-    voice_minutes_included: getPlanVoiceMinutes(plan),
     updated_at: new Date().toISOString(),
   };
 

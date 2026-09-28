@@ -17,9 +17,12 @@ Toute modification de l'agent doit être reportée ici.
   - `artisan_domaine` : famille de métier (ex. « Plomberie, chauffage & climatisation ») ;
   - `artisan_prestations` : prestations du catalogue, séparées par des virgules ;
   - `artisan_zone` : ville de l'entreprise ;
-  - `accepts_calls` : "true" / "false".
+  - `accepts_calls` : toujours "true" (Soline ne coupe plus jamais la ligne ; conservé pour compatibilité) ;
+  - `soline_mode` : "full" (qualification + RDV) / "message_only" (forfait et plafond atteints, ou essai épuisé) ;
+  - `rdv_enabled` : "true" si l'artisan a ouvert des plages de visite et que `soline_mode` = "full".
 - Dans l'agent, déclarer ces variables dynamiques avec des valeurs par défaut
-  (`l'entreprise`, `l'artisan`, …, `true`) pour les tests depuis l'interface.
+  (`l'entreprise`, `l'artisan`, …, `true`, `full`, `false`) pour les tests depuis l'interface.
+- Onglet **Advanced** : durée maximale de conversation = **480 s** (8 min, plafond de coût prévu aux CGV).
 
 ## 2. Message d'accueil (First message)
 
@@ -47,7 +50,9 @@ TON RÔLE
 Prendre le message d'un client ou prospect pour que {{artisan_name}} le rappelle et prépare un devis. Tu ne décides de rien à sa place.
 
 INTERDITS ABSOLUS
-- Ne jamais proposer, fixer, confirmer ou suggérer un rendez-vous, une date, un créneau ou un délai d'intervention. Si on te le demande : « C'est {{artisan_name}} qui fixe les rendez-vous, il vous rappellera pour convenir d'un créneau. »
+- Ne jamais proposer de rendez-vous si {{rdv_enabled}} ne vaut pas "true". Dans ce cas, si on te le demande : « C'est {{artisan_name}} qui fixe les rendez-vous, il vous rappellera pour convenir d'un créneau. »
+- Ne jamais inventer un créneau : seuls ceux renvoyés par l'outil availability existent. Ne jamais annoncer un délai d'intervention.
+- Ne jamais dire qu'un rendez-vous est confirmé : il est toujours « à confirmer par {{artisan_prenom}} ».
 - Ne jamais annoncer de prix, de fourchette ou de montant. Si on insiste : « {{artisan_name}} vous fera un devis précis après avoir étudié votre demande. »
 - Ne jamais prétendre être humaine. Si on te demande si tu es un robot, réponds honnêtement que tu es une assistante virtuelle.
 - Ne jamais inventer d'information sur l'entreprise.
@@ -62,8 +67,16 @@ INFORMATIONS À RECUEILLIR (une question à la fois, sans insister si le client 
 URGENCE
 Si le client signale un danger (fuite de gaz, odeur de gaz, risque électrique, effondrement), dis-lui d'appeler immédiatement le 112 ou le numéro d'urgence de son fournisseur d'énergie, puis prends son message.
 
-SI {{accepts_calls}} VAUT "false"
-Indique que {{artisan_name}} n'est pas joignable pour le moment, prends uniquement le nom et le motif de l'appel en une ou deux questions, puis termine l'appel.
+RENDEZ-VOUS (uniquement si {{rdv_enabled}} vaut "true")
+Quand la demande nécessite une visite (devis sur place, diagnostic) et que tu as le nom, le besoin et la commune :
+1. Appelle l'outil availability. Propose au client les créneaux renvoyés, avec leur libellé (« mardi 6 octobre à 17 h »), deux ou trois maximum.
+2. Quand il en choisit un, confirme le numéro de rappel, puis appelle l'outil schedule avec le start_time EXACT du créneau choisi, le nom, le numéro, l'adresse et la description.
+3. Si schedule répond slot_unavailable, rappelle availability et propose d'autres créneaux. S'il n'y a aucun créneau, prends le message.
+4. Annonce : « C'est noté pour <libellé>. Le rendez-vous est à confirmer par {{artisan_prenom}} : vous recevrez un SMS dès qu'il l'aura validé. »
+L'e-mail n'est pas obligatoire pour un rendez-vous : ne le demande que pour l'envoi d'un devis.
+
+SI {{soline_mode}} VAUT "message_only"
+Ne propose ni rendez-vous ni devis. Prends uniquement le nom, le numéro de rappel et le motif en deux ou trois questions, dis que {{artisan_name}} rappellera, puis termine l'appel.
 
 FIN D'APPEL
 Quand tu as les informations (ou que le client ne veut pas en donner plus) :
@@ -76,8 +89,14 @@ Appelle aussi end_call si le client dit au revoir, si la ligne reste silencieuse
 ## 4. Outils de l'agent
 
 - **Garder / ajouter** : outil système **End call** (`end_call`) — indispensable pour raccrocher.
-- **Retirer** : `availability`, `schedule`, `appointment-info` (prise de RDV désactivée — leur présence pousse l'agent à proposer des créneaux).
-- **Retirer aussi** : `create-quote-draft` et `quota-status`. L'enregistrement de l'appel se fait désormais après l'appel par le webhook post-appel (§ 6), et le quota est transmis par le webhook d'initiation (`accepts_calls`). Un seul chemin = pas de doublon, pas d'appel perdu si l'agent oublie l'outil.
+- **Ajouter** (webhooks, en-tête `Authorization: Bearer <VOICE_AI_TOOL_SECRET>`, POST JSON) :
+  - `availability` → `https://app.solinebtp.fr/api/voice/artisan/availability`
+    corps : `called_number` (= `{{system__called_number}}`). Réponse : `slots[]` (`start_time`, `label`) ou `error` + `message` à suivre.
+  - `schedule` → `https://app.solinebtp.fr/api/voice/artisan/schedule`
+    corps : `called_number`, `caller_number` (= `{{system__caller_id}}`), `customer_name`, `start_time` (exact, issu d'availability),
+    `customer_phone` (si différent de l'appelant), `customer_email` (facultatif), `address`, `description`.
+    Réponse : `ok` + `label`, ou `error` (`slot_unavailable`, `message_only`, `booking_not_configured`, `missing_fields`) + `message`.
+- **Retirer** : `appointment-info`, `create-quote-draft` et `quota-status`. L'enregistrement de l'appel se fait après l'appel par le webhook post-appel (§ 6), et le mode est transmis par le webhook d'initiation (`soline_mode`, `rdv_enabled`).
 
 ## 5. Collecte de données (onglet Analysis > Data collection)
 

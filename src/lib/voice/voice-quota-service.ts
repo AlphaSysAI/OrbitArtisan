@@ -2,11 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { notifyVoiceQuotaExhausted } from "@/lib/notifications/notify-events";
+import { notifyVoiceQuotaThreshold } from "@/lib/notifications/notify-events";
 import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
-import { logVoiceQuotaThresholds } from "@/lib/voice/voice-quota-alerts";
+import { detectVoiceQuotaThreshold } from "@/lib/voice/voice-quota-alerts";
 
-import { resolveVoiceQuota, type VoiceQuotaSnapshot } from "./resolve-voice-quota";
+import { isBillableCall, resolveVoiceQuota, type VoiceQuotaSnapshot } from "./resolve-voice-quota";
 
 export type { VoiceQuotaSnapshot };
 
@@ -14,7 +14,7 @@ export type ProcessTwilioCallResult =
   | {
       ok: true;
       duplicate: boolean;
-      minutesBilled: number;
+      billable: boolean;
       quota: VoiceQuotaSnapshot;
     }
   | { ok: false; code: "artisan_not_found" | "rpc_failed"; message: string };
@@ -47,14 +47,11 @@ export async function resolveArtisanIdByCalledNumber(
   return data.artisan_id as string;
 }
 
-/** Alias historique — dérive le quota depuis voice_call_logs (mois civil). */
-export async function checkVoiceQuota(
-  db: SupabaseClient,
-  artisanId: string,
-): Promise<VoiceQuotaSnapshot | null> {
-  return resolveVoiceQuota(db, artisanId);
-}
-
+/**
+ * Journalise un statusCallback Twilio (idempotent) puis alerte l'artisan
+ * aux seuils 80 % / 100 % de ses appels inclus.
+ * `minutesBilled` est conservé pour le suivi du coût de revient (Twilio/ElevenLabs).
+ */
 export async function processTwilioCallStatus(
   db: SupabaseClient,
   input: {
@@ -65,7 +62,6 @@ export async function processTwilioCallStatus(
     status: string;
     durationSeconds: number;
     minutesBilled: number;
-    previousUsed?: number;
   },
 ): Promise<ProcessTwilioCallResult> {
   const { data, error } = await db.rpc("process_twilio_voice_call_status", {
@@ -85,32 +81,30 @@ export async function processTwilioCallStatus(
 
   const payload = (data ?? {}) as RpcProcessResult;
   const duplicate = Boolean(payload.duplicate);
-  const minutesBilled = duplicate ? 0 : Number(payload.minutes_billed ?? input.minutesBilled);
+  const billable = !duplicate && isBillableCall(input.status, input.durationSeconds);
 
   const quota = await resolveVoiceQuota(db, input.artisanId);
   if (!quota) {
     return { ok: false, code: "artisan_not_found", message: "profile missing" };
   }
 
-  if (!duplicate && minutesBilled > 0) {
-    const crossed = logVoiceQuotaThresholds({
-      artisanId: input.artisanId,
-      included: quota.voiceMinutesIncluded,
-      previousUsed: input.previousUsed ?? Math.max(0, quota.voiceMinutesUsed - minutesBilled),
-      newUsed: quota.voiceMinutesUsed,
+  if (billable) {
+    const threshold = detectVoiceQuotaThreshold({
+      included: quota.callsIncluded,
+      previousUsed: quota.callsUsed - 1,
+      newUsed: quota.callsUsed,
     });
-    if (crossed === "100") {
-      void notifyVoiceQuotaExhausted(db, {
+    if (threshold) {
+      void notifyVoiceQuotaThreshold(db, {
         artisanId: input.artisanId,
-        voiceMinutesIncluded: quota.voiceMinutesIncluded,
+        threshold,
+        callsIncluded: quota.callsIncluded,
+        isTrial: quota.isTrial,
+        overageCallCents: quota.overageCallCents,
+        overageCapCents: quota.overageCapCents,
       });
     }
   }
 
-  return {
-    ok: true,
-    duplicate,
-    minutesBilled,
-    quota,
-  };
+  return { ok: true, duplicate, billable, quota };
 }

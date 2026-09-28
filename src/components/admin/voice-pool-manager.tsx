@@ -30,6 +30,13 @@ function statusBadge(status: VoiceNumberPoolRow["status"]) {
       </Badge>
     );
   }
+  if (status === "quarantine") {
+    return (
+      <Badge variant="outline" className="border-amber-400/60 text-amber-700">
+        Quarantaine
+      </Badge>
+    );
+  }
   return <Badge variant="outline">Retiré</Badge>;
 }
 

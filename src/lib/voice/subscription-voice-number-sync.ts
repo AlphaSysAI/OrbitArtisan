@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
 import {
-  getPlanVoiceMinutes,
+  getPlanVoiceCalls,
   type SubscriptionPlanId,
 } from "@/lib/billing/subscription-plans";
 import { syncArtisanVoiceNumberMapping } from "@/lib/voice/voice-number-registry";
@@ -17,7 +17,7 @@ export type SubscriptionVoiceSyncInput = {
 
 export function planIncludesSolineVoice(planId: SubscriptionPlanId | null | undefined): boolean {
   if (!planId) return false;
-  return getPlanVoiceMinutes(planId) > 0;
+  return getPlanVoiceCalls(planId) > 0;
 }
 
 /** Abonnement actif, essai ou impayé : on conserve / peut attribuer un numéro. */

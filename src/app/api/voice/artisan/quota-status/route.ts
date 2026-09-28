@@ -8,7 +8,7 @@ import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
  * un nouvel appel pour l'artisan rattaché au numéro appelé.
  */
 export async function POST(request: Request) {
-  const resolved = await resolveVoiceContext(request, { enforceQuota: false });
+  const resolved = await resolveVoiceContext(request, { withQuota: false });
   if (!resolved.ok) return resolved.response;
 
   const { artisanId, db } = resolved.ctx;
@@ -19,12 +19,13 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    can_accept_calls: quota.canAcceptCalls,
-    allow_overage: quota.allowOverage,
-    included_minutes: quota.voiceMinutesIncluded,
-    used_minutes: quota.voiceMinutesUsed,
-    remaining_minutes: quota.remainingMinutes,
-    overdue_minutes: quota.voiceMinutesOverdue,
+    can_accept_calls: true,
+    mode: quota.mode,
+    is_trial: quota.isTrial,
+    included_calls: quota.callsIncluded,
+    used_calls: quota.callsUsed,
+    remaining_calls: quota.remainingCalls,
+    overage_calls: quota.overageCalls,
     period_start: quota.periodStart,
     period_end: quota.periodEnd,
   });

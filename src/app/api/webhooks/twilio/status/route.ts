@@ -3,11 +3,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { computeTwilioMinutesBilled, parseTwilioFormBody } from "@/lib/voice/twilio-minutes";
 import { resolveTwilioWebhookUrl, validateTwilioRequestSignature } from "@/lib/voice/twilio-signature";
-import {
-  checkVoiceQuota,
-  processTwilioCallStatus,
-  resolveArtisanIdByCalledNumber,
-} from "@/lib/voice/voice-quota-service";
+import { processTwilioCallStatus, resolveArtisanIdByCalledNumber } from "@/lib/voice/voice-quota-service";
 
 export const runtime = "nodejs";
 
@@ -65,9 +61,6 @@ export async function POST(request: Request) {
   const safeDurationSeconds = Number.isFinite(durationSeconds) && durationSeconds >= 0 ? durationSeconds : 0;
   const minutesBilled = computeTwilioMinutesBilled(callStatus, safeDurationSeconds);
 
-  const quotaBefore = await checkVoiceQuota(admin, artisanId);
-  const previousUsed = quotaBefore?.voiceMinutesUsed ?? 0;
-
   const result = await processTwilioCallStatus(admin, {
     artisanId,
     twilioCallSid: callSid,
@@ -76,7 +69,6 @@ export async function POST(request: Request) {
     status: callStatus,
     durationSeconds: safeDurationSeconds,
     minutesBilled,
-    previousUsed,
   });
 
   if (!result.ok) {
@@ -91,10 +83,12 @@ export async function POST(request: Request) {
       artisanId,
       callStatus,
       durationSeconds: safeDurationSeconds,
-      minutesBilled: result.minutesBilled,
-      used: result.quota.voiceMinutesUsed,
-      included: result.quota.voiceMinutesIncluded,
-      overdue: result.quota.voiceMinutesOverdue,
+      minutesBilled,
+      billable: result.billable,
+      callsUsed: result.quota.callsUsed,
+      callsIncluded: result.quota.callsIncluded,
+      overageCalls: result.quota.overageCalls,
+      mode: result.quota.mode,
     });
   }
 

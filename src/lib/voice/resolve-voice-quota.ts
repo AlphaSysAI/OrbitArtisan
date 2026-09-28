@@ -3,63 +3,139 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getCivilMonthPeriod } from "@/lib/billing/civil-month-period";
-import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
+import {
+  getPlanOverageCallCents,
+  getPlanVoiceCalls,
+  isSubscriptionPlanId,
+  SOLINE_BILLABLE_CALL_MIN_SECONDS,
+  SOLINE_DEFAULT_OVERAGE_CAP_CENTS,
+  SOLINE_TRIAL_CALLS_INCLUDED,
+} from "@/lib/billing/subscription-plans";
 
-import type { VoiceQuotaSnapshot } from "./voice-quota-types";
+import type { SolineVoiceMode, VoiceQuotaSnapshot } from "./voice-quota-types";
 
 export type { VoiceQuotaSnapshot };
 
-type ProfileQuotaRow = {
-  voice_minutes_included: number | null;
+export type VoiceEntitlementInput = {
   subscription_plan: string | null;
-  voice_allow_overage?: boolean | null;
+  subscription_status: string | null;
+  trial_ends_at: string | null;
 };
+
+export type VoiceEntitlement = {
+  isTrial: boolean;
+  callsIncluded: number;
+  overageCallCents: number;
+};
+
+/**
+ * Droits vocaux dérivés de la grille (source unique : subscription-plans.ts).
+ * Essai : forfait réduit, sans dépassement. Résilié / essai expiré : aucun appel inclus.
+ */
+export function resolveVoiceEntitlement(
+  profile: VoiceEntitlementInput,
+  now: Date = new Date(),
+): VoiceEntitlement {
+  const plan = profile.subscription_plan?.trim();
+  if (!isSubscriptionPlanId(plan)) return { isTrial: false, callsIncluded: 0, overageCallCents: 0 };
+
+  const status = profile.subscription_status ?? "trialing";
+  const planCalls = getPlanVoiceCalls(plan);
+
+  if (status === "trialing") {
+    const endsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at).getTime() : 0;
+    const trialActive = endsAt > now.getTime();
+    return {
+      isTrial: true,
+      callsIncluded: trialActive && planCalls > 0 ? SOLINE_TRIAL_CALLS_INCLUDED : 0,
+      overageCallCents: 0,
+    };
+  }
+
+  if (status === "active" || status === "past_due") {
+    return { isTrial: false, callsIncluded: planCalls, overageCallCents: getPlanOverageCallCents(plan) };
+  }
+
+  return { isTrial: false, callsIncluded: 0, overageCallCents: 0 };
+}
+
+/** Un appel compte s'il a abouti et duré au moins 30 s. */
+export function isBillableCall(status: string | null | undefined, durationSeconds: number | null | undefined): boolean {
+  return (
+    (status ?? "").trim().toLowerCase() === "completed" &&
+    Number(durationSeconds ?? 0) >= SOLINE_BILLABLE_CALL_MIN_SECONDS
+  );
+}
 
 export function buildVoiceQuotaSnapshot(input: {
   artisanId: string;
-  included: number;
-  used: number;
-  allowOverage: boolean;
+  entitlement: VoiceEntitlement;
+  callsUsed: number;
+  overageCapCents: number;
   now?: Date;
 }): VoiceQuotaSnapshot {
   const { start, end } = getCivilMonthPeriod(input.now);
-  const safeUsed = Math.max(0, input.used);
-  const included = Math.max(0, input.included);
-  const remainingMinutes = Math.max(0, included - safeUsed);
-  const voiceMinutesOverdue = Math.max(0, safeUsed - included);
-  const hasRemainingMinutes = remainingMinutes > 0;
+  const { isTrial, callsIncluded, overageCallCents } = input.entitlement;
+  const callsUsed = Math.max(0, Math.floor(input.callsUsed));
+  const cap = Math.max(0, Math.floor(input.overageCapCents));
+  const remainingCalls = Math.max(0, callsIncluded - callsUsed);
+  const overageCalls = Math.max(0, callsUsed - callsIncluded);
+  const overageAmountCents = Math.min(overageCalls * overageCallCents, cap);
 
-  const canAcceptCalls =
-    included <= 0 ? input.allowOverage : hasRemainingMinutes || input.allowOverage;
+  let mode: SolineVoiceMode = "full";
+  if (callsIncluded <= 0) {
+    mode = "message_only";
+  } else if (remainingCalls === 0) {
+    // Plus de forfait : on continue en mode complet tant que l'appel suivant tient sous le plafond.
+    const nextCallFits = overageCallCents > 0 && (overageCalls + 1) * overageCallCents <= cap;
+    mode = nextCallFits ? "full" : "message_only";
+  }
 
   return {
     artisanId: input.artisanId,
-    voiceMinutesIncluded: included,
-    voiceMinutesUsed: safeUsed,
-    voiceMinutesOverdue,
-    remainingMinutes,
-    hasRemainingMinutes,
-    allowOverage: input.allowOverage,
-    canAcceptCalls,
+    isTrial,
+    callsIncluded,
+    callsUsed,
+    remainingCalls,
+    overageCalls,
+    overageCallCents,
+    overageCapCents: cap,
+    overageAmountCents,
+    mode,
+    canAcceptCalls: true,
     periodStart: start.toISOString(),
     periodEnd: end.toISOString(),
   };
 }
 
-function resolveIncludedMinutes(profile: ProfileQuotaRow): number {
-  const fromColumn = Number(profile.voice_minutes_included ?? NaN);
-  if (Number.isFinite(fromColumn) && fromColumn >= 0) return fromColumn;
+type ProfileQuotaRow = VoiceEntitlementInput & { voice_overage_cap_cents?: number | null };
 
-  const plan = profile.subscription_plan?.trim();
-  if (plan === "base" || plan === "pro" || plan === "premium") {
-    return getPlanVoiceMinutes(plan);
+/** Nombre d'appels facturables d'un artisan sur une période [start, end[. */
+export async function countBillableCalls(
+  db: SupabaseClient,
+  artisanId: string,
+  start: Date,
+  end: Date,
+): Promise<number | null> {
+  const { count, error } = await db
+    .from("voice_call_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("artisan_id", artisanId)
+    .eq("status", "completed")
+    .gte("duration_seconds", SOLINE_BILLABLE_CALL_MIN_SECONDS)
+    .gte("created_at", start.toISOString())
+    .lt("created_at", end.toISOString());
+
+  if (error) {
+    console.error("[voice-quota] décompte voice_call_logs", { artisanId, message: error.message });
+    return null;
   }
-  return 0;
+  return count ?? 0;
 }
 
 /**
- * Dérive le quota vocal du mois civil à partir de voice_call_logs.
- * En cas d'erreur, considère le quota comme épuisé (refus prudent si blocage actif).
+ * Quota du mois civil, dérivé de voice_call_logs.
+ * En cas d'erreur de décompte : mode message seul (prudent, sans couper la ligne).
  */
 export async function resolveVoiceQuota(
   db: SupabaseClient,
@@ -70,7 +146,7 @@ export async function resolveVoiceQuota(
 
   const profileRes = await db
     .from("profiles")
-    .select("voice_minutes_included, subscription_plan, voice_allow_overage")
+    .select("subscription_plan, subscription_status, trial_ends_at, voice_overage_cap_cents")
     .eq("id", artisanId)
     .maybeSingle();
 
@@ -83,34 +159,17 @@ export async function resolveVoiceQuota(
   }
 
   const profile = profileRes.data as ProfileQuotaRow;
-  const included = resolveIncludedMinutes(profile);
-  const allowOverage = profile.voice_allow_overage ?? true;
+  const entitlement = resolveVoiceEntitlement(profile, now);
+  const overageCapCents = profile.voice_overage_cap_cents ?? SOLINE_DEFAULT_OVERAGE_CAP_CENTS;
 
-  const logsRes = await db
-    .from("voice_call_logs")
-    .select("minutes_billed")
-    .eq("artisan_id", artisanId)
-    .gte("created_at", start.toISOString())
-    .lt("created_at", end.toISOString());
+  const used = await countBillableCalls(db, artisanId, start, end);
 
-  if (logsRes.error) {
-    console.error("[voice-quota] décompte voice_call_logs", {
-      artisanId,
-      message: logsRes.error.message,
-    });
-    return buildVoiceQuotaSnapshot({
-      artisanId,
-      included,
-      used: included,
-      allowOverage,
-      now,
-    });
-  }
-
-  const used = (logsRes.data ?? []).reduce(
-    (sum, row) => sum + Math.max(0, Number(row.minutes_billed ?? 0)),
-    0,
-  );
-
-  return buildVoiceQuotaSnapshot({ artisanId, included, used, allowOverage, now });
+  return buildVoiceQuotaSnapshot({
+    artisanId,
+    entitlement,
+    // Décompte indisponible : on considère le forfait et le plafond consommés.
+    callsUsed: used ?? Number.MAX_SAFE_INTEGER,
+    overageCapCents: used == null ? 0 : overageCapCents,
+    now,
+  });
 }

@@ -6,33 +6,35 @@ import { toast } from "sonner";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { setVoiceAllowOverage } from "@/features/voice/actions";
-import {
-  formatVoiceQuotaMonthLabel,
-  type VoiceQuotaSnapshot,
-} from "@/lib/voice/voice-quota-types";
+import { setVoiceOverageCap } from "@/features/voice/actions";
+import { formatCentsHtEur } from "@/lib/billing/subscription-plans";
+import { formatVoiceQuotaMonthLabel, type VoiceQuotaSnapshot } from "@/lib/voice/voice-quota-types";
 
 export type VoiceQuotaSettingsFormProps = {
   quota: VoiceQuotaSnapshot;
-  allowOverage: boolean;
 };
 
-export function VoiceQuotaSettingsForm({ quota, allowOverage: initialAllowOverage }: VoiceQuotaSettingsFormProps) {
-  const [allowOverage, setAllowOverage] = useState(initialAllowOverage);
+export function VoiceQuotaSettingsForm({ quota }: VoiceQuotaSettingsFormProps) {
+  const [capEuros, setCapEuros] = useState(String(Math.round(quota.overageCapCents / 100)));
   const [pending, startTransition] = useTransition();
 
   const monthLabel = formatVoiceQuotaMonthLabel(quota.periodStart);
-  const hasVoicePlan = quota.voiceMinutesIncluded > 0;
+  const hasVoice = quota.callsIncluded > 0;
+  const canOverage = hasVoice && !quota.isTrial && quota.overageCallCents > 0;
+  const capNumber = Number(capEuros.replace(",", "."));
+  const maxOverageCalls =
+    canOverage && Number.isFinite(capNumber) ? Math.floor((capNumber * 100) / quota.overageCallCents) : 0;
 
   function handleSave() {
     startTransition(async () => {
-      const result = await setVoiceAllowOverage(allowOverage);
+      const result = await setVoiceOverageCap(Math.round(capNumber));
       if (!result.success) {
         toast.error(result.error);
         return;
       }
-      toast.success("Préférence de quota vocal enregistrée.");
+      toast.success("Plafond de dépassement enregistré.");
     });
   }
 
@@ -41,11 +43,13 @@ export function VoiceQuotaSettingsForm({ quota, allowOverage: initialAllowOverag
       <div className="flex items-start gap-3">
         <PhoneCall className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
         <div className="space-y-1">
-          <h3 className="font-display text-lg font-semibold tracking-tight">Quota Soline ce mois-ci</h3>
+          <h3 className="font-display text-lg font-semibold tracking-tight">
+            {quota.isTrial ? "Appels Soline de l'essai" : "Appels Soline ce mois-ci"}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            Compteur remis à zéro le{" "}
-            {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(quota.periodEnd))}.
-            Les minutes non utilisées ne se reportent pas au mois suivant.
+            Un appel compte s&apos;il dure au moins 30 secondes. Compteur remis à zéro le{" "}
+            {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(quota.periodEnd))}, sans
+            report des appels non utilisés.
           </p>
         </div>
       </div>
@@ -56,76 +60,61 @@ export function VoiceQuotaSettingsForm({ quota, allowOverage: initialAllowOverag
           <dd className="mt-1 font-semibold capitalize">{monthLabel}</dd>
         </div>
         <div className="rounded-xl border bg-card px-4 py-3">
-          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Consommé</dt>
+          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Appels</dt>
           <dd className="mt-1 font-semibold tabular-nums">
-            {hasVoicePlan
-              ? `${quota.voiceMinutesUsed} / ${quota.voiceMinutesIncluded} min`
-              : `${quota.voiceMinutesUsed} min (hors forfait)`}
+            {hasVoice ? `${quota.callsUsed} / ${quota.callsIncluded}` : "Non inclus"}
           </dd>
         </div>
         <div className="rounded-xl border bg-card px-4 py-3">
-          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Restant</dt>
+          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Hors forfait</dt>
           <dd className="mt-1 font-semibold tabular-nums">
-            {hasVoicePlan ? `${quota.remainingMinutes} min` : "—"}
+            {quota.overageCalls > 0
+              ? `${quota.overageCalls} appel${quota.overageCalls > 1 ? "s" : ""} · ${formatCentsHtEur(quota.overageAmountCents)} € HT`
+              : "—"}
           </dd>
         </div>
       </dl>
 
-      {quota.voiceMinutesOverdue > 0 ? (
-        <Alert>
-          <p className="text-sm">
-            <strong>{quota.voiceMinutesOverdue} minute{quota.voiceMinutesOverdue > 1 ? "s" : ""}</strong>{" "}
-            consommée{quota.voiceMinutesOverdue > 1 ? "s" : ""} au-delà du forfait ce mois-ci
-            {allowOverage ? " — refacturation sur votre prochaine facture d'abonnement." : "."}
-          </p>
-        </Alert>
-      ) : null}
-
-      <div className="space-y-3 rounded-xl border bg-card p-4">
-        <div className="flex items-start gap-3">
-          <input
-            id="voice-allow-overage"
-            type="checkbox"
-            className="mt-1 size-4 rounded border-input"
-            checked={allowOverage}
-            disabled={pending}
-            onChange={(event) => setAllowOverage(event.target.checked)}
-          />
-          <div className="space-y-2">
-            <Label htmlFor="voice-allow-overage" className="cursor-pointer text-base font-medium leading-snug">
-              Autoriser Soline à répondre au-delà de mon quota mensuel
-            </Label>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {allowOverage ? (
-                <>
-                  Coché : Soline continue de répondre même une fois votre forfait épuisé. Les minutes
-                  supplémentaires sont comptabilisées et refacturées sur votre prochaine facture
-                  d&apos;abonnement, au tarif en vigueur.
-                </>
-              ) : (
-                <>
-                  Décoché : une fois votre quota mensuel consommé, Soline refuse les nouveaux appels
-                  jusqu&apos;au début du mois suivant. Vos clients peuvent toujours vous joindre sur votre
-                  ligne directe.
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {!quota.canAcceptCalls ? (
+      {quota.mode === "message_only" && hasVoice ? (
         <Alert variant="destructive">
           <p className="text-sm">
-            Votre quota est épuisé et vous avez désactivé le dépassement : Soline ne répond plus aux
-            appels entrants pour le moment.
+            {quota.isTrial
+              ? "Vos appels d'essai sont utilisés : Soline décroche toujours mais prend seulement les messages. Abonnez-vous pour la réactiver entièrement."
+              : "Forfait et plafond atteints : Soline décroche toujours mais prend seulement les messages (pas de devis ni de RDV) jusqu'à la fin du mois. Relevez le plafond pour la réactiver entièrement."}
           </p>
         </Alert>
       ) : null}
 
-      <Button type="button" disabled={pending} onClick={handleSave}>
-        {pending ? "Enregistrement…" : "Enregistrer la préférence"}
-      </Button>
+      {canOverage ? (
+        <div className="space-y-3 rounded-xl border bg-card p-4">
+          <Label htmlFor="voice-overage-cap" className="text-base font-medium">
+            Plafond de dépassement mensuel
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="voice-overage-cap"
+              inputMode="numeric"
+              className="w-28 tabular-nums"
+              value={capEuros}
+              disabled={pending}
+              onChange={(event) => setCapEuros(event.target.value.replace(/[^\d]/g, "").slice(0, 4))}
+            />
+            <span className="text-sm text-muted-foreground">€ HT / mois</span>
+          </div>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Au-delà de vos {quota.callsIncluded} appels inclus, chaque appel est facturé{" "}
+            {formatCentsHtEur(quota.overageCallCents)} € HT, facturé début du mois suivant
+            {maxOverageCalls > 0
+              ? `, soit jusqu'à ${maxOverageCalls} appel${maxOverageCalls > 1 ? "s" : ""} supplémentaire${maxOverageCalls > 1 ? "s" : ""} avec ce plafond`
+              : ""}
+            . Une fois le plafond atteint, Soline ne coupe jamais la ligne : elle prend seulement les messages.
+            Mettez 0 pour ne jamais payer de dépassement.
+          </p>
+          <Button type="button" disabled={pending || !Number.isFinite(capNumber)} onClick={handleSave}>
+            {pending ? "Enregistrement…" : "Enregistrer le plafond"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

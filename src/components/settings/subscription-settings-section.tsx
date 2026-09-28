@@ -13,7 +13,7 @@ import type { StripeBillingEventRow } from "@/lib/billing/stripe-billing-events"
 import {
   findSubscriptionPlan,
   formatPriceHtEur,
-  getPlanVoiceMinutes,
+  getPlanVoiceCalls,
   type SubscriptionPlanId,
 } from "@/lib/billing/subscription-plans";
 import { isStripeConfigured } from "@/lib/stripe/server";
@@ -95,9 +95,9 @@ export function SubscriptionSettingsSection({
   const blockMessage = reasonMessage(alerts?.reason);
   const stripeEnabled = isStripeConfigured() && isStripeSubscriptionPaymentLinksConfigured();
   const canManageBilling = !!profile.stripe_customer_id?.trim();
-  const voiceIncluded = voiceQuota?.voiceMinutesIncluded ?? getPlanVoiceMinutes(planId);
-  const voiceUsed = voiceQuota?.voiceMinutesUsed ?? 0;
-  const voiceRemaining = voiceQuota?.remainingMinutes ?? Math.max(0, voiceIncluded - voiceUsed);
+  const voiceIncluded = voiceQuota?.callsIncluded ?? getPlanVoiceCalls(planId);
+  const voiceUsed = voiceQuota?.callsUsed ?? 0;
+  const voiceRemaining = voiceQuota?.remainingCalls ?? Math.max(0, voiceIncluded - voiceUsed);
 
   return (
     <section className="space-y-8">
@@ -173,7 +173,7 @@ export function SubscriptionSettingsSection({
           <div>
             <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Soline (ce mois)</dt>
             <dd className="mt-1 text-lg font-semibold tabular-nums">
-              {voiceIncluded > 0 ? `${voiceRemaining} / ${voiceIncluded} min` : "Non incluse"}
+              {voiceIncluded > 0 ? `${voiceRemaining} / ${voiceIncluded} appels` : "Non incluse"}
             </dd>
           </div>
         </dl>
@@ -261,7 +261,7 @@ export function SubscriptionSettingsSection({
 
       <SubscriptionPricingGrid
         variant="checkout"
-        currentPlanId={planId}
+        currentPlanId={status === "trialing" ? "" : planId}
         stripeEnabled={stripeEnabled}
         ambassadorDiscountPercent={
           (promoEnrollment?.status === "registered" || promoEnrollment?.status === "pending") &&

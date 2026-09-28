@@ -105,7 +105,7 @@ export default async function RegisterPage({
           <Card>
             <CardHeader>
               <CardTitle>Inscription</CardTitle>
-              <CardDescription>Quelques informations pour démarrer ton essai gratuit de 15 jours sur la formule Base.</CardDescription>
+              <CardDescription>Quelques informations pour démarrer ton essai gratuit de 15 jours sur la formule Pro, secrétaire vocale Soline comprise (10 appels).</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <RegisterForm next={next} prefillEmail={prefillEmail} inviteToken={inviteToken} promoCode={promoCode} />

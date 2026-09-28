@@ -87,20 +87,11 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
 
               <p className="mt-2 flex items-baseline gap-1">
                 <span
-                  className={cn(
-                    "text-4xl font-bold tabular-nums",
-                    props.variant === "landing" && "text-slate-900 blur-md select-none",
-                  )}
-                  aria-hidden={props.variant === "landing"}
+                  className={cn("text-4xl font-bold tabular-nums", props.variant === "landing" && "text-slate-900")}
                 >
                   {formatPriceHtEur(price)} €
                 </span>
-                <span
-                  className={cn(
-                    props.variant === "landing" ? "text-slate-500 blur-sm select-none" : "text-muted-foreground",
-                  )}
-                  aria-hidden={props.variant === "landing"}
-                >
+                <span className={cn(props.variant === "landing" ? "text-slate-500" : "text-muted-foreground")}>
                   {priceLabel}
                 </span>
               </p>
@@ -113,9 +104,7 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
                 </p>
               ) : null}
 
-              {props.variant === "landing" ? (
-                <p className="mt-1 text-xs font-medium text-slate-500">Tarifs communiqués prochainement</p>
-              ) : savingsPercent != null && savingsPercent > 0 ? (
+              {savingsPercent != null && savingsPercent > 0 ? (
                 <p className="mt-1 text-xs font-medium text-orange-600">
                   Économisez {savingsPercent} % vs mensuel
                 </p>

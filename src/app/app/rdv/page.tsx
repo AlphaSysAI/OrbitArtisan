@@ -72,7 +72,9 @@ export default async function ArtisanRdvPage({
 
   const { data: rows } = await supabase
     .from("appointments")
-    .select("id, start_time, status, customer_name, customer_email, customer_phone, service_id, customer_user_id")
+    .select(
+      "id, start_time, status, customer_name, customer_email, customer_phone, service_id, customer_user_id, source, notes, expires_at",
+    )
     .eq("artisan_id", profile.id)
     .order("start_time", { ascending: true });
 
@@ -107,6 +109,9 @@ export default async function ArtisanRdvPage({
     customer_email: r.customer_email,
     customer_phone: r.customer_phone ?? (r.customer_user_id ? phoneByUserId.get(r.customer_user_id) ?? null : null),
     service_id: r.service_id,
+    source: r.source ?? null,
+    notes: r.notes ?? null,
+    expires_at: r.expires_at ?? null,
   }));
 
   const contactsRes = await listArtisanContacts();

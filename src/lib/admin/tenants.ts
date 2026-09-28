@@ -1,6 +1,6 @@
 import "server-only";
 
-import { formatPriceHtEur, getPlanMrrCents, getPlanVoiceMinutes, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { formatPriceHtEur, getPlanMrrCents, getPlanVoiceCalls, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import {
   emptyAdminMetrics,
   getAdminDb,
@@ -343,4 +343,4 @@ export async function getAdminTenant(profileId: string): Promise<AdminTenantRow 
   };
 }
 
-export { getPlanVoiceMinutes };
+export { getPlanVoiceCalls };

@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { computeTrialEndsAt } from "@/lib/billing/subscription-access";
-import { getPlanVoiceMinutes } from "@/lib/billing/subscription-plans";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 import { seedDefaultWorkLibraryForUser } from "@/lib/work-library/actions";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
 
@@ -123,15 +124,15 @@ export async function upsertProfile(formData: FormData) {
     const { error } = await supabase.from("profiles").update(payload).eq("id", existing.id);
     if (error) return { ok: false as const, error: "update_failed" as const };
   } else {
-    const { error } = await supabase.from("profiles").insert({
+    // Essai gratuit sur la formule Pro : secrétaire vocale comprise (10 appels, sans dépassement).
+    const { data: inserted, error } = await supabase.from("profiles").insert({
       ...payload,
-      subscription_plan: "base",
+      subscription_plan: "pro",
       subscription_status: "trialing",
       trial_ends_at: computeTrialEndsAt(),
-      voice_minutes_included: getPlanVoiceMinutes("base"),
       registration_ip: registrationIp,
       registration_recorded_at: registrationRecordedAt,
-    });
+    }).select("id").single();
     if (error) {
       // Cas courant: contrainte d'unicité du slug
       if (String(error.message).toLowerCase().includes("slug")) {
@@ -141,6 +142,17 @@ export async function upsertProfile(formData: FormData) {
     }
 
     await seedDefaultWorkLibraryForUser(user.id);
+
+    // Numéro Soline de l'essai (pool) : jamais bloquant pour l'inscription.
+    const admin = createSupabaseServiceRoleClient();
+    const profileId = (inserted as { id?: string } | null)?.id;
+    if (admin && profileId) {
+      await syncSubscriptionVoiceNumber(admin, {
+        profileId,
+        planId: "pro",
+        subscriptionStatus: "trialing",
+      }).catch((err) => console.error("[profile] numéro Soline d'essai", err));
+    }
   }
 
   revalidatePath("/app");

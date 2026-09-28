@@ -85,7 +85,7 @@ export function AdminTenantVoiceCard({
 function voiceAssignErrorMessage(error: string): string {
   switch (error) {
     case "plan_without_voice":
-      return "Ce compte est en formule Base : passez-le en Pro ou Premium (bloc Abonnement) — le numéro sera attribué automatiquement.";
+      return "Ce compte est en formule Essentiel : passez-le en Pro ou Premium (bloc Abonnement) — le numéro sera attribué automatiquement.";
     case "subscription_inactive":
       return "Abonnement résilié : réactivez-le (statut actif ou essai) avant d'attribuer un numéro.";
     case "pool_empty":

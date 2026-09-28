@@ -11,6 +11,8 @@ import { SubscriptionSettingsSection } from "@/components/settings/subscription-
 import { getAmbassadorProgramStatus, getPromoEnrollment } from "@/lib/billing/promo-enrollment";
 import { VoiceSolineNumberSection } from "@/components/settings/voice-soline-number-section";
 import { VoiceQuotaSettingsForm } from "@/components/settings/voice-quota-settings-form";
+import { VisitHoursSettingsForm } from "@/components/settings/visit-hours-settings-form";
+import { parseVisitHours, type VisitHours } from "@/lib/appointments/visit-hours";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { backfillArtisanGeocode } from "@/lib/leads/backfill-artisan-geocode";
@@ -143,7 +145,8 @@ export default async function ArtisanSettingsPage({
   let services: { id: string; title: string; duration: number; price: number | null }[] | null = [];
   let voiceNumber: { phone_e164: unknown } | null = null;
   let voiceQuota = null as Awaited<ReturnType<typeof resolveVoiceQuota>>;
-  let voiceAllowOverage = true;
+  let visitHours: VisitHours | null = null;
+  let visitDurationMinutes = 60;
 
   if (profile?.id) {
     // Perf (refacto latence, point 9) : toutes les lectures indépendantes en
@@ -173,7 +176,7 @@ export default async function ArtisanSettingsPage({
         supabase
           .from("profiles")
           .select(
-            "subscription_plan, subscription_status, trial_ends_at, stripe_customer_id, stripe_subscription_id, voice_allow_overage",
+            "subscription_plan, subscription_status, trial_ends_at, stripe_customer_id, stripe_subscription_id, visit_hours, visit_duration_minutes",
           )
           .eq("id", profile.id)
           .maybeSingle(),
@@ -241,7 +244,10 @@ export default async function ArtisanSettingsPage({
         stripe_customer_id: subscriptionRes.data.stripe_customer_id,
         stripe_subscription_id: subscriptionRes.data.stripe_subscription_id,
       };
-      voiceAllowOverage = subscriptionRes.data.voice_allow_overage ?? true;
+      const parsedHours =
+        subscriptionRes.data.visit_hours == null ? null : parseVisitHours(subscriptionRes.data.visit_hours);
+      visitHours = parsedHours?.ok ? parsedHours.value : null;
+      visitDurationMinutes = Number(subscriptionRes.data.visit_duration_minutes ?? 60) || 60;
     }
 
     voiceQuota = quota;
@@ -493,10 +499,11 @@ export default async function ArtisanSettingsPage({
                     Booster mon compte
                   </Link>
                 </div>
-                {voiceQuota ? (
-                  <VoiceQuotaSettingsForm
-                    quota={voiceQuota}
-                    allowOverage={voiceAllowOverage}
+                {voiceQuota ? <VoiceQuotaSettingsForm quota={voiceQuota} /> : null}
+                {planIncludesVoice ? (
+                  <VisitHoursSettingsForm
+                    initialHours={visitHours}
+                    initialDurationMinutes={visitDurationMinutes}
                   />
                 ) : null}
                 <VoiceSolineNumberSection

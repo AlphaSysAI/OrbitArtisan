@@ -73,7 +73,7 @@ export default function CguPage() {
           .
         </p>
         <p>
-          Un essai gratuit de la formule Base peut être proposé lors de l&apos;inscription, sans carte bancaire, pour une durée
+          Un essai gratuit de la formule Pro (secrétaire vocale Soline comprise, nombre d&apos;appels limité) peut être proposé lors de l&apos;inscription, sans carte bancaire, pour une durée
           limitée et selon les conditions affichées au moment de la création du compte.
         </p>
       </section>

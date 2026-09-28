@@ -1,72 +1,97 @@
 import { describe, expect, it } from "vitest";
 
-import { buildVoiceQuotaSnapshot } from "./resolve-voice-quota";
+import { buildVoiceQuotaSnapshot, isBillableCall, resolveVoiceEntitlement } from "./resolve-voice-quota";
 
 const MID_MONTH = new Date("2026-09-11T12:00:00.000Z");
+const PRO = { isTrial: false, callsIncluded: 40, overageCallCents: 90 };
+
+describe("resolveVoiceEntitlement", () => {
+  it("Pro actif : 40 appels, 0,90 € hors forfait", () => {
+    expect(
+      resolveVoiceEntitlement({ subscription_plan: "pro", subscription_status: "active", trial_ends_at: null }),
+    ).toEqual(PRO);
+  });
+
+  it("essai Pro en cours : 10 appels, aucun dépassement", () => {
+    expect(
+      resolveVoiceEntitlement(
+        { subscription_plan: "pro", subscription_status: "trialing", trial_ends_at: "2026-09-20T00:00:00.000Z" },
+        MID_MONTH,
+      ),
+    ).toEqual({ isTrial: true, callsIncluded: 10, overageCallCents: 0 });
+  });
+
+  it("essai expiré ou Essentiel : aucun appel", () => {
+    expect(
+      resolveVoiceEntitlement(
+        { subscription_plan: "pro", subscription_status: "trialing", trial_ends_at: "2026-09-01T00:00:00.000Z" },
+        MID_MONTH,
+      ).callsIncluded,
+    ).toBe(0);
+    expect(
+      resolveVoiceEntitlement({ subscription_plan: "base", subscription_status: "active", trial_ends_at: null })
+        .callsIncluded,
+    ).toBe(0);
+  });
+});
+
+describe("isBillableCall", () => {
+  it("ne compte que les appels aboutis d'au moins 30 s", () => {
+    expect(isBillableCall("completed", 30)).toBe(true);
+    expect(isBillableCall("completed", 29)).toBe(false);
+    expect(isBillableCall("no-answer", 120)).toBe(false);
+  });
+});
 
 describe("buildVoiceQuotaSnapshot", () => {
-  it("laisse passer tant qu'il reste du forfait", () => {
-    const quota = buildVoiceQuotaSnapshot({
-      artisanId: "a1",
-      included: 60,
-      used: 30,
-      allowOverage: false,
-      now: MID_MONTH,
-    });
-
-    expect(quota.remainingMinutes).toBe(30);
-    expect(quota.canAcceptCalls).toBe(true);
+  it("mode complet tant qu'il reste des appels", () => {
+    const q = buildVoiceQuotaSnapshot({ artisanId: "a1", entitlement: PRO, callsUsed: 12, overageCapCents: 3000, now: MID_MONTH });
+    expect(q.remainingCalls).toBe(28);
+    expect(q.mode).toBe("full");
+    expect(q.canAcceptCalls).toBe(true);
   });
 
-  it("bloque au-delà du quota si le dépassement est désactivé", () => {
-    const quota = buildVoiceQuotaSnapshot({
-      artisanId: "a1",
-      included: 60,
-      used: 60,
-      allowOverage: false,
-      now: MID_MONTH,
-    });
-
-    expect(quota.remainingMinutes).toBe(0);
-    expect(quota.voiceMinutesOverdue).toBe(0);
-    expect(quota.canAcceptCalls).toBe(false);
+  it("dépassement facturé tant que l'appel suivant tient sous le plafond", () => {
+    const q = buildVoiceQuotaSnapshot({ artisanId: "a1", entitlement: PRO, callsUsed: 72, overageCapCents: 3000, now: MID_MONTH });
+    expect(q.overageCalls).toBe(32);
+    expect(q.overageAmountCents).toBe(2880);
+    expect(q.mode).toBe("full");
   });
 
-  it("autorise le dépassement refacturable si l'artisan l'a choisi", () => {
-    const quota = buildVoiceQuotaSnapshot({
+  it("passe en message seul au plafond, sans jamais couper la ligne", () => {
+    const q = buildVoiceQuotaSnapshot({ artisanId: "a1", entitlement: PRO, callsUsed: 73, overageCapCents: 3000, now: MID_MONTH });
+    expect(q.overageAmountCents).toBe(2970);
+    expect(q.mode).toBe("message_only");
+    expect(q.canAcceptCalls).toBe(true);
+  });
+
+  it("plafond à 0 : message seul dès le forfait consommé", () => {
+    const q = buildVoiceQuotaSnapshot({ artisanId: "a1", entitlement: PRO, callsUsed: 40, overageCapCents: 0, now: MID_MONTH });
+    expect(q.mode).toBe("message_only");
+    expect(q.overageAmountCents).toBe(0);
+  });
+
+  it("essai : message seul après 10 appels, rien de facturé", () => {
+    const q = buildVoiceQuotaSnapshot({
       artisanId: "a1",
-      included: 60,
-      used: 72,
-      allowOverage: true,
+      entitlement: { isTrial: true, callsIncluded: 10, overageCallCents: 0 },
+      callsUsed: 11,
+      overageCapCents: 3000,
       now: MID_MONTH,
     });
-
-    expect(quota.voiceMinutesOverdue).toBe(12);
-    expect(quota.canAcceptCalls).toBe(true);
+    expect(q.mode).toBe("message_only");
+    expect(q.overageAmountCents).toBe(0);
   });
 
   it("redémarre le compteur au mois suivant", () => {
-    const october = buildVoiceQuotaSnapshot({
+    const q = buildVoiceQuotaSnapshot({
       artisanId: "a1",
-      included: 60,
-      used: 0,
-      allowOverage: true,
+      entitlement: PRO,
+      callsUsed: 0,
+      overageCapCents: 3000,
       now: new Date("2026-10-02T09:00:00.000Z"),
     });
-
-    expect(october.periodStart).toBe("2026-10-01T00:00:00.000Z");
-    expect(october.remainingMinutes).toBe(60);
-  });
-
-  it("bloque le plan Base sans forfait si le dépassement est désactivé", () => {
-    const quota = buildVoiceQuotaSnapshot({
-      artisanId: "a1",
-      included: 0,
-      used: 0,
-      allowOverage: false,
-      now: MID_MONTH,
-    });
-
-    expect(quota.canAcceptCalls).toBe(false);
+    expect(q.periodStart).toBe("2026-10-01T00:00:00.000Z");
+    expect(q.remainingCalls).toBe(40);
   });
 });

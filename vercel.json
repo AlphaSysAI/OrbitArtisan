@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/voice-pool-refill",
       "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/soline-billing",
+      "schedule": "15 5 * * *"
     }
   ]
 }

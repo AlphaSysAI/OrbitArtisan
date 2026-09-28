@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
+import { sendVoiceAppointmentConfirmationSms } from "@/lib/appointments/voice-booking";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export type ArtisanAppointment = {
@@ -10,9 +11,12 @@ export type ArtisanAppointment = {
   start_time: string;
   status: "pending" | "confirmed" | "cancelled";
   customer_name: string;
-  customer_email: string;
+  customer_email: string | null;
   customer_phone: string | null;
   service_id: string | null;
+  source?: "artisan" | "vitrine" | "voice" | null;
+  notes?: string | null;
+  expires_at?: string | null;
 };
 
 type SetStatusResult = { ok: true } | { ok: false; error: "auth" | "missing_profile" | "not_found" | "update_failed" };
@@ -42,7 +46,17 @@ async function setAppointmentStatus(
 }
 
 export async function confirmAppointment(appointmentId: string) {
-  return setAppointmentStatus(appointmentId, "confirmed");
+  const result = await setAppointmentStatus(appointmentId, "confirmed");
+  if (result.ok) {
+    // RDV pris par Soline : SMS de confirmation au client (une seule fois, jamais bloquant).
+    const admin = createSupabaseServiceRoleClient();
+    if (admin) {
+      await sendVoiceAppointmentConfirmationSms(admin, appointmentId).catch((error) =>
+        console.error("[rdv] SMS confirmation", error instanceof Error ? error.message : error),
+      );
+    }
+  }
+  return result;
 }
 
 export async function cancelAppointment(appointmentId: string) {
@@ -125,6 +139,7 @@ export async function createArtisanAppointment(
       service_id: input.serviceId || null,
       start_time: startDate.toISOString(),
       status: input.status ?? "confirmed",
+      source: "artisan",
     })
     .select("id, start_time")
     .single();

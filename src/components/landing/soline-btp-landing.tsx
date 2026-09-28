@@ -24,7 +24,10 @@ import { SubscriptionPricingGrid } from "@/components/billing/subscription-prici
 import {
   FORMAL_NOTICE_OVERAGE_NOTICE,
   FORMAL_NOTICES_INCLUDED_PER_MONTH,
-  SOLINE_RECHARGE_PACKS,
+  formatCentsHtEur,
+  SOLINE_DEFAULT_OVERAGE_CAP_CENTS,
+  SOLINE_TRIAL_CALLS_INCLUDED,
+  SUBSCRIPTION_PLANS,
 } from "@/lib/billing/subscription-plans";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +42,7 @@ const FAQ_ITEMS = [
   {
     question: "Comment fonctionne le renvoi d'appel vers Soline ?",
     answer:
-      "Vous activez le renvoi d'appel sur votre ligne pro (ou second numéro) vers Soline en 2 minutes depuis l'app. Quand vous ne répondez pas, Soline décroche, qualifie la demande et vous envoie un récap par SMS avec le créneau proposé au client.",
+      "Vous activez le renvoi d'appel sur votre ligne pro (ou second numéro) vers Soline en 2 minutes depuis l'app. Quand vous ne répondez pas, Soline décroche, qualifie la demande, propose au client un créneau dans vos plages de visite et vous envoie une notification : vous validez le RDV d'un geste, le client reçoit un SMS de confirmation.",
   },
   {
     question: "Dois-je changer de numéro de téléphone ?",
@@ -532,33 +535,37 @@ export function SolineBtpLanding({ appLoginUrl }: SolineBtpLandingProps) {
           <div className="mx-auto mt-16 max-w-3xl">
             <div className="mb-8 text-center">
               <h3 className="font-display text-2xl font-semibold tracking-tight text-slate-900">
-                Rechargez vos minutes Soline
+                Plus d&apos;appels que prévu ? Soline ne raccroche jamais
               </h3>
               <p className="mt-2 text-sm text-slate-600 sm:text-base">
-                Des packs de minutes Soline seront proposés depuis votre espace artisan, sans changer de plan.
+                Un appel compte s&apos;il dure au moins 30 secondes. Au-delà de votre forfait, Soline continue de
+                répondre, facturé à l&apos;appel, jusqu&apos;au plafond que vous fixez
+                ({formatCentsHtEur(SOLINE_DEFAULT_OVERAGE_CAP_CENTS)} € par défaut, 0 € possible). Plafond atteint :
+                elle prend les messages, sans rien facturer de plus.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              {SOLINE_RECHARGE_PACKS.map((pack) => (
+              {SUBSCRIPTION_PLANS.filter((plan) => plan.solineCallsIncluded > 0).map((plan) => (
                 <article
-                  key={pack.id}
-                  className="flex flex-col items-center rounded-2xl border border-dashed border-orange-200 bg-orange-50/50 p-6 text-center"
+                  key={plan.id}
+                  className="flex flex-col items-center rounded-2xl border border-orange-200 bg-orange-50/50 p-6 text-center"
                 >
                   <Phone className="mb-3 size-8 text-orange-500" />
-                  <p className="text-sm font-semibold uppercase tracking-wider text-orange-700">{pack.label}</p>
+                  <p className="text-sm font-semibold uppercase tracking-wider text-orange-700">Plan {plan.name}</p>
                   <p className="mt-2 flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-slate-900 blur-md select-none" aria-hidden>
-                      {pack.priceHtEur} €
+                    <span className="text-3xl font-bold text-slate-900">
+                      {formatCentsHtEur(plan.solineOverageCallCents)} €
                     </span>
-                    <span className="text-slate-500 blur-sm select-none" aria-hidden>
-                      HT
-                    </span>
+                    <span className="text-slate-500">HT / appel hors forfait</span>
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">{pack.minutes} minutes d&apos;appels Soline</p>
-                  <p className="mt-3 text-xs font-medium text-slate-500">Bientôt disponible</p>
+                  <p className="mt-1 text-sm text-slate-600">{plan.solineCallsIncluded} appels inclus par mois</p>
                 </article>
               ))}
             </div>
+            <p className="mt-6 text-center text-sm text-slate-500">
+              Essai gratuit de 15 jours sur la formule Pro, sans carte bancaire : Soline comprise, jusqu&apos;à{" "}
+              {SOLINE_TRIAL_CALLS_INCLUDED} appels.
+            </p>
           </div>
         </div>
       </section>
