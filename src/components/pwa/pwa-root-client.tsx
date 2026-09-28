@@ -23,7 +23,6 @@ import {
   shouldSuppressInstallPrompt,
 } from "@/lib/pwa/client-detect";
 import { PWA_STANDALONE_COOKIE, PWA_STANDALONE_COOKIE_MAX_AGE_SEC } from "@/lib/pwa/constants";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type InstallGuide = "main" | "ios" | "android-manual";
 
@@ -101,6 +100,11 @@ export function PwaRootClient() {
 
       let supabase;
       try {
+        // Import à la demande (perf) : supabase-js + Realtime (~53 KB gz) ne sont
+        // plus embarqués par le layout racine sur toutes les pages (landing,
+        // vitrines, widget) ; ce secours ne sert qu'en mode appli sur `/`.
+        const { createSupabaseBrowserClient } = await import("@/lib/supabase/client");
+        if (cancelled) return;
         supabase = createSupabaseBrowserClient();
       } catch {
         if (!cancelled) router.replace("/login?role=artisan");
