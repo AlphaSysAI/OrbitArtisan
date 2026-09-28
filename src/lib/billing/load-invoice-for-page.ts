@@ -67,6 +67,11 @@ export type LoadInvoiceForEditResult =
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Identifiant de facture au format UUID (évite des requêtes vouées à l'échec). */
+export function isInvoiceIdFormat(invoiceId: string): boolean {
+  return UUID_RE.test(invoiceId);
+}
+
 export type InvoiceListRow = CoreInvoiceRow &
   Partial<EinvoicingInvoiceRow> &
   Partial<Pick<BtpInvoiceRow, "invoice_type">>;
@@ -193,7 +198,23 @@ async function trySelectInvoiceExtras<T extends Record<string, unknown>>(
   return (data as T | null) ?? null;
 }
 
-/** Charge une facture pour la page édition, tolérant aux migrations e-invoicing / BTP non appliquées. */
+/** Toutes les colonnes de la page édition, en une requête (chemin nominal). */
+const FULL_INVOICE_SELECT = [
+  MINIMAL_INVOICE_SELECT,
+  EINVOICING_INVOICE_SELECT,
+  BTP_INVOICE_SELECT,
+  RECOVERY_INVOICE_SELECT,
+].join(", ");
+
+/**
+ * Charge une facture pour la page édition, tolérant aux migrations e-invoicing / BTP non appliquées.
+ *
+ * Perf (refacto latence, point 5) : chemin nominal = UNE requête sur toutes
+ * les colonnes (avant : 4 requêtes séquentielles sur la même ligne). En cas
+ * d'erreur (colonne manquante ou autre), repli sur le chargement historique
+ * colonne par groupe — sortie identique, couverte par
+ * load-invoice-for-page.test.ts.
+ */
 export async function loadInvoiceForEditPage(
   supabase: SupabaseClient,
   invoiceId: string,
@@ -202,6 +223,44 @@ export async function loadInvoiceForEditPage(
     return { ok: false, reason: "not_found" };
   }
 
+  const { data: full, error: fullError } = await supabase
+    .from("invoices")
+    .select(FULL_INVOICE_SELECT)
+    .eq("id", invoiceId)
+    .maybeSingle();
+
+  if (!fullError) {
+    if (!full) return { ok: false, reason: "not_found" };
+    const row = full as unknown as InvoiceForEditPage;
+    return {
+      ok: true,
+      invoice: {
+        ...normalizeCoreInvoice(row),
+        ...EINVOICING_DEFAULTS,
+        ...normalizeEinvoicingExtra(row),
+        ...BTP_DEFAULTS,
+        ...normalizeBtpExtra(row),
+        ...RECOVERY_DEFAULTS,
+        ...normalizeRecoveryExtra(row),
+      },
+    };
+  }
+
+  if (fullError.code === "22P02") {
+    return { ok: false, reason: "not_found" };
+  }
+  if (!isMissingColumnError(fullError)) {
+    console.error("[load-invoice] full select failed, fallback", fullError.message);
+  }
+
+  return loadInvoiceForEditPageByGroups(supabase, invoiceId);
+}
+
+/** Chargement historique par groupes de colonnes (schéma partiellement migré). */
+async function loadInvoiceForEditPageByGroups(
+  supabase: SupabaseClient,
+  invoiceId: string,
+): Promise<LoadInvoiceForEditResult> {
   const { data: core, error: coreError } = await supabase
     .from("invoices")
     .select(MINIMAL_INVOICE_SELECT)
@@ -221,17 +280,14 @@ export async function loadInvoiceForEditPage(
   }
   if (!core) return { ok: false, reason: "not_found" };
 
-  const einvoicingExtra = normalizeEinvoicingExtra(
-    await trySelectInvoiceExtras<EinvoicingInvoiceRow>(supabase, invoiceId, EINVOICING_INVOICE_SELECT),
-  );
-
-  const btpExtra = normalizeBtpExtra(
-    await trySelectInvoiceExtras<BtpInvoiceRow>(supabase, invoiceId, BTP_INVOICE_SELECT),
-  );
-
-  const recoveryExtra = normalizeRecoveryExtra(
-    await trySelectInvoiceExtras<RecoveryInvoiceRow>(supabase, invoiceId, RECOVERY_INVOICE_SELECT),
-  );
+  const [einvoicingRaw, btpRaw, recoveryRaw] = await Promise.all([
+    trySelectInvoiceExtras<EinvoicingInvoiceRow>(supabase, invoiceId, EINVOICING_INVOICE_SELECT),
+    trySelectInvoiceExtras<BtpInvoiceRow>(supabase, invoiceId, BTP_INVOICE_SELECT),
+    trySelectInvoiceExtras<RecoveryInvoiceRow>(supabase, invoiceId, RECOVERY_INVOICE_SELECT),
+  ]);
+  const einvoicingExtra = normalizeEinvoicingExtra(einvoicingRaw);
+  const btpExtra = normalizeBtpExtra(btpRaw);
+  const recoveryExtra = normalizeRecoveryExtra(recoveryRaw);
 
   return {
     ok: true,
@@ -304,6 +360,36 @@ export async function loadInvoicesForQuote(
   }[]
 > {
   const minimalSelect = "id, invoice_number, grand_total, status, created_at";
+
+  // Chemin nominal (perf, point 5) : une requête ; repli historique si colonnes BTP absentes.
+  const { data: fullRows, error: fullError } = await supabase
+    .from("invoices")
+    .select(`${minimalSelect}, invoice_type, progress_percentage`)
+    .eq("quote_id", quoteId)
+    .order("created_at", { ascending: true });
+
+  if (!fullError && fullRows) {
+    return (
+      fullRows as {
+        id: string;
+        invoice_number: string | null;
+        grand_total: number;
+        status: string;
+        created_at: string;
+        invoice_type?: string | null;
+        progress_percentage?: number | null;
+      }[]
+    ).map((row) => ({
+      id: row.id,
+      invoice_number: row.invoice_number,
+      grand_total: row.grand_total,
+      status: row.status,
+      created_at: row.created_at,
+      invoice_type: row.invoice_type ?? "standard",
+      progress_percentage: row.progress_percentage ?? null,
+    }));
+  }
+
   const { data: minimal, error: minimalError } = await supabase
     .from("invoices")
     .select(minimalSelect)
@@ -349,6 +435,21 @@ export async function loadArtisanInvoicesForList(
   supabase: SupabaseClient,
   artisanId: string,
 ): Promise<InvoiceListRow[]> {
+  // Chemin nominal (perf, point 5) : une requête au lieu de trois.
+  const { data: fullRows, error: fullError } = await supabase
+    .from("invoices")
+    .select(`${MINIMAL_INVOICE_SELECT}, ${EINVOICING_INVOICE_SELECT}, invoice_type`)
+    .eq("artisan_id", artisanId);
+
+  if (!fullError && fullRows) {
+    return (fullRows as unknown as (CoreInvoiceRow & EinvoicingInvoiceRow & { invoice_type: string | null })[]).map(
+      (row) => ({ ...row, invoice_type: row.invoice_type ?? "standard" }),
+    );
+  }
+  if (fullError && !isMissingColumnError(fullError)) {
+    console.error("[load-invoices-list] full select failed, fallback", fullError.message);
+  }
+
   const { data: rows, error } = await supabase
     .from("invoices")
     .select(MINIMAL_INVOICE_SELECT)

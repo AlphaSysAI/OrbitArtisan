@@ -13,13 +13,14 @@ import { InvoiceDocumentActionsCard } from "@/components/invoices/invoice-docume
 import { EInvoicingStatusBadge } from "@/components/invoices/e-invoicing-status-badge";
 import { InvoiceReminderButton } from "@/components/invoices/invoice-reminder-button";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
+import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 import {
+  isInvoiceIdFormat,
   loadInvoiceForEditPage,
   loadInvoiceLinesForEditPage,
   type InvoiceForEditPage,
   type InvoiceLineForEditPage,
 } from "@/lib/billing/load-invoice-for-page";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { invoiceLineKindLabel, invoiceStatusLabel } from "@/lib/status-labels";
 
 import { InvoiceEditForm } from "./invoice-edit-form";
@@ -307,6 +308,51 @@ async function RecoveryPanel({
   }
 }
 
+async function loadCustomerProfileDisplayName(
+  supabase: SupabaseClient,
+  customerUserId: string | null,
+): Promise<string | null> {
+  if (!customerUserId) return null;
+  const { data: cp } = await supabase
+    .from("customer_profiles")
+    .select("display_name, email")
+    .eq("user_id", customerUserId)
+    .maybeSingle();
+  return formatContactDisplayName({
+    profileName: cp?.display_name,
+    email: cp?.email,
+  });
+}
+
+/**
+ * Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts) — la
+ * classification nécessite le client Supabase, donc calculée ici comme recoverySlot,
+ * pas dans InvoiceDetailView qui ne le détient pas.
+ */
+async function buildBtpActionsSlot(
+  supabase: SupabaseClient,
+  invoiceId: string,
+  invoice: InvoiceForEditPage,
+): Promise<ReactNode> {
+  const [btpCard, classification, freeze] = await Promise.all([
+    import("./invoice-btp-actions-card"),
+    import("@/lib/billing/invoicing/resolve-customer-classification"),
+    import("@/lib/billing/invoicing-freeze"),
+  ]);
+  const { InvoiceBtpActionsCard } = btpCard;
+  const { frozenInvoicingMessageFor, isDraftInvoicingFrozenForCustomer } = freeze;
+  const invoicingCustomerClass = await classification.resolveCustomerClassification(supabase, invoice.customer_user_id);
+  return (
+    <InvoiceBtpActionsCard
+      invoiceId={invoiceId}
+      retentionAmount={invoice.retention_amount}
+      retentionReleasedAt={invoice.retention_released_at}
+      invoicingFrozen={isDraftInvoicingFrozenForCustomer(invoicingCustomerClass)}
+      invoicingFrozenMessage={frozenInvoicingMessageFor(invoicingCustomerClass)}
+    />
+  );
+}
+
 export default async function InvoiceEditPage({
   params,
   searchParams,
@@ -327,13 +373,18 @@ export default async function InvoiceEditPage({
   }
 
   try {
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Perf (refacto latence, point 5) : session mise en cache par requête
+    // (partagée avec le layout) puis profil, facture et lignes en parallèle.
+    // Les lignes ne sont affichées qu'après le contrôle artisan_id ci-dessous ;
+    // la RLS reste la barrière d'accès aux données.
+    const [supabase, user] = await Promise.all([getRequestSupabase(), getCurrentUser()]);
     if (!user) redirect(`/login?next=/app/invoices/${invoiceId}`);
 
-    const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+    const [{ data: profile }, loaded, sortedLines] = await Promise.all([
+      supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle(),
+      loadInvoiceForEditPage(supabase, invoiceId),
+      isInvoiceIdFormat(invoiceId) ? loadInvoiceLinesForEditPage(supabase, invoiceId) : Promise.resolve([]),
+    ]);
     if (!profile?.id) {
       return (
         <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6">
@@ -346,7 +397,6 @@ export default async function InvoiceEditPage({
       );
     }
 
-    const loaded = await loadInvoiceForEditPage(supabase, invoiceId);
     if (!loaded.ok) {
       if (loaded.reason === "load_error") {
         console.error("[invoice-detail] load_error", { invoiceId, message: loaded.message });
@@ -358,50 +408,20 @@ export default async function InvoiceEditPage({
     const invoice = loaded.invoice;
     if (invoice.artisan_id !== profile.id) return <InvoiceAccessDeniedPanel />;
 
-    let profileDisplayName: string | null = null;
-    if (invoice.customer_user_id) {
-      const { data: cp } = await supabase
-        .from("customer_profiles")
-        .select("display_name, email")
-        .eq("user_id", invoice.customer_user_id)
-        .maybeSingle();
-      profileDisplayName = formatContactDisplayName({
-        profileName: cp?.display_name,
-        email: cp?.email,
-      });
-    }
+    const invoiceIsDraft = invoice.status === "draft" && !invoice.finalized_at;
+    const showBtpActions = !invoiceIsDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft";
+
+    // Nom du client et classification B2B/B2C (gel BTP) : indépendants, en parallèle.
+    const [profileDisplayName, btpActionsSlot] = await Promise.all([
+      loadCustomerProfileDisplayName(supabase, invoice.customer_user_id),
+      showBtpActions ? buildBtpActionsSlot(supabase, invoiceId, invoice) : Promise.resolve<ReactNode>(null),
+    ]);
 
     const customerLabel = formatContactDisplayName({
       profileName: profileDisplayName,
       name: invoice.customer_name,
       email: invoice.customer_email,
     });
-
-    const sortedLines = await loadInvoiceLinesForEditPage(supabase, invoiceId);
-
-    // Vague 7 : le gel ne s'applique plus qu'au B2B (voir invoicing-freeze.ts) — la
-    // classification nécessite le client Supabase, donc calculée ici comme recoverySlot,
-    // pas dans InvoiceDetailView qui ne le détient pas.
-    const invoiceIsDraft = invoice.status === "draft" && !invoice.finalized_at;
-    const showBtpActions = !invoiceIsDraft && invoice.invoice_type !== "credit_note" && invoice.status !== "draft";
-    let btpActionsSlot: ReactNode = null;
-    if (showBtpActions) {
-      const { InvoiceBtpActionsCard } = await import("./invoice-btp-actions-card");
-      const { resolveCustomerClassification } = await import("@/lib/billing/invoicing/resolve-customer-classification");
-      const { frozenInvoicingMessageFor, isDraftInvoicingFrozenForCustomer } = await import(
-        "@/lib/billing/invoicing-freeze"
-      );
-      const invoicingCustomerClass = await resolveCustomerClassification(supabase, invoice.customer_user_id);
-      btpActionsSlot = (
-        <InvoiceBtpActionsCard
-          invoiceId={invoiceId}
-          retentionAmount={invoice.retention_amount}
-          retentionReleasedAt={invoice.retention_released_at}
-          invoicingFrozen={isDraftInvoicingFrozenForCustomer(invoicingCustomerClass)}
-          invoicingFrozenMessage={frozenInvoicingMessageFor(invoicingCustomerClass)}
-        />
-      );
-    }
 
     return (
       <InvoiceDetailView
