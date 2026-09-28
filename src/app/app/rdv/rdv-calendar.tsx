@@ -116,6 +116,18 @@ export function RdvCalendar({
     [appointments],
   );
 
+  const upcoming48h = React.useMemo(() => {
+    const now = Date.now();
+    const horizon = now + 48 * 60 * 60 * 1000;
+    return appointments
+      .filter((a) => {
+        if (a.status === "cancelled") return false;
+        const t = new Date(a.start_time).getTime();
+        return t >= now && t <= horizon;
+      })
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  }, [appointments]);
+
   const weeks = React.useMemo(
     () => getCalendarWeeks(viewDate.getFullYear(), viewDate.getMonth()),
     [viewDate],
@@ -153,6 +165,61 @@ export function RdvCalendar({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <section className="rounded-xl border bg-muted/20 px-3 py-3 sm:px-4">
+          <h3 className="text-sm font-semibold">Prochaines 48 h</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Rendez-vous à venir d&apos;ici demain soir (hors annulés).
+          </p>
+          {upcoming48h.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">Aucun rendez-vous prévu sur cette période.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-border/60">
+              {upcoming48h.map((a) => {
+                const start = new Date(a.start_time);
+                const dateLabel = start.toLocaleDateString("fr-FR", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                });
+                const timeLabel = start.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+                const serviceTitle = a.service_id ? serviceTitleById.get(a.service_id) ?? null : null;
+                return (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDate(start);
+                        setViewDate(new Date(start.getFullYear(), start.getMonth(), 1));
+                      }}
+                      className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 py-2.5 text-left text-sm transition-colors hover:bg-muted/50 rounded-lg px-1 -mx-1"
+                    >
+                      <span className="shrink-0 font-medium tabular-nums text-foreground">
+                        {dateLabel} · {timeLabel}
+                      </span>
+                      <span className="min-w-0 truncate font-medium">{a.customer_name}</span>
+                      {serviceTitle ? (
+                        <span className="truncate text-xs text-muted-foreground">{serviceTitle}</span>
+                      ) : null}
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                          a.status === "confirmed" && "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+                          a.status === "pending" && "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300",
+                        )}
+                      >
+                        {appointmentStatusLabel(a.status)}
+                      </span>
+                      {a.source === "voice" ? (
+                        <span className="text-[11px] text-muted-foreground">· Pris par Soline</span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-medium">Calendrier</span>
           <div className="flex items-center gap-1">
