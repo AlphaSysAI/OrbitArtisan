@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StepShell } from "@/components/trades/trade-picker";
-import { MAX_LEAD_CHAT_QUESTIONS, type LeadChatMessage } from "@/lib/leads/chat-schema";
+import { MAX_LEAD_CHAT_QUESTIONS, type LeadChatMessage } from "@/lib/leads/chat-constants";
 import { MIN_LEAD_CHAT_QUESTIONS, formatLeadDescription } from "@/lib/leads/chat-turn";
 import { cn } from "@/lib/utils";
 

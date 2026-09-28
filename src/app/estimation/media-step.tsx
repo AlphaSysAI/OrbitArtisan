@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { StepShell } from "@/components/trades/trade-picker";
 import { LEAD_MEDIA_BUCKET } from "@/lib/leads/types";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 import { createLeadUploadUrl, registerLeadMedia } from "./actions";
@@ -71,6 +70,9 @@ export function MediaStep({
     const signed = await createLeadUploadUrl({ token, fileName: file.name });
     if (!signed.ok) return false;
 
+    // Import à la demande (perf) : supabase-js n'est chargé qu'à l'envoi des
+    // photos, pas à l'ouverture du widget chez l'artisan.
+    const { createSupabaseBrowserClient } = await import("@/lib/supabase/client");
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.storage
       .from(LEAD_MEDIA_BUCKET)

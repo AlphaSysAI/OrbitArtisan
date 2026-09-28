@@ -1,8 +1,7 @@
-import {
-  MAX_LEAD_CHAT_QUESTIONS,
-  type LeadChatMessage,
-  type LeadChatTurn,
-} from "@/lib/leads/chat-schema";
+// Imports sans zod (perf) : ce module est aussi chargé côté client par le
+// tunnel d'estimation / widget ; `LeadChatTurn` n'est qu'un type (effacé).
+import { MAX_LEAD_CHAT_QUESTIONS, type LeadChatMessage } from "@/lib/leads/chat-constants";
+import type { LeadChatTurn } from "@/lib/leads/chat-schema";
 
 /** Nombre minimum de réponses client avant de laisser l'IA clôturer le questionnaire. */
 export const MIN_LEAD_CHAT_QUESTIONS = 3;

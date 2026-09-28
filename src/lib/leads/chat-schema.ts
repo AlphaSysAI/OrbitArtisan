@@ -1,7 +1,10 @@
 import { z } from "zod";
 
-/** Nombre maximum de questions posées avant de passer à la suite du tunnel. */
-export const MAX_LEAD_CHAT_QUESTIONS = 4;
+import { MAX_LEAD_CHAT_QUESTIONS, type LeadChatMessage } from "@/lib/leads/chat-constants";
+
+// Ré-exports pour les imports existants côté serveur.
+export { MAX_LEAD_CHAT_QUESTIONS };
+export type { LeadChatMessage };
 
 function coerceNullableString(v: unknown): string | null {
   if (v == null || v === "") return null;
@@ -51,4 +54,3 @@ export const LEAD_CHAT_JSON_EXAMPLE = `{
   "summary": ""
 }`;
 
-export type LeadChatMessage = { role: "assistant" | "user"; content: string };
