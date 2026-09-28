@@ -8,7 +8,8 @@ import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Textarea } from "@/components/ui/textarea";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useLiveConversation } from "@/lib/messages/use-live-conversation";
+import { getBrowserSupabase } from "@/lib/supabase/lazy-client";
 import {
   findConversation,
   getOrCreateConversation,
@@ -39,14 +40,16 @@ export function VitrineMessages({
   const [sending, setSending] = React.useState(false);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const lastMessageIdRef = React.useRef<string | null>(null);
-  const supabaseRef = React.useRef(createSupabaseBrowserClient());
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   const refreshMessages = React.useCallback(async (convId: string) => {
-    const { data, error } = await supabaseRef.current
+    // Client chargé à la demande : la page vitrine n'embarque plus supabase-js.
+    const supabase = await getBrowserSupabase().catch(() => null);
+    if (!supabase) return { ok: false as const, messages: [] as MessageRow[] };
+    const { data, error } = await supabase
       .from("messages")
       .select("id, conversation_id, sender_user_id, body, created_at")
       .eq("conversation_id", convId)
@@ -90,58 +93,22 @@ export function VitrineMessages({
     };
   }, [artisanId, demoMode, isOwner, viewerUserId, refreshMessages]);
 
-  React.useEffect(() => {
-    if (!conversationId || demoMode) return;
-    const channel = supabaseRef.current
-      .channel(`messages:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        async () => {
-          const listed = await refreshMessages(conversationId);
-          if (listed.ok) {
-            setMessages(listed.messages);
-            lastMessageIdRef.current = listed.messages.at(-1)?.id ?? null;
-          }
-        },
-      )
-      .subscribe();
+  const syncThread = React.useCallback(async () => {
+    if (!conversationId) return;
+    const listed = await refreshMessages(conversationId);
+    if (!listed.ok) return;
+    const latestId = listed.messages.at(-1)?.id ?? null;
+    if (latestId === lastMessageIdRef.current) return;
+    setMessages(listed.messages);
+    lastMessageIdRef.current = latestId;
+  }, [conversationId, refreshMessages]);
 
-    return () => {
-      supabaseRef.current.removeChannel(channel);
-    };
-  }, [conversationId, demoMode, refreshMessages]);
-
-  // Fallback de polling: évite le refresh manuel si le realtime est capricieux.
-  React.useEffect(() => {
-    if (!conversationId || demoMode) return;
-    let cancelled = false;
-
-    const refresh = async () => {
-      const listed = await refreshMessages(conversationId);
-      if (!listed.ok || cancelled) return;
-
-      const latestId = listed.messages.at(-1)?.id ?? null;
-      if (latestId && latestId !== lastMessageIdRef.current) {
-        setMessages(listed.messages);
-        lastMessageIdRef.current = latestId;
-      }
-    };
-
-    const interval = window.setInterval(() => {
-      void refresh();
-    }, 12_000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [conversationId, demoMode, refreshMessages]);
+  useLiveConversation({
+    conversationId,
+    enabled: !demoMode,
+    channelName: `messages:${conversationId}`,
+    sync: syncThread,
+  });
 
   /** La conversation naît du premier message envoyé, pas de la visite de la page. */
   async function resolveConversationId(): Promise<string | null> {

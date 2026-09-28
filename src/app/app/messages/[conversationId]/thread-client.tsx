@@ -12,7 +12,7 @@ import type { GenerateQuoteFromChatResponse } from "@/lib/ai/quote-from-chat-sch
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useLiveConversation } from "@/lib/messages/use-live-conversation";
 import { markConversationRead } from "@/lib/notifications/actions";
 import { sendMessage, listMessages, type MessageRow } from "@/lib/messages/actions";
 import { useNotifications } from "@/components/notifications/notification-provider";
@@ -51,7 +51,6 @@ export function ArtisanThreadClient({
   const [loading, setLoading] = React.useState(true);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const lastMessageIdRef = React.useRef<string | null>(null);
-  const supabaseRef = React.useRef(createSupabaseBrowserClient());
   const { refresh: refreshNotificationCounts } = useNotifications();
 
   const markRead = React.useCallback(async () => {
@@ -83,57 +82,24 @@ export function ArtisanThreadClient({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  React.useEffect(() => {
-    const channel = supabaseRef.current
-      .channel(`artisan-messages:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        async () => {
-          const listed = await refreshMessages();
-          if (listed.ok) {
-            setMessages(listed.messages);
-            lastMessageIdRef.current = listed.messages.at(-1)?.id ?? null;
-            void markRead();
-          }
-        },
-      )
-      .subscribe();
-    return () => {
-      supabaseRef.current.removeChannel(channel);
-    };
-  }, [conversationId, refreshMessages, markRead]);
+  // Nouveau message (temps réel, reconnexion, retour au premier plan) : on ne
+  // met à jour l'état et on ne marque « lu » que si le fil a réellement changé.
+  const syncThread = React.useCallback(async () => {
+    const listed = await refreshMessages();
+    if (!listed.ok) return;
+    const latestId = listed.messages.at(-1)?.id ?? null;
+    if (latestId === lastMessageIdRef.current) return;
+    setMessages(listed.messages);
+    lastMessageIdRef.current = latestId;
+    void markRead();
+  }, [refreshMessages, markRead]);
 
-  // Fallback robuste: si le realtime n'arrive pas (latence, canal perdu, config),
-  // on recharge périodiquement le fil pour afficher les nouveaux messages sans refresh manuel.
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const refresh = async () => {
-      const listed = await refreshMessages();
-      if (!listed.ok || cancelled) return;
-
-      const latestId = listed.messages.at(-1)?.id ?? null;
-      if (latestId && latestId !== lastMessageIdRef.current) {
-        setMessages(listed.messages);
-        lastMessageIdRef.current = latestId;
-      }
-    };
-
-    const interval = window.setInterval(() => {
-      void refresh();
-    }, 12_000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [conversationId, refreshMessages]);
+  useLiveConversation({
+    conversationId,
+    enabled: true,
+    channelName: `artisan-messages:${conversationId}`,
+    sync: syncThread,
+  });
 
   async function onSend(e: React.FormEvent) {
     e.preventDefault();

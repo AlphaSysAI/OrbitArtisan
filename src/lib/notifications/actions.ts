@@ -1,7 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
 import type { NotificationCategory } from "@/lib/notifications/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -12,8 +10,11 @@ export async function markConversationRead(conversationId: string) {
   });
   if (error) return { ok: false as const, error: "rpc" as const };
 
-  revalidatePath("/app/messages");
-  revalidatePath("/compte/messages");
+  // Pas de revalidatePath (perf, point 10) : appelée à chaque nouveau message
+  // du fil ouvert, elle forçait le re-rendu serveur de la page courante et
+  // vidait le cache de navigation. Les listes de conversations sont
+  // dynamiques (relues à chaque navigation) et le badge est rafraîchi par
+  // l'appelant via le NotificationProvider.
   return { ok: true as const };
 }
 
