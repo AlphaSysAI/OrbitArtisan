@@ -208,7 +208,7 @@ export async function listCustomerContacts(): Promise<
   >();
   if (artisanIds.size > 0) {
     const { data: artisans } = await supabase
-      .from("profiles")
+      .from("artisan_public_profiles")
       .select("id, business_name, slug")
       .in("id", [...artisanIds]);
     for (const artisan of artisans ?? []) {

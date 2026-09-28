@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function startInvoicePayment(formData: FormData): Promise<void> {
   const invoiceId = String(formData.get("invoice_id") ?? "").trim();
@@ -36,7 +37,9 @@ export async function startInvoicePayment(formData: FormData): Promise<void> {
     redirect(`/compte/factures/${invoiceId}?payment_error=amount`);
   }
 
-  const { data: artisan } = await supabase
+  // Facture lue ci-dessus sous RLS et rattachée au client : l'identifiant Connect de
+  // l'artisan (privé depuis la migration 44) est lu côté serveur.
+  const { data: artisan } = await (createSupabaseServiceRoleClient() ?? supabase)
     .from("profiles")
     .select("business_name, stripe_account_id, stripe_transfers_enabled")
     .eq("id", invoice.artisan_id)

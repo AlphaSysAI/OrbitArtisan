@@ -6,6 +6,7 @@ import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
 import type { LeadMaterialCostEstimate } from "@/lib/leads/lead-material-estimate";
 import { applyStructuralShellEstimateFloor } from "@/lib/leads/lead-project-scale";
 import type { LeadEstimate } from "@/lib/leads/types";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 /**
  * Transformation d'une analyse IA en fourchette de prix.
@@ -68,7 +69,8 @@ export async function resolvePricingContext(
 
   if (!input.artisanIds.length) return fallback;
 
-  const { data, error } = await supabase
+  // Taux horaires privés (migration 44) : seule la moyenne sort de cette fonction.
+  const { data, error } = await (createSupabaseServiceRoleClient() ?? supabase)
     .from("profiles")
     .select("labor_rate_per_hour")
     .in("id", input.artisanIds);

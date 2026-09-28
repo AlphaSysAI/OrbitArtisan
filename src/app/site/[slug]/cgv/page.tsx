@@ -9,7 +9,7 @@ export default async function ArtisanCgvPage({ params }: { params: Promise<{ slu
 
   const supabase = await createSupabaseServerClient();
   const { data: profile } = await supabase
-    .from("profiles")
+    .from("artisan_public_profiles")
     .select("business_name, sales_terms_text, accent_color")
     .eq("slug", slug)
     .maybeSingle();

@@ -40,7 +40,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
   if (!quote || quote.customer_user_id !== user.id) notFound();
 
   const { data: artisan } = await supabase
-    .from("profiles")
+    .from("artisan_public_profiles")
     .select("business_name")
     .eq("id", quote.artisan_id)
     .maybeSingle();

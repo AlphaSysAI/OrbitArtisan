@@ -78,6 +78,7 @@ type InvoiceLineRow = {
 export async function loadFacturXDocumentFromDb(
   supabase: SupabaseClient,
   invoiceId: string,
+  options: { issuerClient?: SupabaseClient | null } = {},
 ): Promise<FacturXInvoiceDocument | null> {
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
@@ -91,8 +92,11 @@ export async function loadFacturXDocumentFromDb(
 
   const inv = invoice as InvoiceRow & { customer_user_id: string | null; artisan_id: string };
 
+  // L'accès à la facture vient d'être vérifié par la RLS (artisan ou client lié) : l'identité
+  // légale de l'émetteur, privée depuis la migration 44, est lue côté serveur.
+  const issuerClient = options.issuerClient ?? supabase;
   const [{ data: profile }, { data: lines }] = await Promise.all([
-    supabase
+    issuerClient
       .from("profiles")
       .select(
         "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days",

@@ -38,7 +38,7 @@ export default async function MesDevisPage() {
 
   const artisanIds = [...new Set(items.map((q) => q.artisan_id).filter(Boolean))] as string[];
   const { data: artisans } = artisanIds.length
-    ? await supabase.from("profiles").select("id, business_name").in("id", artisanIds)
+    ? await supabase.from("artisan_public_profiles").select("id, business_name").in("id", artisanIds)
     : { data: [] as { id: string; business_name: string }[] };
 
   const artisanName = (id: string) => artisans?.find((a) => a.id === id)?.business_name ?? "Artisan";

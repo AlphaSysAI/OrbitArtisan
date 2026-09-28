@@ -91,7 +91,8 @@ export async function upsertProfile(formData: FormData) {
     .maybeSingle();
 
   if (existing && existing.slug !== slug) {
-    const { data: slugTaken } = await supabase
+    // Les profils des autres artisans ne sont plus lisibles (migration 44) : contrôle en service role.
+    const { data: slugTaken } = await (createSupabaseServiceRoleClient() ?? supabase)
       .from("profiles")
       .select("id")
       .eq("slug", slug)

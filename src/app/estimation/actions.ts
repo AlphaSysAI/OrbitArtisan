@@ -174,7 +174,7 @@ async function loadMatchedArtisans(
   if (!matches.length) return [];
 
   const { data: profiles } = await supabase
-    .from("profiles")
+    .from("artisan_public_profiles")
     .select("id, city, logo_url, phone")
     .in(
       "id",

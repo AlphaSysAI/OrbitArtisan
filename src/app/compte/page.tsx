@@ -70,7 +70,7 @@ export default async function CompteHomePage({
       id,
       start_time,
       status,
-      profiles ( business_name, slug ),
+      artisan_id,
       services ( title )
     `,
     )
@@ -82,7 +82,7 @@ export default async function CompteHomePage({
     id: string;
     start_time: string;
     status: string;
-    profiles: { business_name: string; slug: string } | { business_name: string; slug: string }[] | null;
+    artisan_id: string;
     services: { title: string } | { title: string }[] | null;
   };
 
@@ -92,6 +92,13 @@ export default async function CompteHomePage({
   }
 
   const rdvs = (rdvRows ?? []) as RdvRowRaw[];
+
+  // Profils artisans privés (migration 44) : nom et vitrine via la vue publique.
+  const rdvArtisanIds = [...new Set(rdvs.map((r) => r.artisan_id).filter(Boolean))];
+  const { data: rdvArtisans } = rdvArtisanIds.length
+    ? await supabase.from("artisan_public_profiles").select("id, business_name, slug").in("id", rdvArtisanIds)
+    : { data: [] as { id: string; business_name: string; slug: string }[] };
+  const artisanById = new Map((rdvArtisans ?? []).map((a) => [a.id as string, a]));
 
   const displayName = formatContactDisplayName({
     profileName: cp?.display_name,
@@ -143,7 +150,7 @@ export default async function CompteHomePage({
               <ul className="space-y-2 text-sm">
                 {rdvs.map((r) => {
                   const d = new Date(r.start_time);
-                  const prof = one(r.profiles);
+                  const prof = artisanById.get(r.artisan_id) ?? null;
                   const svc = one(r.services);
                   const artisan = prof?.business_name ?? "Artisan";
                   const slug = prof?.slug;

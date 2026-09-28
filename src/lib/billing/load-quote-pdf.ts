@@ -84,6 +84,7 @@ export async function loadQuotePdfDocument(
   supabase: SupabaseClient,
   quoteId: string,
   artisanId: string,
+  options: { issuerClient?: SupabaseClient | null } = {},
 ): Promise<QuotePdfDocument | null> {
   const quoteNumber = (await ensureQuoteNumber(supabase, quoteId)) ?? null;
 
@@ -98,7 +99,9 @@ export async function loadQuotePdfDocument(
   if (quoteError || !quoteRaw) return null;
   const quote = quoteRaw as QuotePdfRow;
 
-  const { data: profileRaw, error: profileError } = await supabase
+  // Devis lu ci-dessus sous RLS : l'identité de l'artisan (privée, migration 44) peut être
+  // lue côté serveur pour un client lié au devis.
+  const { data: profileRaw, error: profileError } = await (options.issuerClient ?? supabase)
     .from("profiles")
     .select("*")
     .eq("id", artisanId)

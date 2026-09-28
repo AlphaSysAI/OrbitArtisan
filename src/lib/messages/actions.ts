@@ -286,7 +286,7 @@ export async function listConversationsForCustomer() {
 
   const artisanIds = [...new Set(convRows.map((c) => c.artisan_id))];
   const { data: artisans } = artisanIds.length
-    ? await supabase.from("profiles").select("id, business_name").in("id", artisanIds)
+    ? await supabase.from("artisan_public_profiles").select("id, business_name").in("id", artisanIds)
     : { data: [] as { id: string; business_name: string }[] };
 
   const artisanNameById = new Map((artisans ?? []).map((a) => [a.id, a.business_name]));

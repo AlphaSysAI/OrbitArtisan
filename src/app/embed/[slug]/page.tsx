@@ -41,7 +41,7 @@ export default async function EmbedPage({
 
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
-    .from("profiles")
+    .from("artisan_public_profiles")
     .select("id, business_name, logo_url, slug, trade_category, trade")
     .eq("slug", slug)
     .maybeSingle();

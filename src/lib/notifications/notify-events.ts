@@ -3,9 +3,19 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { notifyUserActivity, sendPushToUser } from "@/lib/notifications/send-push";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 const siteUrl = getPublicSiteUrl();
+
+/**
+ * Les profils artisans sont privés (migration 44) : un client qui écrit ou prend un RDV
+ * ne peut plus lire le user_id de l'artisan. La résolution du destinataire se fait donc
+ * côté serveur, jamais renvoyée à l'appelant.
+ */
+function profileReader(fallback: SupabaseClient): SupabaseClient {
+  return createSupabaseServiceRoleClient() ?? fallback;
+}
 
 function previewText(body: string, max = 120) {
   const oneLine = body.replace(/\s+/g, " ").trim();
@@ -25,7 +35,7 @@ export async function notifyNewMessage(
 
   if (!conv) return;
 
-  const { data: artisan } = await supabase
+  const { data: artisan } = await profileReader(supabase)
     .from("profiles")
     .select("user_id, business_name")
     .eq("id", conv.artisan_id)
@@ -192,7 +202,7 @@ export async function notifyNewAppointment(
     pendingValidation?: boolean;
   },
 ) {
-  const { data: profile } = await supabase
+  const { data: profile } = await profileReader(supabase)
     .from("profiles")
     .select("user_id")
     .eq("id", input.artisanId)
@@ -237,7 +247,7 @@ export async function notifyVoiceQuotaThreshold(
     overageCapCents: number;
   },
 ) {
-  const { data: profile } = await supabase
+  const { data: profile } = await profileReader(supabase)
     .from("profiles")
     .select("user_id")
     .eq("id", input.artisanId)

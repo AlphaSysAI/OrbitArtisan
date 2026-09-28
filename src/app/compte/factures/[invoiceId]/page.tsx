@@ -95,7 +95,7 @@ export default async function ClientInvoiceDetailPage({
   }
 
   const { data: artisan } = await supabase
-    .from("profiles")
+    .from("artisan_public_profiles")
     .select("business_name, stripe_transfers_enabled")
     .eq("id", invoice.artisan_id)
     .maybeSingle();

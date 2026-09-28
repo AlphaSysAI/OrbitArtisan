@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { loadQuotePdfDocument } from "@/lib/billing/load-quote-pdf";
 import { renderQuotePdf } from "@/lib/billing/render-quote-pdf";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,10 @@ export async function GET(_request: Request, context: { params: Promise<{ quoteI
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const doc = await loadQuotePdfDocument(supabase, quoteId, quote.artisan_id);
+  // Accès vérifié ci-dessus (artisan ou client du devis) : identité de l'artisan lue côté serveur.
+  const doc = await loadQuotePdfDocument(supabase, quoteId, quote.artisan_id, {
+    issuerClient: createSupabaseServiceRoleClient(),
+  });
   if (!doc) {
     return NextResponse.json(
       {

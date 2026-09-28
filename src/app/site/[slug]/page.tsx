@@ -66,7 +66,7 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
     const supabase = await createSupabaseServerClient();
 
     const { data: p } = await supabase
-      .from("profiles")
+      .from("artisan_public_profiles")
       .select(
         "id, user_id, name, business_name, description, logo_url, slug, accent_color, sales_terms_text, trade_category, trade, lead_matching_enabled",
       )

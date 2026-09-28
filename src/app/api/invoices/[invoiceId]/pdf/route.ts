@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { loadFacturXDocumentFromDb } from "@/lib/billing/facturx/load-from-db";
 import { renderInvoicePdf } from "@/lib/billing/facturx/render-invoice-pdf";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export const runtime = "nodejs";
 
@@ -46,7 +47,10 @@ export async function GET(
     return NextResponse.json({ error: "not_available" }, { status: 403 });
   }
 
-  const document = await loadFacturXDocumentFromDb(supabase, invoiceId);
+  // Accès vérifié ci-dessus (artisan émetteur ou client lié) : identité légale lue côté serveur.
+  const document = await loadFacturXDocumentFromDb(supabase, invoiceId, {
+    issuerClient: createSupabaseServiceRoleClient(),
+  });
   if (!document || document.lines.length === 0) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }

@@ -44,7 +44,7 @@ export default async function ClientInvoicesPage({
   const invoices = rows ?? [];
   const artisanIds = [...new Set(invoices.map((i) => i.artisan_id).filter(Boolean))] as string[];
   const { data: artisans } = artisanIds.length
-    ? await supabase.from("profiles").select("id, business_name, stripe_transfers_enabled").in("id", artisanIds)
+    ? await supabase.from("artisan_public_profiles").select("id, business_name, stripe_transfers_enabled").in("id", artisanIds)
     : { data: [] as { id: string; business_name: string; stripe_transfers_enabled: boolean }[] };
 
   const artisanForId = (id: string) => artisans?.find((a) => a.id === id);
