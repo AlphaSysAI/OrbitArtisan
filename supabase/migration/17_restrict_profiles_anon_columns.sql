@@ -27,7 +27,8 @@
 --
 -- Colonnes nécessaires aux pages publiques existantes (vérifié dans le code,
 -- aucun changement applicatif requis par cette migration) :
---   - /site/[slug]   : id, user_id, name, business_name, description, logo_url, slug, accent_color
+--   - /site/[slug]   : id, user_id, name, business_name, description, logo_url, slug, accent_color,
+--                      sales_terms_text, lead_matching_enabled (voir migration 36)
 --   - /embed/[slug]  : id, business_name, logo_url, slug, trade_category, trade
 --   - /estimation    : id, city, logo_url, phone
 --
