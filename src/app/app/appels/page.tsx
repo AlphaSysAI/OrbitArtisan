@@ -4,12 +4,14 @@ import { Phone } from "lucide-react";
 
 import { AppEmptyState } from "@/components/app/app-empty-state";
 import { AppPageHeader } from "@/components/app/app-page-header";
+import { VoiceQuotaRecap } from "@/components/settings/voice-quota-recap";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { computeDraftTotals } from "@/lib/quotes/create-quote-from-ai-draft";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 import { planIncludesSolineVoice, SOLINE_SUBSCRIPTION_SETTINGS_HREF } from "@/lib/voice/soline-voice-access";
 
 import { VoiceIntakeActions } from "./voice-intake-actions";
@@ -96,14 +98,17 @@ export default async function AppelsSolinePage() {
     );
   }
 
-  const { data: intakes, error } = await supabase
-    .from("voice_call_intakes")
-    .select(
-      "id, from_number, customer_name, customer_email, summary, quote_draft, quote_id, status, created_at, is_urgent, urgency_reason",
-    )
-    .eq("artisan_id", profile.id)
-    .order("created_at", { ascending: false })
-    .limit(100);
+  const [{ data: intakes, error }, voiceQuota] = await Promise.all([
+    supabase
+      .from("voice_call_intakes")
+      .select(
+        "id, from_number, customer_name, customer_email, summary, quote_draft, quote_id, status, created_at, is_urgent, urgency_reason",
+      )
+      .eq("artisan_id", profile.id)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    resolveVoiceQuota(supabase, profile.id),
+  ]);
 
   // Urgences à traiter en tête de liste, puis ordre chronologique inverse.
   const items = (error ? [] : (intakes ?? [])).sort((a, b) => {
@@ -146,6 +151,8 @@ export default async function AppelsSolinePage() {
           </Link>
         }
       />
+
+      {voiceQuota ? <VoiceQuotaRecap quota={voiceQuota} /> : null}
 
       {items.length === 0 ? (
         <AppEmptyState

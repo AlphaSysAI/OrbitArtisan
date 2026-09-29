@@ -2,7 +2,7 @@ import { formatCentsHtEur } from "@/lib/billing/subscription-plans";
 import type { VoiceQuotaSnapshot } from "@/lib/voice/voice-quota-types";
 import { cn } from "@/lib/utils";
 
-/** Résumé compact du quota vocal (onglet Réglages → Appels Soline). */
+/** Résumé compact du quota vocal (page Appels Soline et Réglages → Appels Soline). */
 export function VoiceQuotaRecap({ quota, className }: { quota: VoiceQuotaSnapshot; className?: string }) {
   if (quota.callsIncluded <= 0) {
     return (
