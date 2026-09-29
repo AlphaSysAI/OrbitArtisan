@@ -83,14 +83,14 @@ function errorMessage(e: unknown): string {
 
 async function elevenlabsRequest(
   config: ProvisioningConfig,
-  method: "POST" | "PATCH",
+  method: "POST" | "PATCH" | "DELETE",
   path: string,
-  body: Record<string, unknown>,
+  body?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const res = await fetch(`${config.elevenlabsBaseUrl}${path}`, {
     method,
     headers: { "xi-api-key": config.elevenlabsApiKey, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`ElevenLabs ${method} ${path} → ${res.status} ${text.slice(0, 300)}`);
@@ -318,4 +318,72 @@ export async function retryElevenLabsImport(
 
   await serveWaitingArtisans(db);
   return { ok: true };
+}
+
+export type QuarantineReleaseResult = { phoneE164: string; ok: boolean; error?: string };
+
+/**
+ * Fin de quarantaine (30 jours après un désabonnement) : le numéro est retiré d'ElevenLabs,
+ * rendu à Twilio (plus de location) et passé en « retired ». Il n'est jamais réattribué à un
+ * autre artisan. Une erreur sur un numéro n'arrête pas les autres ; il sera retenté demain.
+ */
+export async function releaseExpiredQuarantinedNumbers(
+  db: SupabaseClient,
+  now: Date = new Date(),
+  max = 20,
+): Promise<{ enabled: boolean; results: QuarantineReleaseResult[]; reason?: string }> {
+  const cfg = readProvisioningConfig();
+  if (!cfg.ok) return { enabled: false, results: [], reason: `config incomplète : ${cfg.missing.join(", ")}` };
+  const config = cfg.config;
+
+  const { data: rows, error } = await db
+    .from("voice_number_pool")
+    .select("id, phone_e164, twilio_incoming_phone_sid, elevenlabs_phone_number_id")
+    .eq("status", "quarantine")
+    .lte("quarantine_until", now.toISOString())
+    .order("quarantine_until", { ascending: true })
+    .limit(max);
+  if (error) return { enabled: true, results: [], reason: error.message };
+
+  const client = twilio(config.accountSid, config.authToken);
+  const results: QuarantineReleaseResult[] = [];
+
+  for (const row of rows ?? []) {
+    const phoneE164 = row.phone_e164 as string;
+    try {
+      const elevenlabsId = (row.elevenlabs_phone_number_id as string | null) ?? null;
+      if (elevenlabsId) {
+        await elevenlabsRequest(config, "DELETE", `/v1/convai/phone-numbers/${elevenlabsId}`).catch((e) => {
+          // Déjà supprimé côté ElevenLabs : on continue.
+          if (!String(e).includes("404")) throw e;
+        });
+      }
+
+      let twilioSid = (row.twilio_incoming_phone_sid as string | null) ?? null;
+      if (!twilioSid) {
+        const found = await client.incomingPhoneNumbers.list({ phoneNumber: phoneE164, limit: 1 });
+        twilioSid = found[0]?.sid ?? null;
+      }
+      if (twilioSid) {
+        await client.incomingPhoneNumbers(twilioSid).remove();
+      }
+
+      await db
+        .from("voice_number_pool")
+        .update({
+          status: "retired",
+          released_to_carrier_at: now.toISOString(),
+          notes: "Rendu à Twilio en fin de quarantaine",
+          updated_at: now.toISOString(),
+        })
+        .eq("id", row.id);
+      results.push({ phoneE164, ok: true });
+    } catch (e) {
+      const message = errorMessage(e);
+      console.error("[voice pool] restitution fin de quarantaine", phoneE164, message);
+      results.push({ phoneE164, ok: false, error: message });
+    }
+  }
+
+  return { enabled: true, results };
 }

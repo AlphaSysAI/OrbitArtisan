@@ -3,6 +3,11 @@ import { notFound } from "next/navigation";
 import type { VitrineOwnerAppointment } from "@/components/vitrine/vitrine-owner-calendar";
 import { VitrinePublicPage, type VitrineGalleryItem } from "@/components/vitrine/vitrine-public-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import { DEFAULT_VISIT_HOURS, type VisitHours } from "@/lib/appointments/visit-hours";
+import { loadVitrineVisitHours } from "@/lib/vitrine/booking-rules";
+import { loadVitrineBusyIntervals } from "@/lib/vitrine/busy-slots";
+import type { BusyInterval } from "@/lib/vitrine/slot-overlap";
 import { vitrineMediaPublicUrl } from "@/lib/vitrine/gallery";
 import { presetTradeFromProfile } from "@/lib/trades/preset-from-profile";
 import { resolveVitrineAccent } from "@/lib/vitrine-theme";
@@ -40,6 +45,8 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
   let isOwner = false;
   let ownerAppointments: VitrineOwnerAppointment[] = [];
   let gallery: VitrineGalleryItem[] = [];
+  let busySlots: BusyInterval[] = [];
+  let visitHours: VisitHours = DEFAULT_VISIT_HOURS;
 
   if (demoMode) {
     profile = {
@@ -126,6 +133,15 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
         .order("start_time", { ascending: true });
 
       ownerAppointments = (appts ?? []) as VitrineOwnerAppointment[];
+    } else {
+      // Visiteur : horaires occupés seulement (ni nom ni contact), pour ne proposer que des créneaux libres.
+      const admin = createSupabaseServiceRoleClient();
+      if (admin) {
+        [busySlots, visitHours] = await Promise.all([
+          loadVitrineBusyIntervals(admin, profile.id),
+          loadVitrineVisitHours(admin, profile.id),
+        ]);
+      }
     }
   }
 
@@ -145,6 +161,8 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
       viewerUserId={viewerUserId}
       isOwner={isOwner}
       ownerAppointments={ownerAppointments}
+      busySlots={busySlots}
+      visitHours={visitHours}
       estimationEnabled={estimationEnabled}
       presetTrade={presetTrade}
     />

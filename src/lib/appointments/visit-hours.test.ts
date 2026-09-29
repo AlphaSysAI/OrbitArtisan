@@ -99,3 +99,38 @@ describe("formatSlotForSpeech", () => {
     expect(formatSlotForSpeech(new Date("2026-09-29T15:00:00.000Z"))).toBe("mardi 29 septembre à 17 h");
   });
 });
+
+describe("slotsForParisDay (vitrine)", () => {
+  const now = new Date("2026-09-28T08:00:00.000Z");
+
+  it("pas = durée de la prestation, dans les plages par défaut", async () => {
+    const { DEFAULT_VISIT_HOURS, slotsForParisDay } = await import("./visit-hours");
+    const slots = slotsForParisDay({ ymd: { year: 2026, month: 9, day: 29 }, hours: DEFAULT_VISIT_HOURS, durationMinutes: 90, now });
+    // 9 h, 10 h 30 puis 14 h, 15 h 30 (17 h + 1 h 30 déborderait) — heure de Paris (UTC+2)
+    expect(slots.map((s) => s.toISOString())).toEqual([
+      "2026-09-29T07:00:00.000Z",
+      "2026-09-29T08:30:00.000Z",
+      "2026-09-29T12:00:00.000Z",
+      "2026-09-29T13:30:00.000Z",
+    ]);
+  });
+
+  it("aucun créneau le week-end avec les plages par défaut", async () => {
+    const { DEFAULT_VISIT_HOURS, isOpenDay, slotsForParisDay } = await import("./visit-hours");
+    expect(isOpenDay(DEFAULT_VISIT_HOURS, { year: 2026, month: 10, day: 3 })).toBe(false);
+    expect(slotsForParisDay({ ymd: { year: 2026, month: 10, day: 3 }, hours: DEFAULT_VISIT_HOURS, durationMinutes: 60, now })).toEqual([]);
+  });
+
+  it("exclut les RDV existants", async () => {
+    const { DEFAULT_VISIT_HOURS, slotsForParisDay } = await import("./visit-hours");
+    const slots = slotsForParisDay({
+      ymd: { year: 2026, month: 9, day: 29 },
+      hours: DEFAULT_VISIT_HOURS,
+      durationMinutes: 60,
+      busy: [{ start: new Date("2026-09-29T12:00:00.000Z"), end: new Date("2026-09-29T13:00:00.000Z") }],
+      now,
+    });
+    expect(slots.map((s) => s.toISOString())).not.toContain("2026-09-29T12:00:00.000Z");
+    expect(slots.map((s) => s.toISOString())).toContain("2026-09-29T13:00:00.000Z");
+  });
+});

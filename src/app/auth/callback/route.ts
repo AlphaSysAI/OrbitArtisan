@@ -1,3 +1,4 @@
+import { safeNextPath } from "@/lib/auth/safe-next";
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
@@ -6,7 +7,7 @@ import { persistRegistrationIpOnProfile } from "@/lib/auth/persist-registration-
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") ?? "/app";
+  const next = safeNextPath(url.searchParams.get("next"), "/app");
 
   if (!code) return NextResponse.redirect(new URL("/login", url.origin));
 

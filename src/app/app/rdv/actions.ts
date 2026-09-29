@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
+import { sendAppointmentDecisionEmail } from "@/lib/appointments/customer-emails";
 import { sendVoiceAppointmentConfirmationSms } from "@/lib/appointments/voice-booking";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -48,19 +49,29 @@ async function setAppointmentStatus(
 export async function confirmAppointment(appointmentId: string) {
   const result = await setAppointmentStatus(appointmentId, "confirmed");
   if (result.ok) {
-    // RDV pris par Soline : SMS de confirmation au client (une seule fois, jamais bloquant).
     const admin = createSupabaseServiceRoleClient();
     if (admin) {
-      await sendVoiceAppointmentConfirmationSms(admin, appointmentId).catch((error) =>
-        console.error("[rdv] SMS confirmation", error instanceof Error ? error.message : error),
-      );
+      // RDV Soline : SMS (une seule fois). RDV vitrine : e-mail avec le lien de suivi. Jamais bloquant.
+      await Promise.all([
+        sendVoiceAppointmentConfirmationSms(admin, appointmentId),
+        sendAppointmentDecisionEmail(admin, appointmentId, "confirmed"),
+      ]).catch((error) => console.error("[rdv] prévenir le client", error instanceof Error ? error.message : error));
     }
   }
   return result;
 }
 
 export async function cancelAppointment(appointmentId: string) {
-  return setAppointmentStatus(appointmentId, "cancelled");
+  const result = await setAppointmentStatus(appointmentId, "cancelled");
+  if (result.ok) {
+    const admin = createSupabaseServiceRoleClient();
+    if (admin) {
+      await sendAppointmentDecisionEmail(admin, appointmentId, "cancelled").catch((error) =>
+        console.error("[rdv] prévenir le client", error instanceof Error ? error.message : error),
+      );
+    }
+  }
+  return result;
 }
 
 export type CreateAppointmentInput = {

@@ -9,15 +9,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_VISIT_HOURS,
+  isOpenDay,
+  slotsForParisDay,
+  VISIT_TIMEZONE,
+  type VisitHours,
+} from "@/lib/appointments/visit-hours";
+import type { BusyInterval } from "@/lib/vitrine/slot-overlap";
+
+function ymdOf(date: Date) {
+  return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
+}
 
 import { createAppointmentForLoggedInUser, submitVitrineAppointmentAsGuest } from "./actions";
 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-const MORNING_START = 9;
-const MORNING_END = 12;
-const AFTERNOON_START = 14;
-const AFTERNOON_END = 18;
-
 type Service = {
   id: string;
   title: string;
@@ -40,28 +47,6 @@ function isPast(date: Date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d.getTime() < today.getTime();
-}
-
-/** Créneaux pour un jour donné, espacés selon la durée du service (ex. 45 min → 9h, 9h45, 10h30…). */
-function getSlotsForDay(date: Date, durationMinutes: number): string[] {
-  const now = new Date();
-  const slots: string[] = [];
-  const addSlots = (startHour: number, endHour: number) => {
-    let minutes = startHour * 60;
-    const endMinutes = endHour * 60;
-    while (minutes + durationMinutes <= endMinutes) {
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      d.setMinutes(minutes, 0, 0);
-      if (d.getTime() > now.getTime() + 60 * 60 * 1000) {
-        slots.push(d.toISOString());
-      }
-      minutes += durationMinutes;
-    }
-  };
-  addSlots(MORNING_START, MORNING_END);
-  addSlots(AFTERNOON_START, AFTERNOON_END);
-  return slots;
 }
 
 function getCalendarWeeks(year: number, month: number): (Date | null)[][] {
@@ -93,6 +78,8 @@ export function BookAppointmentForm({
   demoMode = false,
   accentColor,
   viewerUserId,
+  busySlots = [],
+  visitHours = DEFAULT_VISIT_HOURS,
 }: {
   artisanId: string;
   slug: string;
@@ -103,7 +90,13 @@ export function BookAppointmentForm({
   accentColor?: string;
   /** Si connecté : RDV lié au compte sans redirection auth. */
   viewerUserId?: string | null;
+  /** Horaires déjà réservés chez l'artisan : jamais proposés. */
+  busySlots?: BusyInterval[];
+  /** Plages de rendez-vous de l'artisan (heure de Paris) : mêmes plages que Soline. */
+  visitHours?: VisitHours;
 }) {
+  const [sentTo, setSentTo] = React.useState<string | null>(null);
+  const [takenNow, setTakenNow] = React.useState<BusyInterval[]>([]);
   const [selectedService, setSelectedService] = React.useState<Service | null>(null);
   const [viewDate, setViewDate] = React.useState(() => {
     const d = new Date();
@@ -122,8 +115,15 @@ export function BookAppointmentForm({
 
   const slotsForSelectedDay = React.useMemo(() => {
     if (!selectedDate || !selectedService) return [];
-    return getSlotsForDay(selectedDate, selectedService.duration);
-  }, [selectedDate, selectedService]);
+    const busy = [...busySlots, ...takenNow].map((b) => ({ start: new Date(b.start), end: new Date(b.end) }));
+    return slotsForParisDay({
+      ymd: ymdOf(selectedDate),
+      hours: visitHours,
+      durationMinutes: selectedService.duration,
+      busy,
+      now: new Date(),
+    }).map((d) => d.toISOString());
+  }, [selectedDate, selectedService, busySlots, takenNow, visitHours]);
 
   const monthLabel = React.useMemo(
     () =>
@@ -152,15 +152,29 @@ export function BookAppointmentForm({
     formData.set("start_time", selectedSlotISO);
     formData.set("service_id", selectedService.id);
 
+    const slotStart = selectedSlotISO;
+    const slotDuration = selectedService.duration;
+    // Créneau pris entre-temps : on le retire tout de suite de la liste.
+    const markTaken = () => {
+      setTakenNow((prev) => [
+        ...prev,
+        { start: slotStart, end: new Date(new Date(slotStart).getTime() + slotDuration * 60_000).toISOString() },
+      ]);
+      setSelectedSlotISO(null);
+    };
+
     if (viewerUserId) {
       const res = await createAppointmentForLoggedInUser(formData);
       if (!res.ok) {
+        if (res.error === "slot_taken") markTaken();
         toast.error(
           res.error === "missing_fields"
             ? "Merci de remplir tous les champs."
             : res.error === "slot_taken"
               ? "Ce créneau vient d’être réservé par quelqu’un d’autre. Choisis un autre horaire."
-              : "Impossible de créer le RDV. Réessaie.",
+              : res.error === "invalid_slot"
+                ? "Ce créneau n’est plus proposé. Choisis un autre horaire."
+                : "Impossible de créer le RDV. Réessaie.",
         );
         return;
       }
@@ -172,23 +186,26 @@ export function BookAppointmentForm({
 
     const res = await submitVitrineAppointmentAsGuest(formData);
     if (!res.ok) {
+      if (res.error === "slot_taken") markTaken();
       toast.error(
         res.error === "missing_fields"
           ? "Merci de remplir tous les champs."
           : res.error === "slot_taken"
             ? "Ce créneau vient d’être réservé par quelqu’un d’autre. Choisis un autre horaire."
-            : res.error === "pending_failed"
-              ? "Impossible d’enregistrer ta demande. Réessaie ou contacte l’assistance."
-              : "Impossible de créer le RDV. Réessaie.",
+            : res.error === "invalid_email"
+              ? "Adresse e-mail invalide : elle sert à suivre ta demande."
+              : res.error === "invalid_phone"
+                ? "Numéro de téléphone invalide : l’artisan en a besoin pour te rappeler."
+              : res.error === "invalid_slot"
+                ? "Ce créneau n’est plus proposé. Choisis un autre horaire."
+                : "Impossible de créer le RDV. Réessaie.",
       );
       return;
     }
-    if (res.mode === "done") {
-      toast.success("Demande envoyée. L’artisan confirmera le RDV.");
-      setSelectedDate(null);
-      setSelectedSlotISO(null);
-    }
-    /* Sinon redirect() serveur (connexion ou inscription) — pas de toast ici. */
+    const email = String(formData.get("customer_email") ?? "").trim();
+    setSentTo(email || "ton adresse e-mail");
+    setSelectedDate(null);
+    setSelectedSlotISO(null);
   }
 
   const canSubmit = !!selectedSlotISO && !!selectedService;
@@ -206,6 +223,26 @@ export function BookAppointmentForm({
           <CardTitle>Prendre rendez‑vous</CardTitle>
           <CardDescription>Aucun service n’est proposé pour le moment.</CardDescription>
         </CardHeader>
+      </Card>
+    );
+  }
+
+  if (sentTo) {
+    return (
+      <Card className="border-0 shadow-none">
+        <CardHeader>
+          <CardTitle className="text-xl">Demande envoyée ✓</CardTitle>
+          <CardDescription className="text-base leading-relaxed">
+            Le créneau vous est réservé en attendant la confirmation de l’artisan. Un e-mail vient
+            d’être envoyé à <strong className="text-foreground">{sentTo}</strong> avec un bouton « Suivre ma
+            demande » : vous serez prévenu dès que l’artisan aura confirmé.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button type="button" variant="outline" onClick={() => setSentTo(null)}>
+            Faire une autre demande
+          </Button>
+        </CardContent>
       </Card>
     );
   }
@@ -298,7 +335,7 @@ export function BookAppointmentForm({
                     if (!day) {
                       return <div key={`empty-${i}`} className="size-9 shrink-0" aria-hidden />;
                     }
-                    const disabled = isPast(day);
+                    const disabled = isPast(day) || !isOpenDay(visitHours, ymdOf(day));
                     const selected = selectedDate && isSameDay(day, selectedDate);
                     return (
                       <button
@@ -361,6 +398,7 @@ export function BookAppointmentForm({
                         style={accentSelected(!!selected)}
                       >
                         {new Date(iso).toLocaleTimeString("fr-FR", {
+                          timeZone: VISIT_TIMEZONE,
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
@@ -387,10 +425,16 @@ export function BookAppointmentForm({
                   placeholder="toi@email.fr"
                   required
                 />
+                {!viewerUserId ? (
+                  <p className="text-xs text-muted-foreground">
+                    Pas besoin de compte : tu recevras un lien pour suivre ou annuler ta demande.
+                  </p>
+                ) : null}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="customer_phone">
-                  Téléphone <span className="text-muted-foreground">(facultatif)</span>
+                  Téléphone{" "}
+                  {viewerUserId ? <span className="text-muted-foreground">(facultatif)</span> : null}
                 </Label>
                 <Input
                   id="customer_phone"
@@ -399,9 +443,11 @@ export function BookAppointmentForm({
                   inputMode="tel"
                   autoComplete="tel"
                   placeholder="06 12 34 56 78"
+                  required={!viewerUserId}
+                  minLength={viewerUserId ? undefined : 10}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Permet à l’artisan de te rappeler pour confirmer le créneau.
+                  Pour que l’artisan puisse te rappeler au sujet du rendez-vous.
                 </p>
               </div>
               <Button

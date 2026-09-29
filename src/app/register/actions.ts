@@ -3,6 +3,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { safeNextPath } from "@/lib/auth/safe-next";
+
 import { getClientIpFromHeaders } from "@/lib/http/client-ip";
 import { LEGAL_LAST_UPDATED } from "@/lib/legal/site-legal-info";
 import { normalizePromoCode } from "@/lib/billing/promo-program";
@@ -22,7 +24,7 @@ export async function signUpWithPassword(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const passwordConfirm = String(formData.get("password_confirm") ?? "");
-  const next = String(formData.get("next") ?? "/app/onboarding");
+  const next = safeNextPath(String(formData.get("next") ?? ""), "/app/onboarding");
   const invite = String(formData.get("invite") ?? "").trim();
   const role = String(formData.get("role") ?? "artisan").trim();
   const rawPromoCode = String(formData.get("promo_code") ?? "").trim();

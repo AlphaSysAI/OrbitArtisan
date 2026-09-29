@@ -2,12 +2,13 @@
 
 import { redirect } from "next/navigation";
 
+import { safeNextPath } from "@/lib/auth/safe-next";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function signInWithPassword(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/app");
+  const next = safeNextPath(String(formData.get("next") ?? ""), "/app");
   const role = String(formData.get("role") ?? "").trim();
 
   const supabase = await createSupabaseServerClient();

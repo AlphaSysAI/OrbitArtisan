@@ -140,6 +140,58 @@ export function zonedCalendarDay(
 
 export type BusyInterval = { start: Date; end: Date };
 
+/** Plages par défaut quand l'artisan n'a rien réglé : du lundi au vendredi, 9 h – 12 h et 14 h – 18 h. */
+export const DEFAULT_VISIT_HOURS: VisitHours = {
+  "1": [{ start: "09:00", end: "12:00" }, { start: "14:00", end: "18:00" }],
+  "2": [{ start: "09:00", end: "12:00" }, { start: "14:00", end: "18:00" }],
+  "3": [{ start: "09:00", end: "12:00" }, { start: "14:00", end: "18:00" }],
+  "4": [{ start: "09:00", end: "12:00" }, { start: "14:00", end: "18:00" }],
+  "5": [{ start: "09:00", end: "12:00" }, { start: "14:00", end: "18:00" }],
+  "6": [],
+  "7": [],
+};
+
+/** Jour ISO (1 = lundi) d'une date civile. */
+export function isoWeekdayOf(ymd: { year: number; month: number; day: number }): IsoWeekday {
+  const js = new Date(Date.UTC(ymd.year, ymd.month - 1, ymd.day)).getUTCDay(); // 0 = dimanche
+  return String(js === 0 ? 7 : js) as IsoWeekday;
+}
+
+/**
+ * Créneaux d'un jour civil (heure de Paris), pas = durée de la prestation, sans jamais
+ * déborder d'une plage, au plus tôt `minLeadMinutes` après maintenant, hors RDV existants.
+ */
+export function slotsForParisDay(input: {
+  ymd: { year: number; month: number; day: number };
+  hours: VisitHours;
+  durationMinutes: number;
+  busy?: BusyInterval[];
+  now: Date;
+  minLeadMinutes?: number;
+}): Date[] {
+  const durationMs = input.durationMinutes * 60_000;
+  if (durationMs <= 0) return [];
+  const earliest = input.now.getTime() + (input.minLeadMinutes ?? VISIT_MIN_LEAD_MINUTES) * 60_000;
+  const busy = input.busy ?? [];
+  const slots: Date[] = [];
+  for (const range of input.hours[isoWeekdayOf(input.ymd)] ?? []) {
+    const rangeStart = zonedWallTimeToUtc(input.ymd, range.start).getTime();
+    const rangeEnd = zonedWallTimeToUtc(input.ymd, range.end).getTime();
+    for (let t = rangeStart; t + durationMs <= rangeEnd; t += durationMs) {
+      if (t < earliest) continue;
+      const end = t + durationMs;
+      if (busy.some((b) => t < b.end.getTime() && end > b.start.getTime())) continue;
+      slots.push(new Date(t));
+    }
+  }
+  return slots;
+}
+
+/** Le jour a-t-il au moins une plage ouverte ? */
+export function isOpenDay(hours: VisitHours, ymd: { year: number; month: number; day: number }): boolean {
+  return (hours[isoWeekdayOf(ymd)] ?? []).length > 0;
+}
+
 /**
  * Créneaux libres dans les plages de visite, en ordre chronologique.
  * - pas de créneau à moins de VISIT_MIN_LEAD_MINUTES de maintenant ;
@@ -157,25 +209,20 @@ export function computeVisitSlots(input: {
 }): Date[] {
   const days = input.days ?? VISIT_SEARCH_DAYS;
   const limit = input.limit ?? 50;
-  const durationMs = input.durationMinutes * 60_000;
-  const earliest = input.now.getTime() + (input.minLeadMinutes ?? VISIT_MIN_LEAD_MINUTES) * 60_000;
   const slots: Date[] = [];
 
   for (let offset = 0; offset <= days && slots.length < limit; offset++) {
     // Jours civils successifs à Paris à partir de maintenant.
-    const probe = new Date(input.now.getTime() + offset * 86_400_000);
-    const day = zonedCalendarDay(probe);
-    for (const range of input.hours[day.isoWeekday] ?? []) {
-      const rangeStart = zonedWallTimeToUtc(day, range.start).getTime();
-      const rangeEnd = zonedWallTimeToUtc(day, range.end).getTime();
-      for (let t = rangeStart; t + durationMs <= rangeEnd; t += durationMs) {
-        if (t < earliest) continue;
-        const end = t + durationMs;
-        const overlaps = input.busy.some((b) => t < b.end.getTime() && end > b.start.getTime());
-        if (overlaps) continue;
-        slots.push(new Date(t));
-        if (slots.length >= limit) break;
-      }
+    const day = zonedCalendarDay(new Date(input.now.getTime() + offset * 86_400_000));
+    for (const slot of slotsForParisDay({
+      ymd: day,
+      hours: input.hours,
+      durationMinutes: input.durationMinutes,
+      busy: input.busy,
+      now: input.now,
+      minLeadMinutes: input.minLeadMinutes,
+    })) {
+      slots.push(slot);
       if (slots.length >= limit) break;
     }
   }

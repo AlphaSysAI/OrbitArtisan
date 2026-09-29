@@ -37,7 +37,7 @@ import { updateArtisanSettings } from "./actions";
 
 const TABS = [
   { id: "activite", label: "Mon activité" },
-  { id: "prestations", label: "Prestations" },
+  { id: "prestations", label: "Prestations & horaires" },
   { id: "widget", label: "Widget" },
   { id: "vocal", label: "Appels Soline" },
   { id: "coordonnees", label: "Coordonnées" },
@@ -447,6 +447,10 @@ export default async function ArtisanSettingsPage({
                     </ul>
                   )}
                 </div>
+                <VisitHoursSettingsForm
+                  initialHours={visitHours}
+                  initialDurationMinutes={visitDurationMinutes}
+                />
               </>
             )}
           </section>
@@ -500,12 +504,13 @@ export default async function ArtisanSettingsPage({
                   </Link>
                 </div>
                 {voiceQuota ? <VoiceQuotaSettingsForm quota={voiceQuota} /> : null}
-                {planIncludesVoice ? (
-                  <VisitHoursSettingsForm
-                    initialHours={visitHours}
-                    initialDurationMinutes={visitDurationMinutes}
-                  />
-                ) : null}
+                <p className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                  Les plages où Soline propose des visites sont celles de ton agenda :{" "}
+                  <Link href="/app/reglages?tab=prestations" className="font-medium text-foreground underline-offset-4 hover:underline">
+                    Prestations &amp; horaires
+                  </Link>
+                  .
+                </p>
                 <VoiceSolineNumberSection
                   phoneE164={solinePhone}
                   planIncludesVoice={planIncludesVoice}

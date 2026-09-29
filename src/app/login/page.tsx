@@ -1,3 +1,4 @@
+import { safeNextPath } from "@/lib/auth/safe-next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -32,7 +33,7 @@ export default async function LoginPage({
   const sp = await searchParams;
   const role: Role = sp.role === "particulier" ? "particulier" : "artisan";
   const isParticulier = role === "particulier";
-  const next = typeof sp.next === "string" ? sp.next : isParticulier ? "/compte" : "/app";
+  const next = safeNextPath(typeof sp.next === "string" ? sp.next : null, isParticulier ? "/compte" : "/app");
   const error = typeof sp.error === "string" ? sp.error : undefined;
   const success = typeof sp.success === "string" ? sp.success : undefined;
   const prefillEmail = typeof sp.email === "string" ? sp.email : "";

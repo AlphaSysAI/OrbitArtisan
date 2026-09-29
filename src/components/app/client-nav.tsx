@@ -42,7 +42,10 @@ export function ClientNav() {
   const { badgeCount } = useNotifications();
 
   return (
-    <nav className="flex flex-col gap-1" aria-label="Navigation client">
+    <nav
+      className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0"
+      aria-label="Navigation client"
+    >
       {items.map(({ href, label, icon: Icon, exact, badgeKey }) => {
         const active = exact ? pathname === href : pathname.startsWith(href);
         const count = badgeKey ? badgeCount(badgeKey) : 0;
@@ -51,13 +54,13 @@ export function ClientNav() {
             key={href}
             href={href}
             className={cn(
-              "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+              "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium transition-colors lg:gap-3 lg:px-4 lg:py-3",
               active
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
-            <Icon className="h-5 w-5 shrink-0 opacity-90" />
+            <Icon className="h-4 w-4 shrink-0 opacity-90 lg:h-5 lg:w-5" />
             <span className="flex flex-1 items-center gap-2">
               {label}
               <NavBadge count={count} variant="inline" className="ml-auto" />

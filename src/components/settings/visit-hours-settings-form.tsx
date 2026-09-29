@@ -76,22 +76,26 @@ export function VisitHoursSettingsForm({
       <div className="flex items-start gap-3">
         <CalendarClock className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
         <div className="space-y-1">
-          <h3 className="font-display text-lg font-semibold tracking-tight">Rendez-vous pris par Soline</h3>
+          <h3 className="font-display text-lg font-semibold tracking-tight">Plages de rendez-vous</h3>
           <p className="text-sm text-muted-foreground">
-            Soline propose au client 3 créneaux libres dans ces plages (heure de Paris, au plus tôt 2 h après
-            l&apos;appel). Le RDV bloque le créneau et vous arrive « à valider » : sans validation sous 24 h, il
-            est annulé. Le client reçoit un SMS dès que vous validez.
+            Un seul agenda pour tout : votre vitrine ne propose que des créneaux dans ces plages (heure de
+            Paris, au plus tôt 2 h à l&apos;avance, hors RDV déjà pris), et Soline y propose ses visites au
+            téléphone. Chaque demande vous arrive « à valider ».
           </p>
           {!active ? (
             <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-              Aucune plage : Soline ne propose pas de RDV, elle prend les coordonnées et vous rappelez.
+              Aucune plage réglée : la vitrine propose du lundi au vendredi, 9 h – 12 h et 14 h – 18 h, et Soline
+              ne propose pas de RDV (elle prend les coordonnées, vous rappelez).
             </p>
           ) : null}
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="visit-duration">Durée d&apos;une visite</Label>
+        <Label htmlFor="visit-duration">Durée d&apos;une visite proposée par Soline</Label>
+        <p className="text-xs text-muted-foreground">
+          Sur la vitrine, la durée est celle de la prestation choisie par le client.
+        </p>
         <select
           id="visit-duration"
           className="h-10 rounded-lg border bg-background px-3 text-sm"

@@ -18,7 +18,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/compte" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
-              O
+              S
             </div>
             <div className="leading-tight">
               <p className="text-base font-semibold tracking-tight">Soline</p>
@@ -37,7 +37,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[220px_1fr] lg:gap-10 lg:py-10">
+      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[220px_1fr] lg:gap-10 lg:py-10">
         <aside className="lg:sticky lg:top-24 lg:self-start">
           <ClientNav />
         </aside>

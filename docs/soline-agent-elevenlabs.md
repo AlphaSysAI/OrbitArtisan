@@ -19,9 +19,13 @@ Toute modification de l'agent doit être reportée ici.
   - `artisan_zone` : ville de l'entreprise ;
   - `accepts_calls` : toujours "true" (Soline ne coupe plus jamais la ligne ; conservé pour compatibilité) ;
   - `soline_mode` : "full" (qualification + RDV) / "message_only" (forfait et plafond atteints, ou essai épuisé) ;
-  - `rdv_enabled` : "true" si l'artisan a ouvert des plages de visite et que `soline_mode` = "full".
+  - `rdv_enabled` : "true" si l'artisan a ouvert des plages de visite et que `soline_mode` = "full" ;
+  - `number_active` : "false" si le numéro n'est plus rattaché à aucun artisan (désabonnement, fin d'essai).
+    Dans ce cas, le webhook remplace aussi le message d'accueil par l'annonce « Ce numéro n'est plus en service… ».
+- Agent › onglet **Security** › *Overrides* : autoriser **First message** (sinon l'annonce « hors service »
+  n'est pas appliquée et Soline accueille l'appelant avec « l'entreprise »).
 - Dans l'agent, déclarer ces variables dynamiques avec des valeurs par défaut
-  (`l'entreprise`, `l'artisan`, …, `true`, `full`, `false`) pour les tests depuis l'interface.
+  (`l'entreprise`, `l'artisan`, …, `true`, `full`, `false`, `true`) pour les tests depuis l'interface.
 - Onglet **Advanced** : durée maximale de conversation = **480 s** (8 min, plafond de coût prévu aux CGV).
 
 ## 2. Message d'accueil (First message)
@@ -79,6 +83,9 @@ Si tu passes à la prise de rendez-vous, il te faut d'abord le nom, le besoin et
 3. Si schedule répond slot_unavailable, rappelle availability et propose d'autres créneaux. Si aucun créneau ne convient ou n'est disponible, prends le message : {{artisan_prenom}} rappellera pour fixer une date.
 4. Annonce : « C'est noté pour <libellé>. Le rendez-vous est à confirmer par {{artisan_prenom}} : vous recevrez un SMS dès qu'il l'aura validé. »
 L'e-mail n'est pas obligatoire pour un rendez-vous : ne le demande que pour l'envoi d'un devis.
+
+SI {{number_active}} VAUT "false"
+Le numéro n'est plus en service. Ne pose aucune question, ne prends aucun message. Après l'annonce d'accueil, appelle immédiatement l'outil end_call.
 
 SI {{soline_mode}} VAUT "message_only"
 Ne propose ni rendez-vous ni devis. Prends uniquement le nom, le numéro de rappel et le motif en deux ou trois questions, dis que {{artisan_name}} rappellera, puis termine l'appel.

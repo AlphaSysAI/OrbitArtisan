@@ -1,3 +1,5 @@
+import type { BusyInterval } from "@/lib/vitrine/slot-overlap";
+import type { VisitHours } from "@/lib/appointments/visit-hours";
 import Image from "next/image";
 import Link from "next/link";
 import { CalendarCheck, Clock, MapPin, ShieldCheck, Sparkles } from "lucide-react";
@@ -52,6 +54,8 @@ export function VitrinePublicPage({
   accent,
   demoMode,
   viewerUserId,
+  busySlots = [],
+  visitHours,
   isOwner,
   ownerAppointments = [],
   estimationEnabled = false,
@@ -63,6 +67,10 @@ export function VitrinePublicPage({
   accent: string;
   demoMode: boolean;
   viewerUserId: string | null;
+  /** Horaires déjà réservés chez l'artisan (sans aucune donnée client). */
+  busySlots?: BusyInterval[];
+  /** Plages de rendez-vous de l'artisan (défaut : lun.–ven. 9 h–12 h / 14 h–18 h). */
+  visitHours?: VisitHours;
   isOwner: boolean;
   ownerAppointments?: VitrineOwnerAppointment[];
   estimationEnabled?: boolean;
@@ -273,6 +281,8 @@ export function VitrinePublicPage({
                   demoMode={demoMode}
                   accentColor={accent}
                   viewerUserId={viewerUserId}
+                  busySlots={busySlots}
+                  visitHours={visitHours}
                 />
               </div>
             )}

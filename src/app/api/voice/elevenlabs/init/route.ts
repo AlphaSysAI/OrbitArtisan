@@ -40,7 +40,26 @@ const FALLBACK = {
   soline_mode: "full",
   /** « true » si l'artisan a ouvert des plages de visite : Soline peut proposer un RDV. */
   rdv_enabled: "false",
+  /** « false » : numéro rendu par un artisan (désabonnement) — annonce « hors service » puis raccroche. */
+  number_active: "true",
 };
+
+/**
+ * Numéro qui n'est plus rattaché à aucun artisan (désabonnement, fin d'essai) : l'appel
+ * arrive souvent via un renvoi resté actif chez l'ancien artisan. On ne prend AUCUN
+ * message (il ne serait attribué à personne) : annonce claire puis fin d'appel.
+ */
+const INACTIVE_NUMBER_MESSAGE =
+  "Bonjour. Ce numéro n'est plus en service. Merci de contacter directement l'entreprise que vous cherchez à joindre. Au revoir.";
+
+const INACTIVE = {
+  ...FALLBACK,
+  business_name: "ce numéro",
+  number_active: "false",
+  soline_mode: "message_only",
+};
+
+type InitPayload = { variables: Record<string, string>; firstMessage?: string };
 
 const MAX_PRESTATIONS_CHARS = 600;
 
@@ -50,10 +69,14 @@ function hasVisitHours(raw: unknown): boolean {
   return parsed.ok && hasAnyVisitRange(parsed.value);
 }
 
-function initResponse(dynamicVariables: Record<string, string>) {
+function initResponse(payload: InitPayload) {
   return NextResponse.json({
     type: "conversation_initiation_client_data",
-    dynamic_variables: dynamicVariables,
+    dynamic_variables: payload.variables,
+    // Nécessite « Overrides › First message » autorisé dans l'onglet Security de l'agent.
+    ...(payload.firstMessage
+      ? { conversation_config_override: { agent: { first_message: payload.firstMessage } } }
+      : {}),
   });
 }
 
@@ -81,16 +104,16 @@ export async function POST(request: Request) {
       calledNumber: body.called_number,
       error: error instanceof Error ? `${error.message}\n${error.stack}` : error,
     });
-    return initResponse(FALLBACK);
+    return initResponse({ variables: FALLBACK });
   }
 }
 
-async function resolveDynamicVariables(body: Record<string, unknown>): Promise<Record<string, string>> {
+async function resolveDynamicVariables(body: Record<string, unknown>): Promise<InitPayload> {
   const calledNumber = normalizePhoneE164(String(body.called_number ?? ""));
   const db = createSupabaseServiceRoleClient();
   if (!db || !calledNumber) {
     console.warn("[elevenlabs init] numéro appelé ou service role absent", { hasDb: !!db, calledNumber });
-    return FALLBACK;
+    return { variables: FALLBACK };
   }
 
   const { data: mapping, error: mappingError } = await db
@@ -100,8 +123,8 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<R
     .maybeSingle();
   if (mappingError) console.error("[elevenlabs init] lookup numéro", mappingError.message);
   if (!mapping?.artisan_id || !mapping.is_active) {
-    console.warn("[elevenlabs init] numéro non rattaché", { calledNumber });
-    return FALLBACK;
+    console.warn("[elevenlabs init] numéro non rattaché : annonce hors service", { calledNumber });
+    return { variables: INACTIVE, firstMessage: INACTIVE_NUMBER_MESSAGE };
   }
   const artisanId = mapping.artisan_id as string;
 
@@ -133,7 +156,7 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<R
     prestations = next;
   }
 
-  return {
+  const variables: Record<string, string> = {
     business_name: businessName,
     artisan_name: artisanName,
     artisan_metier: trade?.label ?? category?.label ?? FALLBACK.artisan_metier,
@@ -146,5 +169,7 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<R
     soline_mode: quota?.mode ?? "message_only",
     rdv_enabled:
       quota?.mode === "full" && hasVisitHours(profile?.visit_hours) ? "true" : "false",
+    number_active: "true",
   };
+  return { variables };
 }

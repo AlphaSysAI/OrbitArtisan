@@ -8,6 +8,7 @@ import {
   type SubscriptionPlanId,
 } from "@/lib/billing/subscription-plans";
 import { syncArtisanVoiceNumberMapping } from "@/lib/voice/voice-number-registry";
+import { notifyVoiceNumberReleased } from "@/lib/voice/voice-number-release-notice";
 
 export type SubscriptionVoiceSyncInput = {
   profileId: string;
@@ -175,6 +176,9 @@ async function releaseArtisanVoiceNumberForSubscription(
   if (!sync.ok) {
     console.error("[voice pool] release mapping failed", sync.error);
   }
+
+  // Renvoi d'appel probablement encore actif chez l'artisan : on lui demande de le couper.
+  await notifyVoiceNumberReleased(admin, { profileId, phoneE164: phone });
 
   return true;
 }
