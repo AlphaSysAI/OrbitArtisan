@@ -10,6 +10,7 @@ import { LeadMatchingReadiness } from "@/components/settings/lead-matching-readi
 import { SubscriptionSettingsSection } from "@/components/settings/subscription-settings-section";
 import { getAmbassadorProgramStatus, getPromoEnrollment } from "@/lib/billing/promo-enrollment";
 import { VoiceSolineNumberSection } from "@/components/settings/voice-soline-number-section";
+import { VoiceQuotaRecap } from "@/components/settings/voice-quota-recap";
 import { VoiceQuotaSettingsForm } from "@/components/settings/voice-quota-settings-form";
 import { VisitHoursSettingsForm } from "@/components/settings/visit-hours-settings-form";
 import { parseVisitHours, type VisitHours } from "@/lib/appointments/visit-hours";
@@ -503,6 +504,7 @@ export default async function ArtisanSettingsPage({
                     Booster mon compte
                   </Link>
                 </div>
+                {voiceQuota ? <VoiceQuotaRecap quota={voiceQuota} /> : null}
                 {voiceQuota ? <VoiceQuotaSettingsForm quota={voiceQuota} /> : null}
                 <p className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
                   Les plages où Soline propose des visites sont celles de ton agenda :{" "}
