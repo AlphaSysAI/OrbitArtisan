@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { safeHttpUrl } from "@/lib/security/safe-url";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
@@ -163,7 +164,7 @@ async function resolveQuoteInput(
         quantity,
         unitPriceCents: parsedPrice ?? (excludeFromInvoice ? 0 : NaN),
         supplierProductId: m?.supplier_product_id ? String(m.supplier_product_id) : null,
-        supplierUrl: m?.supplier_url ? String(m.supplier_url).trim() || null : null,
+        supplierUrl: m?.supplier_url ? safeHttpUrl(String(m.supplier_url)) : null,
         supplierSku: m?.supplier_sku ? String(m.supplier_sku).trim() || null : null,
         isSupplierCatalog: Boolean(m?.is_supplier_catalog),
         excludeFromInvoice,

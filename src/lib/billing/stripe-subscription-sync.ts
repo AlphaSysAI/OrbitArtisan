@@ -5,6 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
+import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
+import { resolvePlanFromPriceId, subscriptionPriceId } from "@/lib/stripe/subscription-prices";
 import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 
 export function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
@@ -75,7 +77,20 @@ export async function syncProfileFromStripeSubscription(
     return;
   }
 
-  const planId = resolvePlanId(subscription.metadata) ?? options?.fallbackPlanId ?? null;
+  // Le prix payé fait foi : un changement de formule depuis le portail Stripe met à jour
+  // le prix, pas les métadonnées posées au premier paiement.
+  const priceId = subscriptionPriceId(subscription);
+  const fromPrice = isStripeConfigured()
+    ? await resolvePlanFromPriceId(getStripe(), priceId).catch(() => null)
+    : null;
+  if (priceId && !fromPrice) {
+    console.warn("[stripe subscription] prix non reconnu (ancienne grille ?), formule reprise des métadonnées", {
+      subscriptionId: subscription.id,
+      priceId,
+    });
+  }
+  const planId =
+    fromPrice?.planId ?? resolvePlanId(subscription.metadata) ?? options?.fallbackPlanId ?? null;
   const status = mapStripeSubscriptionStatus(subscription.status);
   const trialEndsAt =
     subscription.trial_end != null ? new Date(subscription.trial_end * 1000).toISOString() : null;

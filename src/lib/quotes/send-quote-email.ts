@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
 import { loadQuotePdfDocument } from "@/lib/billing/load-quote-pdf";
 import { renderQuotePdf } from "@/lib/billing/render-quote-pdf";
@@ -61,12 +62,12 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
     "Le document PDF joint reprend l'ensemble des mentions légales obligatoires (identité de l'entreprise, SIRET, assurances, TVA, validité du devis, conditions de paiement et, le cas échéant, droit de rétractation).";
 
   const html = `
-    <p>${greeting}</p>
-    <p><strong>${artisan}</strong> vous adresse son devis n° <strong>${quoteRef}</strong>, d'un montant de <strong>${total}</strong>${totalSuffix}.</p>
+    <p>${escapeHtml(greeting)}</p>
+    <p><strong>${escapeHtml(artisan)}</strong> vous adresse son devis n° <strong>${escapeHtml(quoteRef)}</strong>, d'un montant de <strong>${total}</strong>${totalSuffix}.</p>
     <p>Retrouvez le détail des prestations, fournitures et montants dans le PDF en pièce jointe${pdfBase64 ? "" : " (indisponible — contactez directement votre artisan)"}.</p>
     <p style="font-size:13px;color:#444;">${legalNotice}</p>
-    <p>Vous pouvez consulter ce devis et y répondre (acceptation ou refus) depuis votre espace client : <a href="${clientQuoteUrl}">${clientQuoteUrl}</a>.</p>
-    <p style="color:#666;font-size:12px;margin-top:24px;">Message envoyé par ${artisan} via Soline.</p>
+    <p>Vous pouvez consulter ce devis et y répondre (acceptation ou refus) depuis votre espace client : <a href="${escapeHtml(clientQuoteUrl)}">${escapeHtml(clientQuoteUrl)}</a>.</p>
+    <p style="color:#666;font-size:12px;margin-top:24px;">Message envoyé par ${escapeHtml(artisan)} via Soline.</p>
   `.trim();
 
   const text = [

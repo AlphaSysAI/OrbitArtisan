@@ -14,6 +14,7 @@ import {
   resolvePlanFromPaymentLinkUrl,
 } from "@/lib/stripe/subscription-payment-links";
 import { getStripe } from "@/lib/stripe/server";
+import { resolvePlanFromPriceId, subscriptionPriceId } from "@/lib/stripe/subscription-prices";
 
 function resolvePlanIdFromMetadata(metadata: Stripe.Metadata | null | undefined): SubscriptionPlanId | null {
   const plan = metadata?.plan_id?.trim();
@@ -72,8 +73,10 @@ export async function buildSaasBillingEventFromCheckoutSession(
 
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   const profileId = await resolveProfileIdFromCheckoutSession(admin, session, subscription);
-  const planMatch = await resolvePlanFromPaymentLinkSession(stripe, session);
+  const priceMatch = await resolvePlanFromPriceId(stripe, subscriptionPriceId(subscription)).catch(() => null);
+  const planMatch = priceMatch ?? (await resolvePlanFromPaymentLinkSession(stripe, session));
   const planId =
+    priceMatch?.planId ||
     resolvePlanIdFromMetadata(subscription.metadata) ||
     resolvePlanIdFromMetadata(session.metadata) ||
     planMatch?.planId ||
@@ -116,8 +119,10 @@ export async function syncSaasSubscriptionFromCheckoutSession(
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
   const profileId = await resolveProfileIdFromCheckoutSession(admin, session, subscription);
-  const planMatch = await resolvePlanFromPaymentLinkSession(stripe, session);
+  const priceMatch = await resolvePlanFromPriceId(stripe, subscriptionPriceId(subscription)).catch(() => null);
+  const planMatch = priceMatch ?? (await resolvePlanFromPaymentLinkSession(stripe, session));
   const fallbackPlanId =
+    priceMatch?.planId ||
     resolvePlanIdFromMetadata(subscription.metadata) ||
     resolvePlanIdFromMetadata(session.metadata) ||
     planMatch?.planId ||

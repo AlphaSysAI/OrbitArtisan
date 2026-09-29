@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
@@ -20,9 +21,6 @@ export function isConfirmTokenFormat(token: string): boolean {
   return /^[A-Za-z0-9_-]{43}$/.test(token);
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}
 
 export type SendConfirmationResult = { ok: true } | { ok: false; error: "too_soon" | "no_email" | "send_failed" | "db" };
 

@@ -64,6 +64,8 @@ export function ProfileForm({
               ? "Cette adresse est déjà utilisée."
               : res.error === "invalid_accent"
                 ? "Couleur invalide (format #RRGGBB)."
+                : res.error === "invalid_logo"
+                  ? "Adresse du logo invalide (elle doit commencer par https://)."
                 : res.error === "invalid_trade"
                   ? "Sélection de métier invalide : choisis un secteur puis un métier."
                   : "Impossible d’enregistrer. Réessaie.",

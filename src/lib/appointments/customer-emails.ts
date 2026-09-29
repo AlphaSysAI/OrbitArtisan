@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { VISIT_TIMEZONE } from "@/lib/appointments/visit-hours";
 import { trackingPath } from "@/lib/appointments/tracking-link";
+import { escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
@@ -67,9 +68,6 @@ export function formatAppointmentWhen(iso: string): string {
   }).format(new Date(iso));
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}
 
 function button(url: string, label: string): string {
   return `<p><a href="${url}" style="display:inline-block;padding:12px 20px;background:#f97316;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">${escapeHtml(label)}</a></p>`;

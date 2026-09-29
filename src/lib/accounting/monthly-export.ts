@@ -18,6 +18,7 @@ import { buildInvoicesCsv, type InvoiceCsvRow } from "@/lib/accounting/invoices-
 import { ACCOUNTING_EXPORT_PAGE_PATH, listPendingPieces } from "@/lib/accounting/pending-pieces";
 import { loadFacturXDocumentFromDb, renderInvoicePdf } from "@/lib/billing/facturx";
 import { generateFacturX } from "@/lib/billing/facturx/generate-factur-x";
+import { escapeHtml } from "@/lib/email/html";
 import { sendEmail, type EmailAttachment } from "@/lib/email/send-email";
 import { notifyUserActivity } from "@/lib/notifications/send-push";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -33,9 +34,6 @@ type ExportProfile = {
 };
 
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}
 
 async function artisanEmail(db: Db, userId: string): Promise<string | null> {
   const { data } = await db.auth.admin.getUserById(userId);

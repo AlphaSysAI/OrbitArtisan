@@ -10,10 +10,22 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Durcissement commun : pas de sniffing MIME (un fichier servi en
+        // text/plain ne peut pas être interprété comme script/HTML), referer
+        // tronqué vers l'extérieur (les liens /rdv/suivi/<token> ne fuitent pas).
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+      {
         // Seule route destinée à être affichée dans une iframe tierce :
         // c'est le widget que l'artisan colle sur son propre site.
         source: "/embed/:path*",
-        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors *" }],
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors *; object-src 'none'; base-uri 'self'" },
+        ],
       },
       {
         // Le loader doit rester joignable depuis n'importe quel domaine, mais
@@ -29,7 +41,13 @@ const nextConfig: NextConfig = {
         source: "/((?!embed/).*)",
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'; object-src 'none'; base-uri 'self'" },
+          // Caméra/micro/géoloc réservés à nos pages (photos chantier, dictée,
+          // localisation estimation) ; tout le reste coupé.
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=()",
+          },
         ],
       },
     ];

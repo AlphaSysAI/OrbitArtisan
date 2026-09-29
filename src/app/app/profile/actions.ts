@@ -10,6 +10,7 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 import { seedDefaultWorkLibraryForUser } from "@/lib/work-library/actions";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
+import { safeHttpUrl } from "@/lib/security/safe-url";
 
 function normalizeSlug(input: string) {
   return input
@@ -29,6 +30,11 @@ export async function upsertProfile(formData: FormData) {
   const laborRateRaw = String(formData.get("labor_rate_per_hour") ?? "").trim();
   const slugRaw = String(formData.get("slug") ?? "");
   const slug = normalizeSlug(slugRaw);
+
+  const logo_url = logoUrl ? safeHttpUrl(logoUrl) : null;
+  if (logoUrl && !logo_url) {
+    return { ok: false as const, error: "invalid_logo" as const };
+  }
 
   let accent_color: string | null = null;
   if (accentRaw) {
@@ -107,7 +113,7 @@ export async function upsertProfile(formData: FormData) {
     first_name: firstName || null,
     last_name: lastName || null,
     description: description || null,
-    logo_url: logoUrl || null,
+    logo_url,
     accent_color,
     labor_rate_per_hour,
     slug,

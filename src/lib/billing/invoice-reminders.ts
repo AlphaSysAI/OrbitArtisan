@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
@@ -73,12 +74,12 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
         : `Relance — facture ${inv.invoice_number ?? ""} à régler`;
 
     const bodyHtml = `
-      <p>Bonjour${inv.customer_name ? ` ${inv.customer_name}` : ""},</p>
-      <p>Nous vous rappelons que la facture <strong>${inv.invoice_number ?? ""}</strong>
+      <p>Bonjour${inv.customer_name ? ` ${escapeHtml(inv.customer_name)}` : ""},</p>
+      <p>Nous vous rappelons que la facture <strong>${escapeHtml(inv.invoice_number)}</strong>
       d'un montant de <strong>${formatEur(inv.grand_total ?? 0)}</strong>
       était due le <strong>${formatDateFr(inv.due_date)}</strong>.</p>
       <p>Merci de procéder au règlement dans les meilleurs délais.</p>
-      <p>Cordialement,<br/>${profile?.business_name ?? "Votre artisan"}</p>
+      <p>Cordialement,<br/>${escapeHtml(profile?.business_name ?? "Votre artisan")}</p>
     `;
 
     const emailResult = await sendEmail({
@@ -142,10 +143,10 @@ export async function sendManualInvoiceReminder(
 
   const subject = `Relance — facture ${inv.invoice_number ?? ""}`;
   const bodyHtml = `
-    <p>Bonjour${inv.customer_name ? ` ${inv.customer_name}` : ""},</p>
-    <p>Rappel concernant la facture <strong>${inv.invoice_number ?? ""}</strong>
+    <p>Bonjour${inv.customer_name ? ` ${escapeHtml(inv.customer_name)}` : ""},</p>
+    <p>Rappel concernant la facture <strong>${escapeHtml(inv.invoice_number)}</strong>
     (${formatEur(inv.grand_total ?? 0)}${inv.due_date ? `, échéance ${formatDateFr(inv.due_date)}` : ""}).</p>
-    <p>Cordialement,<br/>${profile?.business_name ?? "Votre artisan"}</p>
+    <p>Cordialement,<br/>${escapeHtml(profile?.business_name ?? "Votre artisan")}</p>
     <p><a href="${getPublicSiteUrl()}/compte/factures/${inv.id}">Voir la facture</a></p>
   `;
 

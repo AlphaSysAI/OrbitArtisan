@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
 import { notifyUserActivity } from "@/lib/notifications/send-push";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -48,7 +49,7 @@ export async function notifyVoiceNumberReleased(
       to: email,
       subject: "Votre numéro Soline est désactivé : coupez votre renvoi d'appel",
       html: `
-        <p>Bonjour${hello ? ` ${hello}` : ""},</p>
+        <p>Bonjour${hello ? ` ${escapeHtml(hello)}` : ""},</p>
         <p>Votre secrétaire vocale Soline n'est plus incluse dans votre formule : le numéro <strong>${number}</strong> est désactivé.</p>
         <p><strong>Si vous aviez mis en place un renvoi d'appel</strong> de votre ligne vers ce numéro, désactivez-le dès maintenant : sinon, vos clients entendront « ce numéro n'est plus en service » au lieu de pouvoir vous laisser un message.</p>
         <ul>

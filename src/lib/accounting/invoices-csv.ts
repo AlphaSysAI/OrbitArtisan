@@ -14,9 +14,16 @@ export type InvoiceCsvRow = {
   payment_received_at?: string | null;
 };
 
-function escapeCsv(value: string | number | null | undefined): string {
-  const s = String(value ?? "");
-  if (/[;,"\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+/**
+ * Échappement CSV + garde anti « formula injection » : une cellule texte qui
+ * commence par = + - @ (ou tab/CR) serait exécutée comme formule par Excel /
+ * LibreOffice chez le comptable. On la préfixe d'une apostrophe (texte forcé).
+ * Les montants (number) ne passent pas par ce préfixe.
+ */
+export function escapeCsv(value: string | number | null | undefined): string {
+  let s = String(value ?? "");
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/[;,"\n\r\t]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
 

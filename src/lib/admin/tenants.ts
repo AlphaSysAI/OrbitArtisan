@@ -1,6 +1,7 @@
 import "server-only";
 
 import { formatPriceHtEur, getPlanMrrCents, getPlanVoiceCalls, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
 import {
   emptyAdminMetrics,
   getAdminDb,
@@ -176,7 +177,7 @@ export async function listAdminTenants(params: ListTenantsParams = {}): Promise<
 
   const q = params.q?.trim();
   if (q) {
-    const pattern = `%${q.replace(/[%_]/g, "")}%`;
+    const pattern = ilikeOrPattern(q);
     query = query.or(
       `business_name.ilike.${pattern},name.ilike.${pattern},siret.ilike.${pattern},siren.ilike.${pattern},slug.ilike.${pattern}`,
     );
@@ -190,7 +191,7 @@ export async function listAdminTenants(params: ListTenantsParams = {}): Promise<
       ascending: false,
     });
     if (q) {
-      const pattern = `%${q.replace(/[%_]/g, "")}%`;
+      const pattern = ilikeOrPattern(q);
       legacyQuery = legacyQuery.or(
         `business_name.ilike.${pattern},name.ilike.${pattern},siret.ilike.${pattern},siren.ilike.${pattern},slug.ilike.${pattern}`,
       );

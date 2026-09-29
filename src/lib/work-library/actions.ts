@@ -7,6 +7,7 @@ import { parseWorkItemsCsv, serializeWorkItemsCsv } from "@/lib/work-library/csv
 import type { WorkItemInput, WorkItemWithCategory } from "@/lib/work-library/types";
 import { isVatRate, isWorkUnit, VAT_RATES } from "@/lib/work-library/units";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
 
 async function requireUserId() {
   const supabase = await createSupabaseServerClient();
@@ -124,7 +125,7 @@ export async function searchWorkItems(query: string, limit = 12) {
   const q = query.trim();
   if (!q) return { ok: true as const, items: [] as WorkItemWithCategory[] };
 
-  const pattern = `%${q.replace(/[%_]/g, "")}%`;
+  const pattern = ilikeOrPattern(q);
   const { data, error } = await supabase
     .from("work_items")
     .select("*, work_categories(name)")

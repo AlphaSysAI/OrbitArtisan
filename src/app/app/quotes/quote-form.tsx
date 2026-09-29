@@ -32,6 +32,7 @@ import {
   type MaterialRow,
   type SupplierMaterialRow,
 } from "@/lib/quotes/quote-form-totals";
+import { safeHttpUrl } from "@/lib/security/safe-url";
 import { cn } from "@/lib/utils";
 
 type Service = {
@@ -1110,9 +1111,9 @@ const SupplierMaterialRowEditor = React.memo(function SupplierMaterialRowEditor(
             </p>
           )}
         </div>
-        {m.supplierUrl && (
+        {safeHttpUrl(m.supplierUrl) && (
           <a
-            href={m.supplierUrl}
+            href={safeHttpUrl(m.supplierUrl)!}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs font-medium text-primary underline-offset-4 hover:underline"

@@ -26,7 +26,7 @@ export async function GET() {
     .order("finalized_at", { ascending: true });
 
   const csv = buildInvoicesCsv((invoices ?? []) as InvoiceCsvRow[]);
-  const filename = `export-comptable-${profile.business_name.replace(/\s+/g, "-").slice(0, 30)}-${new Date().toISOString().slice(0, 10)}.csv`;
+  const filename = `export-comptable-${profile.business_name.replace(/[^\w-]+/g, "-").slice(0, 30)}-${new Date().toISOString().slice(0, 10)}.csv`;
 
   return new NextResponse(csv, {
     headers: {
