@@ -35,8 +35,12 @@ Boulangerie Paul;Boulangerie;0611111111;;;Narbonne;11100;;`;
       postal_code: "11000",
       latitude: 43.21,
       longitude: 2.35,
+      // E-mail pro conservé (repli des lignes fixes) ; site, avis… jamais lus.
+      email: "contact@dupont.fr",
     });
-    expect(Object.keys(r.rows[0]!)).not.toContain("email");
+    expect(Object.keys(r.rows[0]!).sort()).toEqual(
+      ["business_name", "city", "email", "latitude", "longitude", "phone", "postal_code", "trade", "trade_category"].sort(),
+    );
     expect(r.rows[1]).toMatchObject({ phone: "+33468000000", latitude: null });
     expect(r.rejected.map((x) => x.reason)).toEqual(["duplicate_in_file", "invalid_phone", "unknown_trade"]);
   });

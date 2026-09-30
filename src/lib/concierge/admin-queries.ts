@@ -13,6 +13,7 @@ export type ProspectRow = {
   trade: string;
   trade_category: string;
   phone: string;
+  email: string | null;
   city: string | null;
   postal_code: string | null;
   latitude: number | null;
@@ -38,7 +39,7 @@ export type AlertRow = {
 };
 
 const PROSPECT_COLUMNS =
-  "id, business_name, trade, trade_category, phone, city, postal_code, latitude, status, notes, opt_out, source, last_contacted_at, contact_count, converted_profile_id, created_at";
+  "id, business_name, trade, trade_category, phone, email, city, postal_code, latitude, status, notes, opt_out, source, last_contacted_at, contact_count, converted_profile_id, created_at";
 
 export const PROSPECT_PAGE_SIZE = 50;
 

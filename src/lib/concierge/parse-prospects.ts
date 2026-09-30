@@ -1,4 +1,4 @@
-import { mapTrade } from "@/lib/concierge/trade-mapping";
+import { isNonArtisanLabel, resolveProspectTrade } from "@/lib/concierge/trade-mapping";
 import { normalizeCustomerPhone } from "@/lib/vitrine/customer-phone";
 
 /**
@@ -16,17 +16,24 @@ export type ProspectInput = {
   postal_code: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** E-mail pro vérifié (repli des lignes fixes), sinon null. */
+  email: string | null;
 };
 
 export type ParseReport = {
   rows: ProspectInput[];
-  rejected: { line: number; reason: "missing_name" | "invalid_phone" | "unknown_trade" | "duplicate_in_file" }[];
+  rejected: {
+    line: number;
+    reason: "missing_name" | "invalid_phone" | "unknown_trade" | "not_artisan" | "closed" | "duplicate_in_file";
+  }[];
   total: number;
 };
 
-const COLUMNS: Record<keyof Omit<ProspectInput, "trade_category"> | "trade", string[]> = {
+const COLUMNS: Record<keyof Omit<ProspectInput, "trade_category" | "email"> | "trade", string[]> = {
   business_name: ["business_name", "name", "nom", "raison_sociale", "title", "entreprise", "nom_entreprise"],
-  trade: ["trade", "metier", "métier", "category", "categorie", "catégorie", "categoryname", "type", "activite", "activité"],
+  // Ordre = priorité : le « type » principal Google (Outscraper, anglais normalisé) est
+  // plus fiable que la catégorie française, souvent vide.
+  trade: ["trade", "metier", "métier", "type", "category", "categorie", "catégorie", "categoryname", "activite", "activité"],
   phone: ["phone", "telephone", "téléphone", "tel", "phone_number", "phonenumber", "numero", "mobile"],
   city: ["city", "ville", "commune", "locality"],
   postal_code: ["postal_code", "postcode", "code_postal", "cp", "zip", "zipcode"],
@@ -41,9 +48,10 @@ function key(h: string) {
 function resolveColumns(headers: string[]) {
   const map: Partial<Record<keyof typeof COLUMNS, string>> = {};
   for (const [field, aliases] of Object.entries(COLUMNS) as [keyof typeof COLUMNS, string[]][]) {
-    const wanted = new Set(aliases.map(key));
-    const found = headers.find((h) => wanted.has(key(h)));
-    if (found) map[field] = found;
+    // Priorité à l'ordre des alias (pas à l'ordre des colonnes du fichier).
+    const byKey = new Map(headers.map((h) => [key(h), h]));
+    const found = aliases.map(key).find((a) => byKey.has(a));
+    if (found) map[field] = byKey.get(found);
   }
   return map;
 }
@@ -98,9 +106,45 @@ export function parseProspectFile(content: string, format: "csv" | "json", maxRo
   } else {
     records = parseCsv(content);
   }
-  records = records.slice(0, maxRows);
-  const cols = resolveColumns(records[0] ? Object.keys(records[0]) : []);
+  return parseProspectRecords(records, maxRows);
+}
+
+/** Colonnes annexes lues pour qualifier la fiche (jamais stockées). */
+const EXTRA = {
+  subtypes: ["subtypes", "sous_types"],
+  category: ["category", "categorie", "catégorie"],
+  query: ["query", "recherche"],
+  status: ["business_status", "statut"],
+  email: ["email", "e_mail", "courriel", "mail"],
+  emailStatus: ["email_emails_validator_status", "email_status"],
+};
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/**
+ * E-mail retenu seulement s'il est unique et, quand l'extracteur fournit une
+ * vérification (Outscraper), jugé « RECEIVING » (boîte existante et joignable).
+ */
+function pickEmail(raw: string, status: string | null): string | null {
+  const email = raw.trim().toLowerCase();
+  if (!email || /[,;\s]/.test(email) || email.length > 254 || !EMAIL_RE.test(email)) return null;
+  if (status !== null && status.trim().toUpperCase() !== "RECEIVING") return null;
+  return email;
+}
+
+function findColumn(headers: string[], aliases: string[]): string | undefined {
+  const byKey = new Map(headers.map((h) => [key(h), h]));
+  const found = aliases.map(key).find((a) => byKey.has(a));
+  return found ? byKey.get(found) : undefined;
+}
+
+export function parseProspectRecords(input: Record<string, unknown>[], maxRows = 5000): ParseReport {
+  const records = input.slice(0, maxRows);
+  const headers = records[0] ? Object.keys(records[0]) : [];
+  const cols = resolveColumns(headers);
   const get = (r: Record<string, unknown>, f: keyof typeof COLUMNS) => (cols[f] ? r[cols[f]!] : undefined);
+  const extra = Object.fromEntries(Object.entries(EXTRA).map(([k, a]) => [k, findColumn(headers, a)])) as Record<keyof typeof EXTRA, string | undefined>;
+  const str = (r: Record<string, unknown>, col: string | undefined) => (col ? String(r[col] ?? "").trim() : "");
 
   const rows: ProspectInput[] = [];
   const rejected: ParseReport["rejected"] = [];
@@ -112,7 +156,16 @@ export function parseProspectFile(content: string, format: "csv" | "json", maxRo
     if (name.length < 2) return void rejected.push({ line, reason: "missing_name" });
     const phone = normalizeCustomerPhone(String(get(r, "phone") ?? ""));
     if (!phone) return void rejected.push({ line, reason: "invalid_phone" });
-    const trade = mapTrade(String(get(r, "trade") ?? ""));
+    if (/^closed/i.test(str(r, extra.status))) return void rejected.push({ line, reason: "closed" });
+    const primary = String(get(r, "trade") ?? "");
+    // Type principal « commerce / fabricant » : seuls les sous-types peuvent requalifier
+    // la fiche (jamais la recherche d'origine, qui ramène aussi les magasins).
+    const subtypes = str(r, extra.subtypes).split(",");
+    const others = isNonArtisanLabel(primary)
+      ? subtypes
+      : [...subtypes, extra.category !== cols.trade ? str(r, extra.category) : "", str(r, extra.query).split(",")[0] ?? ""];
+    const trade = resolveProspectTrade(primary, others);
+    if (trade === "not_artisan") return void rejected.push({ line, reason: "not_artisan" });
     if (!trade) return void rejected.push({ line, reason: "unknown_trade" });
     if (seen.has(phone)) return void rejected.push({ line, reason: "duplicate_in_file" });
     seen.add(phone);
@@ -130,6 +183,7 @@ export function parseProspectFile(content: string, format: "csv" | "json", maxRo
       postal_code: /^\d{5}$/.test(cp) ? cp : null,
       latitude: coordsOk ? lat : null,
       longitude: coordsOk ? lng : null,
+      email: pickEmail(str(r, extra.email), extra.emailStatus ? str(r, extra.emailStatus) : null),
     });
   });
 

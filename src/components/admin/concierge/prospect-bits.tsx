@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { formatPhoneFr } from "@/lib/concierge/format-phone";
+import { formatPhoneFr, isFrenchMobile } from "@/lib/concierge/format-phone";
 import type { ProspectRow, ProspectStatus } from "@/lib/concierge/admin-queries";
 import { findTrade } from "@/lib/trades/taxonomy";
 
@@ -34,6 +34,11 @@ export function ProspectIdentity({ p }: { p: ProspectRow }) {
       <a href={`tel:${p.phone}`} className="text-base font-semibold tabular-nums text-primary">
         {formatPhoneFr(p.phone)}
       </a>
+      {!isFrenchMobile(p.phone) ? (
+        <span className="ml-2 text-xs text-muted-foreground">
+          fixe · {p.email ? "lien envoyé par e-mail" : "ni SMS ni e-mail"}
+        </span>
+      ) : null}
     </div>
   );
 }

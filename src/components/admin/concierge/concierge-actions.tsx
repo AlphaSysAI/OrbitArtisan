@@ -40,8 +40,15 @@ export function ProspectQuickActions({ prospectId, alertId = null }: { prospectI
               const res = await markInterestedAction({ prospectId, alertId });
               if (!res.ok) return void toast.error(res.error);
               setLink(res.url);
-              if (res.smsSent) toast.success("SMS d'inscription envoyé");
-              else toast.warning("SMS non envoyé : transmettez le lien à la main");
+              if (res.sent) toast.success(res.channel === "sms" ? "SMS d'inscription envoyé" : "E-mail d'inscription envoyé");
+              else {
+                await copy(res.url);
+                toast.warning(
+                  res.channel === "none"
+                    ? "Numéro fixe sans e-mail : lien copié, dictez-le ou envoyez-le vous-même."
+                    : `${res.channel === "sms" ? "SMS" : "E-mail"} non envoyé : lien copié, transmettez-le à la main.`,
+                );
+              }
             })
           }
         >
@@ -167,6 +174,8 @@ const REASONS: Record<string, string> = {
   missing_name: "nom manquant",
   invalid_phone: "téléphone invalide",
   unknown_trade: "métier non reconnu",
+  not_artisan: "commerce / fabricant / hors bâtiment",
+  closed: "établissement fermé",
   duplicate_in_file: "doublon dans le fichier",
 };
 
@@ -188,13 +197,15 @@ export function ProspectImportForm() {
       }
     >
       <div className="flex flex-wrap items-center gap-3">
-        <input name="file" type="file" accept=".csv,.json,.txt,text/csv,application/json" required className="text-sm" />
+        <input name="file" type="file" accept=".xlsx,.csv,.json,.txt,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required className="text-sm" />
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Import en cours…" : "Importer"}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Colonnes lues : nom, métier/catégorie, téléphone, ville, code postal (lat/lng facultatifs). Tout le reste est ignoré.
+        Excel (export Outscraper), CSV ou JSON. Colonnes lues : nom, type/sous-types/catégorie, téléphone, ville, code
+        postal, coordonnées, statut. Tout le reste (e-mails, avis, dirigeant, réseaux…) est ignoré et jamais stocké.
+        Commerces, fabricants, artistes et établissements fermés sont écartés.
         Dédoublonnage sur le téléphone : une fiche existante (statut, désinscription) n&apos;est jamais écrasée. 4 Mo / 5 000 lignes max.
       </p>
       {report ? (

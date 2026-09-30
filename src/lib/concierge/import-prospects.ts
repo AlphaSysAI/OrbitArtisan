@@ -2,7 +2,8 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { parseProspectFile, type ParseReport, type ProspectInput } from "@/lib/concierge/parse-prospects";
+import { parseProspectFile, parseProspectRecords, type ParseReport, type ProspectInput } from "@/lib/concierge/parse-prospects";
+import { readXlsxRows } from "@/lib/concierge/read-xlsx";
 import { searchBanAddresses } from "@/lib/geo/ban";
 
 export const PROSPECT_IMPORT_MAX_BYTES = 4 * 1024 * 1024;
@@ -47,9 +48,12 @@ async function geocodeCommunes(rows: ProspectInput[], budgetMs: number): Promise
  */
 export async function importProspects(
   db: SupabaseClient,
-  input: { content: string; format: "csv" | "json"; source: string },
+  input: { content: string | Buffer; format: "csv" | "json" | "xlsx"; source: string },
 ): Promise<ImportResult> {
-  const report = parseProspectFile(input.content, input.format);
+  const report =
+    input.format === "xlsx"
+      ? parseProspectRecords(readXlsxRows(Buffer.isBuffer(input.content) ? input.content : Buffer.from(input.content)))
+      : parseProspectFile(String(input.content), input.format);
   await geocodeCommunes(report.rows, 35_000);
 
   const phones = report.rows.map((r) => r.phone);

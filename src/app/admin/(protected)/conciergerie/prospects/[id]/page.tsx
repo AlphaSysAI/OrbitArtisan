@@ -29,6 +29,12 @@ export default async function AdminProspectPage({ params }: { params: Promise<{ 
           <ProspectIdentity p={p} />
           <ProspectStatusBadge status={p.status} />
         </div>
+        {p.email ? (
+          <p className="text-sm">
+            E-mail pro : <span className="font-mono">{p.email}</span>{" "}
+            <span className="text-xs text-muted-foreground">(utilisé seulement si le numéro est un fixe)</span>
+          </p>
+        ) : null}
         <p className="text-xs text-muted-foreground">
           Source : {p.source ?? "—"} · importé le {fmt(p.created_at)} · {p.contact_count} contact{p.contact_count > 1 ? "s" : ""} (dernier : {fmt(p.last_contacted_at)})
           {p.latitude === null && !p.opt_out ? " · non géolocalisé : jamais suggéré" : ""}
@@ -90,7 +96,7 @@ export default async function AdminProspectPage({ params }: { params: Promise<{ 
         <ul className="space-y-1 text-sm">
           {invites.map((i) => (
             <li key={i.token}>
-              {fmt(i.created_at)} · {i.lead_id ? "chantier" : "générique"} · SMS {i.sms_sent_at ? fmt(i.sms_sent_at) : "non envoyé"} ·{" "}
+              {fmt(i.created_at)} · {i.lead_id ? "chantier" : "générique"} · envoi {i.sms_sent_at ? fmt(i.sms_sent_at) : "non effectué"} ·{" "}
               {i.claimed_at ? `utilisé le ${fmt(i.claimed_at)}` : new Date(i.expires_at) < new Date() ? "expiré" : `valable jusqu'au ${fmt(i.expires_at)}`}
             </li>
           ))}

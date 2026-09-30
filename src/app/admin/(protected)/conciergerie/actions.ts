@@ -6,8 +6,10 @@ import { redirect } from "next/navigation";
 import { getAdminDb } from "@/lib/admin/db";
 import { writeAdminAuditLog } from "@/lib/admin/audit-log";
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
-import { ensureConciergeInvite, interestedSmsBody, optOutUrl } from "@/lib/concierge/concierge";
+import { ensureConciergeInvite, interestedEmail, interestedSmsBody, optOutUrl } from "@/lib/concierge/concierge";
+import { sendEmail } from "@/lib/email/send-email";
 import { importProspects, PROSPECT_IMPORT_MAX_BYTES, type ImportResult } from "@/lib/concierge/import-prospects";
+import { isFrenchMobile } from "@/lib/concierge/format-phone";
 import type { AnonymizedLeadSummary } from "@/lib/concierge/summary";
 import { sendTransactionalSms } from "@/lib/sms/send-sms";
 
@@ -37,10 +39,18 @@ async function loadContactable(admin: Admin, prospectId: string) {
   if (!UUID.test(prospectId)) return null;
   const { data } = await admin
     .from("prospect_artisans")
-    .select("id, phone, status, opt_out, contact_count")
+    .select("id, business_name, phone, email, status, opt_out, contact_count")
     .eq("id", prospectId)
     .maybeSingle();
-  return data as { id: string; phone: string; status: string; opt_out: boolean; contact_count: number } | null;
+  return data as {
+    id: string;
+    business_name: string;
+    phone: string;
+    email: string | null;
+    status: string;
+    opt_out: boolean;
+    contact_count: number;
+  } | null;
 }
 
 /** Trace l'appel : statut « contacted » (sauf converti), date et compteur. */
@@ -65,12 +75,19 @@ export async function importProspectsAction(formData: FormData): Promise<({ ok: 
   if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Aucun fichier." };
   if (file.size > PROSPECT_IMPORT_MAX_BYTES) return { ok: false, error: "Fichier trop lourd (4 Mo max, découpez-le)." };
   const name = file.name.toLowerCase();
-  const format = name.endsWith(".json") ? "json" : name.endsWith(".csv") || name.endsWith(".txt") ? "csv" : null;
-  if (!format) return { ok: false, error: "Format attendu : .csv ou .json." };
+  const format = name.endsWith(".json")
+    ? "json"
+    : name.endsWith(".xlsx")
+      ? "xlsx"
+      : name.endsWith(".csv") || name.endsWith(".txt")
+        ? "csv"
+        : null;
+  if (!format) return { ok: false, error: "Format attendu : .xlsx, .csv ou .json." };
 
   let result: ImportResult;
   try {
-    result = await importProspects(admin, { content: await file.text(), format, source: file.name.slice(0, 120) });
+    const content = format === "xlsx" ? Buffer.from(await file.arrayBuffer()) : await file.text();
+    result = await importProspects(admin, { content, format, source: file.name.slice(0, 120) });
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Import impossible." };
   }
@@ -131,7 +148,7 @@ export async function setAlertStatusAction(input: { alertId: string; status: "op
 export async function markInterestedAction(input: {
   prospectId: string;
   alertId?: string | null;
-}): Promise<{ ok: true; url: string; smsSent: boolean } | Fail> {
+}): Promise<{ ok: true; url: string; channel: "sms" | "email" | "none"; sent: boolean } | Fail> {
   const { user, admin } = await guardAdmin();
   const p = await loadContactable(admin, input.prospectId);
   if (!p || p.opt_out) return { ok: false, error: "Prospect introuvable ou désinscrit." };
@@ -145,21 +162,36 @@ export async function markInterestedAction(input: {
   const invite = await ensureConciergeInvite(admin, { prospectId: p.id, leadId: alert?.lead_id ?? null, adminUserId: user.id });
   if (!invite) return { ok: false, error: "Création du lien impossible." };
 
-  const sms = await sendTransactionalSms({
-    to: p.phone,
-    body: interestedSmsBody({ summary: alert?.summary ?? null, inviteUrl: invite.url, optOutUrl: optOutUrl(p.id) }),
-  });
+  // Mobile → SMS. Ligne fixe → e-mail pro vérifié s'il existe (un SMS n'arriverait
+  // jamais et serait facturé). Sinon, lien à transmettre à la main.
+  const summary = alert?.summary ?? null;
+  const channel: "sms" | "email" | "none" = isFrenchMobile(p.phone) ? "sms" : p.email ? "email" : "none";
+  let sent = false;
+  let failure: string | null = null;
+  if (channel === "sms") {
+    const sms = await sendTransactionalSms({
+      to: p.phone,
+      body: interestedSmsBody({ summary, inviteUrl: invite.url, optOutUrl: optOutUrl(p.id) }),
+    });
+    sent = sms.ok;
+    if (!sms.ok) failure = sms.error;
+  } else if (channel === "email" && p.email) {
+    const mail = interestedEmail({ businessName: p.business_name, summary, inviteUrl: invite.url, optOutUrl: optOutUrl(p.id) });
+    const res = await sendEmail({ to: p.email, ...mail });
+    sent = res.ok;
+    if (!res.ok) failure = res.error;
+  }
   await recordContact(admin, p);
-  if (sms.ok) {
+  if (sent) {
     await admin.from("concierge_invites").update({ sms_sent_at: new Date().toISOString() }).eq("token", invite.token);
   }
   await writeAdminAuditLog({
     adminUserId: user.id,
     action: "concierge.interested",
-    details: { prospect_id: p.id, lead_id: alert?.lead_id ?? null, sms: sms.ok ? "sent" : sms.error },
+    details: { prospect_id: p.id, lead_id: alert?.lead_id ?? null, channel, sent, failure },
   });
   refresh(p.id);
-  return { ok: true, url: invite.url, smsSent: sms.ok };
+  return { ok: true, url: invite.url, channel, sent };
 }
 
 /** « Pas dispo » : tracé, reste suggérable pour les prochains chantiers. */
@@ -182,7 +214,7 @@ export async function markOptOutAction(prospectId: string): Promise<{ ok: true }
   if (!UUID.test(prospectId)) return { ok: false, error: "Prospect invalide." };
   const { error } = await admin
     .from("prospect_artisans")
-    .update({ opt_out: true, status: "blacklisted", notes: null, latitude: null, longitude: null })
+    .update({ opt_out: true, status: "blacklisted", notes: null, email: null, latitude: null, longitude: null })
     .eq("id", prospectId);
   if (error) return { ok: false, error: "Mise à jour impossible." };
   // Les liens d'invitation non utilisés deviennent caducs.

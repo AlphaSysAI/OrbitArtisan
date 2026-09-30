@@ -200,3 +200,30 @@ export function interestedSmsBody(input: { summary: AnonymizedLeadSummary | null
   const job = input.summary ? `un chantier ${input.summary.trade.toLowerCase()}${input.summary.commune ? ` a ${input.summary.commune.replace(/^\d{5}\s/, "")}` : ""}` : "des chantiers pres de chez vous";
   return `Soline (suite a notre appel) : ${job} vous attend. Inscription gratuite : ${input.inviteUrl} - Ne plus etre contacte : ${input.optOutUrl}`;
 }
+
+/**
+ * E-mail « Intéressé » (lignes fixes uniquement, après l'appel) : identifié, avec
+ * l'origine des coordonnées (art. 14 RGPD) et le lien de désinscription.
+ */
+export function interestedEmail(input: {
+  businessName: string;
+  summary: AnonymizedLeadSummary | null;
+  inviteUrl: string;
+  optOutUrl: string;
+}): { subject: string; html: string; text: string } {
+  const job = input.summary
+    ? `un chantier ${input.summary.trade.toLowerCase()}${input.summary.commune ? ` à ${input.summary.commune.replace(/^\d{5}\s/, "")}` : ""}`
+    : "des chantiers près de chez vous";
+  const subject = input.summary ? `Suite à notre appel : ${job}` : "Suite à notre appel : Soline";
+  const origin =
+    "Vous recevez ce message à la suite de notre appel téléphonique. Vos coordonnées professionnelles proviennent d'un annuaire public d'entreprises (fiche d'établissement en ligne).";
+  const html = `
+    <p>Bonjour ${escapeHtml(input.businessName)},</p>
+    <p>Comme convenu par téléphone, ${escapeHtml(job)} vous attend sur Soline, la plateforme qui met en relation particuliers et artisans du bâtiment de votre secteur.</p>
+    ${input.summary?.need ? `<p><em>${escapeHtml(input.summary.need)}</em></p>` : ""}
+    <p>L'inscription est gratuite et débloque la demande immédiatement.</p>
+    ${emailButton(input.inviteUrl, "Voir le chantier et m'inscrire")}
+    <p style="color:#64748b;font-size:12px">${escapeHtml(origin)} Vous ne souhaitez plus être contacté ? <a href="${escapeHtml(input.optOutUrl)}">Cliquez ici</a> : vos coordonnées seront effacées de nos fichiers.</p>`;
+  const text = `Bonjour ${input.businessName},\n\nComme convenu par téléphone, ${job} vous attend sur Soline. Inscription gratuite : ${input.inviteUrl}\n\n${origin}\nNe plus être contacté : ${input.optOutUrl}`;
+  return { subject, html, text };
+}
