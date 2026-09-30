@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildActivateCallForwardingCode,
   CANCEL_CALL_FORWARDING_CODE,
+  isAppleMobileUserAgent,
   phoneToNationalUssdDigits,
   ussdToTelHref,
 } from "./call-forwarding-ussd";
@@ -16,14 +17,21 @@ describe("phoneToNationalUssdDigits", () => {
 
 describe("buildActivateCallForwardingCode", () => {
   it("assemble le code vers le numéro Soline (format national)", () => {
-    expect(buildActivateCallForwardingCode("+33123456789")).toBe("*61*0123456789*11*12#");
-    expect(buildActivateCallForwardingCode("06 12 34 56 78")).toBe("*61*0612345678*11*12#");
+    expect(buildActivateCallForwardingCode("+33123456789")).toBe("**61*0123456789*11*12#");
+    expect(buildActivateCallForwardingCode("06 12 34 56 78")).toBe("**61*0612345678*11*12#");
   });
 });
 
 describe("ussdToTelHref", () => {
   it("encode les dièses", () => {
     expect(ussdToTelHref(CANCEL_CALL_FORWARDING_CODE)).toBe("tel:%23%23002%23");
-    expect(ussdToTelHref("*61*0612345678*11*12#")).toBe("tel:*61*0612345678*11*12%23");
+    expect(ussdToTelHref("**61*0612345678*11*12#")).toBe("tel:**61*0612345678*11*12%23");
+  });
+});
+
+describe("isAppleMobileUserAgent", () => {
+  it("détecte iPhone / iPad / iPod", () => {
+    expect(isAppleMobileUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")).toBe(true);
+    expect(isAppleMobileUserAgent("Mozilla/5.0 (Linux; Android 14)")).toBe(false);
   });
 });

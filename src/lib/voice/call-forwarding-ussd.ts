@@ -14,11 +14,11 @@ export function phoneToNationalUssdDigits(phone: string | null | undefined): str
   return digits.length >= 9 ? digits : null;
 }
 
-/** Code d'activation renvoi (opérateurs FR courants) : *61*<numéro Soline>*11*12# */
+/** Code d'activation renvoi (opérateurs FR courants) : **61*<numéro Soline>*11*12# */
 export function buildActivateCallForwardingCode(forwardToNumber: string): string | null {
   const national = phoneToNationalUssdDigits(forwardToNumber);
   if (!national) return null;
-  return `*61*${national}*11*12#`;
+  return `**61*${national}*11*12#`;
 }
 
 /** Annule tous les renvois d'appel sur la ligne. */
@@ -27,4 +27,9 @@ export const CANCEL_CALL_FORWARDING_CODE = "##002#";
 /** Lien `tel:` pour composer un code USSD (encode # pour iOS/Android). */
 export function ussdToTelHref(code: string): string {
   return `tel:${code.replace(/#/g, "%23")}`;
+}
+
+/** Safari / WebKit iOS bloque les `tel:` contenant * ou # — il faut copier le code USSD. */
+export function isAppleMobileUserAgent(userAgent: string): boolean {
+  return /iPad|iPhone|iPod/i.test(userAgent);
 }
