@@ -9,18 +9,26 @@ export type RefillPolicy = {
   targetAvailable: number;
   /** Plafond absolu de numéros non retirés (libres + attribués). */
   maxTotal: number;
-  /** Achats maximum par exécution. */
+  /** Achats maximum par exécution (≈ 5 s par numéro, cron limité à 120 s). */
   maxPerRun: number;
 };
 
+/**
+ * Nombre de numéros à acheter : artisans Pro/Premium en attente de numéro
+ * + retour au stock visé. La file d'attente passe avant le seuil : un abonné
+ * payant sans numéro déclenche un achat même si le stock est « suffisant ».
+ */
 export function computeRefillCount(params: {
   available: number;
   totalActive: number;
+  /** Comptes payants en attente d'attribution. */
+  waiting?: number;
   policy: RefillPolicy;
 }): number {
   const { available, totalActive, policy } = params;
-  if (available >= policy.minAvailable) return 0;
-  const wanted = Math.max(0, policy.targetAvailable - available);
+  const waiting = Math.max(0, params.waiting ?? 0);
+  if (waiting === 0 && available >= policy.minAvailable) return 0;
+  const wanted = Math.max(0, waiting + policy.targetAvailable - available);
   const room = Math.max(0, policy.maxTotal - totalActive);
   return Math.min(wanted, room, policy.maxPerRun);
 }
@@ -42,6 +50,14 @@ export function readRefillPolicy(env: Record<string, string | undefined> = proce
     minAvailable,
     targetAvailable: Math.max(minAvailable, intFromEnv(env.VOICE_POOL_TARGET_AVAILABLE, 4)),
     maxTotal: intFromEnv(env.VOICE_POOL_MAX_TOTAL, 30),
-    maxPerRun: intFromEnv(env.VOICE_POOL_MAX_PER_RUN, 5),
+    maxPerRun: intFromEnv(env.VOICE_POOL_MAX_PER_RUN, 8),
   };
+}
+
+/** Alerte plafond : à partir de 80 % des numéros autorisés (VOICE_POOL_MAX_TOTAL). */
+export const POOL_CAP_ALERT_RATIO = 0.8;
+
+export function shouldAlertPoolCapacity(totalActive: number, maxTotal: number): boolean {
+  if (maxTotal <= 0) return totalActive > 0;
+  return totalActive >= Math.ceil(maxTotal * POOL_CAP_ALERT_RATIO);
 }

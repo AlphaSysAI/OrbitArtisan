@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
-import { refillVoicePoolIfNeeded, releaseExpiredQuarantinedNumbers } from "@/lib/voice/voice-pool-provisioning";
+import {
+  alertPoolCapacityIfNeeded,
+  refillVoicePoolIfNeeded,
+  releaseExpiredQuarantinedNumbers,
+} from "@/lib/voice/voice-pool-provisioning";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -31,5 +35,8 @@ export async function GET(request: Request) {
   if (result.results.some((r) => !r.ok || r.warning)) {
     console.error("[cron voice-pool-refill]", JSON.stringify(result.results));
   }
-  return NextResponse.json({ ok: true, ...result, released });
+  // 3) Alerte plafond (80 %), après réassort : reflète l'état réel du pool.
+  const capacityAlert = await alertPoolCapacityIfNeeded(db).catch(() => false);
+
+  return NextResponse.json({ ok: true, ...result, released, capacityAlert });
 }

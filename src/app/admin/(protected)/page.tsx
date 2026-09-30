@@ -1,6 +1,9 @@
 import { Building2, FileText, Receipt, TrendingUp, Users } from "lucide-react";
 
+import Link from "next/link";
+
 import { AdminSetupAlert } from "@/components/admin/admin-setup-alert";
+import { getAdminDb } from "@/lib/admin/db";
 import { fetchAdminPlatformMetrics } from "@/lib/admin/tenants";
 
 function formatEur(cents: number) {
@@ -35,11 +38,25 @@ function MetricCard({
 }
 
 export default async function AdminOverviewPage() {
-  const { metrics, issue } = await fetchAdminPlatformMetrics();
+  const db = getAdminDb();
+  const [{ metrics, issue }, openAlerts] = await Promise.all([
+    fetchAdminPlatformMetrics(),
+    db
+      ? db.from("concierge_alerts").select("id", { count: "exact", head: true }).eq("status", "open").then((r) => r.count ?? 0)
+      : Promise.resolve(0),
+  ]);
 
   return (
     <div className="space-y-8">
       {issue ? <AdminSetupAlert issue={issue} /> : null}
+      {openAlerts > 0 ? (
+        <Link
+          href="/admin/conciergerie"
+          className="block rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+        >
+          {openAlerts} chantier{openAlerts > 1 ? "s" : ""} à placer : artisans à appeler →
+        </Link>
+      ) : null}
       <div>
         <p className="text-sm font-medium text-muted-foreground">Plateforme</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight">Vue d&apos;ensemble</h1>

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   ClipboardList,
+  Handshake,
   LayoutDashboard,
   LogOut,
   Phone,
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/admin", label: "Vue d'ensemble", icon: LayoutDashboard, exact: true },
   { href: "/admin/tenants", label: "Artisans", icon: Building2 },
+  { href: "/admin/conciergerie", label: "Conciergerie", icon: Handshake },
   { href: "/admin/telecom", label: "Registre télécom", icon: Phone },
   { href: "/admin/logs", label: "Logs / Audit", icon: ClipboardList },
 ];
@@ -92,7 +94,7 @@ export function AdminShell({
           <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur-xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
               <p className="font-display text-sm font-semibold">Soline Admin</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 overflow-x-auto">
                 {NAV.map((item) => (
                   <Link
                     key={item.href}

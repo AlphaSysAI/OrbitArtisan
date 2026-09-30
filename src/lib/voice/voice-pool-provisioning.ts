@@ -7,7 +7,10 @@ import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
 import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 import { addVoiceNumberToPool } from "@/lib/voice/voice-number-pool";
-import { clampBulkCount, computeRefillCount, readRefillPolicy } from "@/lib/voice/voice-pool-refill";
+import { emailButton, escapeHtml } from "@/lib/email/html";
+import { sendEmail } from "@/lib/email/send-email";
+import { getPublicSiteUrl } from "@/lib/site-url";
+import { clampBulkCount, computeRefillCount, readRefillPolicy, shouldAlertPoolCapacity } from "@/lib/voice/voice-pool-refill";
 
 /**
  * Provisionnement d'un numéro Soline de bout en bout :
@@ -191,23 +194,30 @@ async function provisionOne(
   return { ok: true, phoneE164, elevenlabsReady: !!elevenlabsId, warning };
 }
 
-async function countPool(db: SupabaseClient): Promise<{ available: number; totalActive: number }> {
-  const [{ count: available }, { count: totalActive }] = await Promise.all([
+async function countPool(db: SupabaseClient): Promise<{ available: number; totalActive: number; waiting: number }> {
+  const [{ count: available }, { count: totalActive }, { count: waiting }] = await Promise.all([
     db
       .from("voice_number_pool")
       .select("id", { count: "exact", head: true })
       .eq("status", "available")
       .eq("elevenlabs_ready", true),
     db.from("voice_number_pool").select("id", { count: "exact", head: true }).neq("status", "retired"),
+    // Même filtre que serveWaitingArtisans : abonnés payants sans numéro.
+    db
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .not("voice_number_assignment_pending_at", "is", null)
+      .in("subscription_plan", ["pro", "premium"])
+      .in("subscription_status", ["active", "trialing", "past_due"]),
   ]);
-  return { available: available ?? 0, totalActive: totalActive ?? 0 };
+  return { available: available ?? 0, totalActive: totalActive ?? 0, waiting: waiting ?? 0 };
 }
 
 /**
  * Sert les comptes Pro/Premium en attente de numéro (plus anciens d'abord),
  * tant qu'il reste des numéros prêts.
  */
-export async function serveWaitingArtisans(db: SupabaseClient, max = 10): Promise<number> {
+export async function serveWaitingArtisans(db: SupabaseClient, max = 50): Promise<number> {
   const { data: waiting } = await db
     .from("profiles")
     .select("id, subscription_plan, subscription_status")
@@ -266,7 +276,7 @@ export async function provisionVoiceNumbersForAdmin(
   return { ok: true, results, served, capped: count < requested };
 }
 
-/** Cron : réassort si le stock de numéros prêts passe sous le seuil. Désactivé par défaut. */
+/** Cron quotidien : achète pour la file d'attente + le stock visé, sous plafond. Désactivé par défaut. */
 export async function refillVoicePoolIfNeeded(
   db: SupabaseClient,
 ): Promise<{ enabled: boolean; purchased: number; results: ProvisionResult[]; served: number; reason?: string }> {
@@ -278,8 +288,10 @@ export async function refillVoicePoolIfNeeded(
     return { enabled: true, purchased: 0, results: [], served: 0, reason: `config incomplète : ${cfg.missing.join(", ")}` };
   }
 
-  const { available, totalActive } = await countPool(db);
-  const count = computeRefillCount({ available, totalActive, policy: readRefillPolicy() });
+  // Numéros déjà libres d'abord (ex. réparés à la main) : on n'achète que le manque réel.
+  await serveWaitingArtisans(db);
+  const { available, totalActive, waiting } = await countPool(db);
+  const count = computeRefillCount({ available, totalActive, waiting, policy: readRefillPolicy() });
   if (count === 0) return { enabled: true, purchased: 0, results: [], served: 0, reason: "stock suffisant ou plafond atteint" };
 
   const { results, served } = await provisionBatch(db, cfg.config, count, "auto_refill");
@@ -386,4 +398,43 @@ export async function releaseExpiredQuarantinedNumbers(
   }
 
   return { enabled: true, results };
+}
+
+/**
+ * E-mail admin (ADMIN_ALERT_EMAIL) quand le pool atteint 80 % de VOICE_POOL_MAX_TOTAL.
+ * Sans état : envoyé uniquement lors du passage de 6 h UTC, donc 1 rappel par jour
+ * maximum, même si le cron devient horaire (Vercel Pro).
+ */
+export async function alertPoolCapacityIfNeeded(db: SupabaseClient, now = new Date()): Promise<boolean> {
+  if (now.getUTCHours() !== 6) return false;
+  const to = (process.env.ADMIN_ALERT_EMAIL ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!to.length) return false;
+
+  const { maxTotal } = readRefillPolicy();
+  const { available, totalActive, waiting } = await countPool(db);
+  if (!shouldAlertPoolCapacity(totalActive, maxTotal)) return false;
+
+  const pct = maxTotal > 0 ? Math.round((totalActive / maxTotal) * 100) : 100;
+  const blocked = totalActive >= maxTotal && waiting > 0;
+  const subject = blocked
+    ? `🚨 Pool numéros plein : ${waiting} abonné${waiting > 1 ? "s" : ""} sans numéro`
+    : `⚠️ Pool numéros à ${pct} % du plafond (${totalActive}/${maxTotal})`;
+  const lines = [
+    `Numéros actifs (libres + attribués + quarantaine) : ${totalActive} / ${maxTotal} (${pct} %)`,
+    `Numéros libres prêts : ${available}`,
+    `Abonnés en attente de numéro : ${waiting}`,
+    "Action : augmenter VOICE_POOL_MAX_TOTAL dans Vercel (Settings → Environment Variables), puis redéployer.",
+  ];
+  const url = `${getPublicSiteUrl()}/admin/telecom/pool`;
+  await Promise.all(
+    to.map((addr) =>
+      sendEmail({
+        to: addr,
+        subject,
+        html: `${lines.map((l) => `<p>${escapeHtml(l)}</p>`).join("")}${emailButton(url, "Ouvrir le pool")}`,
+        text: `${lines.join("\n")}\n${url}`,
+      }).catch(() => undefined),
+    ),
+  );
+  return true;
 }

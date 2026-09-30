@@ -4,6 +4,8 @@ import type { LeadChatMessage } from "@/lib/leads/chat-schema";
 import { prepareLeadClientSignup } from "@/lib/leads/client-signup";
 import type { LeadSignupOffer } from "@/lib/leads/client-signup-types";
 import { dispatchLeadToArtisans } from "@/lib/leads/dispatch-lead";
+import { runConciergeForLead } from "@/lib/concierge/concierge";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { fillLeadQuoteDrafts } from "@/lib/leads/fill-lead-quote-drafts";
 import {
   prefetchLeadQualification,
@@ -389,6 +391,17 @@ export async function submitLeadContact(input: {
       }
     });
   }
+
+  // Conciergerie : moins de 3 artisans inscrits → prospects de la zone + alerte admin (hors délai de réponse).
+  after(async () => {
+    const db = createSupabaseServiceRoleClient();
+    if (!db) return;
+    try {
+      await runConciergeForLead(db, input.token);
+    } catch (err) {
+      console.error("[estimation] conciergerie", err instanceof Error ? err.message : err);
+    }
+  });
 
   const signup = email ? await prepareLeadClientSignup(input.token) : undefined;
 
