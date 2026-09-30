@@ -9,8 +9,10 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { isAppleMobileUserAgent, ussdToTelHref } from "@/lib/voice/call-forwarding-ussd";
 import { cn } from "@/lib/utils";
 
-const COPY_HINT =
-  "Ouvrez l’app Téléphone, collez dans le clavier numérique (appui long), puis composez.";
+/** Ouvre le clavier Téléphone sans numéro (iOS accepte `tel:` vide). */
+const OPEN_PHONE_DIALER_HREF = "tel:";
+
+const COPY_HINT = "Collez dans le clavier (appui long), puis composez.";
 
 function detectIosWeb(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -18,13 +20,29 @@ function detectIosWeb(): boolean {
   return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
 }
 
-async function copyUssdCode(code: string): Promise<boolean> {
+/** Copie synchrone pour garder le geste utilisateur avant `tel:` (Safari). */
+function copyUssdCodeSync(code: string): boolean {
+  if (typeof document === "undefined") return false;
+  const textarea = document.createElement("textarea");
+  textarea.value = code;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, code.length);
+  let ok = false;
   try {
-    await navigator.clipboard.writeText(code);
-    return true;
+    ok = document.execCommand("copy");
   } catch {
-    return false;
+    ok = false;
   }
+  document.body.removeChild(textarea);
+  return ok;
+}
+
+function openEmptyPhoneDialer(): void {
+  window.location.assign(OPEN_PHONE_DIALER_HREF);
 }
 
 export function CallForwardingMobileActions({
@@ -42,13 +60,14 @@ export function CallForwardingMobileActions({
     setUseCopyForActivate(detectIosWeb());
   }, []);
 
-  async function onCopyActivate() {
+  function onActivateIos() {
     if (!activateCode) return;
-    const ok = await copyUssdCode(activateCode);
-    if (ok) {
-      toast.success("Code copié", { description: COPY_HINT, duration: 8000 });
+    const copied = copyUssdCodeSync(activateCode);
+    openEmptyPhoneDialer();
+    if (copied) {
+      toast.success("Code copié", { description: COPY_HINT, duration: 6000 });
     } else {
-      toast.error("Copie impossible", { description: COPY_HINT, duration: 8000 });
+      toast.error("Copie impossible", { description: COPY_HINT, duration: 6000 });
     }
   }
 
@@ -63,7 +82,7 @@ export function CallForwardingMobileActions({
           Renvoi d&apos;appel
         </span>
       ) : useCopyForActivate ? (
-        <Button type="button" className="w-full gap-2 sm:flex-1" onClick={() => void onCopyActivate()}>
+        <Button type="button" className="w-full gap-2 sm:flex-1" onClick={onActivateIos}>
           <PhoneForwarded className="size-4" />
           Renvoi d&apos;appel
         </Button>
