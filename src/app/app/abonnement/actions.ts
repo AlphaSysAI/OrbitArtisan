@@ -14,6 +14,9 @@ import {
 import { getPromoEnrollment, reservePromoSlot } from "@/lib/billing/promo-enrollment";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createAmbassadorCheckoutSession } from "@/lib/stripe/ambassador-checkout";
+import { createTrialSubscriptionCheckoutSession } from "@/lib/stripe/subscription-checkout";
+import { stripeTrialEndFromProfile } from "@/lib/stripe/subscription-trial";
+import { sirenAlreadyUsedTrial } from "@/lib/billing/trial-eligibility";
 import { buildSubscriptionPaymentLinkUrl } from "@/lib/stripe/subscription-payment-links";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
@@ -45,6 +48,8 @@ export async function startSubscriptionCheckout(
     "stripe_customer_id",
     "stripe_subscription_id",
     "subscription_status",
+    "trial_ends_at",
+    "siren",
   ]);
   if (!resolvedProfile.ok) {
     return { ok: false, error: "missing_profile" };
@@ -56,6 +61,16 @@ export async function startSubscriptionCheckout(
     // Un nouveau checkout créerait un 2e abonnement (double prélèvement).
     // Les changements de formule passent par le portail Stripe.
     return { ok: false, error: "already_subscribed" };
+  }
+
+  // Essai gratuit = abonnement Stripe en essai : carte enregistrée, 0 € aujourd'hui.
+  let trialEnd = stripeTrialEndFromProfile(profile as { subscription_status?: string | null; trial_ends_at?: string | null });
+  if (trialEnd && profile.subscription_status === "incomplete") {
+    try {
+      if (await sirenAlreadyUsedTrial(createSupabaseAdminClient(), profile.siren as string | null, profileId)) trialEnd = null;
+    } catch (e) {
+      console.error("[checkout] vérification essai unique", e);
+    }
   }
 
   const enrollment = await getPromoEnrollment(supabase, profileId);
@@ -79,6 +94,7 @@ export async function startSubscriptionCheckout(
         email: userEmail,
         stripeCustomerId,
         admin,
+        trialEnd,
       });
     }
     // Offre close entre-temps : l'inscription passe en "lapsed", on prévient l'artisan
@@ -88,6 +104,17 @@ export async function startSubscriptionCheckout(
     if (reserve === "expired") return { ok: false, error: "promo_expired" };
     if (reserve === null) return { ok: false, error: "checkout_failed" };
     // already_used / lapsed / not_enrolled → tarif normal.
+  }
+
+  if (trialEnd) {
+    return createTrialSubscriptionCheckoutSession({
+      planId,
+      interval: billingInterval,
+      profileId,
+      email: userEmail,
+      stripeCustomerId: String(profile.stripe_customer_id ?? "").trim() || null,
+      trialEnd,
+    });
   }
 
   const linkResult = buildSubscriptionPaymentLinkUrl(planId, billingInterval, {

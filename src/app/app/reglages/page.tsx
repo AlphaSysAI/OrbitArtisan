@@ -140,7 +140,7 @@ export default async function ArtisanSettingsPage({
 
   let subscriptionProfile = {
     subscription_plan: "base" as string,
-    subscription_status: "trialing" as string,
+    subscription_status: "incomplete" as string,
     trial_ends_at: null as string | null,
     stripe_customer_id: null as string | null,
     stripe_subscription_id: null as string | null,
@@ -245,7 +245,7 @@ export default async function ArtisanSettingsPage({
     if (subscriptionRes.data) {
       subscriptionProfile = {
         subscription_plan: subscriptionRes.data.subscription_plan ?? "base",
-        subscription_status: subscriptionRes.data.subscription_status ?? "trialing",
+        subscription_status: subscriptionRes.data.subscription_status ?? "incomplete",
         trial_ends_at: subscriptionRes.data.trial_ends_at,
         stripe_customer_id: subscriptionRes.data.stripe_customer_id,
         stripe_subscription_id: subscriptionRes.data.stripe_subscription_id,
@@ -288,6 +288,13 @@ export default async function ArtisanSettingsPage({
 
   const planIncludesVoice = planIncludesSolineVoice(subscriptionProfile.subscription_plan);
   const solinePhone = (voiceNumber?.phone_e164 as string | undefined) ?? null;
+  // Essai sans carte : le numéro (facturé chaque mois) n'est acheté qu'après enregistrement d'une CB.
+  const voiceNeedsPaymentMethod =
+    planIncludesVoice &&
+    !solinePhone &&
+    (subscriptionProfile.subscription_status === "incomplete" ||
+      (subscriptionProfile.subscription_status === "trialing" &&
+        !String(subscriptionProfile.stripe_subscription_id ?? "").trim()));
   let billingEvents: Awaited<ReturnType<typeof listStripeBillingEventsForProfile>> = [];
   let promoEnrollment: Awaited<ReturnType<typeof getPromoEnrollment>> = null;
   let promoProgramStatus: Awaited<ReturnType<typeof getAmbassadorProgramStatus>> = null;
@@ -521,6 +528,7 @@ export default async function ArtisanSettingsPage({
                 <VoiceSolineNumberSection
                   phoneE164={solinePhone}
                   planIncludesVoice={planIncludesVoice}
+                  needsPaymentMethod={voiceNeedsPaymentMethod}
                   subscriptionHref={SOLINE_SUBSCRIPTION_SETTINGS_HREF}
                 />
               </>

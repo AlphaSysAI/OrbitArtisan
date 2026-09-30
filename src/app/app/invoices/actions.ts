@@ -1,5 +1,7 @@
 "use server";
 
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -303,7 +305,11 @@ export async function startStripeExpressOnboarding(): Promise<void> {
     });
     stripeAccountId = account.id;
 
-    const { error } = await supabase.from("profiles").update({ stripe_account_id: stripeAccountId }).eq("id", profileId);
+    // Colonne protégée (migration 55) : écrite par le serveur uniquement.
+    const admin = createSupabaseServiceRoleClient();
+    const { error } = admin
+      ? await admin.from("profiles").update({ stripe_account_id: stripeAccountId }).eq("id", profileId).is("stripe_account_id", null)
+      : { error: { message: "service_role" } };
     if (error) redirect("/app/invoices?stripe_error=store_account_failed");
   }
 

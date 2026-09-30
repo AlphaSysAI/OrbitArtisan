@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
+
 import { runEReportingSubmission } from "@/lib/billing/invoicing/run-e-reporting";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -7,10 +9,7 @@ export const runtime = "nodejs";
 
 /** Cron Vercel : transmission groupée e-reporting B2C. Sécurisé par CRON_SECRET. */
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET?.trim();
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

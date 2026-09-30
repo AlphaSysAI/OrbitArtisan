@@ -15,7 +15,6 @@ import type { TradeSelection } from "@/components/trades/trade-picker";
 
 type Profile = {
   id: string;
-  user_id: string;
   name: string | null;
   business_name: string;
   description: string | null;
@@ -51,7 +50,6 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
   if (demoMode) {
     profile = {
       id: "00000000-0000-0000-0000-000000000000",
-      user_id: "00000000-0000-0000-0000-000000000001",
       name: "Léa Fontaine",
       business_name: "Atelier Demo (Plomberie)",
       description:
@@ -75,7 +73,7 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
     const { data: p } = await supabase
       .from("artisan_public_profiles")
       .select(
-        "id, user_id, name, business_name, description, logo_url, slug, accent_color, sales_terms_text, trade_category, trade, lead_matching_enabled",
+        "id, name, business_name, description, logo_url, slug, accent_color, sales_terms_text, trade_category, trade, lead_matching_enabled",
       )
       .eq("slug", slug)
       .maybeSingle();
@@ -114,7 +112,12 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
       data: { user },
     } = await supabase.auth.getUser();
     viewerUserId = user?.id ?? null;
-    isOwner = !!(user && profile.user_id === user.id);
+    // La vue publique n'expose plus user_id (migration 55) : le propriétaire se
+    // reconnaît en lisant SON profil (RLS : lecture de sa propre ligne uniquement).
+    if (user) {
+      const { data: own } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+      isOwner = own?.id === profile.id;
+    }
 
     if (isOwner) {
       const from = new Date();

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { consumeRateLimit, ipFromHeaders, RATE_LIMITS } from "@/lib/security/rate-limit";
+
 import { qualifyLead } from "@/lib/ai/qualify-lead";
 import type { LeadChatMessage } from "@/lib/leads/chat-schema";
 import { buildEstimate, resolvePricingContext } from "@/lib/leads/pricing";
@@ -20,6 +22,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * `finalizeLead` qui persiste le résultat.
  */
 export async function POST(request: Request) {
+  // Route publique appelant l'IA : limitée par IP (coût et détournement).
+  if (!(await consumeRateLimit(RATE_LIMITS.leadAi, ipFromHeaders(request.headers)))) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
   const body = await request.json().catch(() => null);
 
   const description = String(body?.description ?? "").trim().slice(0, MAX_DESCRIPTION);

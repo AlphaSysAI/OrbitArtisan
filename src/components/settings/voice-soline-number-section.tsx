@@ -20,12 +20,15 @@ function formatPhoneE164(raw: string | null | undefined): string {
 export type VoiceSolineNumberSectionProps = {
   phoneE164: string | null;
   planIncludesVoice: boolean;
+  /** Essai sans carte : numéro activé dès l'enregistrement d'un moyen de paiement. */
+  needsPaymentMethod?: boolean;
   subscriptionHref: string;
 };
 
 export function VoiceSolineNumberSection({
   phoneE164,
   planIncludesVoice,
+  needsPaymentMethod = false,
   subscriptionHref,
 }: VoiceSolineNumberSectionProps) {
   const displayValue = phoneE164 ? formatPhoneE164(phoneE164) : "";
@@ -33,7 +36,9 @@ export function VoiceSolineNumberSection({
     ? "Inclus avec les formules Pro et Premium"
     : phoneE164
       ? ""
-      : "Attribution en cours…";
+      : needsPaymentMethod
+        ? "À activer"
+        : "Attribution en cours…";
 
   return (
     <div className="space-y-8">
@@ -54,13 +59,17 @@ export function VoiceSolineNumberSection({
             />
           </div>
           <p className="text-sm text-muted-foreground">
-            {planIncludesVoice
-              ? "Ce numéro vous est attribué par Soline. Pour le modifier, contactez le support."
-              : "Passez à une formule Pro ou Premium pour activer la secrétaire vocale Soline."}
+            {!planIncludesVoice
+              ? "Passez à une formule Pro ou Premium pour activer la secrétaire vocale Soline."
+              : needsPaymentMethod
+                ? "Choisissez votre formule pour activer votre numéro : 0 € aujourd'hui, premier prélèvement à la fin de l'essai, résiliable à tout moment avant."
+                : phoneE164
+                  ? "Ce numéro vous est attribué par Soline. Pour le modifier, contactez le support."
+                  : "Votre numéro est en cours d'activation (quelques minutes). Actualisez la page."}
           </p>
-          {!planIncludesVoice ? (
+          {!planIncludesVoice || needsPaymentMethod ? (
             <Link href={subscriptionHref} className={buttonVariants({ className: "mt-2" })}>
-              Voir les formules Pro et Premium
+              {needsPaymentMethod ? "Activer mon numéro Soline" : "Voir les formules Pro et Premium"}
             </Link>
           ) : null}
         </div>

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { consumeRateLimit, ipFromHeaders, RATE_LIMITS } from "@/lib/security/rate-limit";
+
 import {
   LEAD_CHAT_JSON_EXAMPLE,
   LEAD_CHAT_JSON_SCHEMA,
@@ -30,6 +32,10 @@ function fallbackTurn(answered: number, tradeLabel: string) {
 }
 
 export async function POST(request: Request) {
+  // Route publique appelant l'IA : limitée par IP (coût et détournement).
+  if (!(await consumeRateLimit(RATE_LIMITS.estimationChat, ipFromHeaders(request.headers)))) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
   const body = await request.json().catch(() => null);
 
   const tradeLabel = String(body?.tradeLabel ?? "").trim().slice(0, 120);

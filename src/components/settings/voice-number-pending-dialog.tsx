@@ -24,13 +24,12 @@ export function VoiceNumberPendingDialog({ defaultOpen }: { defaultOpen: boolean
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-display text-lg">
             <Sparkles className="size-5 text-primary" />
-            Soline arrive très bientôt
+            Votre numéro Soline arrive
           </DialogTitle>
           <DialogDescription className="text-left leading-relaxed">
-            Victime de son succès, nous finalisons l&apos;attribution de votre ligne dédiée. Votre
-            secrétaire IA Soline sera disponible pour vous{" "}
-            <strong className="text-foreground">sous 24 h</strong>. Vous recevrez votre numéro
-            directement dans Réglages → IA Vocale.
+            Nous activons votre ligne dédiée : cela prend en général quelques minutes, au plus{" "}
+            <strong className="text-foreground">24 h</strong> en cas de souci technique (nous sommes
+            alertés automatiquement). Votre numéro apparaîtra dans Réglages → IA Vocale.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter showCloseButton>

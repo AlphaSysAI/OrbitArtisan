@@ -10,7 +10,7 @@ import {
 } from "@/lib/admin/db";
 
 export type ArtisanAccountStatus = "active" | "suspended";
-export type ArtisanSubscriptionStatus = "active" | "past_due" | "canceled" | "trialing";
+export type ArtisanSubscriptionStatus = "incomplete" | "active" | "past_due" | "canceled" | "trialing";
 
 export type AdminTenantRow = {
   id: string;

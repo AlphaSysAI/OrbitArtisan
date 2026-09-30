@@ -10,7 +10,7 @@ import { addVoiceNumberToPool } from "@/lib/voice/voice-number-pool";
 import { emailButton, escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
 import { getPublicSiteUrl } from "@/lib/site-url";
-import { clampBulkCount, computeRefillCount, readRefillPolicy, shouldAlertPoolCapacity } from "@/lib/voice/voice-pool-refill";
+import { clampBulkCount, readRefillPolicy, shouldAlertPoolCapacity } from "@/lib/voice/voice-pool-refill";
 
 /**
  * Provisionnement d'un numéro Soline de bout en bout :
@@ -141,7 +141,7 @@ const MAX_PURCHASE_ATTEMPTS = 5;
 async function provisionOne(
   db: SupabaseClient,
   config: ProvisioningConfig,
-  source: "admin_bulk" | "auto_refill",
+  source: "admin_bulk" | "on_demand",
 ): Promise<ProvisionResult> {
   const client = twilio(config.accountSid, config.authToken);
 
@@ -216,6 +216,17 @@ async function provisionOne(
   return { ok: true, phoneE164, elevenlabsReady: !!elevenlabsId, warning };
 }
 
+/** Abonnés Pro/Premium sans numéro ; un essai n'est éligible qu'avec une CB (abonnement Stripe). */
+function waitingArtisansQuery(db: SupabaseClient, columns: string, head = false) {
+  return db
+    .from("profiles")
+    .select(columns, head ? { count: "exact", head: true } : undefined)
+    .not("voice_number_assignment_pending_at", "is", null)
+    .in("subscription_plan", ["pro", "premium"])
+    .in("subscription_status", ["active", "trialing", "past_due"])
+    .or("subscription_status.neq.trialing,stripe_subscription_id.not.is.null");
+}
+
 async function countPool(db: SupabaseClient): Promise<{ available: number; totalActive: number; waiting: number }> {
   const [{ count: available }, { count: totalActive }, { count: waiting }] = await Promise.all([
     db
@@ -224,13 +235,7 @@ async function countPool(db: SupabaseClient): Promise<{ available: number; total
       .eq("status", "available")
       .eq("elevenlabs_ready", true),
     db.from("voice_number_pool").select("id", { count: "exact", head: true }).neq("status", "retired"),
-    // Même filtre que serveWaitingArtisans : abonnés payants sans numéro.
-    db
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .not("voice_number_assignment_pending_at", "is", null)
-      .in("subscription_plan", ["pro", "premium"])
-      .in("subscription_status", ["active", "trialing", "past_due"]),
+    waitingArtisansQuery(db, "id", true),
   ]);
   return { available: available ?? 0, totalActive: totalActive ?? 0, waiting: waiting ?? 0 };
 }
@@ -240,21 +245,19 @@ async function countPool(db: SupabaseClient): Promise<{ available: number; total
  * tant qu'il reste des numéros prêts.
  */
 export async function serveWaitingArtisans(db: SupabaseClient, max = 50): Promise<number> {
-  const { data: waiting } = await db
-    .from("profiles")
-    .select("id, subscription_plan, subscription_status")
-    .not("voice_number_assignment_pending_at", "is", null)
-    .in("subscription_plan", ["pro", "premium"])
-    .in("subscription_status", ["active", "trialing", "past_due"])
+  const { data } = await waitingArtisansQuery(db, "id, subscription_plan, subscription_status")
     .order("voice_number_assignment_pending_at", { ascending: true })
     .limit(max);
+  const waiting = (data ?? []) as unknown as { id: string; subscription_plan: string; subscription_status: string }[];
 
   let served = 0;
-  for (const profile of waiting ?? []) {
+  for (const profile of waiting) {
     const sync = await syncSubscriptionVoiceNumber(db, {
-      profileId: profile.id as string,
+      profileId: profile.id,
       planId: profile.subscription_plan as SubscriptionPlanId,
       subscriptionStatus: profile.subscription_status as SubscriptionStatus,
+      // Ici on distribue le stock existant : jamais d'achat en cascade.
+      provisionIfMissing: false,
     });
     if (sync.poolEmpty) break;
     if (sync.error) console.error("[voice pool] attribution compte en attente", profile.id, sync.error);
@@ -267,7 +270,7 @@ async function provisionBatch(
   db: SupabaseClient,
   config: ProvisioningConfig,
   count: number,
-  source: "admin_bulk" | "auto_refill",
+  source: "admin_bulk",
 ): Promise<{ results: ProvisionResult[]; served: number }> {
   const results: ProvisionResult[] = [];
   for (let i = 0; i < count; i++) {
@@ -298,26 +301,95 @@ export async function provisionVoiceNumbersForAdmin(
   return { ok: true, results, served, capped: count < requested };
 }
 
-/** Cron quotidien : achète pour la file d'attente + le stock visé, sous plafond. Désactivé par défaut. */
-export async function refillVoicePoolIfNeeded(
+const PROVISIONING_LOCK_MS = 10 * 60_000;
+
+export type ArtisanProvisionResult =
+  | { ok: true; phoneE164: string | null; skipped?: "locked_or_not_waiting" | "already_served" }
+  | { ok: false; error: string };
+
+/**
+ * Achat à la demande pour UN artisan en attente : Twilio → ElevenLabs → attribution.
+ * Verrou atomique par artisan (profiles.voice_number_provisioning_at) : les événements
+ * Stripe multiples ou le cron concurrent ne provoquent jamais 2 achats.
+ * Échec : l'artisan reste en attente, e-mail admin, nouvelle tentative au cron.
+ */
+export async function provisionNumberForArtisan(db: SupabaseClient, profileId: string): Promise<ArtisanProvisionResult> {
+  const staleBefore = new Date(Date.now() - PROVISIONING_LOCK_MS).toISOString();
+  const { data: locked } = await db
+    .from("profiles")
+    .update({ voice_number_provisioning_at: new Date().toISOString() })
+    .eq("id", profileId)
+    .not("voice_number_assignment_pending_at", "is", null)
+    .or(`voice_number_provisioning_at.is.null,voice_number_provisioning_at.lt."${staleBefore}"`)
+    .select("id, subscription_plan, subscription_status")
+    .maybeSingle();
+  if (!locked) return { ok: true, phoneE164: null, skipped: "locked_or_not_waiting" };
+
+  const planId = locked.subscription_plan as SubscriptionPlanId;
+  const subscriptionStatus = locked.subscription_status as SubscriptionStatus;
+  const fail = async (error: string): Promise<ArtisanProvisionResult> => {
+    console.error("[voice pool] achat à la demande", profileId, error);
+    await alertAdmin(`🚨 Numéro Soline non attribué`, [
+      `Un abonné Pro/Premium attend son numéro (profil ${profileId}).`,
+      error,
+      "Nouvelle tentative automatique au prochain passage du cron (6 h 30 UTC), ou achat manuel depuis le pool.",
+    ]);
+    return { ok: false, error };
+  };
+
+  try {
+    // Un numéro a pu se libérer entre-temps (réparation manuelle, quarantaine) : pas d'achat.
+    const first = await syncSubscriptionVoiceNumber(db, { profileId, planId, subscriptionStatus, force: true, provisionIfMissing: false });
+    if (first.assigned) return { ok: true, phoneE164: null, skipped: "already_served" };
+    if (!first.poolEmpty) return { ok: true, phoneE164: null, skipped: "already_served" };
+
+    const cfg = readProvisioningConfig();
+    if (!cfg.ok) return await fail(`Configuration incomplète : ${cfg.missing.join(", ")}`);
+
+    const { maxTotal } = readRefillPolicy();
+    const { totalActive } = await countPool(db);
+    if (totalActive >= maxTotal) {
+      return await fail(`Plafond atteint : ${totalActive}/${maxTotal} numéros (VOICE_POOL_MAX_TOTAL). Relevez-le dans Vercel puis redéployez.`);
+    }
+
+    const bought = await provisionOne(db, cfg.config, "on_demand");
+    if (!bought.ok) return await fail(bought.error);
+    if (!bought.elevenlabsReady) {
+      return await fail(`${bought.phoneE164} acheté mais non branché sur ElevenLabs : « Réessayer ElevenLabs » dans le pool l'attribuera. ${bought.warning ?? ""}`);
+    }
+
+    const sync = await syncSubscriptionVoiceNumber(db, { profileId, planId, subscriptionStatus, force: true, provisionIfMissing: false });
+    if (!sync.assigned) return await fail(sync.error ?? `${bought.phoneE164} acheté mais non attribué (reste libre dans le pool).`);
+    return { ok: true, phoneE164: bought.phoneE164 };
+  } finally {
+    await db.from("profiles").update({ voice_number_provisioning_at: null }).eq("id", profileId);
+  }
+}
+
+/**
+ * Cron (filet de sécurité) : relance les achats des abonnés restés en attente
+ * (échec Twilio/ElevenLabs, plafond relevé…). S'arrête au premier échec.
+ */
+export async function provisionForWaitingArtisans(
   db: SupabaseClient,
-): Promise<{ enabled: boolean; purchased: number; results: ProvisionResult[]; served: number; reason?: string }> {
-  if (process.env.VOICE_POOL_AUTO_REFILL?.trim() !== "true") {
-    return { enabled: false, purchased: 0, results: [], served: 0, reason: "VOICE_POOL_AUTO_REFILL désactivé" };
-  }
-  const cfg = readProvisioningConfig();
-  if (!cfg.ok) {
-    return { enabled: true, purchased: 0, results: [], served: 0, reason: `config incomplète : ${cfg.missing.join(", ")}` };
-  }
+  budgetMs = 90_000,
+): Promise<{ attempted: number; served: number; error?: string }> {
+  const started = Date.now();
+  const { data } = await waitingArtisansQuery(db, "id")
+    .order("voice_number_assignment_pending_at", { ascending: true })
+    .limit(30);
+  const waiting = (data ?? []) as unknown as { id: string }[];
 
-  // Numéros déjà libres d'abord (ex. réparés à la main) : on n'achète que le manque réel.
-  await serveWaitingArtisans(db);
-  const { available, totalActive, waiting } = await countPool(db);
-  const count = computeRefillCount({ available, totalActive, waiting, policy: readRefillPolicy() });
-  if (count === 0) return { enabled: true, purchased: 0, results: [], served: 0, reason: "stock suffisant ou plafond atteint" };
-
-  const { results, served } = await provisionBatch(db, cfg.config, count, "auto_refill");
-  return { enabled: true, purchased: results.filter((r) => r.ok).length, results, served };
+  let attempted = 0;
+  let served = 0;
+  for (const { id } of waiting) {
+    if (Date.now() - started > budgetMs) break;
+    attempted += 1;
+    const res = await provisionNumberForArtisan(db, id);
+    if (!res.ok) return { attempted, served, error: res.error };
+    if (res.phoneE164 || res.skipped === "already_served") served += 1;
+  }
+  return { attempted, served };
 }
 
 /** Réessaie le branchement ElevenLabs d'un numéro du pool acheté mais non prêt. */
@@ -422,31 +494,13 @@ export async function releaseExpiredQuarantinedNumbers(
   return { enabled: true, results };
 }
 
-/**
- * E-mail admin (ADMIN_ALERT_EMAIL) quand le pool atteint 80 % de VOICE_POOL_MAX_TOTAL.
- * Sans état : envoyé uniquement lors du passage de 6 h UTC, donc 1 rappel par jour
- * maximum, même si le cron devient horaire (Vercel Pro).
- */
-export async function alertPoolCapacityIfNeeded(db: SupabaseClient, now = new Date()): Promise<boolean> {
-  if (now.getUTCHours() !== 6) return false;
-  const to = (process.env.ADMIN_ALERT_EMAIL ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (!to.length) return false;
+function adminAlertRecipients(): string[] {
+  return (process.env.ADMIN_ALERT_EMAIL ?? "").split(",").map((v) => v.trim()).filter(Boolean);
+}
 
-  const { maxTotal } = readRefillPolicy();
-  const { available, totalActive, waiting } = await countPool(db);
-  if (!shouldAlertPoolCapacity(totalActive, maxTotal)) return false;
-
-  const pct = maxTotal > 0 ? Math.round((totalActive / maxTotal) * 100) : 100;
-  const blocked = totalActive >= maxTotal && waiting > 0;
-  const subject = blocked
-    ? `🚨 Pool numéros plein : ${waiting} abonné${waiting > 1 ? "s" : ""} sans numéro`
-    : `⚠️ Pool numéros à ${pct} % du plafond (${totalActive}/${maxTotal})`;
-  const lines = [
-    `Numéros actifs (libres + attribués + quarantaine) : ${totalActive} / ${maxTotal} (${pct} %)`,
-    `Numéros libres prêts : ${available}`,
-    `Abonnés en attente de numéro : ${waiting}`,
-    "Action : augmenter VOICE_POOL_MAX_TOTAL dans Vercel (Settings → Environment Variables), puis redéployer.",
-  ];
+async function alertAdmin(subject: string, lines: string[]): Promise<void> {
+  const to = adminAlertRecipients();
+  if (!to.length) return;
   const url = `${getPublicSiteUrl()}/admin/telecom/pool`;
   await Promise.all(
     to.map((addr) =>
@@ -457,6 +511,33 @@ export async function alertPoolCapacityIfNeeded(db: SupabaseClient, now = new Da
         text: `${lines.join("\n")}\n${url}`,
       }).catch(() => undefined),
     ),
+  );
+}
+
+/**
+ * E-mail admin (ADMIN_ALERT_EMAIL) quand le registre atteint 80 % de VOICE_POOL_MAX_TOTAL.
+ * Sans état : envoyé uniquement lors du passage de 6 h UTC, donc 1 rappel par jour
+ * maximum, même si le cron devient horaire (Vercel Pro).
+ */
+export async function alertPoolCapacityIfNeeded(db: SupabaseClient, now = new Date()): Promise<boolean> {
+  if (now.getUTCHours() !== 6) return false;
+  if (!adminAlertRecipients().length) return false;
+
+  const { maxTotal } = readRefillPolicy();
+  const { totalActive, waiting } = await countPool(db);
+  if (!shouldAlertPoolCapacity(totalActive, maxTotal)) return false;
+
+  const pct = maxTotal > 0 ? Math.round((totalActive / maxTotal) * 100) : 100;
+  const blocked = totalActive >= maxTotal && waiting > 0;
+  await alertAdmin(
+    blocked
+      ? `🚨 Plafond numéros atteint : ${waiting} abonné${waiting > 1 ? "s" : ""} sans numéro`
+      : `⚠️ Numéros Soline à ${pct} % du plafond (${totalActive}/${maxTotal})`,
+    [
+      `Numéros détenus (attribués + quarantaine + libres) : ${totalActive} / ${maxTotal} (${pct} %)`,
+      `Abonnés en attente de numéro : ${waiting}`,
+      "Action : augmenter VOICE_POOL_MAX_TOTAL dans Vercel (Settings → Environment Variables), puis redéployer.",
+    ],
   );
   return true;
 }

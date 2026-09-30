@@ -174,7 +174,9 @@ export function BookAppointmentForm({
               ? "Ce créneau vient d’être réservé par quelqu’un d’autre. Choisis un autre horaire."
               : res.error === "invalid_slot"
                 ? "Ce créneau n’est plus proposé. Choisis un autre horaire."
-                : "Impossible de créer le RDV. Réessaie.",
+                : res.error === "rate_limited"
+                  ? "Trop de demandes depuis cette connexion. Réessaie dans une heure."
+                  : "Impossible de créer le RDV. Réessaie.",
         );
         return;
       }
@@ -198,7 +200,9 @@ export function BookAppointmentForm({
                 ? "Numéro de téléphone invalide : l’artisan en a besoin pour te rappeler."
               : res.error === "invalid_slot"
                 ? "Ce créneau n’est plus proposé. Choisis un autre horaire."
-                : "Impossible de créer le RDV. Réessaie.",
+                : res.error === "rate_limited"
+                  ? "Trop de demandes depuis cette connexion. Réessaie dans une heure."
+                  : "Impossible de créer le RDV. Réessaie.",
       );
       return;
     }

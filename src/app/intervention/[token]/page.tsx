@@ -4,7 +4,7 @@ import { ClipboardList } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 import { WorkOrderSignatureForm } from "./work-order-signature-form";
 
@@ -36,7 +36,9 @@ export default async function PublicWorkOrderPage({ params }: { params: Promise<
     return <SupabaseMissing title="Bon d'intervention indisponible" />;
   }
 
-  const supabase = await createSupabaseServerClient();
+  // RPC réservée au serveur (migration 55), authentifiée par le jeton du bon.
+  const supabase = createSupabaseServiceRoleClient();
+  if (!supabase) notFound();
   const { data, error } = await supabase.rpc("work_order_by_public_token", { p_token: token });
 
   if (error || !data) notFound();

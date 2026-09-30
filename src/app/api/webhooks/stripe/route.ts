@@ -98,6 +98,9 @@ async function syncStripeConnectAccount(account: Stripe.Account) {
     .eq("stripe_account_id", stripeAccountId);
 }
 
+// Achat du numéro Soline exécuté après la réponse (after) : ~5-10 s de marge.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
   if (!webhookSecret) {

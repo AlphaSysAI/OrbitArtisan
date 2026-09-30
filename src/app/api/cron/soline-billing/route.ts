@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
+
 import { expireAllPendingAppointments } from "@/lib/appointments/voice-booking";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { billPreviousMonthVoiceOverage, releaseExpiredTrialVoiceNumbers } from "@/lib/voice/voice-overage-billing";
@@ -14,10 +16,7 @@ export const maxDuration = 60;
  * - facture le dépassement d'appels du mois précédent (idempotent : ne facture qu'une fois).
  */
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET?.trim();
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

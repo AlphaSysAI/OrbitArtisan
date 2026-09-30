@@ -111,6 +111,7 @@ export default async function AdminTenantDetailPage({
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="active">Actif</option>
+                  <option value="incomplete">Essai à démarrer (sans carte)</option>
                   <option value="trialing">Essai</option>
                   <option value="past_due">Impayé</option>
                   <option value="canceled">Résilié</option>

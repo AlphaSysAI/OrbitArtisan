@@ -14,9 +14,10 @@ export async function SubscriptionBanner() {
   if (!profile) return null;
 
   const access = evaluateSubscriptionAccess(profile);
-  const status = (profile.subscription_status ?? "trialing") as SubscriptionStatus;
+  const status = (profile.subscription_status ?? "incomplete") as SubscriptionStatus;
 
   if (!access.allowed) {
+    if (access.reason === "no_subscription") return null; // bannière dédiée sur la page abonnement
     const title =
       access.reason === "trial_expired"
         ? "Essai terminé"
@@ -40,7 +41,9 @@ export async function SubscriptionBanner() {
     );
   }
 
-  if (access.status === "trialing" && access.daysRemaining != null && access.daysRemaining <= 5) {
+  // Essai Stripe (CB enregistrée) : la formule démarre seule, rien à demander.
+  const hasStripeSubscription = !!profile.stripe_subscription_id?.trim();
+  if (!hasStripeSubscription && access.status === "trialing" && access.daysRemaining != null && access.daysRemaining <= 5) {
     return (
       <Alert className="mb-6">
         <AlertTitle>Essai gratuit — {access.daysRemaining} jour{access.daysRemaining > 1 ? "s" : ""} restant{access.daysRemaining > 1 ? "s" : ""}</AlertTitle>

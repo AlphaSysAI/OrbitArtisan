@@ -30,6 +30,8 @@ export async function createAmbassadorCheckoutSession(params: {
   email: string;
   stripeCustomerId: string | null;
   admin: SupabaseClient;
+  /** Choix de formule pendant l'essai : carte enregistrée, prélèvement à cette date (unix). */
+  trialEnd?: number | null;
 }): Promise<{ ok: true; url: string } | { ok: false; error: AmbassadorCheckoutError }> {
   const couponId = process.env.STRIPE_AMBASSADOR_COUPON_ID?.trim();
   if (!couponId) {
@@ -68,7 +70,11 @@ export async function createAmbassadorCheckoutSession(params: {
       locale: "fr",
       expires_at: Math.floor(Date.now() / 1000) + AMBASSADOR_PROGRAM.checkoutSessionMinutes * 60,
       metadata,
+      ...(params.trialEnd ? { payment_method_collection: "always" as const } : {}),
       subscription_data: {
+        ...(params.trialEnd
+          ? { trial_end: params.trialEnd, trial_settings: { end_behavior: { missing_payment_method: "cancel" as const } } }
+          : {}),
         // Pas de plan_id ici : il deviendrait faux après un changement de formule via le portail.
         metadata: { profile_id: params.profileId, promo_code: AMBASSADOR_PROGRAM.code },
       },

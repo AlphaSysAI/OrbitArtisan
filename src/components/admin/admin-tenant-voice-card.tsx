@@ -88,6 +88,8 @@ function voiceAssignErrorMessage(error: string): string {
       return "Ce compte est en formule Essentiel : passez-le en Pro ou Premium (bloc Abonnement) — le numéro sera attribué automatiquement.";
     case "subscription_inactive":
       return "Abonnement résilié : réactivez-le (statut actif ou essai) avant d'attribuer un numéro.";
+    case "provisioning_started":
+      return "Aucun numéro libre : achat lancé (Twilio → ElevenLabs). Actualisez dans quelques secondes ; en cas d'échec, e-mail d'alerte.";
     case "pool_empty":
       return "Aucun numéro disponible ET marqué « ElevenLabs prêt » dans Télécom → Pool.";
     case "invalid_phone":

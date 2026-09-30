@@ -122,15 +122,24 @@ Pour pré-remplir la fiche dans « Appels » :
 - Copier le secret HMAC généré dans Vercel : `ELEVENLABS_WEBHOOK_SECRET`.
 - Chaque appel (même raccroché sans message) crée une fiche « à traiter » dans `/app/appels`, avec résumé, transcription et brouillon de devis si des prestations sont configurées.
 
-## 7. Provisionnement des numéros (Admin > Télécom > Pool)
+## 7. Numéros Soline à la demande
 
-Bouton « Acheter et brancher » (1 à 10 numéros) et cron quotidien `/api/cron/voice-pool-refill` (06:30 UTC).
-Pour chaque numéro : achat Twilio FR → import ElevenLabs + agent `ELEVENLABS_AGENT_ID` → URL de statut
-reposée → pool « prêt » → attribution aux comptes Pro/Premium en attente.
+1 abonnement Pro/Premium validé = 1 numéro. Déclencheur : webhook Stripe (abonnement `active`, `past_due`
+ou `trialing` avec carte enregistrée). Le webhook répond immédiatement ; l'achat s'exécute juste après
+(`after`) : achat Twilio FR → import ElevenLabs + agent `ELEVENLABS_AGENT_ID` → URL de statut reposée →
+attribution. Verrou par artisan (`profiles.voice_number_provisioning_at`) : jamais 2 achats.
 
-Prérequis : dossier réglementaire FR approuvé chez Twilio (`TWILIO_FR_BUNDLE_SID`, `TWILIO_FR_ADDRESS_SID`),
-clé API ElevenLabs avec droits ElevenAgents, variables listées dans `.env.example`.
+- Essai sans carte : pas de numéro. « Activer mon numéro Soline » → Checkout avec essai Stripe
+  jusqu'à la fin de l'essai (0 € aujourd'hui).
+- Résiliation / passage en Base : quarantaine 30 jours (message « n'est plus attribué »), puis
+  restitution à Twilio (cron). Réabonnement pendant la quarantaine : l'artisan récupère SON numéro.
+- Échec (Twilio, ElevenLabs, plafond) : artisan en attente, e-mail `ADMIN_ALERT_EMAIL`, relance au cron
+  quotidien `/api/cron/voice-pool-refill` (06:30 UTC).
+- Admin > Télécom > Pool : achat manuel (1 à 10) pour dépanner uniquement.
 
-Garde-fous : plafond `VOICE_POOL_MAX_TOTAL` (défaut 30), 10 max par lot admin, `VOICE_POOL_MAX_PER_RUN` par cron,
-réassort désactivé tant que `VOICE_POOL_AUTO_REFILL` ≠ `true`, cron refusé sans `CRON_SECRET`.
+Prérequis : dossier réglementaire FR approuvé chez Twilio (`TWILIO_FR_BUNDLE_SID`, `TWILIO_FR_ADDRESS_SID`,
+`TWILIO_FR_NUMBER_TYPE`), clé API ElevenLabs avec droits ElevenAgents, variables de `.env.example`.
+
+Garde-fous : coupe-circuit `VOICE_POOL_MAX_TOTAL` (défaut 30, alerte e-mail à 80 %), 10 max par lot admin,
+cron refusé sans `CRON_SECRET`.
 Un numéro acheté dont l'import ElevenLabs échoue entre au pool « non prêt » : bouton « Réessayer ElevenLabs ».

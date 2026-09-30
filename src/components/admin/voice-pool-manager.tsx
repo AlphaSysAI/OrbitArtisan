@@ -46,7 +46,7 @@ export function VoicePoolManager({
   provisioning,
 }: {
   initialRows: VoiceNumberPoolRow[];
-  provisioning: { configured: boolean; missing: string[]; autoRefill: boolean; maxTotal: number; minAvailable: number };
+  provisioning: { configured: boolean; missing: string[]; maxTotal: number };
 }) {
   const [rows, setRows] = useState(initialRows);
   const [provisionCount, setProvisionCount] = useState("1");
@@ -140,11 +140,11 @@ export function VoicePoolManager({
       </div>
 
       <div className="space-y-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Provisionner automatiquement</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Achat manuel (dépannage)</h2>
         <p className="text-sm text-muted-foreground">
-          Achat Twilio (numéro français) → import ElevenLabs + agent Soline → URL de statut → pool. Chaque numéro
-          est facturé tous les mois par Twilio. Plafond : {provisioning.maxTotal} numéros actifs. Réassort
-          automatique : {provisioning.autoRefill ? `activé (sous ${provisioning.minAvailable} numéros libres)` : "désactivé"}.
+          Les numéros sont achetés automatiquement à chaque abonnement Pro/Premium validé. Cet achat manuel sert
+          uniquement à débloquer un abonné en attente ; un numéro acheté ici et non attribué reste facturé chaque
+          mois par Twilio. Plafond : {provisioning.maxTotal} numéros détenus (VOICE_POOL_MAX_TOTAL).
         </p>
         {provisioning.configured ? (
           <div className="flex flex-wrap items-end gap-3">

@@ -114,17 +114,21 @@ export default function CgvPage() {
       <section className="space-y-3">
         <h2 className={h2Class}>3. Essai gratuit</h2>
         <p>
-          Tout nouveau compte artisan bénéficie d&apos;un essai gratuit de {TRIAL_DURATION_DAYS} jours, sans
-          carte bancaire, <strong>sur la formule Pro</strong>, secrétaire vocale Soline comprise dans la limite
-          de {SOLINE_TRIAL_CALLS_INCLUDED} appels (sans dépassement possible ; au-delà, Soline prend uniquement
-          les messages). Le numéro Soline attribué pendant l&apos;essai est retiré à son terme si aucune
-          formule avec secrétaire vocale n&apos;est souscrite. Une formule payante peut être souscrite à tout
-          moment, y compris pendant l&apos;essai.
+          La première souscription d&apos;un compte artisan ouvre droit à un essai gratuit de{" "}
+          {TRIAL_DURATION_DAYS} jours sur la formule choisie ; pour les formules Pro et Premium, la secrétaire
+          vocale Soline est comprise pendant l&apos;essai dans la limite de {SOLINE_TRIAL_CALLS_INCLUDED} appels
+          (sans dépassement possible ; au-delà, Soline prend uniquement les messages). L&apos;essai requiert
+          l&apos;enregistrement d&apos;un moyen de paiement : aucun montant n&apos;est prélevé avant la fin de
+          l&apos;essai, date à laquelle l&apos;abonnement débute automatiquement, sauf résiliation préalable,
+          sans frais. En cas de résiliation ou de passage à une formule sans secrétaire vocale, le numéro
+          Soline est retiré.
         </p>
         <p>
-          À la fin de l&apos;essai, aucun prélèvement n&apos;est effectué et aucun abonnement n&apos;est souscrit
-          automatiquement : la création de nouveaux devis et factures est suspendue jusqu&apos;à la
-          souscription d&apos;une formule. Les documents déjà créés restent consultables.
+          Si l&apos;abonnement est résilié pendant l&apos;essai, ou si aucun moyen de paiement valide n&apos;est
+          enregistré à son terme, aucun prélèvement n&apos;est effectué et l&apos;abonnement prend fin : la
+          création de nouveaux devis et factures est suspendue jusqu&apos;à la souscription d&apos;une formule.
+          Les documents déjà créés restent consultables. L&apos;essai gratuit n&apos;est accordé qu&apos;une
+          fois par entreprise.
         </p>
       </section>
 

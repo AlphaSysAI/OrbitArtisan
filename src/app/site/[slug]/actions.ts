@@ -6,6 +6,7 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { getOrCreateConversation } from "@/lib/messages/actions";
 import { notifyNewAppointment } from "@/lib/notifications/notify-events";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { allowRequest, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { sendBookingReceiptEmail } from "@/lib/appointments/customer-emails";
 import { checkVitrineSlot } from "@/lib/vitrine/booking-rules";
@@ -55,7 +56,8 @@ export type SubmitVitrineAppointmentResult =
         | "insert_failed"
         | "pending_failed"
         | "slot_taken"
-        | "invalid_slot";
+        | "invalid_slot"
+        | "rate_limited";
     };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -81,13 +83,14 @@ export async function createAppointmentForLoggedInUser(formData: FormData): Prom
   } = await supabase.auth.getUser();
   if (!user?.id) return { ok: false, error: "missing_fields" };
 
+  // Insertion serveur uniquement (migration 55) : créneau vérifié + limitation de débit.
   const admin = createSupabaseServiceRoleClient();
-  if (admin) {
-    const check = await checkVitrineSlot(admin, { artisanId, serviceId: serviceId || null, startIso: startTime });
-    if (!check.ok) return { ok: false, error: check.error };
-  }
+  if (!admin) return { ok: false, error: "insert_failed" };
+  if (!(await allowRequest(RATE_LIMITS.vitrineBooking, admin))) return { ok: false, error: "rate_limited" };
+  const check = await checkVitrineSlot(admin, { artisanId, serviceId: serviceId || null, startIso: startTime });
+  if (!check.ok) return { ok: false, error: check.error };
 
-  const { data: inserted, error } = await supabase
+  const { data: inserted, error } = await admin
     .from("appointments")
     .insert({
       artisan_id: artisanId,
@@ -149,6 +152,7 @@ export async function submitVitrineAppointmentAsGuest(formData: FormData): Promi
 
   const admin = createSupabaseServiceRoleClient();
   if (!admin) return { ok: false, error: "insert_failed" };
+  if (!(await allowRequest(RATE_LIMITS.vitrineBooking, admin))) return { ok: false, error: "rate_limited" };
 
   const check = await checkVitrineSlot(admin, { artisanId, serviceId: serviceId || null, startIso: startTime });
   if (!check.ok) return { ok: false, error: check.error };

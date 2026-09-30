@@ -2,6 +2,7 @@
 
 import type { LeadSignupOffer } from "@/lib/leads/client-signup-types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 /** Prépare une invitation client liée au lead (idempotent). N'échoue jamais silencieusement côté UX. */
 export async function prepareLeadClientSignup(token: string): Promise<LeadSignupOffer> {
@@ -15,7 +16,9 @@ export async function prepareLeadClientSignup(token: string): Promise<LeadSignup
 
   if (!token?.trim()) return empty;
 
-  const supabase = await createSupabaseServerClient();
+  // RPC réservée au serveur (migration 55) : authentifiée par le jeton du lead.
+  const supabase = createSupabaseServiceRoleClient();
+  if (!supabase) return empty;
   const { data, error } = await supabase.rpc("create_lead_client_invitation", {
     p_token: token.trim(),
   });
@@ -48,8 +51,10 @@ export async function prepareLeadClientSignup(token: string): Promise<LeadSignup
 }
 
 export async function getLeadSignupPreview(token: string): Promise<LeadSignupOffer & { ok: boolean }> {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("lead_signup_preview", { p_token: token.trim() });
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = supabase
+    ? await supabase.rpc("lead_signup_preview", { p_token: String(token ?? "").trim() })
+    : { data: null, error: { message: "service_role" } };
 
   if (error || !data) {
     return { ok: false, canSignup: false, email: null, name: null, inviteToken: null, claimOnly: false };

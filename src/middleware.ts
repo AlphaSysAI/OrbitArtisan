@@ -170,6 +170,15 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
       }
 
+      // Aucun essai sans carte : tant que l'essai Stripe n'est pas démarré, seul le
+      // choix de formule (Réglages → Abonnement) est accessible.
+      if (artisanProfile?.subscription_status === "incomplete" && !pathname.startsWith("/app/reglages")) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/app/reglages";
+        url.search = "?tab=abonnement&reason=no_subscription";
+        return NextResponse.redirect(url);
+      }
+
       if (isSubscriptionDocumentBlockedPath(pathname)) {
         const access = evaluateSubscriptionAccess(artisanProfile);
         if (!access.allowed) {

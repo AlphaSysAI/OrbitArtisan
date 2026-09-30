@@ -73,8 +73,9 @@ export default function CguPage() {
           .
         </p>
         <p>
-          Un essai gratuit de la formule Pro (secrétaire vocale Soline comprise, nombre d&apos;appels limité) peut être proposé lors de l&apos;inscription, sans carte bancaire, pour une durée
-          limitée et selon les conditions affichées au moment de la création du compte.
+          Un essai gratuit (secrétaire vocale Soline comprise, nombre d&apos;appels limité) peut être proposé lors de la première souscription, pour une durée
+          limitée et selon les conditions affichées au moment de la souscription. Il requiert l&apos;enregistrement d&apos;un moyen de paiement : aucun montant
+          n&apos;est prélevé avant la fin de l&apos;essai, et l&apos;abonnement peut être résilié à tout moment avant cette date, sans frais.
         </p>
       </section>
 

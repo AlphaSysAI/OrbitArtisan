@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
+
 import { runAccountingExports } from "@/lib/accounting/monthly-export";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -11,10 +13,7 @@ export const maxDuration = 60;
  * préavis 48 h avant le dernier jour du mois, envoi le dernier jour, rattrapage le lendemain.
  */
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET?.trim();
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

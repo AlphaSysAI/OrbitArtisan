@@ -1,5 +1,7 @@
 import "server-only";
 
+import { after } from "next/server";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
@@ -14,6 +16,13 @@ export type SubscriptionVoiceSyncInput = {
   profileId: string;
   planId: SubscriptionPlanId | null;
   subscriptionStatus: SubscriptionStatus;
+  /**
+   * Admin : attribue même pendant un essai sans moyen de paiement.
+   * Par défaut, un essai n'obtient un numéro qu'avec un abonnement Stripe (CB enregistrée).
+   */
+  force?: boolean;
+  /** false = ne jamais déclencher d'achat Twilio (appel interne après un achat). */
+  provisionIfMissing?: boolean;
 };
 
 export function planIncludesSolineVoice(planId: SubscriptionPlanId | null | undefined): boolean {
@@ -72,19 +81,33 @@ export async function clearVoiceNumberAssignmentPending(
 
 type ClaimRow = { pool_id: string; phone_e164: string };
 
+export type SubscriptionVoiceSyncResult = {
+  assigned: boolean;
+  released: boolean;
+  /** Aucun numéro disponible : l'artisan est en attente (achat déclenché sauf provisionIfMissing=false). */
+  poolEmpty?: boolean;
+  /** Essai sans carte enregistrée : pas de numéro (achat Twilio facturé tous les mois). */
+  needsPaymentMethod?: boolean;
+  provisioningScheduled?: boolean;
+  error?: string;
+};
+
 /**
- * Aligne le numéro vocal de l'artisan avec son abonnement :
- * attribution depuis le pool (Pro/Premium) ou libération (Base / résiliation).
+ * Aligne le numéro vocal de l'artisan avec son abonnement.
+ *
+ * 1 abonnement Pro/Premium = 1 numéro : ancien numéro récupéré s'il est encore en
+ * quarantaine, sinon numéro libre du registre, sinon ACHAT Twilio déclenché juste
+ * après la réponse (after) — jamais pendant le webhook Stripe.
+ * Résiliation / Base : numéro en quarantaine 30 jours, puis rendu à Twilio (cron).
  */
 export async function syncSubscriptionVoiceNumber(
   admin: SupabaseClient,
   input: SubscriptionVoiceSyncInput,
-): Promise<{ assigned: boolean; released: boolean; poolEmpty?: boolean; error?: string }> {
-  const result = { assigned: false, released: false, poolEmpty: false as boolean | undefined };
+): Promise<SubscriptionVoiceSyncResult> {
+  const result: SubscriptionVoiceSyncResult = { assigned: false, released: false };
 
   if (shouldReleaseVoiceNumber(input)) {
-    const released = await releaseArtisanVoiceNumberForSubscription(admin, input.profileId);
-    result.released = released;
+    result.released = await releaseArtisanVoiceNumberForSubscription(admin, input.profileId);
     return result;
   }
 
@@ -103,20 +126,42 @@ export async function syncSubscriptionVoiceNumber(
     return result;
   }
 
-  const { data: claimRows, error: claimError } = await admin.rpc("claim_voice_number_from_pool", {
-    p_artisan_id: input.profileId,
-  });
-
-  if (claimError) {
-    console.error("[voice pool] claim failed", claimError.message);
-    return { ...result, error: claimError.message };
+  if (input.subscriptionStatus === "trialing" && !input.force) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("stripe_subscription_id")
+      .eq("id", input.profileId)
+      .maybeSingle();
+    if (!String(profile?.stripe_subscription_id ?? "").trim()) {
+      return { ...result, needsPaymentMethod: true };
+    }
   }
 
-  const claim = (Array.isArray(claimRows) ? claimRows[0] : claimRows) as ClaimRow | undefined;
+  // 1. Réabonnement pendant la quarantaine : l'artisan retrouve SON numéro.
+  const { data: reclaimRows, error: reclaimError } = await admin.rpc("reclaim_quarantined_voice_number", {
+    p_artisan_id: input.profileId,
+  });
+  if (reclaimError) console.error("[voice pool] reclaim failed", reclaimError.message);
+  let claim = (Array.isArray(reclaimRows) ? reclaimRows[0] : reclaimRows) as ClaimRow | undefined;
+
+  // 2. Sinon, un numéro libre du registre (acheté à la main, réparé…).
   if (!claim?.phone_e164) {
-    console.warn("[voice pool] aucun numéro disponible", { profileId: input.profileId });
+    const { data: claimRows, error: claimError } = await admin.rpc("claim_voice_number_from_pool", {
+      p_artisan_id: input.profileId,
+    });
+    if (claimError) {
+      console.error("[voice pool] claim failed", claimError.message);
+      return { ...result, error: claimError.message };
+    }
+    claim = (Array.isArray(claimRows) ? claimRows[0] : claimRows) as ClaimRow | undefined;
+  }
+
+  // 3. Sinon, achat à la demande.
+  if (!claim?.phone_e164) {
     await markVoiceNumberAssignmentPending(admin, input.profileId);
-    return { ...result, poolEmpty: true };
+    if (input.provisionIfMissing === false) return { ...result, poolEmpty: true };
+    scheduleVoiceNumberProvisioning(admin, input.profileId);
+    return { ...result, poolEmpty: true, provisioningScheduled: true };
   }
 
   const sync = await syncArtisanVoiceNumberMapping({
@@ -139,6 +184,28 @@ export async function syncSubscriptionVoiceNumber(
   await clearVoiceNumberAssignmentPending(admin, input.profileId);
   result.assigned = true;
   return result;
+}
+
+/**
+ * Achat Twilio + ElevenLabs (5-10 s) APRÈS la réponse HTTP : le webhook Stripe
+ * répond immédiatement (pas de relance Stripe = pas de double achat ; le verrou
+ * par artisan couvre les événements multiples). Hors requête (script) : exécution directe.
+ */
+function scheduleVoiceNumberProvisioning(admin: SupabaseClient, profileId: string) {
+  const run = async () => {
+    try {
+      // Import dynamique : évite la dépendance circulaire avec le module d'achat.
+      const { provisionNumberForArtisan } = await import("@/lib/voice/voice-pool-provisioning");
+      await provisionNumberForArtisan(admin, profileId);
+    } catch (error) {
+      console.error("[voice pool] achat à la demande", profileId, error);
+    }
+  };
+  try {
+    after(run);
+  } catch {
+    void run();
+  }
 }
 
 async function releaseArtisanVoiceNumberForSubscription(

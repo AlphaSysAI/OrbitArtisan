@@ -18,15 +18,28 @@ import {
   type LeadSession,
   type MatchedArtisan,
 } from "@/lib/leads/types";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { allowRequest, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 
 /**
  * Tunnel d'estimation public : le prospect n'a pas de compte. Toutes les
  * écritures passent par les RPC `security definer` de lead_qualification.sql,
  * authentifiées par le jeton porteur renvoyé à la création du lead.
+ *
+ * Sécurité (migration 55) : ces RPC ne sont plus exécutables avec la clé anon
+ * publique. Elles passent par le serveur (service role) derrière une limitation
+ * de débit par IP : pas de création de leads en masse, pas de consommation d'IA
+ * ni de stockage hors de l'application.
  */
+function leadDb(): SupabaseClient {
+  const db = createSupabaseServiceRoleClient();
+  if (!db) throw new Error("ESTIMATION_MISSING_SERVICE_ROLE");
+  return db;
+}
+
+const MAX_LEAD_MEDIA = 6;
 
 const MATCH_RADIUS_KM = 40;
 
@@ -44,8 +57,9 @@ export async function startLead(input: {
   if (!isValidTradeSelection(input.categoryId, input.tradeId)) {
     return fail("invalid_trade");
   }
+  const supabase = leadDb();
+  if (!(await allowRequest(RATE_LIMITS.leadCreate, supabase))) return fail("rate_limited");
 
-  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("create_lead", {
     p_source: input.originArtisanSlug ? "artisan_widget" : "direct",
     p_origin_artisan_slug: input.originArtisanSlug ?? null,
@@ -81,7 +95,7 @@ export async function saveLeadBrief(input: {
     return fail("invalid_trade");
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = leadDb();
   const { data, error } = await supabase.rpc("update_lead_brief", {
     p_token: input.token,
     p_description: input.description ?? null,
@@ -109,12 +123,16 @@ export async function createLeadUploadUrl(input: {
   token: string;
   fileName: string;
 }): Promise<{ ok: true; path: string; signedToken: string } | Fail> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = leadDb();
+  if (!(await allowRequest(RATE_LIMITS.leadUpload, supabase))) return fail("rate_limited");
 
   const { data: leadId, error: idError } = await supabase.rpc("lead_id_from_token", {
     p_token: input.token,
   });
   if (idError || typeof leadId !== "string") return fail("lead_not_found");
+
+  const { count } = await supabase.from("lead_media").select("id", { count: "exact", head: true }).eq("lead_id", leadId);
+  if ((count ?? 0) >= MAX_LEAD_MEDIA) return fail("too_many_media");
 
   const extension = (input.fileName.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const path = `${leadId}/${crypto.randomUUID()}${extension ? `.${extension}` : ""}`;
@@ -133,7 +151,7 @@ export async function registerLeadMedia(input: {
   path: string;
   kind: "photo" | "video";
 }): Promise<{ ok: true } | Fail> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = leadDb();
   const { data, error } = await supabase.rpc("add_lead_media", {
     p_token: input.token,
     p_storage_path: input.path,
@@ -170,7 +188,7 @@ type MatchRpcPayload = {
 };
 
 async function loadMatchedArtisans(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  supabase: SupabaseClient,
   matches: MatchRpcRow[],
 ): Promise<MatchedArtisan[]> {
   if (!matches.length) return [];
@@ -212,7 +230,8 @@ export async function finalizeLead(input: {
   lng?: number | null;
   addressLabel?: string | null;
 }): Promise<{ ok: true; estimate: LeadEstimate; artisans: MatchedArtisan[] } | Fail> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = leadDb();
+  if (!(await allowRequest(RATE_LIMITS.leadAi, supabase))) return fail("rate_limited");
 
   if (
     input.lat != null &&
@@ -268,7 +287,8 @@ export async function finalizeWidgetLead(input: {
   mediaCount: number;
   messages?: LeadChatMessage[];
 }): Promise<{ ok: true; estimate: LeadEstimate; artisan: MatchedArtisan | null } | Fail> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = leadDb();
+  if (!(await allowRequest(RATE_LIMITS.leadAi, supabase))) return fail("rate_limited");
 
   const { data, error } = await supabase.rpc("match_lead_to_origin_artisan", {
     p_token: input.token,
@@ -299,6 +319,8 @@ export async function warmupLeadQualification(input: {
   mediaCount: number;
   messages?: LeadChatMessage[];
 }): Promise<{ ok: true } | Fail> {
+  // Préchauffage IA : silencieusement ignoré au-delà de la limite (le calcul se refera au besoin).
+  if (!(await allowRequest(RATE_LIMITS.leadAi))) return { ok: true };
   after(async () => {
     try {
       await prefetchLeadQualification({
@@ -361,7 +383,8 @@ export async function submitLeadContact(input: {
   if (phone.length < 8) return fail("invalid_phone");
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail("invalid_email");
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = leadDb();
+  if (!(await allowRequest(RATE_LIMITS.leadContact, supabase))) return fail("rate_limited");
   const { data, error } = await supabase.rpc("update_lead_contact", {
     p_token: input.token,
     p_name: name,

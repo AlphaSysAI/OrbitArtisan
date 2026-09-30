@@ -5,9 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { computeTrialEndsAt } from "@/lib/billing/subscription-access";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
-import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 import { seedDefaultWorkLibraryForUser } from "@/lib/work-library/actions";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
 
@@ -124,12 +122,14 @@ export async function upsertProfile(formData: FormData) {
     const { error } = await supabase.from("profiles").update(payload).eq("id", existing.id);
     if (error) return { ok: false as const, error: "update_failed" as const };
   } else {
-    // Essai gratuit sur la formule Pro : secrétaire vocale comprise (10 appels, sans dépassement).
-    const { data: inserted, error } = await supabase.from("profiles").insert({
+    // Aucun essai sans carte : le compte démarre « incomplete » ; l'essai (Pro, Soline
+    // comprise) commence avec l'abonnement Stripe (CB, 0 € aujourd'hui). Imposé aussi
+    // par le trigger protect_profile_billing_columns.
+    const { error } = await supabase.from("profiles").insert({
       ...payload,
       subscription_plan: "pro",
-      subscription_status: "trialing",
-      trial_ends_at: computeTrialEndsAt(),
+      subscription_status: "incomplete",
+      trial_ends_at: null,
       registration_ip: registrationIp,
       registration_recorded_at: registrationRecordedAt,
     }).select("id").single();
@@ -143,16 +143,8 @@ export async function upsertProfile(formData: FormData) {
 
     await seedDefaultWorkLibraryForUser(user.id);
 
-    // Numéro Soline de l'essai (pool) : jamais bloquant pour l'inscription.
-    const admin = createSupabaseServiceRoleClient();
-    const profileId = (inserted as { id?: string } | null)?.id;
-    if (admin && profileId) {
-      await syncSubscriptionVoiceNumber(admin, {
-        profileId,
-        planId: "pro",
-        subscriptionStatus: "trialing",
-      }).catch((err) => console.error("[profile] numéro Soline d'essai", err));
-    }
+    // Pas de numéro Soline à l'inscription : il est acheté quand l'artisan enregistre
+    // sa carte (abonnement Stripe en essai), jamais pour un compte sans moyen de paiement.
   }
 
   revalidatePath("/app");

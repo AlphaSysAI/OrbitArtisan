@@ -184,6 +184,8 @@ export async function releaseExpiredTrialVoiceNumbers(db: SupabaseClient, now: D
     .select("id, subscription_plan")
     .in("id", ids)
     .eq("subscription_status", "trialing")
+    // Essai Stripe (CB enregistrée) : Stripe bascule en « active » à la fin de l'essai.
+    .is("stripe_subscription_id", null)
     .lt("trial_ends_at", now.toISOString());
 
   let released = 0;

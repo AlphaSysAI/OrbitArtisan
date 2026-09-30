@@ -564,8 +564,8 @@ export function SolineBtpLanding({ appLoginUrl }: SolineBtpLandingProps) {
               ))}
             </div>
             <p className="mt-6 text-center text-sm text-slate-500">
-              Essai gratuit de {TRIAL_DURATION_DAYS} jours sur la formule Pro, sans carte bancaire : Soline comprise, jusqu&apos;à{" "}
-              {SOLINE_TRIAL_CALLS_INCLUDED} appels.
+              Essai gratuit de {TRIAL_DURATION_DAYS} jours : Soline comprise, jusqu&apos;à {SOLINE_TRIAL_CALLS_INCLUDED} appels.
+              Carte bancaire requise, 0 € avant la fin de l&apos;essai, résiliable à tout moment avant.
             </p>
           </div>
         </div>

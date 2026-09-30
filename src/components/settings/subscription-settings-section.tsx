@@ -89,7 +89,8 @@ export function SubscriptionSettingsSection({
   promoProgramStatus?: PromoProgramStatus | null;
 }) {
   const access = evaluateSubscriptionAccess(profile);
-  const status = (profile.subscription_status ?? "trialing") as SubscriptionStatus;
+  const status = (profile.subscription_status ?? "incomplete") as SubscriptionStatus;
+  const hasStripeSubscription = !!profile.stripe_subscription_id?.trim() && status !== "canceled";
   const statusLabel = SUBSCRIPTION_STATUS_LABELS[status] ?? profile.subscription_status ?? "—";
   const planId = (profile.subscription_plan ?? "base") as SubscriptionPlanId;
   const plan = findSubscriptionPlan(planId);
@@ -125,7 +126,18 @@ export function SubscriptionSettingsSection({
         </Alert>
       ) : null}
 
-      {blockMessage ? (
+      {status === "incomplete" ? (
+        <Alert>
+          <AlertTitle>Démarrez votre essai gratuit de {TRIAL_DURATION_DAYS} jours</AlertTitle>
+          <AlertDescription>
+            Choisissez votre formule ci-dessous. Carte bancaire requise : 0 € aujourd&apos;hui, premier prélèvement à
+            la fin de l&apos;essai, résiliable à tout moment avant, sans frais. Votre numéro Soline est activé dès
+            la validation.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {blockMessage && status !== "incomplete" ? (
         <Alert variant="destructive">
           <AlertTitle>Accès limité</AlertTitle>
           <AlertDescription>{blockMessage}</AlertDescription>
@@ -144,7 +156,10 @@ export function SubscriptionSettingsSection({
                   year: "numeric",
                 })})`
               : null}
-            . Vous pouvez créer des devis et des factures librement pendant cette période.
+            .{" "}
+            {hasStripeSubscription
+              ? "Votre formule démarrera automatiquement à la fin de l'essai (résiliable avant, sans frais, depuis « Gérer mon abonnement »)."
+              : "Vous pouvez créer des devis et des factures librement pendant cette période."}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -262,7 +277,7 @@ export function SubscriptionSettingsSection({
 
       <SubscriptionPricingGrid
         variant="checkout"
-        currentPlanId={status === "trialing" ? "" : planId}
+        currentPlanId={hasStripeSubscription ? planId : ""}
         stripeEnabled={stripeEnabled}
         ambassadorDiscountPercent={
           (promoEnrollment?.status === "registered" || promoEnrollment?.status === "pending") &&

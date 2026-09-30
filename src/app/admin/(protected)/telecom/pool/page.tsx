@@ -19,9 +19,7 @@ export default async function AdminVoicePoolPage() {
   const provisioning = {
     configured: cfg.ok,
     missing: cfg.ok ? [] : cfg.missing,
-    autoRefill: process.env.VOICE_POOL_AUTO_REFILL?.trim() === "true",
     maxTotal: policy.maxTotal,
-    minAvailable: policy.minAvailable,
   };
 
   return (
@@ -29,8 +27,8 @@ export default async function AdminVoicePoolPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <AppPageHeader
           eyebrow="Télécom"
-          title="Pool numéros Soline"
-          description="Numéros Twilio pré-provisionnés, attribués automatiquement aux artisans Pro/Premium."
+          title="Numéros Soline"
+          description="1 abonnement Pro/Premium = 1 numéro acheté à la validation de l'abonnement. Résiliation : quarantaine 30 jours puis restitution à Twilio."
         />
         <Link href="/admin/telecom" className={buttonVariants({ variant: "outline" })}>
           Registre réquisitions

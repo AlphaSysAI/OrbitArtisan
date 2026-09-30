@@ -87,7 +87,7 @@ export async function updateTenantPlan(
   const status = String(formData.get("subscription_status") ?? "") as ArtisanSubscriptionStatus;
 
   if (!["base", "pro", "premium"].includes(plan)) return { ok: false, error: "invalid_plan" };
-  if (!["active", "past_due", "canceled", "trialing"].includes(status)) {
+  if (!["incomplete", "active", "past_due", "canceled", "trialing"].includes(status)) {
     return { ok: false, error: "invalid_status" };
   }
 
@@ -328,10 +328,13 @@ export async function assignTenantVoiceFromPool(
     profileId,
     planId: tenant.subscriptionPlan,
     subscriptionStatus: tenant.subscriptionStatus as SubscriptionStatus,
+    // Décision admin explicite : attribue même un essai sans carte.
+    force: true,
   });
 
   if (result.error) return { ok: false, error: result.error };
-  if (result.poolEmpty) return { ok: false, error: "pool_empty" };
+  // Aucun numéro libre : achat Twilio lancé en arrière-plan (after).
+  if (result.poolEmpty) return { ok: false, error: result.provisioningScheduled ? "provisioning_started" : "pool_empty" };
 
   await writeAdminAuditLog({
     adminUserId: adminUser.id,

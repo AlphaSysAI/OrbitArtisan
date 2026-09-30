@@ -45,7 +45,7 @@ export const getIsPlatformAdmin = cache(async (userId: string): Promise<boolean>
  * requête au lieu d'une par composant.
  */
 const ARTISAN_SHELL_PROFILE_SELECT =
-  "id, subscription_status, subscription_plan, trial_ends_at, account_status, deleted_at, voice_number_assignment_pending_at";
+  "id, subscription_status, subscription_plan, trial_ends_at, account_status, deleted_at, voice_number_assignment_pending_at, stripe_subscription_id";
 
 export type ArtisanShellProfile = {
   id: string;
@@ -55,6 +55,7 @@ export type ArtisanShellProfile = {
   account_status: string | null;
   deleted_at: string | null;
   voice_number_assignment_pending_at: string | null;
+  stripe_subscription_id: string | null;
 };
 
 /** Profil artisan du shell `/app`, ou null (non connecté / pas artisan). */

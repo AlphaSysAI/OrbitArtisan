@@ -2,7 +2,8 @@
 export const TRIAL_DURATION_DAYS = 30;
 
 /** Statuts stockés en base (alignés Stripe). */
-export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled";
+/** « incomplete » : compte créé, essai pas encore démarré (aucun essai sans carte bancaire). */
+export type SubscriptionStatus = "incomplete" | "trialing" | "active" | "past_due" | "canceled";
 
 export type SubscriptionAccessInput = {
   subscription_status?: string | null;
@@ -11,7 +12,7 @@ export type SubscriptionAccessInput = {
   deleted_at?: string | null;
 };
 
-export type SubscriptionBlockReason = "trial_expired" | "past_due" | "canceled" | "suspended" | "no_profile";
+export type SubscriptionBlockReason = "no_subscription" | "trial_expired" | "past_due" | "canceled" | "suspended" | "no_profile";
 
 export type SubscriptionAccessResult = {
   allowed: boolean;
@@ -22,6 +23,7 @@ export type SubscriptionAccessResult = {
 };
 
 export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  incomplete: "Essai à démarrer",
   trialing: "Essai",
   active: "Actif",
   past_due: "Impayé",
@@ -29,7 +31,7 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
 };
 
 export function isSubscriptionStatus(value: string): value is SubscriptionStatus {
-  return value === "trialing" || value === "active" || value === "past_due" || value === "canceled";
+  return value === "incomplete" || value === "trialing" || value === "active" || value === "past_due" || value === "canceled";
 }
 
 export function computeTrialEndsAt(from = new Date()): string {
@@ -47,12 +49,16 @@ export function evaluateSubscriptionAccess(profile: SubscriptionAccessInput | nu
     return { allowed: false, reason: "suspended", status: "unknown", trialEndsAt: null, daysRemaining: null };
   }
 
-  const rawStatus = profile.subscription_status ?? "trialing";
+  const rawStatus = profile.subscription_status ?? "incomplete";
   const status = isSubscriptionStatus(rawStatus) ? rawStatus : "unknown";
   const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
 
   if (status === "active") {
     return { allowed: true, status, trialEndsAt, daysRemaining: null };
+  }
+
+  if (status === "incomplete") {
+    return { allowed: false, reason: "no_subscription", status, trialEndsAt: null, daysRemaining: null };
   }
 
   if (status === "trialing") {
@@ -94,6 +100,8 @@ export function isSubscriptionDocumentBlockedPath(pathname: string): boolean {
 
 export function subscriptionBlockRedirectReason(reason: SubscriptionBlockReason): string {
   switch (reason) {
+    case "no_subscription":
+      return "no_subscription";
     case "trial_expired":
       return "trial_expired";
     case "past_due":
