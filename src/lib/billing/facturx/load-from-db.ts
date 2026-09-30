@@ -41,6 +41,7 @@ type ProfileRow = {
   trade_register_number: string | null;
   decennale_insurer: string | null;
   decennale_policy_number: string | null;
+  decennale_coverage_area: string | null;
   rc_pro_insurer: string | null;
   rc_pro_number: string | null;
   mediator_name: string | null;
@@ -102,7 +103,7 @@ export async function loadFacturXDocumentFromDb(
     issuerClient
       .from("profiles")
       .select(
-        "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, logo_url, accent_color",
+        "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number, decennale_insurer, decennale_policy_number, decennale_coverage_area, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, logo_url, accent_color",
       )
       .eq("id", inv.artisan_id)
       .maybeSingle(),
@@ -193,6 +194,7 @@ export async function loadFacturXDocumentFromDb(
         trade_register_number: seller.trade_register_number,
         decennale_insurer: seller.decennale_insurer,
         decennale_policy_number: seller.decennale_policy_number,
+        decennale_coverage_area: seller.decennale_coverage_area,
         rc_pro_insurer: seller.rc_pro_insurer,
         rc_pro_number: seller.rc_pro_number,
         mediator_name: seller.mediator_name,

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { ActivityPing } from "@/components/app/activity-ping";
 import { AppShell } from "@/components/app/app-shell";
 import { SubscriptionBanner } from "@/components/app/subscription-banner";
 import { AcceptPendingInvite } from "@/components/invitations/accept-pending-invite";
@@ -15,6 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <AppShell isPlatformAdmin={!!adminUser}>
+      <ActivityPing />
       <Suspense fallback={null}>
         <SubscriptionBanner />
       </Suspense>

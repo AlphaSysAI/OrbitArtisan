@@ -23,6 +23,7 @@ const fullLegal = {
   trade_register_number: "RCS Paris B 732 829 320",
   decennale_insurer: "AXA",
   decennale_policy_number: "DEC-123",
+  decennale_coverage_area: "France métropolitaine",
   rc_pro_insurer: "MAIF",
   rc_pro_number: "RC-456",
   mediator_name: "Médiateur FEVAD",

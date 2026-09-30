@@ -43,7 +43,7 @@ export async function validateQuoteBeforeSend(
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "business_name, siren, siret, address_line1, postal_code, city, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url",
+      "business_name, siren, siret, address_line1, postal_code, city, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, decennale_coverage_area, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url",
     )
     .eq("id", artisanId)
     .maybeSingle();
@@ -64,6 +64,7 @@ export async function validateQuoteBeforeSend(
     trade_register_number: profile.trade_register_number,
     decennale_insurer: profile.decennale_insurer,
     decennale_policy_number: profile.decennale_policy_number,
+    decennale_coverage_area: (profile as { decennale_coverage_area?: string | null }).decennale_coverage_area ?? null,
     rc_pro_insurer: profile.rc_pro_insurer,
     rc_pro_number: profile.rc_pro_number,
     mediator_name: profile.mediator_name,

@@ -56,6 +56,7 @@ export const maxDuration = 60;
 const ALLOWED_NAV = new Set([
   "/app",
   "/app/rdv",
+  "/app/clients",
   "/app/contacts",
   "/app/messages",
   "/app/quotes",
@@ -65,9 +66,10 @@ const ALLOWED_NAV = new Set([
 ]);
 
 const NAV_LABELS: Record<string, string> = {
-  "/app": "Accueil",
-  "/app/rdv": "Mes RDV",
-  "/app/contacts": "Contacts",
+  "/app": "À traiter",
+  "/app/rdv": "Agenda",
+  "/app/clients": "Clients",
+  "/app/contacts": "Clients",
   "/app/messages": "Messages",
   "/app/quotes": "Devis",
   "/app/quotes/new": "Nouveau devis",

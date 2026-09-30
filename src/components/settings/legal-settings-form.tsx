@@ -7,6 +7,7 @@ import { updateLegalSettings } from "@/app/app/reglages/legal-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { VatRegimeField } from "@/components/settings/vat-regime-field";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ARTISAN_SALES_TERMS_PLACEHOLDER,
@@ -20,9 +21,11 @@ export function LegalSettingsForm({
     siren: string | null;
     siret: string | null;
     vat_number: string | null;
+    vat_regime?: string | null;
     trade_register_number: string | null;
     decennale_insurer: string | null;
     decennale_policy_number: string | null;
+    decennale_coverage_area?: string | null;
     rc_pro_insurer: string | null;
     rc_pro_number: string | null;
     mediator_name: string | null;
@@ -43,6 +46,8 @@ export function LegalSettingsForm({
           ? "SIREN invalide (9 chiffres)."
           : res.error === "invalid_siret"
             ? "SIRET invalide (14 chiffres)."
+            : res.error === "vat_regime_locked"
+              ? "Régime de TVA non modifiable : une facture a déjà été émise ce mois-ci. Change-le au début du mois prochain."
             : res.error === "invalid_vat"
               ? "Numéro TVA invalide."
               : "Impossible d'enregistrer.",
@@ -63,6 +68,7 @@ export function LegalSettingsForm({
           <Label htmlFor="siret">SIRET</Label>
           <Input id="siret" name="siret" defaultValue={initialValues.siret ?? ""} placeholder="12345678901234" />
         </div>
+        <VatRegimeField defaultValue={initialValues.vat_regime === "franchise" ? "franchise" : "normal"} />
         <div className="space-y-2">
           <Label htmlFor="vat_number">N° TVA intracommunautaire</Label>
           <Input id="vat_number" name="vat_number" defaultValue={initialValues.vat_number ?? ""} placeholder="FR12345678901" />
@@ -90,6 +96,15 @@ export function LegalSettingsForm({
               id="decennale_policy_number"
               name="decennale_policy_number"
               defaultValue={initialValues.decennale_policy_number ?? ""}
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="decennale_coverage_area">Couverture géographique de la décennale</Label>
+            <Input
+              id="decennale_coverage_area"
+              name="decennale_coverage_area"
+              placeholder="ex. France métropolitaine"
+              defaultValue={initialValues.decennale_coverage_area ?? ""}
             />
           </div>
           <div className="space-y-2">

@@ -35,6 +35,13 @@ export type AiQuoteDraft = {
   voiceIntakeId?: string | null;
   estimateMin?: number | null;
   estimateMax?: number | null;
+  /**
+   * Montant de main-d'œuvre imposé par l'artisan (ex. dicté : « main-d'œuvre à 400 € »).
+   * Prioritaire sur taux × durée ; le taux affiché est recalculé pour rester cohérent.
+   */
+  laborTotalOverrideCents?: number | null;
+  /** Version précédente (annulation d'une correction vocale, un seul niveau). */
+  previous?: Omit<AiQuoteDraft, "previous"> | null;
 };
 
 const STORAGE_PREFIX = "alphasys-ai-quote-draft:";

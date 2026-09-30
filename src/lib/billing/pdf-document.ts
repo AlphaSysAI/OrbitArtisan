@@ -1,12 +1,14 @@
 /**
- * Mise en page commune devis / factures (pdf-lib, polices standard WinAnsi).
+ * Mise en page commune devis / factures (pdf-lib, police Inter embarquée).
  *
  * Un seul gabarit pour tous les documents commerciaux : en-tête avec logo,
  * blocs émetteur / client, tableau multi-pages (en-tête répété), récapitulatif
  * TVA par taux, pied de page numéroté. Les calculs de montants restent chez
  * l'appelant : ce module ne fait QUE de la présentation.
  */
-import { PDFDocument, PDFPage, rgb, type PDFFont, type PDFImage, type RGB, StandardFonts } from "pdf-lib";
+import { PDFDocument, PDFPage, rgb, type PDFFont, type PDFImage, type RGB } from "pdf-lib";
+
+import { embedDocumentFonts } from "@/lib/billing/pdf-fonts";
 
 import { formatEurosForPdf, sanitizePdfText } from "@/lib/billing/pdf-text";
 
@@ -97,8 +99,7 @@ export class CommercialPdf {
 
   static async create(theme: PdfTheme): Promise<CommercialPdf> {
     const pdf = await PDFDocument.create();
-    const regular = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const { regular, bold } = await embedDocumentFonts(pdf);
     return new CommercialPdf(pdf, regular, bold, theme);
   }
 
@@ -281,6 +282,8 @@ export class CommercialPdf {
     this.y -= 12;
   }
 
+  private hideVat = false;
+
   private drawTableHeader() {
     const h = 20;
     this.page.drawRectangle({ x: M, y: this.y - h + 6, width: CONTENT_W, height: h, color: this.theme.accent });
@@ -288,13 +291,16 @@ export class CommercialPdf {
     const o = { bold: true, color: WHITE };
     this.text("Désignation", COLS.designation.x, ty, 8, o);
     this.textRight("Qté", COLS.qty.right, ty, 8, o);
-    this.textRight("PU HT", COLS.unit.right, ty, 8, o);
-    this.textRight("TVA", COLS.vat.right, ty, 8, o);
-    this.textRight("Total HT", COLS.total.right, ty, 8, o);
+    // Franchise 293 B : prix nets, pas de mention « HT » (aucune TVA facturée).
+    this.textRight(this.hideVat ? "Prix unit." : "PU HT", COLS.unit.right, ty, 8, o);
+    if (!this.hideVat) this.textRight("TVA", COLS.vat.right, ty, 8, o);
+    this.textRight(this.hideVat ? "Total" : "Total HT", COLS.total.right, ty, 8, o);
     this.y -= h + 6;
   }
 
-  drawTable(rows: TableRow[]) {
+  /** hideVat : franchise en base (293 B), aucune colonne TVA sur le document. */
+  drawTable(rows: TableRow[], opts: { hideVat?: boolean } = {}) {
+    this.hideVat = Boolean(opts.hideVat);
     this.ensure(60);
     this.drawTableHeader();
     this.tableHeaderOnBreak = true;
@@ -320,7 +326,7 @@ export class CommercialPdf {
       }
       this.textRight(row.quantity, COLS.qty.right, firstY, 9);
       this.textRight(row.unitPrice, COLS.unit.right, firstY, 9);
-      this.textRight(row.vat, COLS.vat.right, firstY, 9, { color: MUTED });
+      if (!this.hideVat) this.textRight(row.vat, COLS.vat.right, firstY, 9, { color: MUTED });
       this.textRight(row.total, COLS.total.right, firstY, 9, { bold: true });
       this.y = top - h - 8;
     });

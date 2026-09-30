@@ -11,6 +11,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { OnboardingContactStep } from "./onboarding-contact-step";
+import { OnboardingImport } from "./onboarding-import";
 import { OnboardingLegalStep } from "./onboarding-legal-step";
 
 function parseRequestedStep(raw: string | undefined): 1 | 2 | null {
@@ -49,8 +50,54 @@ export default async function ArtisanOnboardingPage({
     redirect("/app");
   }
 
+  // Parcours par défaut : import d'anciens devis (zéro saisie). Saisie manuelle via ?step=1|2.
+  if (requestedStep === null) {
+    const { data: known } = await supabase
+      .from("profiles")
+      .select(
+        "first_name, last_name, business_name, phone, address_line1, postal_code, city, siret, vat_number, vat_regime, trade_register_number, decennale_insurer, decennale_policy_number, decennale_coverage_area, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days",
+      )
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const k = (known ?? {}) as Record<string, string | number | null>;
+    const str = (v: string | number | null | undefined) => (v === null || v === undefined ? "" : String(v));
+    const existing = {
+      first_name: str(k.first_name),
+      last_name: str(k.last_name),
+      business_name: str(k.business_name),
+      phone: str(k.phone),
+      address_line1: str(k.address_line1),
+      postal_code: str(k.postal_code),
+      city: str(k.city),
+      siret: str(k.siret),
+      vat_number: str(k.vat_number),
+      trade_register: str(k.trade_register_number),
+      decennale_insurer: str(k.decennale_insurer),
+      decennale_policy_number: str(k.decennale_policy_number),
+      decennale_coverage_area: str(k.decennale_coverage_area),
+      rc_pro_insurer: str(k.rc_pro_insurer),
+      rc_pro_number: str(k.rc_pro_number),
+      mediator_name: str(k.mediator_name),
+      mediator_url: str(k.mediator_url),
+      payment_terms_days: "",
+      vat_regime: str(k.vat_regime) === "franchise" ? "franchise" : "",
+    };
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 pb-12">
+        <AppPageHeader
+          eyebrow="Bienvenue sur Soline"
+          title="On prépare ton compte à partir de tes devis"
+          description="2 minutes : une photo ou un PDF de tes anciens devis, puis tu complètes uniquement ce qui manque."
+        />
+        <div className="rounded-2xl border bg-card p-5 shadow-sm sm:p-8">
+          <OnboardingImport existing={existing} />
+        </div>
+      </div>
+    );
+  }
+
   const naturalStep = resolveOnboardingStep(profile);
-  let step = requestedStep ?? naturalStep;
+  const step = requestedStep ?? naturalStep;
 
   if (step === 2 && !isOnboardingContactStepComplete(profile)) {
     redirect("/app/onboarding?step=1");
@@ -110,9 +157,11 @@ export default async function ArtisanOnboardingPage({
               siren: profile.siren ?? "",
               siret: profile.siret ?? "",
               vatNumber: profile.vat_number ?? "",
+              vatRegime: profile.vat_regime === "franchise" ? "franchise" : profile.vat_number ? "normal" : null,
               tradeRegisterNumber: profile.trade_register_number ?? "",
               decennaleInsurer: profile.decennale_insurer ?? "",
               decennalePolicyNumber: profile.decennale_policy_number ?? "",
+              decennaleCoverageArea: (profile as { decennale_coverage_area?: string | null }).decennale_coverage_area ?? "",
               rcProInsurer: profile.rc_pro_insurer ?? "",
               rcProNumber: profile.rc_pro_number ?? "",
               mediatorName: profile.mediator_name ?? "",

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { ArrowLeft, FileText, MessageSquare } from "lucide-react";
+import { ArrowLeft, FileText, MessageSquare, UserRound } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
 import { QuoteSummary } from "@/components/ai/quote-summary";
 import { BtpInvoiceActions } from "@/components/quotes/btp-invoice-actions";
 import { QuoteDocumentActionsCard } from "@/components/quotes/quote-document-actions-card";
+import { QuoteClientResponseCard } from "@/components/quotes/quote-client-response-card";
 import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 import { loadInvoicesForQuote } from "@/lib/billing/load-invoice-for-page";
 
@@ -61,7 +62,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
     supabase
       .from("quotes")
       .select(
-        "id,status,customer_user_id,customer_name,customer_email,conversation_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,reduced_vat_rate,generate_vat_attestation,work_site_address,sent_at",
+        "id,status,customer_user_id,customer_name,customer_email,conversation_id,client_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,reduced_vat_rate,generate_vat_attestation,work_site_address,sent_at,viewed_at,rejection_reason,rejection_comment,response_channel,callback_requested_at,callback_handled_at,callback_phone,signed_scan_path",
       )
       .eq("id", quoteId)
       .maybeSingle(),
@@ -117,6 +118,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
     }),
   );
   const documentTotals = sumQuoteTotals(documentVat);
+  const vatFranchise = documentVat.length > 0 && documentVat.every((r) => r.rate === 0);
   const directPurchaseCents = materials
     .filter((m) => m.exclude_from_invoice)
     .reduce((acc, m) => acc + Math.round((m.quantity ?? 0) * (m.unit_price ?? 0)), 0);
@@ -137,6 +139,9 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
     signed_by_name?: string | null;
     rejected_at?: string | null;
   };
+  const scanUrl = quote.signed_scan_path
+    ? ((await supabase.storage.from("quote-signatures").createSignedUrl(quote.signed_scan_path, 600)).data?.signedUrl ?? null)
+    : null;
 
   const frameClass =
     q.status === "accepted"
@@ -157,6 +162,15 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
           <p className="mt-1 text-sm text-muted-foreground">Statut : {quoteStatusLabel(quote.status)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {quote.client_id ? (
+            <Link
+              href={`/app/clients/${quote.client_id}`}
+              className={buttonVariants({ variant: "secondary", size: "sm", className: "gap-2" })}
+            >
+              <UserRound className="h-4 w-4" />
+              Fiche client
+            </Link>
+          ) : null}
           {conversationId ? (
             <Link
               href={`/app/messages/${conversationId}`}
@@ -235,7 +249,9 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                             {m.quantity} × {eur(m.unit_price ?? 0)} HT
                             {m.exclude_from_invoice
                               ? " · achat direct du client (hors devis)"
-                              : ` · TVA ${String(normalizeVatRate(m.vat_rate)).replace(".", ",")} %`}
+                              : normalizeVatRate(m.vat_rate) === 0
+                                ? ""
+                                : ` · TVA ${String(normalizeVatRate(m.vat_rate)).replace(".", ",")} %`}
                           </p>
                         </div>
                         <p className={cn("text-sm font-medium tabular-nums", m.exclude_from_invoice && "text-muted-foreground line-through")}>
@@ -295,7 +311,10 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                   <span>Total HT</span>
                   <span className="tabular-nums">{eur(documentTotals.totalHtCents)}</span>
                 </div>
-                {documentVat.map((row) => (
+                {vatFranchise ? (
+                  <p className="text-xs text-muted-foreground">TVA non applicable, art. 293 B du CGI</p>
+                ) : null}
+                {vatFranchise ? null : documentVat.map((row) => (
                   <div key={row.rate} className="flex items-center justify-between text-sm text-muted-foreground">
                     <span>
                       TVA {String(row.rate).replace(".", ",")} %
@@ -305,7 +324,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                   </div>
                 ))}
                 <div className="flex items-center justify-between border-t pt-2 text-lg font-semibold">
-                  <span>Total TTC</span>
+                  <span>{vatFranchise ? "Total net" : "Total TTC"}</span>
                   <span className="tabular-nums">{eur(documentTotals.totalTtcCents)}</span>
                 </div>
               </div>
@@ -320,6 +339,26 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                 Créé le {new Date(quote.created_at).toLocaleString("fr-FR")} · Mis à jour le{" "}
                 {new Date(quote.updated_at).toLocaleString("fr-FR")}
               </div>
+
+              {quote.status !== "draft" ? (
+                <QuoteClientResponseCard
+                  quoteId={quoteId}
+                  status={quote.status}
+                  viewedAt={quote.viewed_at ?? null}
+                  defaultSignerName={quote.customer_name ?? ""}
+                  callback={
+                    quote.callback_requested_at
+                      ? {
+                          requestedAt: quote.callback_requested_at,
+                          handledAt: quote.callback_handled_at ?? null,
+                          phone: quote.callback_phone ?? null,
+                        }
+                      : null
+                  }
+                  rejection={{ reason: quote.rejection_reason ?? null, comment: quote.rejection_comment ?? null }}
+                  acceptance={{ channel: quote.response_channel ?? null, scanUrl }}
+                />
+              ) : null}
 
               {q.status === "accepted" && q.signed_at && (
                 <div className="rounded-xl border border-green-600/30 bg-green-500/5 p-3 text-sm">

@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { ExternalLink } from "lucide-react";
 
 import { AppPageHeader } from "@/components/app/app-page-header";
+import { OpsNudgesToggle } from "@/components/settings/ops-nudges-toggle";
 import { PushNotificationsSettings } from "@/components/notifications/push-notifications-settings";
 import { ContactSettingsForm } from "@/components/settings/contact-settings-form";
 import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
@@ -99,7 +100,7 @@ export default async function ArtisanSettingsPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "id, name, first_name, last_name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, trade_category, trade",
+      "id, name, first_name, last_name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, trade_category, trade, ops_nudges_enabled",
     )
     .eq("user_id", user!.id)
     .maybeSingle();
@@ -125,6 +126,8 @@ export default async function ArtisanSettingsPage({
     trade_register_number: null as string | null,
     decennale_insurer: null as string | null,
     decennale_policy_number: null as string | null,
+    decennale_coverage_area: null as string | null,
+    vat_regime: "normal" as string | null,
     rc_pro_insurer: null as string | null,
     rc_pro_number: null as string | null,
     mediator_name: null as string | null,
@@ -170,7 +173,7 @@ export default async function ArtisanSettingsPage({
         supabase
           .from("profiles")
           .select(
-            "siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, default_retention_rate, auto_reminder_enabled, sales_terms_text",
+            "siren, siret, vat_number, vat_regime, trade_register_number, decennale_insurer, decennale_policy_number, decennale_coverage_area, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, default_retention_rate, auto_reminder_enabled, sales_terms_text",
           )
           .eq("id", profile.id)
           .maybeSingle(),
@@ -226,6 +229,8 @@ export default async function ArtisanSettingsPage({
         trade_register_number: legalRes.data.trade_register_number,
         decennale_insurer: legalRes.data.decennale_insurer,
         decennale_policy_number: legalRes.data.decennale_policy_number,
+        decennale_coverage_area: (legalRes.data as { decennale_coverage_area?: string | null }).decennale_coverage_area ?? null,
+        vat_regime: (legalRes.data as { vat_regime?: string | null }).vat_regime ?? "normal",
         rc_pro_insurer: legalRes.data.rc_pro_insurer,
         rc_pro_number: legalRes.data.rc_pro_number,
         mediator_name: legalRes.data.mediator_name,
@@ -523,8 +528,9 @@ export default async function ArtisanSettingsPage({
           </section>
         ) : null}
 
-        <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+        <section className="space-y-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
           <PushNotificationsSettings />
+          {profile?.id ? <OpsNudgesToggle initial={(profile as { ops_nudges_enabled?: boolean }).ops_nudges_enabled !== false} /> : null}
         </section>
       </div>
     </div>

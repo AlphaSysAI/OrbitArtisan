@@ -5,6 +5,7 @@ export type NotificationCategory =
   | "invoices_received";
 
 export type NotificationBadgeKey =
+  | "inbox"
   | "messages"
   | "quotes_accepted"
   | "quotes_received"

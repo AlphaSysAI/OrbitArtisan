@@ -3,10 +3,9 @@ import {
   CalendarClock,
   FileText,
   Hammer,
-  Home,
+  Inbox,
   MessageSquare,
   Phone,
-  Receipt,
   Settings,
   Truck,
   Users,
@@ -24,21 +23,39 @@ export type AppNavItem = {
   icon: LucideIcon;
   exact: boolean;
   badgeKey?: NotificationBadgeKey;
+  /** Préfixes de chemin qui activent aussi l'entrée (ex. Documents = devis + factures). */
+  activePrefixes?: string[];
 };
 
-/** Liens visibles directement dans le header desktop (5 max). */
+/**
+ * Navigation recentrée (fiche client unifiée) : 4 entrées pour le quotidien.
+ * « À traiter » = tout ce qui attend une action ; « Clients » = une fiche par
+ * client avec tout son historique ; « Documents » = devis + factures ; « Agenda ».
+ */
 export const APP_NAV_PRIMARY: AppNavItem[] = [
-  { href: "/app", label: "Accueil", shortLabel: "Accueil", icon: Home, exact: true },
+  { href: "/app", label: "À traiter", shortLabel: "À traiter", icon: Inbox, exact: true, badgeKey: "inbox" },
+  {
+    href: "/app/clients",
+    label: "Clients",
+    shortLabel: "Clients",
+    icon: Users,
+    exact: false,
+    activePrefixes: ["/app/clients", "/app/contacts"],
+  },
   {
     href: "/app/quotes",
-    label: "Devis",
-    shortLabel: "Devis",
+    label: "Documents",
+    shortLabel: "Docs",
     icon: FileText,
     exact: false,
     badgeKey: "quotes_accepted",
+    activePrefixes: ["/app/quotes", "/app/invoices"],
   },
-  { href: "/app/invoices", label: "Factures", shortLabel: "Factures", icon: Receipt, exact: false },
-  { href: "/app/contacts", label: "Contacts", shortLabel: "Clients", icon: Users, exact: false },
+  { href: "/app/rdv", label: "Agenda", shortLabel: "Agenda", icon: CalendarClock, exact: false },
+];
+
+/** Vues détaillées et outils (menu « Plus »). */
+export const APP_NAV_MORE: AppNavItem[] = [
   {
     href: "/app/messages",
     label: "Messages",
@@ -47,11 +64,6 @@ export const APP_NAV_PRIMARY: AppNavItem[] = [
     exact: false,
     badgeKey: "messages",
   },
-];
-
-/** Liens regroupés dans le menu « Plus » (header desktop). */
-export const APP_NAV_MORE: AppNavItem[] = [
-  { href: "/app/rdv", label: "Mes RDV", shortLabel: "RDV", icon: CalendarClock, exact: false },
   {
     href: SOLINE_CALLS_HUB_PATH,
     label: "Appels Soline",
@@ -60,8 +72,8 @@ export const APP_NAV_MORE: AppNavItem[] = [
     exact: false,
     badgeKey: "voice_intakes",
   },
-  { href: "/app/ouvrages", label: "Ouvrages", shortLabel: "Ouvrages", icon: BookOpen, exact: false },
   { href: "/app/chantiers", label: "Chantiers", shortLabel: "Chantiers", icon: Hammer, exact: false },
+  { href: "/app/ouvrages", label: "Ouvrages", shortLabel: "Ouvrages", icon: BookOpen, exact: false },
   { href: "/app/interventions", label: "Interventions", shortLabel: "BI", icon: ClipboardList, exact: false },
   { href: "/app/fournisseurs", label: "Fournisseurs", shortLabel: "Fourn.", icon: Truck, exact: false },
   { href: "/app/reglages", label: "Réglages", shortLabel: "Réglages", icon: Settings, exact: false },
@@ -77,16 +89,17 @@ export const APP_NAV_BOTTOM: [
   AppNavItem,
   AppNavItem,
 ] = [
-  APP_NAV_PRIMARY[0]!, // Accueil
-  APP_NAV_PRIMARY[1]!, // Devis
-  APP_NAV_PRIMARY[2]!, // Factures
-  APP_NAV_PRIMARY[4]!, // Messages
+  APP_NAV_PRIMARY[0]!, // À traiter
+  APP_NAV_PRIMARY[1]!, // Clients
+  APP_NAV_PRIMARY[2]!, // Documents
+  APP_NAV_PRIMARY[3]!, // Agenda
 ];
 
 export function isNavItemActive(pathname: string, item: AppNavItem) {
   if (item.href === SOLINE_CALLS_HUB_PATH) {
     return pathname.startsWith("/app/appels") || pathname.startsWith(SOLINE_CALLS_HUB_PATH);
   }
+  if (item.activePrefixes) return item.activePrefixes.some((p) => pathname.startsWith(p));
   return item.exact ? pathname === item.href : pathname.startsWith(item.href);
 }
 

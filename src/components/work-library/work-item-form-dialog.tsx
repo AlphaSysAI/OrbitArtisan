@@ -181,16 +181,20 @@ export function WorkItemFormDialog({
               ))}
             </select>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="wi-vat">TVA (%)</Label>
-            <select id="wi-vat" className={selectClassName} value={vatRate} onChange={(e) => setVatRate(e.target.value)}>
-              {VAT_RATES.map((v) => (
-                <option key={v} value={v}>
-                  {v} %
-                </option>
-              ))}
-            </select>
-          </div>
+          {vatRate === "0" ? (
+            <p className="self-end text-xs text-muted-foreground">Sans TVA (franchise en base, art. 293 B).</p>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="wi-vat">TVA (%)</Label>
+              <select id="wi-vat" className={selectClassName} value={vatRate} onChange={(e) => setVatRate(e.target.value)}>
+                {VAT_RATES.map((v) => (
+                  <option key={v} value={v}>
+                    {v} %
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border bg-muted/30 p-4 space-y-4">

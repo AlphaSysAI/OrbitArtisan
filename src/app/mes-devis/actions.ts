@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import {
   notifyQuoteAccepted,
   notifyQuoteRejected,
 } from "@/lib/notifications/notify-events";
+import { completeAccountAcceptance } from "@/lib/quotes/quote-response";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -41,6 +43,12 @@ export async function clientAcceptQuote(quoteId: string, signerName: string) {
       artisanId: quote.artisan_id as string,
       signerName: name,
     });
+    const h = await headers();
+    void completeAccountAcceptance(admin, quoteId, {
+      signerName: name,
+      ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip"),
+      userAgent: h.get("user-agent"),
+    }).catch((e) => console.error("[devis] preuve acceptation compte", quoteId, e));
   }
 
   revalidatePath(`/mes-devis/${quoteId}`);

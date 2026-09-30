@@ -60,9 +60,12 @@ export async function mistralChat(params: {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: ResponseFormat;
+  /** Modèle spécifique (extraction documentaire, patch de devis…). */
+  model?: string;
+  timeoutMs?: number;
 }): Promise<string> {
   const body: Record<string, unknown> = {
-    model: MISTRAL_CHAT_MODEL,
+    model: params.model ?? MISTRAL_CHAT_MODEL,
     messages: params.messages,
     temperature: params.temperature ?? 0.3,
     max_tokens: params.maxTokens ?? 4096,
@@ -89,7 +92,7 @@ export async function mistralChat(params: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(MISTRAL_CHAT_TIMEOUT_MS),
+    signal: AbortSignal.timeout(params.timeoutMs ?? MISTRAL_CHAT_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -196,4 +199,57 @@ export async function mistralEmbed(text: string): Promise<number[]> {
     throw new Error("empty_embedding");
   }
   return vector;
+}
+
+/** Modèle d'extraction documentaire (précision > coût : onboarding et correction de devis). */
+export const MISTRAL_EXTRACTION_MODEL = process.env.MISTRAL_EXTRACTION_MODEL?.trim() || "mistral-medium-latest";
+export const MISTRAL_OCR_MODEL = process.env.MISTRAL_OCR_MODEL?.trim() || "mistral-ocr-latest";
+export const MISTRAL_TRANSCRIPTION_MODEL = process.env.MISTRAL_TRANSCRIPTION_MODEL?.trim() || "voxtral-mini-latest";
+
+/**
+ * OCR Mistral (PDF ou image) → Markdown page par page. Texte « source de vérité »
+ * contre lequel toute valeur extraite par le LLM est ensuite vérifiée.
+ */
+export async function mistralOcr(bytes: Uint8Array, mime: "application/pdf" | "image/jpeg" | "image/png"): Promise<string> {
+  const dataUri = `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`;
+  const document =
+    mime === "application/pdf"
+      ? { type: "document_url", document_url: dataUri }
+      : { type: "image_url", image_url: dataUri };
+  const res = await fetch(`${MISTRAL_API_BASE}/ocr`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getApiKey()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: MISTRAL_OCR_MODEL, document }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Mistral OCR ${res.status}: ${errText.slice(0, 500)}`);
+  }
+  const json = (await res.json()) as { pages?: { index?: number; markdown?: string }[] };
+  return (json.pages ?? [])
+    .slice(0, 6)
+    .map((p) => p.markdown ?? "")
+    .join("\n\n---\n\n")
+    .slice(0, 60_000);
+}
+
+/** Transcription d'un vocal court (Voxtral), en français. */
+export async function mistralTranscribe(audio: Blob, filename: string): Promise<string> {
+  const form = new FormData();
+  form.set("model", MISTRAL_TRANSCRIPTION_MODEL);
+  form.set("language", "fr");
+  form.set("file", audio, filename);
+  const res = await fetch(`${MISTRAL_API_BASE}/audio/transcriptions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getApiKey()}` },
+    body: form,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Mistral transcription ${res.status}: ${errText.slice(0, 500)}`);
+  }
+  const json = (await res.json()) as { text?: string };
+  return (json.text ?? "").trim();
 }

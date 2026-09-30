@@ -24,7 +24,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, slug, accent_color, labor_rate_per_hour")
+    .select("id, business_name, slug, accent_color, labor_rate_per_hour, vat_regime")
     .eq("user_id", user!.id)
     .maybeSingle();
 
@@ -117,6 +117,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
     <QuoteForm
       accentColor={accent}
       profileLaborRatePerHourCents={profile.labor_rate_per_hour ?? null}
+      vatFranchise={profile.vat_regime === "franchise"}
       services={safeServices}
       conversationPrefill={conversationPrefill}
       editQuote={{

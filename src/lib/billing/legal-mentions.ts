@@ -8,6 +8,8 @@ export type ArtisanLegalProfile = {
   trade_register_number?: string | null;
   decennale_insurer?: string | null;
   decennale_policy_number?: string | null;
+  /** Couverture géographique du contrat (mention obligatoire, art. L243-2 C. assur.). */
+  decennale_coverage_area?: string | null;
   rc_pro_insurer?: string | null;
   rc_pro_number?: string | null;
   mediator_name?: string | null;
@@ -24,7 +26,11 @@ export function buildLegalMentionLines(profile: ArtisanLegalProfile): string[] {
   if (profile.trade_register_number) lines.push(`RCS / RM : ${profile.trade_register_number}`);
 
   if (profile.decennale_insurer || profile.decennale_policy_number) {
-    const parts = [profile.decennale_insurer, profile.decennale_policy_number ? `n° ${profile.decennale_policy_number}` : null]
+    const parts = [
+      profile.decennale_insurer,
+      profile.decennale_policy_number ? `n° ${profile.decennale_policy_number}` : null,
+      profile.decennale_coverage_area?.trim() ? `couverture : ${profile.decennale_coverage_area.trim()}` : null,
+    ]
       .filter(Boolean)
       .join(" — ");
     lines.push(`Assurance décennale : ${parts}`);

@@ -6,6 +6,11 @@ import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { createQuoteFromAiDraft, normalizeVatRate } from "@/lib/quotes/create-quote-from-ai-draft";
 import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
+import { mistralTranscribe } from "@/lib/ai/mistral";
+import { computeDraftTotals } from "@/lib/quotes/create-quote-from-ai-draft";
+import { applyQuotePatch } from "@/lib/quotes/voice-patch";
+import { fillPricesFromLibrary, llmQuotePatch } from "@/lib/quotes/voice-patch-llm";
+import { logActivity } from "@/lib/telemetry/activity";
 
 export async function loadVoiceIntakeQuoteDraft(
   intakeId: string,
@@ -126,6 +131,7 @@ export async function validateVoiceIntakeQuote(
     return { ok: false, error: "update_failed" };
   }
 
+  void logActivity(supabase, profileId, "intake_validated", { quoteId: created.quoteId });
   revalidatePath("/app/appels");
   revalidatePath("/app/quotes");
   revalidatePath(`/app/quotes/${created.quoteId}`);
@@ -154,6 +160,7 @@ export async function dismissVoiceIntake(intakeId: string): Promise<{ ok: true }
 
   if (error) return { ok: false, error: "update_failed" };
 
+  void logActivity(supabase, profileId, "intake_rejected");
   revalidatePath("/app/appels");
   return { ok: true };
 }
@@ -228,4 +235,110 @@ export async function markVoiceIntakeRead(intakeId: string): Promise<SimpleResul
     .is("read_at", null);
 
   return error ? { ok: false, error: "update_failed" } : { ok: true };
+}
+
+export type VoiceCorrectionResult =
+  | { ok: true; transcript: string; changes: string[]; warnings: string[] }
+  | { ok: false; error: "auth" | "not_found" | "not_editable" | "audio_invalid" | "empty" | "transcription_failed" | "patch_failed" };
+
+const AUDIO_MAX_BYTES = 4 * 1024 * 1024;
+
+async function patchIntakeDraft(intakeId: string, instruction: string): Promise<VoiceCorrectionResult> {
+  const auth = await requireArtisanProfileId(["labor_rate_per_hour"]);
+  if (!auth.ok) return { ok: false, error: "auth" };
+  const { supabase, profileId, userId, profile } = auth;
+
+  const { data: intake } = await supabase
+    .from("voice_call_intakes")
+    .select("id, status, quote_draft")
+    .eq("id", intakeId)
+    .eq("artisan_id", profileId)
+    .maybeSingle();
+  if (!intake?.quote_draft) return { ok: false, error: "not_found" };
+  if (intake.status !== "pending_review") return { ok: false, error: "not_editable" };
+
+  const draft = intake.quote_draft as AiQuoteDraft;
+  const rate = (profile.labor_rate_per_hour as number | null) ?? null;
+  const { data: services } = await supabase.from("services").select("id, duration").eq("artisan_id", profileId);
+  const durations = new Map((services ?? []).map((s) => [s.id as string, (s.duration as number) ?? 0]));
+  const totals = computeDraftTotals(draft, rate, durations);
+
+  let patch;
+  try {
+    patch = await llmQuotePatch(draft, instruction, {
+      hours: Math.round(((totals?.laborDurationMinutes ?? draft.laborDurationMinutes) / 60) * 100) / 100,
+      totalEur: totals ? totals.laborTotalCents / 100 : null,
+    });
+  } catch (error) {
+    console.error("[voice patch]", error instanceof Error ? error.message : error);
+    return { ok: false, error: "patch_failed" };
+  }
+  const libraryNotes = await fillPricesFromLibrary(supabase, userId, patch);
+  const applied = applyQuotePatch(draft, patch, {
+    newId: () => crypto.randomUUID(),
+    laborRatePerHourCents: rate,
+    currentLaborTotalCents: totals?.laborTotalCents ?? null,
+  });
+
+  if (applied.changes.length) {
+    const { error } = await supabase
+      .from("voice_call_intakes")
+      .update({ quote_draft: applied.draft, read_at: new Date().toISOString() })
+      .eq("id", intakeId)
+      .eq("status", "pending_review");
+    if (error) return { ok: false, error: "patch_failed" };
+    revalidatePath("/app/appels");
+  }
+  void logActivity(supabase, profileId, "voice_patch", { changes: applied.changes.length, warnings: applied.warnings.length });
+  return {
+    ok: true,
+    transcript: instruction,
+    changes: applied.changes,
+    warnings: [...libraryNotes, ...applied.warnings.filter((w) => !libraryNotes.some((n) => w.includes(n.split(" : ")[0]!)))],
+  };
+}
+
+/** « Modifier au micro » : vocal court → transcription → opérations → devis mis à jour. */
+export async function correctVoiceIntakeByAudio(intakeId: string, formData: FormData): Promise<VoiceCorrectionResult> {
+  const audio = formData.get("audio");
+  if (!(audio instanceof File) || audio.size < 1000 || audio.size > AUDIO_MAX_BYTES || !audio.type.startsWith("audio/")) {
+    return { ok: false, error: "audio_invalid" };
+  }
+  let text: string;
+  try {
+    text = await mistralTranscribe(audio, audio.name || "consigne.webm");
+  } catch (error) {
+    console.error("[voice patch] transcription", error instanceof Error ? error.message : error);
+    return { ok: false, error: "transcription_failed" };
+  }
+  if (text.length < 3) return { ok: false, error: "empty" };
+  return patchIntakeDraft(intakeId, text);
+}
+
+/** Même correction, tapée au clavier (bruit de chantier, micro refusé). */
+export async function correctVoiceIntakeByText(intakeId: string, text: string): Promise<VoiceCorrectionResult> {
+  const t = text.trim();
+  if (t.length < 3 || t.length > 1500) return { ok: false, error: "empty" };
+  return patchIntakeDraft(intakeId, t);
+}
+
+/** Annule la dernière correction (un niveau). */
+export async function undoVoiceIntakeCorrection(intakeId: string): Promise<{ ok: boolean }> {
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false };
+  const { data: intake } = await auth.supabase
+    .from("voice_call_intakes")
+    .select("quote_draft, status")
+    .eq("id", intakeId)
+    .eq("artisan_id", auth.profileId)
+    .maybeSingle();
+  const previous = (intake?.quote_draft as AiQuoteDraft | null)?.previous;
+  if (!previous || intake?.status !== "pending_review") return { ok: false };
+  const { error } = await auth.supabase
+    .from("voice_call_intakes")
+    .update({ quote_draft: { ...previous, previous: null } })
+    .eq("id", intakeId)
+    .eq("status", "pending_review");
+  revalidatePath("/app/appels");
+  return { ok: !error };
 }

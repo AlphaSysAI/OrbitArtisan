@@ -15,6 +15,7 @@ import {
   sanitizeAccountingFilename,
 } from "@/lib/accounting/export-schedule";
 import { buildInvoicesCsv, type InvoiceCsvRow } from "@/lib/accounting/invoices-csv";
+import { artisanRecapMessage, buildMonthlyRecap, recapCsv, recapHtml } from "@/lib/accounting/monthly-recap";
 import { ACCOUNTING_EXPORT_PAGE_PATH, listPendingPieces } from "@/lib/accounting/pending-pieces";
 import { loadFacturXDocumentFromDb, renderInvoicePdf } from "@/lib/billing/facturx";
 import { generateFacturX } from "@/lib/billing/facturx/generate-factur-x";
@@ -188,10 +189,43 @@ export async function sendAccountingExport(
     return { ok: true, status: "skipped", invoiceCount: 0, attachmentCount: 0, parts: 0 };
   }
 
+  // Synthèse chiffrée (TVA ventilée comme dans les XML Factur-X, relances du mois).
+  const invoiceIds = invoices.map((i) => i.id);
+  const [{ data: lineRows }, { count: remindersSent }] = await Promise.all([
+    invoiceIds.length
+      ? db.from("invoice_lines").select("invoice_id, line_total, vat_rate, vat_category_code").in("invoice_id", invoiceIds)
+      : Promise.resolve({ data: [] as { invoice_id: string; line_total: number; vat_rate: number | null; vat_category_code: string | null }[] }),
+    db
+      .from("invoice_reminders")
+      .select("id", { count: "exact", head: true })
+      .eq("artisan_id", profile.id)
+      .gte("created_at", `${period}T00:00:00+00:00`)
+      .lte("created_at", cutoff),
+  ]);
+  const todayIso = `${String(parisDay(now).year)}-${String(parisDay(now).month).padStart(2, "0")}-${String(parisDay(now).day).padStart(2, "0")}`;
+  const recap = buildMonthlyRecap({
+    invoices: invoices.map((inv) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoice_number,
+      invoiceType: inv.invoice_type,
+      status: inv.status,
+      dueDate: inv.due_date,
+      paymentReceivedAt: inv.payment_received_at ?? null,
+      lines: (lineRows ?? [])
+        .filter((l) => l.invoice_id === inv.id)
+        .map((l) => ({ lineTotalCents: l.line_total as number, vatRate: (l.vat_rate as number | null) ?? 20, vatCategoryCode: l.vat_category_code as string | null })),
+    })),
+    remindersSent: remindersSent ?? 0,
+    piecesCount: pieces.length,
+    today: todayIso,
+  });
+
   type Item = { filename: string; bytes: Buffer; size: number };
   const items: Item[] = [];
   const csv = Buffer.from(buildInvoicesCsv(invoices), "utf8");
   items.push({ filename: `recap-factures-${period.slice(0, 7)}.csv`, bytes: csv, size: csv.length });
+  const synth = Buffer.from(recapCsv(recap, monthLabel), "utf8");
+  items.push({ filename: `synthese-tva-${period.slice(0, 7)}.csv`, bytes: synth, size: synth.length });
 
   for (const inv of invoices) {
     try {
@@ -222,6 +256,7 @@ export async function sendAccountingExport(
         <li>${invoices.length} facture${invoices.length > 1 ? "s" : ""} émise${invoices.length > 1 ? "s" : ""} (PDF Factur-X) et leur récapitulatif CSV</li>
         ${pieces.length ? `<li>${pieces.length} pièce${pieces.length > 1 ? "s" : ""} transmise${pieces.length > 1 ? "s" : ""} par l'entreprise :<ul>${pieceNames}</ul></li>` : ""}
       </ul>
+      ${i === 0 && invoices.length ? recapHtml(recap) : ""}
       ${batches.length > 1 ? `<p>Les pièces jointes sont réparties sur ${batches.length} e-mails.</p>` : ""}
       <p>Pour toute question, répondez directement à cet e-mail : votre réponse parviendra à ${escapeHtml(business)}.</p>
       <p>Envoyé par Soline pour ${escapeHtml(business)}</p>`;
@@ -257,13 +292,14 @@ export async function sendAccountingExport(
       attachment_count: pieces.length,
       email_parts: batches.length,
       error_message: null,
+      recap,
     })
     .eq("artisan_id", profile.id)
     .eq("period_start", period);
 
   notifyUserActivity(profile.user_id, {
-    title: "Envoi comptable effectué",
-    body: `${invoices.length} facture${invoices.length > 1 ? "s" : ""}${pieces.length ? ` et ${pieces.length} pièce${pieces.length > 1 ? "s" : ""}` : ""} envoyée${invoices.length + pieces.length > 1 ? "s" : ""} à ${recipient}.`,
+    title: "✅ Dossier comptable transmis",
+    body: artisanRecapMessage(recap, monthLabel),
     url: `${getPublicSiteUrl()}${ACCOUNTING_EXPORT_PAGE_PATH}`,
     tag: `accounting-sent-${period}`,
   });

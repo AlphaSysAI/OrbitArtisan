@@ -20,6 +20,7 @@ export default async function NewQuotePage({
   searchParams: Promise<{
     conversationId?: string;
     customerUserId?: string;
+    clientId?: string;
     aiDraft?: string;
     draftKey?: string;
     leadMatchId?: string;
@@ -52,7 +53,7 @@ export default async function NewQuotePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, slug, accent_color, labor_rate_per_hour")
+    .select("id, business_name, slug, accent_color, labor_rate_per_hour, vat_regime")
     .eq("user_id", user!.id)
     .maybeSingle();
 
@@ -160,6 +161,36 @@ export default async function NewQuotePage({
     }
   }
 
+  // Nouveau devis depuis une fiche client.
+  let clientPrefill: { clientId: string; customerName: string; customerEmail: string } | null = null;
+  const clientIdParam = typeof sp.clientId === "string" && /^[0-9a-f-]{36}$/i.test(sp.clientId) ? sp.clientId : null;
+  if (clientIdParam && !conversationPrefill) {
+    const { data: client } = await supabase
+      .from("clients")
+      .select("id, display_name, email, customer_user_id")
+      .eq("id", clientIdParam)
+      .eq("artisan_id", profile.id)
+      .maybeSingle();
+    if (client?.customer_user_id) {
+      const convRes = await getOrCreateArtisanCustomerConversation(client.customer_user_id as string);
+      if (convRes.ok) {
+        conversationPrefill = {
+          conversationId: convRes.conversationId,
+          customerUserId: client.customer_user_id as string,
+          customerName: (client.display_name as string) ?? "",
+          customerEmail: (client.email as string | null) ?? "",
+        };
+      }
+    }
+    if (client && !conversationPrefill) {
+      clientPrefill = {
+        clientId: client.id as string,
+        customerName: (client.display_name as string) ?? "",
+        customerEmail: (client.email as string | null) ?? "",
+      };
+    }
+  }
+
   if (!safeServices.length) {
     return (
       <Card className="border-0 shadow-none">
@@ -183,12 +214,14 @@ export default async function NewQuotePage({
     <QuoteForm
       accentColor={accent}
       profileLaborRatePerHourCents={profile.labor_rate_per_hour ?? null}
+      vatFranchise={profile.vat_regime === "franchise"}
       services={safeServices}
       conversationPrefill={conversationPrefill}
       loadAiDraft={loadAiDraft}
       aiDraftKey={draftKeyParam ?? conversationIdParam ?? leadMatchIdParam ?? voiceIntakeIdParam}
       serverAiDraft={serverAiDraft}
       voiceIntakeId={voiceIntakeIdParam ?? null}
+      clientPrefill={clientPrefill}
     />
   );
 }

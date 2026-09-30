@@ -95,6 +95,7 @@ export type OnboardingLegalError =
   | "invalid_siren"
   | "invalid_siret"
   | "invalid_vat"
+  | "missing_vat_regime"
   | "invalid_trade_register"
   | "missing_decennale"
   | "missing_rc_pro"
@@ -107,16 +108,19 @@ export async function saveOnboardingLegalStep(formData: FormData) {
   const siren = String(formData.get("siren") ?? "").trim();
   const siret = String(formData.get("siret") ?? "").trim();
   const vatNumber = String(formData.get("vat_number") ?? "").trim();
+  const vatRegimeRaw = String(formData.get("vat_regime") ?? "");
+  const vatRegime = vatRegimeRaw === "franchise" || vatRegimeRaw === "normal" ? vatRegimeRaw : null;
   const tradeRegisterNumber = String(formData.get("trade_register_number") ?? "").trim();
   const decennaleInsurer = String(formData.get("decennale_insurer") ?? "").trim();
   const decennalePolicyNumber = String(formData.get("decennale_policy_number") ?? "").trim();
+  const decennaleCoverageArea = String(formData.get("decennale_coverage_area") ?? "").trim();
   const rcProInsurer = String(formData.get("rc_pro_insurer") ?? "").trim();
   const rcProNumber = String(formData.get("rc_pro_number") ?? "").trim();
   const mediatorName = String(formData.get("mediator_name") ?? "").trim();
   const mediatorUrl = String(formData.get("mediator_url") ?? "").trim();
   const paymentTermsRaw = Number(formData.get("default_payment_terms_days"));
 
-  if (!decennaleInsurer || !decennalePolicyNumber) {
+  if (!decennaleInsurer || !decennalePolicyNumber || !decennaleCoverageArea) {
     return { ok: false as const, error: "missing_decennale" as const };
   }
   if (!rcProInsurer || !rcProNumber) {
@@ -127,6 +131,8 @@ export async function saveOnboardingLegalStep(formData: FormData) {
     return { ok: false as const, error: "invalid_mediator_url" as const };
   }
 
+  if (!vatRegime) return { ok: false as const, error: "missing_vat_regime" as const };
+
   const legal = validateLegalEntityFields({
     siren,
     siret,
@@ -134,7 +140,9 @@ export async function saveOnboardingLegalStep(formData: FormData) {
     trade_register_number: tradeRegisterNumber,
   });
   if (!legal.ok) return { ok: false as const, error: legal.error };
-  if (!legal.fields.siren || !legal.fields.siret || !legal.fields.vat_number || !legal.fields.trade_register_number) {
+  // N° de TVA obligatoire sauf franchise en base (293 B).
+  const vatMissing = vatRegime === "normal" && !legal.fields.vat_number;
+  if (!legal.fields.siren || !legal.fields.siret || vatMissing || !legal.fields.trade_register_number) {
     if (!siren) return { ok: false as const, error: "invalid_siren" as const };
     if (!siret) return { ok: false as const, error: "invalid_siret" as const };
     if (!vatNumber) return { ok: false as const, error: "invalid_vat" as const };
@@ -159,9 +167,11 @@ export async function saveOnboardingLegalStep(formData: FormData) {
       siren: legal.fields.siren,
       siret: legal.fields.siret,
       vat_number: legal.fields.vat_number,
+      vat_regime: vatRegime,
       trade_register_number: legal.fields.trade_register_number,
       decennale_insurer: decennaleInsurer,
       decennale_policy_number: decennalePolicyNumber,
+      decennale_coverage_area: decennaleCoverageArea,
       rc_pro_insurer: rcProInsurer,
       rc_pro_number: rcProNumber,
       mediator_name: mediatorName,

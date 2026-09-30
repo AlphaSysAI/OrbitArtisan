@@ -20,6 +20,7 @@ const SESSION_PATH_PREFIXES = [
   "/site",
   "/auth",
   "/rdv",
+  "/devis",
 ] as const;
 
 export function pathUsesSession(pathname: string): boolean {

@@ -12,9 +12,11 @@ export type ArtisanOnboardingProfile = {
   siren?: string | null;
   siret?: string | null;
   vat_number?: string | null;
+  vat_regime?: string | null;
   trade_register_number?: string | null;
   decennale_insurer?: string | null;
   decennale_policy_number?: string | null;
+  decennale_coverage_area?: string | null;
   rc_pro_insurer?: string | null;
   rc_pro_number?: string | null;
   mediator_name?: string | null;
@@ -45,6 +47,7 @@ export function isOnboardingLegalStepComplete(profile: ArtisanOnboardingProfile)
   const requiredStrings = [
     profile.decennale_insurer,
     profile.decennale_policy_number,
+    profile.decennale_coverage_area,
     profile.rc_pro_insurer,
     profile.rc_pro_number,
     profile.mediator_name,
@@ -60,7 +63,8 @@ export function isOnboardingLegalStepComplete(profile: ArtisanOnboardingProfile)
     return false;
   }
 
-  return !!(legal.fields.siren && legal.fields.siret && legal.fields.vat_number && legal.fields.trade_register_number);
+  const vatOk = profile.vat_regime === "franchise" || Boolean(legal.fields.vat_number);
+  return !!(legal.fields.siren && legal.fields.siret && vatOk && legal.fields.trade_register_number);
 }
 
 export function artisanNeedsOnboarding(profile: ArtisanOnboardingProfile | null | undefined): boolean {
@@ -77,4 +81,4 @@ export function resolveOnboardingStep(profile: ArtisanOnboardingProfile): Onboar
 }
 
 export const ARTISAN_ONBOARDING_PROFILE_SELECT =
-  "onboarding_completed_at, name, business_name, phone, address_line1, postal_code, city, siren, siret, vat_number, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days";
+  "onboarding_completed_at, name, business_name, phone, address_line1, postal_code, city, siren, siret, vat_number, vat_regime, trade_register_number, decennale_insurer, decennale_policy_number, decennale_coverage_area, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days";

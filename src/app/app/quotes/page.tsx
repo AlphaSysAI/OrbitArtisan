@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { DocumentsTabs } from "@/components/app/documents-tabs";
 import { FileText, Plus } from "lucide-react";
 
 import { AppEmptyState } from "@/components/app/app-empty-state";
@@ -77,6 +79,7 @@ export default async function QuotesPage() {
 
   return (
     <div className="space-y-8">
+      <DocumentsTabs active="quotes" />
       <AppPageHeader
         eyebrow="Commercial"
         title="Devis"

@@ -10,9 +10,11 @@ export async function updateLegalSettings(formData: FormData) {
   const siren = String(formData.get("siren") ?? "").trim() || null;
   const siret = String(formData.get("siret") ?? "").trim() || null;
   const vatNumber = String(formData.get("vat_number") ?? "").trim() || null;
+  const vatRegime = formData.get("vat_regime") === "franchise" ? "franchise" : "normal";
   const tradeRegisterNumber = String(formData.get("trade_register_number") ?? "").trim() || null;
   const decennaleInsurer = String(formData.get("decennale_insurer") ?? "").trim() || null;
   const decennalePolicyNumber = String(formData.get("decennale_policy_number") ?? "").trim() || null;
+  const decennaleCoverageArea = String(formData.get("decennale_coverage_area") ?? "").trim() || null;
   const rcProInsurer = String(formData.get("rc_pro_insurer") ?? "").trim() || null;
   const rcProNumber = String(formData.get("rc_pro_number") ?? "").trim() || null;
   const mediatorName = String(formData.get("mediator_name") ?? "").trim() || null;
@@ -44,9 +46,11 @@ export async function updateLegalSettings(formData: FormData) {
       siren: legal.fields.siren,
       siret: legal.fields.siret,
       vat_number: legal.fields.vat_number,
+      vat_regime: vatRegime,
       trade_register_number: tradeRegisterNumber,
       decennale_insurer: decennaleInsurer,
       decennale_policy_number: decennalePolicyNumber,
+      decennale_coverage_area: decennaleCoverageArea,
       rc_pro_insurer: rcProInsurer,
       rc_pro_number: rcProNumber,
       mediator_name: mediatorName,
@@ -58,7 +62,10 @@ export async function updateLegalSettings(formData: FormData) {
     })
     .eq("id", profileId);
 
-  if (error) return { ok: false as const, error: "save_failed" as const };
+  if (error) {
+    if (/vat_regime_locked/.test(error.message)) return { ok: false as const, error: "vat_regime_locked" as const };
+    return { ok: false as const, error: "save_failed" as const };
+  }
 
   revalidatePath("/app/reglages");
   revalidatePath("/app/invoices");

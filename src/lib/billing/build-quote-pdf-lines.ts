@@ -1,8 +1,18 @@
 import type { QuotePdfTableLine, QuoteVatBreakdownRow } from "@/lib/billing/quote-pdf-types";
 
+/**
+ * 0 % = franchise en base (art. 293 B) : la base n'accepte 0 que pour une entreprise
+ * en franchise (migration 51), on le respecte donc tel quel à l'affichage.
+ */
 export function normalizeVatRate(rate: number | null | undefined): number {
-  if (rate === 5.5 || rate === 10 || rate === 20) return rate;
+  const n = rate === null || rate === undefined ? NaN : Number(rate);
+  if (n === 0 || n === 5.5 || n === 10 || n === 20) return n;
   return 20;
+}
+
+/** Document en franchise de TVA : toutes ses lignes sont à 0 %. */
+export function isVatFranchiseDocument(lines: { vatRate: number }[]): boolean {
+  return lines.length > 0 && lines.every((l) => l.vatRate === 0);
 }
 
 export function computeVatBreakdown(lines: QuotePdfTableLine[]): QuoteVatBreakdownRow[] {

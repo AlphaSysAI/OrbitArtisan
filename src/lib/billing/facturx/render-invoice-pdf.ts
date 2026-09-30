@@ -103,6 +103,9 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
     },
   });
 
+  // Franchise en base (293 B) : lignes à 0 %, catégorie E — aucune TVA affichée.
+  const vatFranchise = doc.lines.length > 0 && doc.lines.every((l) => l.vatRate === 0 && l.vatCategoryCode === "E");
+
   out.sectionTitle(isCreditNote ? "Détail de l'avoir" : "Détail des prestations");
   out.drawTable(
     doc.lines.map((line) => {
@@ -115,11 +118,14 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
         total: eur(line.lineTotalCents),
       };
     }),
+    { hideVat: vatFranchise },
   );
 
   const t = computeInvoicePdfTotals(doc.lines);
   const multiRate = t.vatGroups.length > 1;
-  const totals: TotalsRow[] = [
+  const totals: TotalsRow[] = vatFranchise
+    ? [{ label: isCreditNote ? "Total de l'avoir" : "Net à payer", value: eur(t.totalTtcCents), highlight: true }]
+    : [
     { label: "Total HT", value: eur(t.totalHtCents), strong: true },
     ...t.vatGroups.map((g) => ({
       label: multiRate ? `TVA ${formatRateForPdf(g.rate)} sur ${eur(g.baseCents)}` : `TVA ${formatRateForPdf(g.rate)}`,

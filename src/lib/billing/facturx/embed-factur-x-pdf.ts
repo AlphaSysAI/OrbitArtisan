@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 
-import { AFRelationship, PDFDocument, PDFHexString, PDFName } from "pdf-lib";
+import { AFRelationship, PDFDocument, PDFHexString, PDFName, PDFString } from "pdf-lib";
+
+import { readSrgbIccProfile } from "@/lib/billing/pdf-fonts";
 
 import { validateFacturXXml } from "./validate-factur-x";
 import type { FacturXProfile } from "./types";
@@ -14,6 +16,26 @@ const CONFORMANCE_LEVEL: Record<FacturXProfile, string> = {
 
 function formatPdfMetadataDate(date: Date): string {
   return `${date.toISOString().split(".")[0]}Z`;
+}
+
+/**
+ * OutputIntent sRGB : exigé par PDF/A dès qu'une couleur DeviceRGB est utilisée
+ * (texte, aplats, logo). Sans lui, un validateur PDF/A (veraPDF) rejette la facture.
+ */
+function addSrgbOutputIntent(pdf: PDFDocument): void {
+  if (pdf.catalog.get(PDFName.of("OutputIntents"))) return;
+  const icc = readSrgbIccProfile();
+  if (!icc) return;
+  const iccRef = pdf.context.register(pdf.context.flateStream(icc, { N: 3 }));
+  const intent = pdf.context.obj({
+    Type: "OutputIntent",
+    S: "GTS_PDFA1",
+    OutputConditionIdentifier: PDFString.of("sRGB IEC61966-2.1"),
+    Info: PDFString.of("sRGB IEC61966-2.1"),
+    RegistryName: PDFString.of("http://www.color.org"),
+    DestOutputProfile: iccRef,
+  });
+  pdf.catalog.set(PDFName.of("OutputIntents"), pdf.context.obj([pdf.context.register(intent)]));
 }
 
 /** Métadonnées XMP PDF/A-3b + extension Factur-X (aligné FNFE-MPE). */
@@ -119,6 +141,8 @@ export async function embedFacturXInPdf(options: EmbedFacturXOptions): Promise<U
   const documentId = randomBytes(16).toString("hex");
   const idHex = PDFHexString.of(documentId);
   pdf.context.trailerInfo.ID = pdf.context.obj([idHex, idHex]);
+
+  addSrgbOutputIntent(pdf);
 
   const xmlBytes = new TextEncoder().encode(options.xml);
   await pdf.attach(xmlBytes, FACTURX_XML_FILENAME, {

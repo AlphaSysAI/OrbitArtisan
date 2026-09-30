@@ -21,14 +21,16 @@ import { StepCard } from "@/components/app/step-card";
 import { VitrineShareButton } from "@/components/app/vitrine-share-button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
-import { listArtisanContacts } from "@/lib/contacts/actions";
+import { loadArtisanInbox, type InboxItem } from "@/lib/clients/inbox";
+import { InboxList } from "@/components/app/inbox-list";
 import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 
 function formatEur(cents: number): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
 
-export default async function AppHomePage() {
+export default async function AppHomePage({ searchParams }: { searchParams: Promise<{ bienvenue?: string }> }) {
+  const welcome = (await searchParams).bienvenue === "1";
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return <SupabaseMissing title="Espace artisan indisponible" />;
   }
@@ -51,6 +53,7 @@ export default async function AppHomePage() {
   let revenueCents = 0;
   let pendingQuoteCount = 0;
   let pendingPaymentCount = 0;
+  let inbox: InboxItem[] = [];
 
   if (profile?.id) {
     const [
@@ -63,7 +66,7 @@ export default async function AppHomePage() {
       voiceNumberRes,
     ] = await Promise.all([
       supabase.from("services").select("id", { count: "exact", head: true }).eq("artisan_id", profile.id),
-      listArtisanContacts(),
+      supabase.from("clients").select("id", { count: "exact", head: true }).eq("artisan_id", profile.id),
       supabase
         .from("invoices")
         .select("id", { count: "exact", head: true })
@@ -89,9 +92,8 @@ export default async function AppHomePage() {
 
     solinePhoneE164 = (voiceNumberRes.data?.phone_e164 as string | undefined) ?? null;
     serviceCount = services;
-    if (contactsRes.ok) {
-      contactCount = contactsRes.items.filter((i) => i.kind === "linked").length;
-    }
+    contactCount = contactsRes.count ?? 0;
+    inbox = await loadArtisanInbox(supabase, profile.id, user!.id);
     finalizedInvoiceCount = finalizedCount ?? 0;
     pendingQuoteCount = pendingQuotes ?? 0;
     pendingPaymentCount = pendingPayments ?? 0;
@@ -106,11 +108,13 @@ export default async function AppHomePage() {
   return (
     <div className="space-y-10">
       <AppPageHeader
-        eyebrow="Tableau de bord"
-        title={greetingName}
+        eyebrow={hasProfile ? greetingName : undefined}
+        title={hasProfile ? "À traiter" : "Bienvenue"}
         description={
           hasProfile
-            ? "Ce qui compte aujourd’hui : clients, devis, factures et encaissements."
+            ? inbox.length
+              ? `${inbox.length} action${inbox.length > 1 ? "s" : ""} en attente, les plus urgentes en premier.`
+              : "Tout est à jour. Les nouveaux appels, messages et réponses de devis arriveront ici."
             : "Trois étapes pour être en ligne : activité, prestations, puis ton lien à partager."
         }
         action={
@@ -134,6 +138,18 @@ export default async function AppHomePage() {
         }
       />
 
+      {hasProfile && welcome ? (
+        <section className="space-y-3 rounded-2xl border-2 border-emerald-500/40 bg-emerald-500/5 p-4">
+          <p className="font-semibold">Ton compte est prêt. Dernière étape, 10 secondes :</p>
+          <p className="text-sm text-muted-foreground">
+            Active le renvoi d&apos;appel : quand tu ne décroches pas, Soline répond, prend le besoin et te prépare le devis.
+          </p>
+          <CallForwardingMobileCard solinePhoneE164={solinePhoneE164} className="border-0 bg-transparent p-0 lg:block" />
+        </section>
+      ) : null}
+
+      {hasProfile ? <InboxList items={inbox} /> : null}
+
       {hasProfile ? (
         <SolineCallsPromoLink variant="banner" />
       ) : null}
@@ -145,7 +161,7 @@ export default async function AppHomePage() {
       {hasProfile ? (
         <section className="space-y-4">
           <div className="flex items-end justify-between gap-3">
-            <h2 className="font-display text-xl font-semibold tracking-tight">Vue d’ensemble</h2>
+            <h2 className="font-display text-xl font-semibold tracking-tight">Chiffres clés</h2>
             <p className="text-sm text-muted-foreground">Touche une carte pour ouvrir</p>
           </div>
 
@@ -182,11 +198,11 @@ export default async function AppHomePage() {
             />
             <DashboardStatCard
               icon={Users}
-              title="Contacts"
+              title="Clients"
               value={String(contactCount)}
-              description={contactCount === 1 ? "Client lié" : "Clients liés"}
-              href="/app/contacts"
-              actionLabel="Voir les contacts"
+              description={contactCount === 1 ? "Fiche client" : "Fiches clients"}
+              href="/app/clients"
+              actionLabel="Voir les clients"
               className="xl:col-span-2"
             />
             <DashboardStatCard

@@ -10,6 +10,7 @@ export function isWorkUnit(value: string): value is WorkUnit {
   return (WORK_UNITS as readonly string[]).includes(value);
 }
 
+/** 0 accepté : franchise en base (293 B). La base remet 20 % si l'entreprise n'est pas en franchise. */
 export function isVatRate(value: number): value is VatRate {
-  return (VAT_RATES as readonly number[]).includes(value);
+  return value === 0 || (VAT_RATES as readonly number[]).includes(value);
 }

@@ -55,6 +55,15 @@ export type QuotePdfDocument = {
   retractionNotice: QuoteRetractionNotice;
   /** CGV propres de l'artisan (clients finaux), une ligne par paragraphe. */
   salesTermsLines: string[];
+  /** Franchise en base de TVA (art. 293 B) : toutes les lignes à 0 %. */
+  vatFranchise?: boolean;
+  /** Acceptation enregistrée (devis accepté) : remplace le cadre de signature vierge. */
+  acceptance?: {
+    signedAt: Date;
+    signerName: string;
+    channel: string | null;
+    documentHash: string | null;
+  } | null;
   /** Fournitures recommandées en achat direct (hors total TTC). */
   directPurchaseLines: QuotePdfDirectPurchaseLine[];
 };

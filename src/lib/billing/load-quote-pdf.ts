@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildQuotePdfTableLines,
   computeVatBreakdown,
+  isVatFranchiseDocument,
   normalizeVatRate,
   sumQuoteTotals,
 } from "@/lib/billing/build-quote-pdf-lines";
@@ -45,6 +46,11 @@ type QuotePdfRow = {
   quote_number?: string | null;
   retraction_waived?: boolean | null;
   valid_until?: string | null;
+  status?: string | null;
+  signed_at?: string | null;
+  signed_by_name?: string | null;
+  response_channel?: string | null;
+  signed_document_hash?: string | null;
 };
 
 type ProfilePdfRow = {
@@ -140,6 +146,7 @@ export async function loadQuotePdfDocument(
   });
 
   const vatBreakdown = computeVatBreakdown(tableLines);
+  const vatFranchise = isVatFranchiseDocument(tableLines);
   const totals = sumQuoteTotals(vatBreakdown);
 
   const directPurchaseLines = (materials ?? [])
@@ -165,6 +172,7 @@ export async function loadQuotePdfDocument(
     trade_register_number: profile.trade_register_number,
     decennale_insurer: profile.decennale_insurer,
     decennale_policy_number: profile.decennale_policy_number,
+    decennale_coverage_area: (profile as { decennale_coverage_area?: string | null }).decennale_coverage_area ?? null,
     rc_pro_insurer: profile.rc_pro_insurer,
     rc_pro_number: profile.rc_pro_number,
     mediator_name: profile.mediator_name,
@@ -175,7 +183,7 @@ export async function loadQuotePdfDocument(
     email: profile.email,
   };
 
-  const validation = validateQuoteLegalProfile(legalProfile);
+  const validation = validateQuoteLegalProfile(legalProfile, { vatFranchise });
   const displayNumber =
     quote.quote_number ?? quoteNumber ?? quote.id.slice(0, 8).toUpperCase();
 
@@ -209,13 +217,24 @@ export async function loadQuotePdfDocument(
       validUntil,
       paymentTermsDays: profile.default_payment_terms_days ?? 30,
       generateVatAttestation: !!quote.generate_vat_attestation,
+      vatFranchise,
     }),
     legalWarnings: validation.warnings,
+    vatFranchise,
     retractionNotice: buildQuoteRetractionLines({
       profile: legalProfile,
       retractionWaived: !!quote.retraction_waived,
     }),
     salesTermsLines: splitSalesTermsLines(profile.sales_terms_text),
     directPurchaseLines,
+    acceptance:
+      quote.status === "accepted" && quote.signed_at
+        ? {
+            signedAt: new Date(quote.signed_at),
+            signerName: quote.signed_by_name?.trim() || "Client",
+            channel: quote.response_channel ?? null,
+            documentHash: quote.signed_document_hash ?? null,
+          }
+        : null,
   };
 }

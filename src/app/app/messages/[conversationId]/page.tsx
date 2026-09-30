@@ -29,7 +29,7 @@ export default async function ArtisanConversationPage({
 
   const { data: conv } = await supabase
     .from("conversations")
-    .select("id, artisan_id, customer_user_id, lead_id")
+    .select("id, artisan_id, customer_user_id, lead_id, client_id")
     .eq("id", conversationId)
     .maybeSingle();
 
@@ -55,7 +55,12 @@ export default async function ArtisanConversationPage({
       profileName: cp?.display_name,
       email: cp?.email,
     });
+  } else if (conv.client_id) {
+    const { data: cl } = await supabase.from("clients").select("display_name, phone").eq("id", conv.client_id).maybeSingle();
+    displayName = (cl?.display_name as string | undefined)?.trim() || "Client";
+    leadContactPhone = (cl?.phone as string | null) ?? null;
   }
+  const isGuest = !conv.lead_id && !conv.customer_user_id;
 
   const leadMatch = await findLeadMatchForConversation(conversationId);
 
@@ -65,11 +70,8 @@ export default async function ArtisanConversationPage({
         <Link href="/app/messages" className={buttonVariants({ variant: "outline", size: "sm" })}>
           ← Toutes les conversations
         </Link>
-        {conv.customer_user_id ? (
-          <Link
-            href={`/app/contacts/${conv.customer_user_id}`}
-            className={buttonVariants({ variant: "secondary", size: "sm" })}
-          >
+        {conv.client_id ? (
+          <Link href={`/app/clients/${conv.client_id}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
             Fiche client
           </Link>
         ) : null}
@@ -85,7 +87,11 @@ export default async function ArtisanConversationPage({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{displayName}</h1>
         <p className="text-sm text-muted-foreground">
-          {conv.lead_id ? "Demande qualifiée reçue via Soline" : "Conversation"}
+          {conv.lead_id
+            ? "Demande qualifiée reçue via Soline"
+            : isGuest
+              ? "Client sans compte : vos réponses lui sont envoyées par e-mail"
+              : "Conversation"}
         </p>
       </div>
       <ArtisanThreadClient

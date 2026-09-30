@@ -35,6 +35,9 @@ import {
 import { safeHttpUrl } from "@/lib/security/safe-url";
 import { cn } from "@/lib/utils";
 
+/** Franchise en base de TVA (293 B) : aucun choix de taux, pas de TVA affichée. */
+const VatFranchiseContext = React.createContext(false);
+
 type Service = {
   id: string;
   title: string;
@@ -146,6 +149,8 @@ export function QuoteForm({
   serverAiDraft = null,
   voiceIntakeId = null,
   editQuote = null,
+  clientPrefill = null,
+  vatFranchise = false,
 }: {
   services: Service[];
   accentColor: string;
@@ -166,6 +171,10 @@ export function QuoteForm({
   voiceIntakeId?: string | null;
   /** Édition d'un brouillon existant — bascule le formulaire en mode édition (updateQuote). */
   editQuote?: EditQuoteInitialData | null;
+  /** Nouveau devis lancé depuis une fiche client (client sans compte). */
+  clientPrefill?: { clientId: string; customerName: string; customerEmail: string } | null;
+  /** Entreprise en franchise de TVA (art. 293 B du CGI). */
+  vatFranchise?: boolean;
 }) {
   const [laborLines, setLaborLines] = React.useState<LaborLine[]>([emptyLaborLine()]);
   const [materials, setMaterials] = React.useState<MaterialRow[]>([
@@ -176,13 +185,17 @@ export function QuoteForm({
   const [fromAiDraft, setFromAiDraft] = React.useState(false);
   const [fromLeadDraft, setFromLeadDraft] = React.useState(false);
   const [fromVoiceDraft, setFromVoiceDraft] = React.useState(Boolean(voiceIntakeId));
-  const [customerName, setCustomerName] = React.useState(conversationPrefill?.customerName ?? "");
-  const [customerEmail, setCustomerEmail] = React.useState(conversationPrefill?.customerEmail ?? "");
+  const [customerName, setCustomerName] = React.useState(
+    conversationPrefill?.customerName ?? clientPrefill?.customerName ?? "",
+  );
+  const [customerEmail, setCustomerEmail] = React.useState(
+    conversationPrefill?.customerEmail ?? clientPrefill?.customerEmail ?? "",
+  );
   const [notes, setNotes] = React.useState("");
   const [aiNotesLoading, setAiNotesLoading] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [pendingSaveMode, setPendingSaveMode] = React.useState<"draft" | "send">("draft");
-  const [reducedVatRate, setReducedVatRate] = React.useState("20");
+  const [reducedVatRate, setReducedVatRate] = React.useState(vatFranchise ? "0" : "20");
   const [generateVatAttestation, setGenerateVatAttestation] = React.useState(false);
   const [workSiteAddress, setWorkSiteAddress] = React.useState("");
   const [workSiteCity, setWorkSiteCity] = React.useState("");
@@ -504,6 +517,7 @@ export function QuoteForm({
 
       {!fromAiDraft ? <QuoteAiPrompt /> : null}
 
+      <VatFranchiseContext.Provider value={vatFranchise}>
       <form onSubmit={onSubmit} className="space-y-6">
         {fromAiDraft ? (
           <div
@@ -563,6 +577,7 @@ export function QuoteForm({
           </>
         ) : null}
         {voiceIntakeId ? <input type="hidden" name="voice_intake_id" value={voiceIntakeId} /> : null}
+        {clientPrefill ? <input type="hidden" name="client_id" value={clientPrefill.clientId} /> : null}
 
         <Card className="border-0 shadow-none">
           <CardHeader>
@@ -717,6 +732,11 @@ export function QuoteForm({
               </CardContent>
             </Card>
 
+            {vatFranchise ? (
+              <p className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">
+                Franchise en base de TVA : le devis portera « TVA non applicable, art. 293 B du CGI ». Prix nets, sans TVA.
+              </p>
+            ) : (
             <Card className="border-0 shadow-none">
               <CardHeader>
                 <CardTitle className="text-xl">TVA du devis</CardTitle>
@@ -780,6 +800,7 @@ export function QuoteForm({
                 )}
               </CardContent>
             </Card>
+            )}
 
             <Card className="border-0 shadow-none">
               <CardHeader>
@@ -869,7 +890,9 @@ export function QuoteForm({
                   <div className="border-t pt-2">
                     <TotalRow label="Total HT" cents={documentTotals.totalHtCents} strong />
                   </div>
-                  {documentTotals.vatBreakdown.length === 0 ? (
+                  {vatFranchise ? (
+                    <p className="text-xs text-muted-foreground">TVA non applicable, art. 293 B du CGI</p>
+                  ) : documentTotals.vatBreakdown.length === 0 ? (
                     <TotalRow label={`TVA (${formatVatRate(reducedVatRate)})`} cents={0} muted />
                   ) : (
                     documentTotals.vatBreakdown.map((row) => (
@@ -884,7 +907,7 @@ export function QuoteForm({
                     ))
                   )}
                   <div className="flex items-center justify-between border-t pt-2 text-lg font-semibold">
-                    <span>Total TTC</span>
+                    <span>{vatFranchise ? "Total net" : "Total TTC"}</span>
                     <span className="tabular-nums">{formatEur(documentTotals.totalTtcCents)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">Montant identique au PDF envoyé au client.</p>
@@ -956,6 +979,7 @@ export function QuoteForm({
           </div>
         </div>
       </form>
+      </VatFranchiseContext.Provider>
       <QuoteMarginBanner
         grandTotalCents={grandTotalCents}
         laborTotalCents={laborTotalCents}
@@ -1005,11 +1029,14 @@ function LineTotal({
   vatOverridden?: boolean;
 }) {
   const total = lineTotalCents(quantity, unitPriceEur);
+  const franchise = React.useContext(VatFranchiseContext);
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/70 px-3 py-2 text-sm">
       <span className="text-muted-foreground">
         {excluded ? (
           "Achat direct du client — hors total du devis"
+        ) : franchise ? (
+          "Sans TVA (293 B)"
         ) : (
           <>
             TVA {vatLabel}
@@ -1018,7 +1045,7 @@ function LineTotal({
         )}
       </span>
       <span className={cn("tabular-nums", excluded ? "text-muted-foreground" : "font-semibold")}>
-        {total == null ? "Prix à renseigner" : `${formatEur(total)} HT`}
+        {total == null ? "Prix à renseigner" : `${formatEur(total)}${franchise ? "" : " HT"}`}
       </span>
     </div>
   );
@@ -1080,7 +1107,7 @@ const LaborLineRow = React.memo(function LaborLineRow({
       <div className="flex items-center justify-between rounded-lg bg-background/70 px-3 py-2 text-sm">
         <span className="text-muted-foreground">
           {minutes > 0 && laborRateCents != null
-            ? `${line.hours.trim()} h × ${formatEur(laborRateCents)}/h · TVA ${formatVatRate(reducedVatRate)}`
+            ? `${line.hours.trim()} h × ${formatEur(laborRateCents)}/h${reducedVatRate === "0" ? "" : ` · TVA ${formatVatRate(reducedVatRate)}`}`
             : "Heures à renseigner"}
         </span>
         <span className="font-semibold tabular-nums">{lineCents == null ? "—" : `${formatEur(lineCents)} HT`}</span>
@@ -1184,6 +1211,7 @@ const MaterialRowEditor = React.memo(function MaterialRowEditor({
   onChange: (id: string, patch: Partial<MaterialRow>) => void;
   onRemove: (id: string) => void;
 }) {
+  const vatFranchiseCtx = React.useContext(VatFranchiseContext);
   return (
     <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1252,6 +1280,7 @@ const MaterialRowEditor = React.memo(function MaterialRowEditor({
             onChange={(e) => onChange(m.id, { unitPriceEur: e.target.value })}
           />
         </div>
+{vatFranchiseCtx ? null : (
         <div className="space-y-2">
           <Label>TVA</Label>
           <select
@@ -1265,6 +1294,7 @@ const MaterialRowEditor = React.memo(function MaterialRowEditor({
             <option value="5.5">5,5 % (autre taux)</option>
           </select>
         </div>
+        )}
         <div className="flex items-end">
           <Button
             type="button"

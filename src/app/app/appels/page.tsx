@@ -82,7 +82,7 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, labor_rate_per_hour, subscription_plan")
+    .select("id, business_name, labor_rate_per_hour, subscription_plan, vat_regime")
     .eq("user_id", user!.id)
     .maybeSingle();
 
@@ -317,7 +317,12 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
             const canValidate =
               isPending &&
               Boolean(item.customer_email) &&
-              Boolean(draft?.matchedServiceIds?.length || (draft?.laborDurationMinutes ?? 0) > 0);
+              Boolean(
+                draft?.matchedServiceIds?.length ||
+                (draft?.laborDurationMinutes ?? 0) > 0 ||
+                (draft?.laborTotalOverrideCents ?? 0) > 0 ||
+                draft?.supplierMaterials?.length,
+              );
 
             const header = (
               <div className="space-y-1">
@@ -406,7 +411,7 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
                 ) : null}
 
                 {isPending ? (
-                  <VoiceIntakeActions intakeId={item.id} canValidate={canValidate} />
+                  <VoiceIntakeActions intakeId={item.id} canValidate={canValidate} canUndo={Boolean(draft?.previous)} vatFranchise={profile.vat_regime === "franchise"} />
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
                     {item.quote_id ? (

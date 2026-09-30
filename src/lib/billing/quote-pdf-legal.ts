@@ -16,7 +16,10 @@ export type QuoteLegalValidation = {
 };
 
 /** Contrôle minimal avant envoi d'un devis à un client. */
-export function validateQuoteLegalProfile(profile: QuoteLegalProfile): QuoteLegalValidation {
+export function validateQuoteLegalProfile(
+  profile: QuoteLegalProfile,
+  options: { vatFranchise?: boolean } = {},
+): QuoteLegalValidation {
   const blocking: string[] = [];
   const warnings: string[] = [];
 
@@ -44,7 +47,7 @@ export function validateQuoteLegalProfile(profile: QuoteLegalProfile): QuoteLega
   if (!profile.mediator_name?.trim()) {
     warnings.push("Médiateur de la consommation non renseigné (obligatoire B2C).");
   }
-  if (!profile.vat_number?.trim()) {
+  if (!profile.vat_number?.trim() && !options.vatFranchise) {
     warnings.push("N° TVA intracommunautaire non renseigné (requis si assujetti).");
   }
 
@@ -105,6 +108,7 @@ export function buildQuotePdfFooterLines(params: {
   paymentTermsDays: number;
   generateVatAttestation?: boolean;
   vatAttestationNote?: boolean;
+  vatFranchise?: boolean;
 }): string[] {
   const lines: string[] = [];
 
@@ -115,9 +119,11 @@ export function buildQuotePdfFooterLines(params: {
     `Conditions de règlement : acompte et solde à convenir ; délai indicatif de paiement après facturation : ${params.paymentTermsDays} jours.`,
   );
   lines.push(
-    "Les prix sont exprimés en euros hors taxes. TVA en sus au taux en vigueur applicable à chaque prestation.",
+    params.vatFranchise
+      ? "TVA non applicable, art. 293 B du CGI. Les prix indiqués sont des prix nets, en euros."
+      : "Les prix sont exprimés en euros hors taxes. TVA en sus au taux en vigueur applicable à chaque prestation.",
   );
-  if (params.generateVatAttestation) {
+  if (params.generateVatAttestation && !params.vatFranchise) {
     lines.push(
       "TVA à taux réduit : une attestation simplifiée (logement de plus de 2 ans) est jointe ou disponible sur demande — le client doit la signer avant exécution des travaux.",
     );

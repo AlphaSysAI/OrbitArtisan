@@ -123,6 +123,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     (key: NotificationBadgeKey) => {
       const c = counts ?? EMPTY;
       switch (key) {
+        case "inbox":
+          // « À traiter » : appels à valider + messages non lus + devis acceptés non vus.
+          return c.voice_intakes + c.messages + c.quotes_accepted;
         case "messages":
           return c.messages;
         case "quotes_accepted":

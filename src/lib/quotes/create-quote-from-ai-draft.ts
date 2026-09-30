@@ -12,8 +12,8 @@ function parseEurToCents(raw: string): number {
   return Math.round(asNumber * 100);
 }
 
-/** Taux de TVA BTP valides (normal + taux réduits rénovation). */
-const VALID_VAT_RATES = [20, 10, 5.5] as const;
+/** Taux de TVA BTP valides (normal + taux réduits rénovation ; 0 = franchise 293 B, imposé par la base). */
+const VALID_VAT_RATES = [20, 10, 5.5, 0] as const;
 export type QuoteVatRate = (typeof VALID_VAT_RATES)[number];
 
 /** Normalise un taux de TVA saisi (écran de validation) : replie sur 20 % si invalide. */
@@ -70,7 +70,12 @@ export async function createQuoteFromAiDraft(
   const vatRate = normalizeVatRate(params.vatRate ?? 20);
   const serviceIds = params.draft.matchedServiceIds ?? [];
 
-  if (!serviceIds.length && !(params.draft.laborDurationMinutes > 0) && !params.draft.supplierMaterials.length) {
+  if (
+    !serviceIds.length &&
+    !(params.draft.laborDurationMinutes > 0) &&
+    !(params.draft.laborTotalOverrideCents && params.draft.laborTotalOverrideCents > 0) &&
+    !params.draft.supplierMaterials.length
+  ) {
     return { ok: false, error: "missing_services" };
   }
   if (!customerEmail) {
@@ -101,8 +106,9 @@ export async function createQuoteFromAiDraft(
 
   // Main-d'œuvre facultative (devis fournitures seules possible) ; un devis vide est refusé plus bas.
 
-  const laborRateCents = params.laborRatePerHourCents;
-  const laborTotalCents = Math.round((laborRateCents * laborDurationMinutes) / 60);
+  const labor = resolveDraftLabor(params.draft, params.laborRatePerHourCents, laborDurationMinutes);
+  const laborRateCents = labor.rateCents;
+  const laborTotalCents = labor.totalCents;
 
   const materials = mapDraftMaterials(params.draft.supplierMaterials);
   if (materials.some((m) => !Number.isFinite(m.quantity) || m.quantity <= 0)) {
@@ -130,7 +136,7 @@ export async function createQuoteFromAiDraft(
       status: params.status,
       notes: params.draft.notes?.trim() || null,
       labor_rate_per_hour: laborRateCents,
-      labor_duration_minutes: laborDurationMinutes,
+      labor_duration_minutes: labor.durationMinutes,
       labor_total: laborTotalCents,
       materials_total: materialsTotalCents,
       grand_total: grandTotalCents,
@@ -154,13 +160,13 @@ export async function createQuoteFromAiDraft(
         duration_minutes: s.duration,
         unit_price: s.price ?? null,
       }))
-    : laborDurationMinutes > 0
+    : labor.durationMinutes > 0
       ? [
           {
             quote_id: createdQuote.id,
             service_id: null,
             service_title: "Main-d'œuvre",
-            duration_minutes: laborDurationMinutes,
+            duration_minutes: labor.durationMinutes,
             unit_price: null,
           },
         ]
@@ -243,23 +249,43 @@ export type DraftTotals = {
  * fallback fixe de 60 min quand `createQuoteFromAiDraft` utilisait la vraie somme
  * des durées de prestations.
  */
+/**
+ * Main-d'œuvre effective d'un brouillon : montant imposé (dictée) prioritaire,
+ * sinon taux horaire × durée. Avec un montant imposé sans durée, on compte 1 h
+ * (ligne « forfait ») pour que quantité × prix unitaire reste lisible sur le PDF.
+ */
+export function resolveDraftLabor(
+  draft: Pick<AiQuoteDraft, "laborTotalOverrideCents">,
+  laborRatePerHourCents: number,
+  durationMinutes: number,
+): { durationMinutes: number; rateCents: number; totalCents: number } {
+  const override = draft.laborTotalOverrideCents;
+  if (override !== null && override !== undefined && override >= 0) {
+    const minutes = durationMinutes > 0 ? durationMinutes : 60;
+    return { durationMinutes: minutes, rateCents: Math.round((override * 60) / minutes), totalCents: override };
+  }
+  return {
+    durationMinutes,
+    rateCents: laborRatePerHourCents,
+    totalCents: Math.round((laborRatePerHourCents * durationMinutes) / 60),
+  };
+}
+
 export function computeDraftTotals(
   draft: AiQuoteDraft,
   laborRatePerHourCents: number | null,
   serviceDurationsById: Map<string, number>,
 ): DraftTotals | null {
-  if (!laborRatePerHourCents || laborRatePerHourCents < 0) return null;
+  const hasOverride = draft.laborTotalOverrideCents !== null && draft.laborTotalOverrideCents !== undefined;
+  if (!hasOverride && (!laborRatePerHourCents || laborRatePerHourCents < 0)) return null;
   const serviceIds = draft.matchedServiceIds ?? [];
-  if (!serviceIds.length) return null;
+  if (!serviceIds.length && !hasOverride && !(draft.laborDurationMinutes > 0)) return null;
 
-  const laborDurationMinutes = resolveLaborDurationMinutes(
-    draft.laborDurationMinutes,
-    serviceIds,
-    serviceDurationsById,
-  );
-  if (laborDurationMinutes <= 0) return null;
-
-  const laborTotalCents = Math.round((laborRatePerHourCents * laborDurationMinutes) / 60);
+  const rawMinutes = resolveLaborDurationMinutes(draft.laborDurationMinutes, serviceIds, serviceDurationsById);
+  if (rawMinutes <= 0 && !hasOverride) return null;
+  const labor = resolveDraftLabor(draft, laborRatePerHourCents ?? 0, rawMinutes);
+  const laborDurationMinutes = labor.durationMinutes;
+  const laborTotalCents = labor.totalCents;
 
   const materialLines: DraftMaterialLine[] = mapDraftMaterials(draft.supplierMaterials ?? []).map((m) => ({
     label: m.label,

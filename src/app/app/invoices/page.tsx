@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
+
+import { DocumentsTabs } from "@/components/app/documents-tabs";
 import { redirect } from "next/navigation";
 import { Banknote, FileText, Plus, Receipt, Wallet } from "lucide-react";
 
@@ -163,6 +165,7 @@ export default async function InvoicesPage({
 
   return (
     <div className="space-y-10">
+      <DocumentsTabs active="invoices" />
       <AppPageHeader
         eyebrow="Encaissement"
         title="Factures"

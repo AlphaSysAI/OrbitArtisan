@@ -71,10 +71,13 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
       vat: formatRateForPdf(line.vatRate),
       total: formatEurosForPdf(line.lineTotalCents),
     })),
+    { hideVat: doc.vatFranchise },
   );
 
   const multiRate = doc.vatBreakdown.length > 1;
-  const totals: TotalsRow[] = [
+  const totals: TotalsRow[] = doc.vatFranchise
+    ? [{ label: "Total net à payer", value: formatEurosForPdf(doc.totalHtCents), highlight: true }]
+    : [
     { label: "Total HT", value: formatEurosForPdf(doc.totalHtCents), strong: true },
     ...doc.vatBreakdown.map((row) => ({
       label: multiRate
@@ -84,7 +87,10 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
     })),
     { label: "Total TTC", value: formatEurosForPdf(doc.totalTtcCents), highlight: true },
   ];
-  out.drawTotals(totals, ["Montants exprimés en euros."]);
+  out.drawTotals(
+    totals,
+    doc.vatFranchise ? ["TVA non applicable, art. 293 B du CGI.", "Montants exprimés en euros."] : ["Montants exprimés en euros."],
+  );
 
   if (doc.directPurchaseLines.length > 0) {
     out.sectionTitle("Fournitures en achat direct (hors total ci-dessus)");
@@ -105,10 +111,31 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
     out.gap(8);
   }
 
-  out.signatureBlock({
-    title: "Bon pour accord",
-    lines: ["Mention manuscrite : « Lu et approuvé, devis reçu avant exécution des travaux », date et signature."],
-  });
+  if (doc.acceptance) {
+    const a = doc.acceptance;
+    const when = new Intl.DateTimeFormat("fr-FR", {
+      dateStyle: "long",
+      timeStyle: "short",
+      timeZone: "Europe/Paris",
+    }).format(a.signedAt);
+    const how =
+      a.channel === "artisan_paper"
+        ? "signature manuscrite sur papier, enregistrée par l'entreprise"
+        : a.channel === "artisan_oral"
+          ? "accord du client enregistré par l'entreprise"
+          : "acceptation électronique « Lu et approuvé » via lien sécurisé";
+    out.sectionTitle("Bon pour accord");
+    out.callout([
+      { text: `Devis accepté le ${when} par ${a.signerName}`, bold: true },
+      { text: `Mode : ${how}.` },
+      ...(a.documentHash ? [{ text: `Empreinte du devis accepté (SHA-256) : ${a.documentHash}` }] : []),
+    ]);
+  } else {
+    out.signatureBlock({
+      title: "Bon pour accord",
+      lines: ["Mention manuscrite : « Lu et approuvé, devis reçu avant exécution des travaux », date et signature."],
+    });
+  }
 
   out.sectionTitle(doc.retractionNotice.heading);
   for (const line of doc.retractionNotice.body) out.paragraph(line, { size: 7.5, lineGap: 10 });

@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { notifyNewMessage } from "@/lib/notifications/notify-events";
 import { getUnreadConversationIds } from "@/lib/notifications/unread-items";
+import { forwardArtisanReplyToGuest } from "@/lib/quotes/quote-response";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function ensureCustomerProfile(displayName?: string) {
   const supabase = await createSupabaseServerClient();
@@ -187,6 +189,10 @@ export async function sendMessage(conversationId: string, body: string, vitrineS
     body: text,
   });
 
+  // Client sans compte (conversation « invité ») : la réponse part par e-mail.
+  const admin = createSupabaseServiceRoleClient();
+  if (admin) void forwardArtisanReplyToGuest(admin, conversationId, text).catch(() => undefined);
+
   revalidatePath("/app/messages");
   revalidatePath("/compte/messages");
   if (vitrineSlug) revalidatePath(`/site/${vitrineSlug}`);
@@ -205,7 +211,7 @@ export async function listConversationsForArtisan() {
 
   const { data: convs } = await supabase
     .from("conversations")
-    .select("id, updated_at, customer_user_id, lead_id")
+    .select("id, updated_at, customer_user_id, lead_id, client_id")
     .eq("artisan_id", profile.id)
     .order("updated_at", { ascending: false });
 
@@ -215,10 +221,13 @@ export async function listConversationsForArtisan() {
 
   const leadIds = [...new Set(convRows.map((c) => c.lead_id).filter(Boolean))] as string[];
   const customerUserIds = [
-    ...new Set(convRows.filter((c) => !c.lead_id).map((c) => c.customer_user_id)),
+    ...new Set(convRows.filter((c) => !c.lead_id && c.customer_user_id).map((c) => c.customer_user_id)),
   ];
+  const guestClientIds = [
+    ...new Set(convRows.filter((c) => !c.lead_id && !c.customer_user_id && c.client_id).map((c) => c.client_id)),
+  ] as string[];
 
-  const [{ data: leads }, { data: customerProfiles }] = await Promise.all([
+  const [{ data: leads }, { data: customerProfiles }, { data: guestClients }] = await Promise.all([
     leadIds.length
       ? supabase.from("leads").select("id, contact_name").in("id", leadIds)
       : Promise.resolve({ data: [] as { id: string; contact_name: string | null }[] }),
@@ -228,7 +237,11 @@ export async function listConversationsForArtisan() {
           .select("user_id, display_name, email")
           .in("user_id", customerUserIds)
       : Promise.resolve({ data: [] as { user_id: string; display_name: string | null; email: string | null }[] }),
+    guestClientIds.length
+      ? supabase.from("clients").select("id, display_name").in("id", guestClientIds)
+      : Promise.resolve({ data: [] as { id: string; display_name: string }[] }),
   ]);
+  const guestNameById = new Map((guestClients ?? []).map((g) => [g.id as string, g.display_name as string]));
 
   const leadNameById = new Map((leads ?? []).map((l) => [l.id, l.contact_name]));
   const customerByUserId = new Map((customerProfiles ?? []).map((cp) => [cp.user_id, cp]));
@@ -240,6 +253,16 @@ export async function listConversationsForArtisan() {
         updated_at: c.updated_at,
         customer_label: leadNameById.get(c.lead_id)?.trim() || "Demande Soline",
         is_lead: true,
+        unread: unreadIds.has(c.id),
+      };
+    }
+
+    if (!c.customer_user_id && c.client_id) {
+      return {
+        id: c.id,
+        updated_at: c.updated_at,
+        customer_label: guestNameById.get(c.client_id)?.trim() || "Client",
+        is_lead: false,
         unread: unreadIds.has(c.id),
       };
     }

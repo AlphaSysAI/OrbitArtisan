@@ -174,7 +174,7 @@ export function tryFastNavigate(message: string): FastNavigateResult | null {
   }
 
   if (/\b(contact|contacts|clients)\b/.test(m)) {
-    return { href: "/app/contacts", label: "Contacts", reply: "J’ouvre tes contacts." };
+    return { href: "/app/clients", label: "Clients", reply: "J’ouvre tes fiches clients." };
   }
 
   if (/\b(reglage|reglages|parametre|parametres|profil|prestations)\b/.test(m)) {

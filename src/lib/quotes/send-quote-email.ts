@@ -2,12 +2,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { escapeHtml } from "@/lib/email/html";
+import { emailButton, escapeHtml } from "@/lib/email/html";
+import { quoteResponseUrl } from "@/lib/quotes/response-link";
 import { sendEmail } from "@/lib/email/send-email";
 import { loadQuotePdfDocument } from "@/lib/billing/load-quote-pdf";
 import { renderQuotePdf } from "@/lib/billing/render-quote-pdf";
 import { validateQuoteBeforeSend } from "@/lib/quotes/validate-quote-before-send";
-import { getPublicSiteUrl } from "@/lib/site-url";
 
 function formatEur(cents: number): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -32,8 +32,8 @@ export type SendQuoteEmailParams = {
 };
 
 export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
-  const siteUrl = getPublicSiteUrl();
-  const clientQuoteUrl = `${siteUrl}/mes-devis/${params.quoteId}`;
+  // Lien signé : répondre sans compte (accepter, refuser, être rappelé, écrire à l'artisan).
+  const clientQuoteUrl = quoteResponseUrl(params.quoteId);
 
   const artisan = params.businessName?.trim() || "Votre artisan";
   const greeting = params.customerName?.trim() ? `Bonjour ${params.customerName.trim()},` : "Bonjour,";
@@ -49,7 +49,8 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
   // Montant = celui du PDF joint (TTC, TVA par ligne). grand_total est HT :
   // l'annoncer « TTC » était faux et ne correspondait pas au PDF.
   const total = doc ? formatEur(doc.totalTtcCents) : `${formatEur(params.grandTotalCents)} HT`;
-  const totalSuffix = doc ? " TTC" : "";
+  // Franchise 293 B : montant net (aucune TVA) — ne pas écrire « TTC ».
+  const totalSuffix = doc ? (doc.vatFranchise ? " (TVA non applicable, art. 293 B du CGI)" : " TTC") : "";
 
   // Vague 8 : sujet fixe demandé par Florian ("un devis pour vous"), au lieu
   // du sujet précédent qui incluait artisan/numéro/montant. Compromis assumé :
@@ -66,7 +67,9 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
     <p><strong>${escapeHtml(artisan)}</strong> vous adresse son devis n° <strong>${escapeHtml(quoteRef)}</strong>, d'un montant de <strong>${total}</strong>${totalSuffix}.</p>
     <p>Retrouvez le détail des prestations, fournitures et montants dans le PDF en pièce jointe${pdfBase64 ? "" : " (indisponible — contactez directement votre artisan)"}.</p>
     <p style="font-size:13px;color:#444;">${legalNotice}</p>
-    <p>Vous pouvez consulter ce devis et y répondre (acceptation ou refus) depuis votre espace client : <a href="${escapeHtml(clientQuoteUrl)}">${escapeHtml(clientQuoteUrl)}</a>.</p>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />
+    <p><strong>Après avoir consulté le devis</strong>, vous pouvez y répondre en ligne en un clic : l'accepter, le refuser, ou contacter ${escapeHtml(artisan)} pour en discuter. Aucun compte n'est nécessaire.</p>
+    ${emailButton(clientQuoteUrl, "Répondre au devis")}
     <p style="color:#666;font-size:12px;margin-top:24px;">Message envoyé par ${escapeHtml(artisan)} via Soline.</p>
   `.trim();
 
@@ -77,7 +80,7 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
     pdfBase64 ? "Le PDF détaillé est en pièce jointe." : "",
     legalNotice,
     "",
-    `Espace client : ${clientQuoteUrl}`,
+    `Répondre au devis (accepter, refuser, contacter l'artisan) : ${clientQuoteUrl}`,
     "",
     `Message envoyé par ${artisan} via Soline.`,
   ]

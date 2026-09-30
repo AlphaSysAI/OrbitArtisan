@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { PDFDocument } from "pdf-lib";
+import { PDFDict, PDFDocument, PDFName } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
+import { generateFacturX } from "@/lib/billing/facturx/generate-factur-x";
 import { computeInvoicePdfTotals, renderInvoicePdf } from "@/lib/billing/facturx/render-invoice-pdf";
 import type { FacturXInvoiceDocument } from "@/lib/billing/facturx/types";
 import { resolvePdfTheme } from "@/lib/billing/pdf-document";
@@ -127,6 +128,21 @@ describe("gabarit devis / facture", () => {
     await check(await renderInvoicePdf(invoiceDoc(3, "credit_note")), "avoir.pdf");
   });
 
+  it("PDF/A-3 : police Inter embarquée (aucune police standard) + OutputIntent sRGB", async () => {
+    const { pdf: bytes } = await generateFacturX(invoiceDoc(5), { profile: "en16931", validateXml: false });
+    if (previewDir) writeFileSync(path.join(previewDir, "facture-factur-x.pdf"), bytes);
+    const pdf = await PDFDocument.load(bytes);
+    expect(pdf.catalog.get(PDFName.of("OutputIntents"))).toBeDefined();
+    const fonts: string[] = [];
+    pdf.context.enumerateIndirectObjects().forEach(([, obj]) => {
+      if (obj instanceof PDFDict && obj.get(PDFName.of("Type")) === PDFName.of("Font")) {
+        fonts.push(String(obj.get(PDFName.of("BaseFont"))));
+      }
+    });
+    expect(fonts.some((f) => f.includes("Inter"))).toBe(true);
+    expect(fonts.some((f) => /Helvetica/.test(f))).toBe(false);
+  });
+
   it("ventilation TVA identique au CII (arrondi par ligne, somme par taux)", () => {
     const t = computeInvoicePdfTotals([
       { lineNumber: 1, label: "a", quantity: 1, lineTotalCents: 1005, vatRate: 5.5, vatCategoryCode: "S" },
@@ -144,5 +160,35 @@ describe("gabarit devis / facture", () => {
     const { accent } = resolvePdfTheme("#fde047");
     expect(accent.red).toBeLessThan(0.7);
     expect(accent.red).toBeGreaterThan(accent.blue);
+  });
+
+  it("franchise 293 B : devis et facture sans TVA, XML Factur-X catégorie E valide", async () => {
+    const base = quoteDoc(3, null);
+    const lines = base.tableLines.map((l) => ({ ...l, vatRate: 0 }));
+    const ht = lines.reduce((s2, l) => s2 + l.lineTotalCents, 0);
+    const quote = {
+      ...base,
+      tableLines: lines,
+      vatBreakdown: [{ rate: 0, baseHtCents: ht, vatCents: 0 }],
+      totalHtCents: ht,
+      totalVatCents: 0,
+      totalTtcCents: ht,
+      vatFranchise: true,
+    };
+    expect(await check(await renderQuotePdf(quote), "devis-franchise.pdf")).toBeGreaterThanOrEqual(1);
+
+    const inv = invoiceDoc(3);
+    const franchiseInvoice = {
+      ...inv,
+      seller: { ...inv.seller, vatNumber: null },
+      lines: inv.lines.map((l) => ({ ...l, vatRate: 0, vatCategoryCode: "E", vatExemptionReason: "TVA non applicable, art. 293 B du CGI" })),
+    };
+    await check(await renderInvoicePdf(franchiseInvoice), "facture-franchise.pdf");
+    const totals = computeInvoicePdfTotals(franchiseInvoice.lines);
+    expect(totals.totalVatCents).toBe(0);
+    expect(totals.totalTtcCents).toBe(totals.totalHtCents);
+    const { xml } = await generateFacturX(franchiseInvoice, { profile: "en16931" });
+    expect(xml).toContain("<ram:CategoryCode>E</ram:CategoryCode>");
+    expect(xml).toContain("TVA non applicable, art. 293 B du CGI");
   });
 });

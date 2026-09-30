@@ -6,15 +6,17 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { VatRegimeField } from "@/components/settings/vat-regime-field";
 
 import { saveOnboardingLegalStep, type OnboardingLegalError } from "./actions";
 
 const ERROR_MESSAGES: Record<OnboardingLegalError, string> = {
   invalid_siren: "SIREN obligatoire (9 chiffres).",
   invalid_siret: "SIRET obligatoire (14 chiffres, cohérent avec le SIREN).",
-  invalid_vat: "N° TVA intracommunautaire obligatoire et valide.",
+  invalid_vat: "N° TVA intracommunautaire obligatoire (sauf franchise 293 B) et valide.",
+  missing_vat_regime: "Indique si tu factures la TVA ou si tu es en franchise (293 B).",
   invalid_trade_register: "N° RCS / RM obligatoire.",
-  missing_decennale: "Assurance décennale : assureur et n° de contrat obligatoires.",
+  missing_decennale: "Assurance décennale : assureur, n° de contrat et couverture géographique obligatoires.",
   missing_rc_pro: "RC Pro : assureur et n° de contrat obligatoires.",
   missing_mediator: "Nom du médiateur de la consommation obligatoire.",
   invalid_mediator_url: "URL du médiateur obligatoire (https://…).",
@@ -29,9 +31,11 @@ export function OnboardingLegalStep({
     siren: string;
     siret: string;
     vatNumber: string;
+    vatRegime?: "normal" | "franchise" | null;
     tradeRegisterNumber: string;
     decennaleInsurer: string;
     decennalePolicyNumber: string;
+    decennaleCoverageArea?: string;
     rcProInsurer: string;
     rcProNumber: string;
     mediatorName: string;
@@ -91,15 +95,10 @@ export function OnboardingLegalStep({
               required
             />
           </div>
+          <VatRegimeField defaultValue={initialValues.vatRegime ?? null} />
           <div className="space-y-2">
             <Label htmlFor="vat_number">N° TVA intracommunautaire</Label>
-            <Input
-              id="vat_number"
-              name="vat_number"
-              defaultValue={initialValues.vatNumber}
-              placeholder="FR12345678901"
-              required
-            />
+            <Input id="vat_number" name="vat_number" defaultValue={initialValues.vatNumber} placeholder="FR12345678901" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="trade_register_number">RCS / RM</Label>
@@ -131,6 +130,16 @@ export function OnboardingLegalStep({
               id="decennale_policy_number"
               name="decennale_policy_number"
               defaultValue={initialValues.decennalePolicyNumber}
+              required
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="decennale_coverage_area">Couverture géographique de la décennale</Label>
+            <Input
+              id="decennale_coverage_area"
+              name="decennale_coverage_area"
+              placeholder="ex. France métropolitaine"
+              defaultValue={initialValues.decennaleCoverageArea ?? ""}
               required
             />
           </div>

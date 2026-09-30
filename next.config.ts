@@ -7,6 +7,16 @@ const nextConfig: NextConfig = {
     "saxon-js",
     "twilio",
   ],
+  // Photo / PDF du devis signé sur papier (≤ 5 Mo) envoyé par server action.
+  experimental: {
+    serverActions: { bodySizeLimit: "6mb" },
+  },
+  // Polices Inter + profil sRGB lus via fs par la génération PDF (devis,
+  // factures Factur-X, exports comptables, crons) : à embarquer dans toutes
+  // les fonctions serveur, le traçage statique ne suffit pas à coup sûr.
+  outputFileTracingIncludes: {
+    "/**": ["./src/assets/fonts/**", "./src/assets/color/**"],
+  },
   async headers() {
     return [
       {
