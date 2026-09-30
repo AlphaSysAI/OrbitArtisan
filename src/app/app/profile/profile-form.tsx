@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { LogoUploadField } from "@/components/settings/logo-upload-field";
 import { TradeSelect } from "@/components/settings/trade-select";
 
 import { VITRINE_DEFAULT_ACCENT } from "@/lib/vitrine-theme";
@@ -64,8 +65,6 @@ export function ProfileForm({
               ? "Cette adresse est déjà utilisée."
               : res.error === "invalid_accent"
                 ? "Couleur invalide (format #RRGGBB)."
-                : res.error === "invalid_logo"
-                  ? "Adresse du logo invalide (elle doit commencer par https://)."
                 : res.error === "invalid_trade"
                   ? "Sélection de métier invalide : choisis un secteur puis un métier."
                   : "Impossible d’enregistrer. Réessaie.",
@@ -164,17 +163,8 @@ export function ProfileForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="logo_url" className="text-base">
-          Logo <span className="font-normal text-muted-foreground">(lien image, facultatif)</span>
-        </Label>
-        <Input
-          id="logo_url"
-          name="logo_url"
-          className="h-11 text-base"
-          type="url"
-          defaultValue={initialValues.logo_url ?? ""}
-          placeholder="https://…"
-        />
+        <Label className="text-base">Logo</Label>
+        <LogoUploadField initialLogoUrl={initialValues.logo_url} />
       </div>
 
       <div className="space-y-4 rounded-2xl border border-dashed bg-muted/30 p-5">

@@ -1,159 +1,170 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-
-import { formatDateForPdf, formatEurosForPdf, sanitizePdfText } from "@/lib/billing/pdf-text";
+import {
+  CommercialPdf,
+  embedLogoImage,
+  formatEurosForPdf,
+  formatQtyForPdf,
+  formatRateForPdf,
+  resolvePdfTheme,
+  type TotalsRow,
+} from "@/lib/billing/pdf-document";
+import { formatDateForPdf } from "@/lib/billing/pdf-text";
 import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 
 import type { FacturXInvoiceDocument } from "./types";
 
-const MARGIN = 50;
-const PAGE_WIDTH = 595.28;
-const PAGE_HEIGHT = 841.89;
+export type InvoicePdfVatGroup = {
+  rate: number;
+  categoryCode: string;
+  baseCents: number;
+  taxCents: number;
+  exemptionReason: string | null;
+};
 
-const formatEuros = formatEurosForPdf;
-const formatDate = formatDateForPdf;
-
-function wrapText(text: string, maxChars: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length > maxChars && current) {
-      lines.push(current);
-      current = word;
+/**
+ * Ventilation TVA IDENTIQUE au XML CII (build-cii-invoice.ts) et à l'e-reporting :
+ * TVA arrondie ligne par ligne puis sommée par (catégorie, taux). Le PDF et le XML
+ * d'une même facture Factur-X ne doivent jamais diverger d'un centime.
+ */
+export function computeInvoicePdfTotals(lines: FacturXInvoiceDocument["lines"]) {
+  const groups = new Map<string, InvoicePdfVatGroup>();
+  for (const line of lines) {
+    const key = `${line.vatCategoryCode}:${line.vatRate}`;
+    const taxCents = Math.round((line.lineTotalCents * line.vatRate) / 100);
+    const g = groups.get(key);
+    if (g) {
+      g.baseCents += line.lineTotalCents;
+      g.taxCents += taxCents;
     } else {
-      current = candidate;
+      groups.set(key, {
+        rate: line.vatRate,
+        categoryCode: line.vatCategoryCode,
+        baseCents: line.lineTotalCents,
+        taxCents,
+        exemptionReason: line.vatExemptionReason ?? null,
+      });
     }
   }
-
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : [text];
+  const vatGroups = [...groups.values()].sort((a, b) => b.rate - a.rate);
+  const totalHtCents = lines.reduce((s, l) => s + l.lineTotalCents, 0);
+  const totalVatCents = vatGroups.reduce((s, g) => s + g.taxCents, 0);
+  return { vatGroups, totalHtCents, totalVatCents, totalTtcCents: totalHtCents + totalVatCents };
 }
 
-/** Génère le PDF visuel standard (human-readable) avant embarquement Factur-X. */
+/** Génère le PDF visuel (lisible) avant embarquement Factur-X. */
 export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uint8Array> {
-  const pdf = await PDFDocument.create();
-  const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const out = await CommercialPdf.create(resolvePdfTheme(doc.branding?.accentColor));
+  const logo = await embedLogoImage(out.pdf, doc.branding?.logoBytes);
+  const s = doc.seller;
+  const b = doc.buyer;
 
-  let y = PAGE_HEIGHT - MARGIN;
-
-  const draw = (text: string, opts: { size?: number; bold?: boolean; color?: ReturnType<typeof rgb> } = {}) => {
-    const size = opts.size ?? 10;
-    const usedFont = opts.bold ? fontBold : font;
-    page.drawText(sanitizePdfText(text), {
-      x: MARGIN,
-      y,
-      size,
-      font: usedFont,
-      color: opts.color ?? rgb(0.1, 0.1, 0.1),
-    });
-    y -= size + 6;
-  };
-
-  // Point 1 audit pré-pilote : le titre reflète la vraie nature du document
-  // (un avoir affichait "FACTURE" en dur, transmis tel quel au client).
-  const documentTitle = invoiceTypeLabel(doc.invoiceType).toUpperCase();
+  // Point 1 audit pré-pilote : le titre reflète la vraie nature du document.
+  const label = invoiceTypeLabel(doc.invoiceType);
   const isCreditNote = doc.invoiceType === "credit_note";
-  draw(documentTitle, { size: 20, bold: true });
-  draw(`N° ${doc.invoiceNumber}`, { size: 12, bold: true });
-  draw(`Date : ${formatDate(doc.issueDate)}`);
-  y -= 8;
-
-  draw("Émetteur", { size: 11, bold: true });
-  draw(doc.seller.name, { bold: true });
-  if (doc.seller.addressLine1) draw(doc.seller.addressLine1);
-  if (doc.seller.postalCode || doc.seller.city) {
-    draw([doc.seller.postalCode, doc.seller.city].filter(Boolean).join(" "));
-  }
-  if (doc.seller.vatNumber) draw(`TVA : ${doc.seller.vatNumber}`);
-  if (doc.seller.siret) draw(`SIRET : ${doc.seller.siret}`);
-  y -= 8;
-
-  draw("Client", { size: 11, bold: true });
-  draw(doc.buyer.name, { bold: true });
-  if (doc.buyer.addressLine1) draw(doc.buyer.addressLine1);
-  if (doc.buyer.postalCode || doc.buyer.city) {
-    draw([doc.buyer.postalCode, doc.buyer.city].filter(Boolean).join(" "));
-  }
-  if (doc.buyer.vatNumber) draw(`TVA : ${doc.buyer.vatNumber}`);
-  y -= 12;
-
-  draw("Désignation", { bold: true });
-  y -= 4;
-
-  const lineTotalCents = doc.lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  const taxTotalCents = doc.lines.reduce(
-    (sum, line) => sum + Math.round((line.lineTotalCents * line.vatRate) / 100),
-    0,
-  );
-  const grandTotalCents = lineTotalCents + taxTotalCents;
-
-  for (const line of doc.lines) {
-    for (const wrapped of wrapText(line.label, 70)) {
-      if (y < 120) break;
-      page.drawText(sanitizePdfText(wrapped), { x: MARGIN, y, size: 10, font });
-      y -= 14;
-    }
-    const unitCents = line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents;
-    const detail = `${line.quantity} × ${formatEuros(isCreditNote ? -unitCents : unitCents)} HT · TVA ${line.vatRate} %`;
-    page.drawText(sanitizePdfText(detail), { x: MARGIN + 12, y, size: 9, font, color: rgb(0.35, 0.35, 0.35) });
-    page.drawText(formatEuros(isCreditNote ? -line.lineTotalCents : line.lineTotalCents), {
-      x: PAGE_WIDTH - MARGIN - 80,
-      y,
-      size: 10,
-      font: fontBold,
-    });
-    y -= 18;
-  }
-
-  y -= 8;
-  // Affichage avec signe négatif pour un avoir : lisibilité humaine ("vous
-  // devez 500 € de moins"). Ceci est uniquement cosmétique côté PDF — le CII
-  // Factur-X (build-cii-invoice.ts) garde des montants positifs + typeCode
-  // 381, seule convention conforme EN16931 pour la transmission PA.
+  // Affichage signé pour un avoir (lisibilité client). Cosmétique uniquement :
+  // le CII garde des montants positifs + typeCode 381 (EN16931).
   const sign = isCreditNote ? -1 : 1;
-  draw(`Total HT : ${formatEuros(sign * lineTotalCents)}`);
-  draw(`Total TVA : ${formatEuros(sign * taxTotalCents)}`);
-  draw(`Total TTC : ${formatEuros(sign * grandTotalCents)}`, { bold: true, size: 12 });
+  const eur = (cents: number) => formatEurosForPdf(sign * cents);
 
-  // Point 5 audit pré-pilote : conditions de règlement + échéance — jamais
-  // affichées auparavant alors que due_date/default_payment_terms_days sont
-  // déjà calculées et enregistrées à la finalisation (voir
-  // InvoiceService.computeDueDate).
-  if (doc.dueDate || doc.paymentTermsDays) {
-    y -= 4;
-    const terms = doc.paymentTermsDays ? `Conditions de règlement : paiement à ${doc.paymentTermsDays} jours` : null;
-    const due = doc.dueDate ? `Échéance de paiement : ${formatDate(doc.dueDate)}` : null;
-    draw([terms, due].filter(Boolean).join(" — "), { bold: true });
+  const meta: [string, string][] = [["Date d'émission", formatDateForPdf(doc.issueDate)]];
+  // Point 5 audit pré-pilote : échéance affichée.
+  if (doc.dueDate && !isCreditNote) meta.push(["Échéance", formatDateForPdf(doc.dueDate)]);
+
+  out.drawHeader({
+    logo,
+    sellerName: s.name,
+    sellerLines: [
+      s.addressLine1,
+      s.addressLine2,
+      [s.postalCode, s.city].filter(Boolean).join(" ") || null,
+      s.phone ? `Tél. ${s.phone}` : null,
+      s.email,
+    ].filter((l): l is string => Boolean(l?.trim())),
+    sellerLegal: [
+      s.siret ? `SIRET ${s.siret}` : s.siren ? `SIREN ${s.siren}` : null,
+      s.vatNumber ? `TVA ${s.vatNumber}` : null,
+    ].filter((l): l is string => Boolean(l)),
+    title: label.toUpperCase(),
+    number: doc.invoiceNumber,
+    meta,
+  });
+
+  out.drawParties({
+    right: {
+      label: "Facturé à",
+      lines: [
+        b.name,
+        b.addressLine1,
+        b.addressLine2,
+        [b.postalCode, b.city].filter(Boolean).join(" ") || null,
+        b.siret ? `SIRET ${b.siret}` : b.siren ? `SIREN ${b.siren}` : null,
+        b.vatNumber ? `TVA ${b.vatNumber}` : null,
+        b.email,
+      ].filter((l): l is string => Boolean(l?.trim())),
+    },
+  });
+
+  out.sectionTitle(isCreditNote ? "Détail de l'avoir" : "Détail des prestations");
+  out.drawTable(
+    doc.lines.map((line) => {
+      const unitCents = line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents;
+      return {
+        designation: line.label,
+        quantity: formatQtyForPdf(line.quantity),
+        unitPrice: eur(unitCents),
+        vat: formatRateForPdf(line.vatRate),
+        total: eur(line.lineTotalCents),
+      };
+    }),
+  );
+
+  const t = computeInvoicePdfTotals(doc.lines);
+  const multiRate = t.vatGroups.length > 1;
+  const totals: TotalsRow[] = [
+    { label: "Total HT", value: eur(t.totalHtCents), strong: true },
+    ...t.vatGroups.map((g) => ({
+      label: multiRate ? `TVA ${formatRateForPdf(g.rate)} sur ${eur(g.baseCents)}` : `TVA ${formatRateForPdf(g.rate)}`,
+      value: eur(g.taxCents),
+    })),
+    { label: isCreditNote ? "Total TTC de l'avoir" : "Net à payer TTC", value: eur(t.totalTtcCents), highlight: true },
+  ];
+  const exemptions = [...new Set(t.vatGroups.map((g) => g.exemptionReason).filter((r): r is string => Boolean(r)))];
+  out.drawTotals(totals, ["Montants exprimés en euros.", ...exemptions]);
+
+  // Point 5 audit pré-pilote : conditions de règlement.
+  if (!isCreditNote && (doc.dueDate || doc.paymentTermsDays)) {
+    out.callout([
+      {
+        text: doc.dueDate
+          ? `À régler avant le ${formatDateForPdf(doc.dueDate)}`
+          : `Paiement à ${doc.paymentTermsDays} jours`,
+        bold: true,
+      },
+      ...(doc.paymentTermsDays ? [{ text: `Conditions de règlement : paiement à ${doc.paymentTermsDays} jours.` }] : []),
+    ]);
   }
 
   if (doc.notes?.trim()) {
-    y -= 10;
-    draw("Notes", { bold: true });
-    for (const noteLine of wrapText(doc.notes.trim(), 90)) {
-      draw(noteLine);
-    }
+    out.sectionTitle("Notes");
+    out.paragraph(doc.notes.trim(), { size: 8.5 });
+    out.gap(8);
   }
 
   if (doc.legalMentions?.length) {
-    y = Math.min(y, 120);
-    for (const line of doc.legalMentions) {
-      if (y < 40) break;
-      page.drawText(sanitizePdfText(line), { x: MARGIN, y, size: 7, font, color: rgb(0.4, 0.4, 0.4) });
-      y -= 10;
-    }
+    out.sectionTitle("Mentions légales");
+    for (const line of doc.legalMentions) out.paragraph(line, { size: 7, lineGap: 9 });
   }
 
-  pdf.setTitle(`${documentTitle.charAt(0)}${documentTitle.slice(1).toLowerCase()} ${doc.invoiceNumber}`);
-  pdf.setAuthor(doc.seller.name);
-  pdf.setSubject(`${documentTitle.charAt(0)}${documentTitle.slice(1).toLowerCase()} ${doc.invoiceNumber}`);
-  pdf.setCreator("Soline");
-  pdf.setProducer("Soline Factur-X");
-  pdf.setCreationDate(doc.issueDate);
-  pdf.setModificationDate(doc.issueDate);
+  const title = `${label} ${doc.invoiceNumber}`;
+  out.pdf.setTitle(title);
+  out.pdf.setAuthor(s.name);
+  out.pdf.setSubject(title);
+  out.pdf.setCreator("Soline");
+  out.pdf.setProducer("Soline Factur-X");
+  out.pdf.setCreationDate(doc.issueDate);
+  out.pdf.setModificationDate(doc.issueDate);
 
-  return pdf.save();
+  return out.finalize({
+    footerLeft: [s.name, s.siret ? `SIRET ${s.siret}` : null].filter(Boolean).join(" · "),
+    documentRef: title,
+  });
 }

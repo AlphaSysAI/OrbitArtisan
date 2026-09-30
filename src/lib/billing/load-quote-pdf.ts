@@ -13,18 +13,8 @@ import {
 } from "@/lib/billing/quote-pdf-legal";
 import type { QuotePdfDocument } from "@/lib/billing/quote-pdf-types";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
+import { loadLogoBytesForPdf } from "@/lib/branding/logo";
 import { splitSalesTermsLines } from "@/lib/legal/default-artisan-sales-terms";
-
-async function fetchLogoBytes(url: string | null | undefined): Promise<Uint8Array | null> {
-  if (!url?.trim()) return null;
-  try {
-    const res = await fetch(url, { cache: "force-cache" });
-    if (!res.ok) return null;
-    return new Uint8Array(await res.arrayBuffer());
-  } catch {
-    return null;
-  }
-}
 
 export async function ensureQuoteNumber(
   supabase: SupabaseClient,
@@ -76,6 +66,7 @@ type ProfilePdfRow = {
   mediator_name: string | null;
   mediator_url: string | null;
   logo_url: string | null;
+  accent_color?: string | null;
   default_payment_terms_days: number | null;
   sales_terms_text?: string | null;
 };
@@ -188,7 +179,7 @@ export async function loadQuotePdfDocument(
   const displayNumber =
     quote.quote_number ?? quoteNumber ?? quote.id.slice(0, 8).toUpperCase();
 
-  const logoBytes = await fetchLogoBytes(profile.logo_url);
+  const logoBytes = await loadLogoBytesForPdf(profile.logo_url);
 
   return {
     quoteNumber: displayNumber,
@@ -201,6 +192,7 @@ export async function loadQuotePdfDocument(
       phone: profile.phone,
       logoUrl: profile.logo_url,
       logoBytes,
+      accentColor: profile.accent_color ?? null,
     },
     buyer: {
       name: formatContactDisplayName({ name: quote.customer_name, email: quote.customer_email }),

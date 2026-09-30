@@ -57,6 +57,11 @@ export type FacturXInvoiceDocument = {
    * transmis à la Plateforme Agréée comme une facture positive ordinaire.
    */
   invoiceType?: InvoiceType;
+  /** Habillage PDF uniquement (jamais transmis dans le XML CII). */
+  branding?: {
+    logoBytes?: Uint8Array | null;
+    accentColor?: string | null;
+  };
 };
 
 export type FacturXGenerationOptions = {

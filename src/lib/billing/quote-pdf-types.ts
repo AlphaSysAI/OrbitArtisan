@@ -32,6 +32,8 @@ export type QuotePdfDocument = {
     email?: string | null;
     logoUrl?: string | null;
     logoBytes?: Uint8Array | null;
+    /** Couleur d'accent de l'artisan (#RRGGBB), reprise sur le document. */
+    accentColor?: string | null;
   };
   buyer: {
     name: string;

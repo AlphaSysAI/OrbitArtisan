@@ -10,7 +10,6 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 import { seedDefaultWorkLibraryForUser } from "@/lib/work-library/actions";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
-import { safeHttpUrl } from "@/lib/security/safe-url";
 
 function normalizeSlug(input: string) {
   return input
@@ -25,16 +24,10 @@ export async function upsertProfile(formData: FormData) {
   const businessName = String(formData.get("business_name") ?? "").trim();
   const { firstName, lastName, displayName: name } = readPersonName(formData);
   const description = String(formData.get("description") ?? "").trim();
-  const logoUrl = String(formData.get("logo_url") ?? "").trim();
   const accentRaw = String(formData.get("accent_color") ?? "").trim();
   const laborRateRaw = String(formData.get("labor_rate_per_hour") ?? "").trim();
   const slugRaw = String(formData.get("slug") ?? "");
   const slug = normalizeSlug(slugRaw);
-
-  const logo_url = logoUrl ? safeHttpUrl(logoUrl) : null;
-  if (logoUrl && !logo_url) {
-    return { ok: false as const, error: "invalid_logo" as const };
-  }
 
   let accent_color: string | null = null;
   if (accentRaw) {
@@ -113,7 +106,7 @@ export async function upsertProfile(formData: FormData) {
     first_name: firstName || null,
     last_name: lastName || null,
     description: description || null,
-    logo_url,
+    // logo_url : géré par uploadArtisanLogo / removeArtisanLogo (logo-actions.ts), jamais par ce formulaire.
     accent_color,
     labor_rate_per_hour,
     slug,

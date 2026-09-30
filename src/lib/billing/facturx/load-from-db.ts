@@ -4,6 +4,7 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { buildLegalMentionLines } from "@/lib/billing/legal-mentions";
 import { latePaymentMentionLines } from "@/lib/billing/late-payment-legal";
 import { isB2BCustomer } from "@/lib/billing/invoicing/classify-customer";
+import { loadLogoBytesForPdf } from "@/lib/branding/logo";
 
 import type { FacturXInvoiceDocument, FacturXLineInput } from "./types";
 
@@ -46,6 +47,8 @@ type ProfileRow = {
   mediator_url: string | null;
   /** Point 5 audit pré-pilote : jamais sélectionné dans ce chargement (utilisé pour "conditions de règlement"). */
   default_payment_terms_days: number | null;
+  logo_url: string | null;
+  accent_color: string | null;
 };
 
 type CustomerProfileRow = {
@@ -99,7 +102,7 @@ export async function loadFacturXDocumentFromDb(
     issuerClient
       .from("profiles")
       .select(
-        "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days",
+        "business_name, name, phone, address_line1, address_line2, postal_code, city, country_code, siren, siret, vat_number, naf_code, trade_register_number, decennale_insurer, decennale_policy_number, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days, logo_url, accent_color",
       )
       .eq("id", inv.artisan_id)
       .maybeSingle(),
@@ -125,6 +128,7 @@ export async function loadFacturXDocumentFromDb(
   }
 
   const seller = profile as ProfileRow;
+  const logoBytes = await loadLogoBytesForPdf(seller.logo_url);
   const mappedLines: FacturXLineInput[] = ((lines ?? []) as InvoiceLineRow[]).map((line, index) => ({
     lineNumber: index + 1,
     label: line.label,
@@ -176,6 +180,7 @@ export async function loadFacturXDocumentFromDb(
     dueDate: inv.due_date ? new Date(inv.due_date) : null,
     paymentTermsDays: seller.default_payment_terms_days ?? null,
     invoiceType: (inv.invoice_type as FacturXInvoiceDocument["invoiceType"]) ?? undefined,
+    branding: { logoBytes, accentColor: seller.accent_color },
     operationType: (inv.operation_type as FacturXInvoiceDocument["operationType"]) ?? undefined,
     vatOnDebits: inv.vat_on_debits ?? undefined,
     vatCollectionNature: (inv.vat_collection_nature as FacturXInvoiceDocument["vatCollectionNature"]) ?? undefined,
