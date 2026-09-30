@@ -130,6 +130,14 @@ export async function importIntoElevenLabs(
   return phoneNumberId;
 }
 
+/** Préfixes ARCEP par type : 01-05 géographiques, 09 non géographiques, 06-07 mobiles. */
+const NUMBER_TYPE_PREFIX: Record<NumberType, RegExp> = {
+  local: /^\+33[1-5]\d{8}$/,
+  national: /^\+339\d{8}$/,
+  mobile: /^\+33[67]\d{8}$/,
+};
+const MAX_PURCHASE_ATTEMPTS = 5;
+
 async function provisionOne(
   db: SupabaseClient,
   config: ProvisioningConfig,
@@ -137,31 +145,45 @@ async function provisionOne(
 ): Promise<ProvisionResult> {
   const client = twilio(config.accountSid, config.authToken);
 
-  // 1. Achat
-  let phoneE164: string;
-  let twilioSid: string;
+  // 1. Achat. L'inventaire Twilio « local » FR mélange parfois des numéros d'un autre
+  // type réglementaire que celui du dossier (erreur « correct regulation type ») :
+  // on filtre sur le préfixe du type attendu et on passe au candidat suivant si besoin.
+  let phoneE164 = "";
+  let twilioSid = "";
   try {
     const country = client.availablePhoneNumbers("FR");
-    const query = { voiceEnabled: true, limit: 5 };
-    const candidates =
+    const query = { voiceEnabled: true, limit: 20 };
+    const listed =
       config.numberType === "mobile"
         ? await country.mobile.list(query)
         : config.numberType === "national"
           ? await country.national.list(query)
           : await country.local.list(query);
-    const candidate = candidates[0]?.phoneNumber;
-    if (!candidate) return { ok: false, error: `Aucun numéro FR « ${config.numberType} » disponible chez Twilio.` };
+    const candidates = listed.map((c) => c.phoneNumber).filter((n) => NUMBER_TYPE_PREFIX[config.numberType].test(n));
+    if (!candidates.length) return { ok: false, error: `Aucun numéro FR « ${config.numberType} » disponible chez Twilio.` };
 
-    const purchased = await client.incomingPhoneNumbers.create({
-      phoneNumber: candidate,
-      bundleSid: config.bundleSid,
-      addressSid: config.addressSid,
-      friendlyName: "Soline pool",
-      statusCallback: config.statusCallbackUrl,
-      statusCallbackMethod: "POST",
-    });
-    phoneE164 = purchased.phoneNumber;
-    twilioSid = purchased.sid;
+    let lastError = "";
+    for (const candidate of candidates.slice(0, MAX_PURCHASE_ATTEMPTS)) {
+      try {
+        const purchased = await client.incomingPhoneNumbers.create({
+          phoneNumber: candidate,
+          bundleSid: config.bundleSid,
+          addressSid: config.addressSid,
+          friendlyName: "Soline pool",
+          statusCallback: config.statusCallbackUrl,
+          statusCallbackMethod: "POST",
+        });
+        phoneE164 = purchased.phoneNumber;
+        twilioSid = purchased.sid;
+        break;
+      } catch (e) {
+        lastError = errorMessage(e);
+        // Seules les incompatibilités propres au numéro justifient d'essayer le suivant.
+        if (!/regulation type|address|not available/i.test(lastError)) throw e;
+        console.warn("[voice pool provisioning] candidat ignoré", candidate, lastError);
+      }
+    }
+    if (!twilioSid) return { ok: false, error: `Achat Twilio impossible (${MAX_PURCHASE_ATTEMPTS} numéros essayés) : ${lastError}` };
   } catch (e) {
     return { ok: false, error: `Achat Twilio impossible : ${errorMessage(e)}` };
   }
