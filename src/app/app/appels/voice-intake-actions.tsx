@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { Check, Loader2, Pencil, X } from "lucide-react";
+import { Archive, ArchiveRestore, Check, Loader2, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
-import { dismissVoiceIntake, validateVoiceIntakeQuote } from "./actions";
+import { archiveVoiceIntake, dismissVoiceIntake, restoreVoiceIntake, validateVoiceIntakeQuote } from "./actions";
 
 export function VoiceIntakeActions({
   intakeId,
@@ -51,10 +51,10 @@ export function VoiceIntakeActions({
     const res = await dismissVoiceIntake(intakeId);
     setPending(null);
     if (!res.ok) {
-      toast.error("Impossible d'ignorer cet appel.");
+      toast.error("Impossible de classer cet appel.");
       return;
     }
-    toast.message("Appel archivé.");
+    toast.message("Appel classé sans suite.", { description: "Retrouvable dans l'onglet Archivés." });
     router.refresh();
   }
 
@@ -101,8 +101,41 @@ export function VoiceIntakeActions({
         onClick={() => void handleDismiss()}
       >
         {pending === "dismiss" ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
-        Ignorer
+        Classer sans suite
       </Button>
     </div>
+  );
+}
+
+/** Ranger (onglet Devis) ou sortir des archives. */
+export function VoiceIntakeArchiveButton({ intakeId, mode }: { intakeId: string; mode: "archive" | "restore" }) {
+  const router = useRouter();
+  const [pending, setPending] = React.useState(false);
+
+  async function handleClick() {
+    setPending(true);
+    const res = mode === "archive" ? await archiveVoiceIntake(intakeId) : await restoreVoiceIntake(intakeId);
+    setPending(false);
+    if (!res.ok) {
+      toast.error(mode === "archive" ? "Impossible d'archiver cet appel." : "Impossible de restaurer cet appel.");
+      return;
+    }
+    toast.message(mode === "archive" ? "Appel archivé." : "Appel restauré.");
+    router.refresh();
+  }
+
+  const Icon = mode === "archive" ? Archive : ArchiveRestore;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="gap-1.5 text-muted-foreground"
+      disabled={pending}
+      onClick={() => void handleClick()}
+    >
+      {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Icon className="size-3.5" />}
+      {mode === "archive" ? "Archiver" : "Restaurer"}
+    </Button>
   );
 }

@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { CallForwardingMobileCard } from "@/components/app/call-forwarding-mobile-card";
 import { SolineCallsPromoLink } from "@/components/app/soline-calls-promo-link";
 import { AppEmptyState } from "@/components/app/app-empty-state";
 import { AppPageHeader } from "@/components/app/app-page-header";
@@ -43,6 +44,7 @@ export default async function AppHomePage() {
     .eq("user_id", user!.id)
     .maybeSingle();
 
+  let solinePhoneE164: string | null = null;
   let serviceCount: number | null = 0;
   let contactCount = 0;
   let finalizedInvoiceCount = 0;
@@ -58,6 +60,7 @@ export default async function AppHomePage() {
       { count: pendingQuotes },
       { count: pendingPayments },
       { data: revenueAgg },
+      voiceNumberRes,
     ] = await Promise.all([
       supabase.from("services").select("id", { count: "exact", head: true }).eq("artisan_id", profile.id),
       listArtisanContacts(),
@@ -81,8 +84,10 @@ export default async function AppHomePage() {
         .select("grand_total.sum()")
         .eq("artisan_id", profile.id)
         .eq("status", "paid"),
+      supabase.from("artisan_voice_numbers").select("phone_e164").eq("artisan_id", profile.id).maybeSingle(),
     ]);
 
+    solinePhoneE164 = (voiceNumberRes.data?.phone_e164 as string | undefined) ?? null;
     serviceCount = services;
     if (contactsRes.ok) {
       contactCount = contactsRes.items.filter((i) => i.kind === "linked").length;
@@ -131,6 +136,10 @@ export default async function AppHomePage() {
 
       {hasProfile ? (
         <SolineCallsPromoLink variant="banner" />
+      ) : null}
+
+      {hasProfile ? (
+        <CallForwardingMobileCard solinePhoneE164={solinePhoneE164} />
       ) : null}
 
       {hasProfile ? (

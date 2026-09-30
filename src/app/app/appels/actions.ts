@@ -144,9 +144,10 @@ export async function dismissVoiceIntake(intakeId: string): Promise<{ ok: true }
   if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "not_artisan" };
   const { supabase, profileId } = auth;
 
+  const now = new Date().toISOString();
   const { error } = await supabase
     .from("voice_call_intakes")
-    .update({ status: "dismissed" })
+    .update({ status: "dismissed", archived_at: now, read_at: now })
     .eq("id", intakeId)
     .eq("artisan_id", profileId)
     .eq("status", "pending_review");
@@ -155,4 +156,76 @@ export async function dismissVoiceIntake(intakeId: string): Promise<{ ok: true }
 
   revalidatePath("/app/appels");
   return { ok: true };
+}
+
+type SimpleResult = { ok: true } | { ok: false; error: string };
+
+/** Range un appel déjà traité (devis créé). Un appel à traiter se « classe sans suite ». */
+export async function archiveVoiceIntake(intakeId: string): Promise<SimpleResult> {
+  if (!intakeId?.trim()) return { ok: false, error: "missing_id" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "not_artisan" };
+  const { supabase, profileId } = auth;
+
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("voice_call_intakes")
+    .update({ archived_at: now, read_at: now })
+    .eq("id", intakeId)
+    .eq("artisan_id", profileId)
+    .neq("status", "pending_review")
+    .is("archived_at", null);
+
+  if (error) return { ok: false, error: "update_failed" };
+  revalidatePath("/app/appels");
+  return { ok: true };
+}
+
+/**
+ * Sort un appel des archives. Un appel classé sans suite redevient « à traiter »
+ * (l'artisan change d'avis) ; un appel avec devis retourne dans l'onglet Devis.
+ */
+export async function restoreVoiceIntake(intakeId: string): Promise<SimpleResult> {
+  if (!intakeId?.trim()) return { ok: false, error: "missing_id" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "not_artisan" };
+  const { supabase, profileId } = auth;
+
+  const { data: intake } = await supabase
+    .from("voice_call_intakes")
+    .select("id, status")
+    .eq("id", intakeId)
+    .eq("artisan_id", profileId)
+    .maybeSingle();
+  if (!intake) return { ok: false, error: "not_found" };
+
+  const patch: { archived_at: null; status?: "pending_review" } = { archived_at: null };
+  if (intake.status === "dismissed") patch.status = "pending_review";
+
+  const { error } = await supabase
+    .from("voice_call_intakes")
+    .update(patch)
+    .eq("id", intakeId)
+    .eq("artisan_id", profileId);
+
+  if (error) return { ok: false, error: "update_failed" };
+  revalidatePath("/app/appels");
+  return { ok: true };
+}
+
+/** Marque le résumé comme lu (premier dépliage). Idempotent, silencieux. */
+export async function markVoiceIntakeRead(intakeId: string): Promise<SimpleResult> {
+  if (!intakeId?.trim()) return { ok: false, error: "missing_id" };
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "not_artisan" };
+  const { supabase, profileId } = auth;
+
+  const { error } = await supabase
+    .from("voice_call_intakes")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", intakeId)
+    .eq("artisan_id", profileId)
+    .is("read_at", null);
+
+  return error ? { ok: false, error: "update_failed" } : { ok: true };
 }
