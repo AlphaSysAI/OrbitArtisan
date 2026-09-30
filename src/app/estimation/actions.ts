@@ -4,7 +4,7 @@ import type { LeadChatMessage } from "@/lib/leads/chat-schema";
 import { prepareLeadClientSignup } from "@/lib/leads/client-signup";
 import type { LeadSignupOffer } from "@/lib/leads/client-signup-types";
 import { dispatchLeadToArtisans } from "@/lib/leads/dispatch-lead";
-import { runConciergeForLead } from "@/lib/concierge/concierge";
+import { hasConciergeProspects, runConciergeForLead } from "@/lib/concierge/concierge";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { fillLeadQuoteDrafts } from "@/lib/leads/fill-lead-quote-drafts";
 import {
@@ -229,7 +229,7 @@ export async function finalizeLead(input: {
   lat?: number | null;
   lng?: number | null;
   addressLabel?: string | null;
-}): Promise<{ ok: true; estimate: LeadEstimate; artisans: MatchedArtisan[] } | Fail> {
+}): Promise<{ ok: true; estimate: LeadEstimate; artisans: MatchedArtisan[]; prospectsNearby: boolean } | Fail> {
   const supabase = leadDb();
   if (!(await allowRequest(RATE_LIMITS.leadAi, supabase))) return fail("rate_limited");
 
@@ -275,7 +275,9 @@ export async function finalizeLead(input: {
   const estimate = await resolveLeadEstimate(supabase, leadEstimateInput(input, matches));
 
   const artisans = await loadMatchedArtisans(supabase, matches);
-  return { ok: true, estimate, artisans };
+  // Aucun inscrit : des artisans de la zone (conciergerie) pourront être sollicités.
+  const prospectsNearby = artisans.length === 0 ? await hasConciergeProspects(supabase, input.token).catch(() => false) : false;
+  return { ok: true, estimate, artisans, prospectsNearby };
 }
 
 /** Widget artisan : fourchette basée sur l'artisan hôte, sans géolocalisation. */
@@ -369,7 +371,7 @@ export async function submitLeadContact(input: {
   phone: string;
   mode?: "widget" | "general";
 }): Promise<
-  | { ok: true; warning?: "no_artisans" | "dispatch_pending"; signup?: LeadSignupOffer }
+  | { ok: true; warning?: "no_artisans" | "dispatch_pending" | "concierge"; signup?: LeadSignupOffer }
   | Fail
 > {
   const firstName = input.firstName.trim();
@@ -400,10 +402,12 @@ export async function submitLeadContact(input: {
   if (!payload?.ok) return fail(payload?.error ?? "contact_failed");
 
   const dispatch = await dispatchLeadToArtisans(input.token);
-  let warning: "no_artisans" | "dispatch_pending" | undefined;
+  let warning: "no_artisans" | "dispatch_pending" | "concierge" | undefined;
   if (!dispatch.ok) {
     console.error("[estimation] dispatch-lead", dispatch.error);
-    if (dispatch.error === "no_matches") warning = "no_artisans";
+    if (dispatch.error === "no_matches") {
+      warning = (await hasConciergeProspects(supabase, input.token).catch(() => false)) ? "concierge" : "no_artisans";
+    }
     else if (dispatch.error === "dispatch_unavailable") warning = "dispatch_pending";
   } else if (dispatch.dispatched > 0) {
     after(async () => {

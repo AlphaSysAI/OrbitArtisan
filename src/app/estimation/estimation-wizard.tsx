@@ -60,7 +60,7 @@ type Screen =
   | { name: "media" }
   | { name: "location" }
   | { name: "result" }
-  | { name: "sent"; leadToken: string; signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" };
+  | { name: "sent"; leadToken: string; signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" | "concierge" };
 
 const euros = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -399,7 +399,7 @@ function WidgetResultStep({
   onBack: () => void;
   onSent: (
     artisans: MatchedArtisan[],
-    payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" },
+    payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" | "concierge" },
   ) => void;
 }) {
   const [state, setState] = React.useState<
@@ -511,13 +511,13 @@ function ResultStep({
   onBack: () => void;
   onSent: (
     artisans: MatchedArtisan[],
-    payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" },
+    payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" | "concierge" },
   ) => void;
 }) {
   const [state, setState] = React.useState<
     | { status: "loading" }
     | { status: "error" }
-    | { status: "done"; estimate: LeadEstimate; artisans: MatchedArtisan[] }
+    | { status: "done"; estimate: LeadEstimate; artisans: MatchedArtisan[]; prospectsNearby: boolean }
   >({ status: "loading" });
 
   const load = React.useCallback(async () => {
@@ -537,7 +537,7 @@ function ResultStep({
       setState({ status: "error" });
       return;
     }
-    setState({ status: "done", estimate: res.estimate, artisans: res.artisans });
+    setState({ status: "done", estimate: res.estimate, artisans: res.artisans, prospectsNearby: res.prospectsNearby });
   }, [token, categoryId, tradeId, description, messages, mediaCount, location]);
 
   React.useEffect(() => {
@@ -592,9 +592,9 @@ function ResultStep({
 
         {state.artisans.length === 0 && (
           <p className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
-            Aucun artisan de ce métier n’est disponible à moins de 40 km pour l’instant (métier +
-            position GPS requis côté artisan). Laisse tes coordonnées : on te prévient dès qu’un
-            professionnel peut prendre ta demande.
+            {state.prospectsNearby
+              ? "Aucun artisan de ce métier n’est encore inscrit sur Soline près de chez toi, mais nous connaissons des professionnels de ton secteur. Laisse tes coordonnées : nous leur transmettons ta demande et te recontactons au plus vite."
+              : "Aucun artisan de ce métier n’est encore inscrit sur Soline près de chez toi. Laisse tes coordonnées : nous recherchons un professionnel pour ta demande et te recontactons au plus vite."}
           </p>
         )}
 
@@ -658,7 +658,7 @@ function LeadContactForm({
   mode: "widget" | "general";
   ownerName: string | null;
   disabled?: boolean;
-  onSent: (payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" }) => void;
+  onSent: (payload: { signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" | "concierge" }) => void;
 }) {
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");

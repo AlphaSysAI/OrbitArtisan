@@ -25,10 +25,18 @@ export function scrubPii(text: string): string {
     .trim();
 }
 
-/** « 12 rue des Lilas 11000 Carcassonne » → « 11000 Carcassonne ». */
+/**
+ * Commune seule, jamais l'adresse (anonymisation) :
+ * « 12 rue des Lilas 11000 Carcassonne » → « 11000 Carcassonne » ;
+ * « Castres » (ville choisie sans adresse, libellé BAN d'une commune) → « Castres ».
+ */
 export function communeFromAddress(label: string | null | undefined): string | null {
-  const m = label?.match(/\b(\d{5})\s+([^\d,]+?)\s*$/);
-  return m ? `${m[1]} ${m[2]!.trim()}` : null;
+  const text = label?.trim();
+  if (!text) return null;
+  const m = text.match(/\b(\d{5})\s+([^\d,]+?)\s*$/);
+  if (m) return `${m[1]} ${m[2]!.trim()}`;
+  // Sans chiffre = pas de numéro de rue : c'est un nom de commune (ou lieu-dit).
+  return /\d/.test(text) || text.length > 80 ? null : text;
 }
 
 export function buildAnonymizedSummary(lead: {

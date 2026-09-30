@@ -11,6 +11,10 @@ describe("récap anonymisé", () => {
   it("ne garde que la commune", () => {
     expect(communeFromAddress("12 rue des Lilas 11000 Carcassonne")).toBe("11000 Carcassonne");
     expect(communeFromAddress(null)).toBeNull();
+    expect(communeFromAddress("Castres")).toBe("Castres");
+    expect(communeFromAddress("Saint-Pons-de-Thomières")).toBe("Saint-Pons-de-Thomières");
+    // Adresse sans code postal : jamais divulguée.
+    expect(communeFromAddress("12 rue des Lilas")).toBeNull();
   });
   it("résumé : métier, commune, budget, besoin expurgé", () => {
     const s = buildAnonymizedSummary({

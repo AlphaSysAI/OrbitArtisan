@@ -20,7 +20,7 @@ export function LeadSentPanel({
 }: {
   leadToken: string;
   signup?: LeadSignupOffer | null;
-  warning?: "no_artisans" | "dispatch_pending";
+  warning?: "no_artisans" | "dispatch_pending" | "concierge";
   compact?: boolean;
   directToOwner?: boolean;
   ownerName?: string | null;
@@ -46,10 +46,12 @@ export function LeadSentPanel({
       <div className="space-y-2">
         <h2 className="text-xl font-semibold tracking-tight">Demande envoyée</h2>
         <p className="mx-auto max-w-md text-sm text-muted-foreground">
-          {warning === "no_artisans"
+          {warning === "concierge"
+            ? "Ta demande est enregistrée. Nous la transmettons à des artisans de ton secteur et te recontactons au plus vite."
+            : warning === "no_artisans"
             ? directToOwner && ownerName
               ? `${ownerName} ne reçoit pas les demandes pour le moment. Ta demande est enregistrée — réessaie plus tard ou contacte l’artisan directement.`
-              : "Ta demande est enregistrée. Aucun artisan disponible dans ta zone pour l’instant — on te recontacte dès qu’il y en a un."
+              : "Ta demande est enregistrée. Nous recherchons un professionnel pour ta demande et te recontactons au plus vite."
             : warning === "dispatch_pending"
               ? directToOwner && ownerName
                 ? `Ta demande est enregistrée. ${ownerName} la recevra dans sa messagerie sous peu.`

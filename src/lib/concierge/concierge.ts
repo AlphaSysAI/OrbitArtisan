@@ -227,3 +227,18 @@ export function interestedEmail(input: {
   const text = `Bonjour ${input.businessName},\n\nComme convenu par téléphone, ${job} vous attend sur Soline. Inscription gratuite : ${input.inviteUrl}\n\n${origin}\nNe plus être contacté : ${input.optOutUrl}`;
   return { subject, html, text };
 }
+
+/**
+ * Des prospects (artisans non inscrits) existent-ils pour ce chantier ? Sert
+ * uniquement à adapter le message au particulier : ils ne sont jamais nommés.
+ */
+export async function hasConciergeProspects(db: Db, leadToken: string): Promise<boolean> {
+  const { data: leadId } = await db.rpc("lead_id_from_token", { p_token: leadToken });
+  if (typeof leadId !== "string") return false;
+  const { data } = await db.rpc("concierge_prospect_candidates", {
+    p_lead_id: leadId,
+    p_radius_km: CONCIERGE_RADIUS_KM,
+    p_limit: 1,
+  });
+  return Array.isArray(data) && data.length > 0;
+}
