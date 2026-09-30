@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
 
 import {
@@ -50,6 +51,7 @@ export function VoicePoolManager({
   const [rows, setRows] = useState(initialRows);
   const [provisionCount, setProvisionCount] = useState("1");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const availableCount = rows.filter((r) => r.status === "available" && r.elevenlabs_ready).length;
@@ -91,7 +93,8 @@ export function VoicePoolManager({
         failure && !failure.ok ? `Arrêt : ${failure.error}` : "",
       ].filter(Boolean);
       setMessage({ type: failure || warnings.length ? "error" : "success", text: parts.join(" ") });
-      if (bought.length) window.location.reload();
+      // Rafraîchit la liste SANS recharger la page : le message (dont « Arrêt : … ») reste lisible.
+      if (bought.length) router.refresh();
     });
   };
 

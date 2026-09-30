@@ -8,6 +8,9 @@ import { listVoiceNumberPool } from "@/lib/voice/voice-number-pool";
 import { readProvisioningConfig } from "@/lib/voice/voice-pool-provisioning";
 import { readRefillPolicy } from "@/lib/voice/voice-pool-refill";
 
+// Achat par lot : ~5 s par numéro (Twilio + ElevenLabs), 10 max → au-delà du délai par défaut.
+export const maxDuration = 120;
+
 export default async function AdminVoicePoolPage() {
   const sb = createSupabaseServiceRoleClient();
   const { rows } = sb ? await listVoiceNumberPool(sb) : { rows: [] };
