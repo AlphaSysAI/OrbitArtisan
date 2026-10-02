@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildGeometryContext,
+  computeHouseStructuralShell,
   computeMasonryBlockCount,
+  detectMasonryMaterial,
+  extractHouseFloorArea,
   isWholeHouseMasonryProject,
   MASONRY_BLOCKS_PER_M2,
   needsMaterialTakeoff,
@@ -88,5 +92,100 @@ describe("needsMaterialTakeoff — corps d'état et langage profane", () => {
     "prévoir un per pour plus tard",
   ])("ne déclenche pas : %s", (text) => {
     expect(needsMaterialTakeoff(text)).toBe(false);
+  });
+});
+
+describe("géométrie imposée et matériau demandé", () => {
+  const artisan = (tradeLabel: string | null) => ({ audience: "artisan" as const, tradeLabel });
+
+  it("brique citée → brique, jamais parpaing ; parpaing seulement si cité", () => {
+    expect(detectMasonryMaterial("construction maison neuve 130m2 au plancher, brique rouge")).toBe("brique");
+    expect(detectMasonryMaterial("murs en Calibric de 20")).toBe("brique");
+    expect(detectMasonryMaterial("mur en parpaing de 10 ml")).toBe("parpaing");
+    expect(detectMasonryMaterial("maison neuve 130 m2")).toBeNull();
+  });
+
+  it("lit la surface de la maison (plain-pied ou étage)", () => {
+    expect(extractHouseFloorArea("besoin d'un devis pour Florian, construction maison neuve 130m2 au plancher")).toEqual({
+      floorAreaM2: 130,
+      footprintM2: 130,
+      levels: 1,
+      atticRooms: false,
+    });
+    expect(extractHouseFloorArea("maison de 140 m² avec étage")).toEqual({
+      floorAreaM2: 140,
+      footprintM2: 70,
+      levels: 2,
+      atticRooms: false,
+    });
+    expect(extractHouseFloorArea("toiture neuve 135 m2")).toBeNull();
+  });
+
+  it("régression : maison 130 m² brique → ~49 ml et ~101 m² de murs en brique (pas 114 ml / 228 m²)", () => {
+    const ctx = buildGeometryContext(
+      "besoin d'un devis pour Florian Lapertot, construction maison neuve 130m2 au plancher, brique rouge",
+      artisan("Gros œuvre & structure · Maçon"),
+    );
+    expect(ctx.walls).toMatchObject({ material: "brique", perimeterLinearMeters: 49.3, netWallAreaM2: 101.1 });
+    expect(ctx.roofAreaM2).toBeNull(); // maçon : pas de toiture déduite
+  });
+
+  it("toiture calculée pour un couvreur ou un particulier, jamais si la surface de toiture est donnée", () => {
+    expect(buildGeometryContext("maison neuve 130 m2", artisan("Couverture & toiture · Couvreur")).roofAreaM2).toBe(154.3);
+    expect(buildGeometryContext("maison neuve 130 m2", { audience: "client" }).walls?.material).toBe("parpaing");
+    expect(buildGeometryContext("maison 130 m2, 160 m2 de toiture tuiles", { audience: "client" }).roofAreaM2).toBeNull();
+  });
+});
+
+describe("gros œuvre maison neuve chaîné", () => {
+  const macon = { audience: "artisan" as const, tradeLabel: "Gros œuvre & structure · Maçon" };
+
+  it("chaîne fouilles, semelles, dallage et murs sur la géométrie calculée", () => {
+    const ctx = buildGeometryContext("construction maison neuve 130m2 au plancher, brique rouge", macon);
+    expect(ctx.structuralShell).toBe(true);
+    expect(ctx.extraLots).toBe(false);
+    const shell = computeHouseStructuralShell(ctx)!;
+    const qty = (name: string) => shell.materials.find((m) => m.name_generic.startsWith(name))?.quantity;
+    expect(qty("Armature semelle filante")).toBe(51.77); // 49,3 ml × 1,05
+    expect(qty("Treillis soudé ST25C")).toBe(149.5); // dallage 130 m² × 1,15
+    expect(qty("Brique creuse de structure")).toBe(688); // 101,1 m² × 6,8
+    expect(shell.materials.some((m) => /parpaing/i.test(m.name_generic))).toBe(false);
+    expect(shell.laborPhases).toHaveLength(12);
+    // 49,3 × 0,25 + 49,3 × 0,55 + 130 × 0,5 + 101,1 × 1,05
+    expect(shell.laborHours).toBeCloseTo(12.3 + 27.1 + 65 + 106.2, 1);
+  });
+
+  it("autres lots nommés → le modèle complète ; « murs porteurs » n'en est pas un", () => {
+    expect(buildGeometryContext("maison neuve 120 m2 avec murs porteurs", macon).extraLots).toBe(false);
+    expect(buildGeometryContext("maison neuve 120 m2 avec enduit de façade", macon).extraLots).toBe(true);
+    expect(buildGeometryContext("maison neuve 120 m2", { audience: "artisan", tradeLabel: "Couvreur" }).structuralShell).toBe(false);
+  });
+});
+
+describe("maison à étage (R+1)", () => {
+  const macon = { audience: "artisan" as const, tradeLabel: "Gros œuvre & structure · Maçon" };
+
+  it("130 m² R+1 : emprise 65 m², murs sur 5,00 m, plancher intermédiaire 65 m²", () => {
+    const ctx = buildGeometryContext("construction maison neuve 130 m2 R+1 en parpaing", macon);
+    expect(ctx.house).toEqual({ floorAreaM2: 130, footprintM2: 65, levels: 2, atticRooms: false });
+    // périmètre 4 × √65 × 1,08 = 34,8 ml ; 34,8 × 5,00 = 174 m² bruts − 18 % = 142,7 m² nets
+    expect(ctx.walls).toMatchObject({ perimeterLinearMeters: 34.8, heightM: 5, grossWallAreaM2: 174, netWallAreaM2: 142.7 });
+
+    const shell = computeHouseStructuralShell(ctx)!;
+    const qty = (name: string) => shell.materials.find((m) => m.name_generic.startsWith(name))?.quantity;
+    expect(qty("Poutrelles béton précontraint")).toBe(65);
+    expect(qty("Treillis soudé ST25C")).toBe(74.75); // dallage RDC 65 m² × 1,15
+    expect(qty("Armature semelle filante")).toBe(36.54); // 34,8 ml × 1,05
+    expect(shell.laborPhases.some((p) => p.title.startsWith("Étaiement, pose des poutrelles"))).toBe(true);
+    expect(shell.laborPhases).toHaveLength(15);
+  });
+
+  it("détecte étage / 2 niveaux / combles aménagés, et respecte « plain-pied »", () => {
+    expect(extractHouseFloorArea("maison neuve 130 m2 à étage")?.levels).toBe(2);
+    expect(extractHouseFloorArea("maison neuve 130 m2 sur 2 niveaux")?.levels).toBe(2);
+    expect(extractHouseFloorArea("maison 120 m2 avec combles aménagés")).toMatchObject({ levels: 2, atticRooms: true });
+    expect(extractHouseFloorArea("maison plain-pied 130 m2")?.levels).toBe(1);
+    const attic = buildGeometryContext("construction maison neuve 120 m2 combles aménagés", macon);
+    expect(attic.walls?.heightM).toBe(3.5);
   });
 });

@@ -14,6 +14,8 @@ export type AiSupplierMaterialDraft = {
   similarity: number | null;
   requestedName: string;
   specifications: string | null;
+  /** Unité marchande du métré (m², ml, sacs…), persistée avec la ligne. */
+  unit?: string | null;
 };
 
 export type AiQuoteDraft = {

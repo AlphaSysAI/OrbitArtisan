@@ -6,6 +6,7 @@ import { mistralChatParse } from "@/lib/ai/mistral";
 import { sanitizeMaterialQuantity } from "@/lib/ai/quote-material-sanity";
 import { runMaterialTakeoff } from "@/lib/ai/quote-material-takeoff";
 import { formatWebSearchForPrompt, searchWebForQuoteContext } from "@/lib/ai/web-search";
+import { findReferencePrice } from "@/lib/ai/recipe-reference-prices";
 
 export type LeadMaterialCostEstimate = {
   min: number;
@@ -60,6 +61,9 @@ const LEAD_MATERIAL_PRICING_JSON_SCHEMA: Record<string, unknown> = {
   required: ["items", "pricing_notes"],
 };
 
+/** Écart haut de fourchette appliqué aux prix moyens du barème (variations négoce / région). */
+const REFERENCE_SPREAD = 1.25;
+
 function buildMaterialSearchQuery(description: string, tradeLabel: string | null): string {
   const compact = description.replace(/\s+/g, " ").trim().slice(0, 180);
   const trade = tradeLabel ? `${tradeLabel} ` : "";
@@ -71,10 +75,12 @@ function formatTakeoffLines(
 ): string | null {
   if (!takeoff?.materials.length) return null;
   return takeoff.materials
-    .map(
-      (m) =>
-        `- ${m.name_generic} : ${m.quantity} ${m.unit}${m.specifications ? ` (${m.specifications})` : ""}`,
-    )
+    .map((m) => {
+      const reference = findReferencePrice(m.name_generic, m.unit);
+      return `- ${m.name_generic} : ${m.quantity} ${m.unit}${m.specifications ? ` (${m.specifications})` : ""}${
+        reference ? ` — PRIX DE RÉFÉRENCE IMPOSÉ : ${reference.priceHtEur} € HT / ${m.unit}` : ""
+      }`;
+    })
     .join("\n");
 }
 
@@ -90,6 +96,26 @@ export async function estimateLeadMaterialCosts(input: {
   if (description.length < 12) return null;
 
   const takeoff = await runMaterialTakeoff(description);
+
+  // Métré entièrement couvert par le barème de la bibliothèque : chiffrage déterministe,
+  // sans recherche web ni appel IA (fourchette : prix moyen → +25 % d'écart de marché).
+  const referenced = (takeoff?.materials ?? []).map((m) => ({
+    m,
+    reference: findReferencePrice(m.name_generic, m.unit),
+  }));
+  if (referenced.length && referenced.every((r) => r.reference)) {
+    const base = referenced.reduce((sum, r) => sum + r.m.quantity * r.reference!.priceHtEur, 0);
+    return {
+      min: Math.round(base),
+      max: Math.round(base * REFERENCE_SPREAD),
+      summary: `Fournitures chiffrées au barème Soline (${referenced
+        .slice(0, 4)
+        .map((r) => r.m.name_generic)
+        .join(", ")}${referenced.length > 4 ? "…" : ""})`,
+      webUsed: false,
+    };
+  }
+
   const takeoffLines = formatTakeoffLines(takeoff);
 
   const web = await searchWebForQuoteContext(buildMaterialSearchQuery(description, input.tradeLabel));
@@ -105,6 +131,8 @@ export async function estimateLeadMaterialCosts(input: {
 Règles :
 1. Liste uniquement les matériaux/fournitures plausibles pour le lot décrit (pas d'outillage jetable mineur).
 2. Quantités réalistes d'après la description ; si un métré est fourni, reprends ses quantités.
+   Une ligne marquée « PRIX DE RÉFÉRENCE IMPOSÉ » : unit_price_min_eur = ce prix, unit_price_max_eur = ce prix × 1,25,
+   sans le modifier ni chercher ailleurs.
 3. unit_price_min_eur / unit_price_max_eur = prix unitaire HT en euros (fourchette marché particulier/pro).
 4. Croise les références web si présentes ; sinon utilise des prix moyens constatés en grande surface pro / négoce BTP France.
 5. Si le lot est quasi 100 % main-d'œuvre (dépannage simple sans fourniture notable), renvoie items=[] et explique dans pricing_notes.

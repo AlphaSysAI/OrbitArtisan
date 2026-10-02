@@ -11,6 +11,7 @@ import { sendQuoteByEmail } from "@/lib/quotes/send-quote-email";
 import { validateQuoteLegalProfile, type QuoteLegalValidation } from "@/lib/billing/quote-pdf-legal";
 import { sendQuotePdfInConversation } from "@/lib/quotes/send-quote-pdf";
 import { validateQuoteBeforeSend } from "@/lib/quotes/validate-quote-before-send";
+import { normalizeMaterialUnit } from "@/lib/quotes/material-unit";
 
 const PROFILE_LEGAL_COLUMNS = [
   "business_name",
@@ -41,9 +42,11 @@ type ParsedMaterial = {
   isSupplierCatalog?: boolean;
   excludeFromInvoice?: boolean;
   vat_rate?: number;
+  unit?: string | null;
 };
 
 type MaterialJsonRow = {
+  unit?: unknown;
   label?: unknown;
   quantity?: unknown;
   exclude_from_invoice?: unknown;
@@ -169,6 +172,7 @@ async function resolveQuoteInput(
         isSupplierCatalog: Boolean(m?.is_supplier_catalog),
         excludeFromInvoice,
         vat_rate,
+        unit: normalizeMaterialUnit(typeof m?.unit === "string" ? m.unit : null),
       };
     })
     .filter((m) => m.label);
@@ -354,6 +358,7 @@ async function writeQuoteLines(supabase: SupabaseClient, quoteId: string, d: Res
       is_supplier_catalog: m.isSupplierCatalog ?? false,
       exclude_from_invoice: m.excludeFromInvoice ?? false,
       vat_rate: m.vat_rate ?? 20,
+      unit: m.unit ?? null,
     }));
 
   if (quoteMaterialRows.length) {

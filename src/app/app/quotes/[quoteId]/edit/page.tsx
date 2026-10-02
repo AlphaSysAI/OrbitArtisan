@@ -92,7 +92,8 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
       .order("created_at", { ascending: true }),
     supabase
       .from("quote_materials")
-      .select("label, quantity, unit_price, vat_rate, exclude_from_invoice")
+      // « * » : reste lisible si la migration 60 (colonne unit) n'est pas encore appliquée.
+      .select("*")
       .eq("quote_id", quoteId)
       .order("created_at", { ascending: true }),
   ]);
@@ -138,6 +139,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
           unitPriceCents: m.unit_price as number,
           vatRate: String(m.vat_rate ?? 20),
           excludeFromInvoice: !!m.exclude_from_invoice,
+          unit: (m.unit as string | null) ?? null,
         })),
         reducedVatRate: quote.reduced_vat_rate != null ? String(quote.reduced_vat_rate) : "20",
         workSiteAddress: quote.work_site_address ?? "",

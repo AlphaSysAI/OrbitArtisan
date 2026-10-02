@@ -1,5 +1,6 @@
 import type { MatchedSupplierMaterial } from "@/lib/ai/quote-from-chat-schema";
 import type { AiSupplierMaterialDraft } from "@/lib/ai/quote-draft-storage";
+import { normalizeMaterialUnit } from "@/lib/quotes/material-unit";
 
 function formatPriceEur(price: number): string {
   return price.toFixed(2).replace(".", ",");
@@ -41,6 +42,7 @@ export function mapSupplierMaterialRowToDraft(
       similarity: row.match.similarity,
       requestedName: row.requested_name,
       specifications: row.specifications,
+      unit: normalizeMaterialUnit(row.unit),
     };
   }
 
@@ -56,5 +58,6 @@ export function mapSupplierMaterialRowToDraft(
     similarity: null,
     requestedName: row.requested_name,
     specifications: row.specifications,
+    unit: normalizeMaterialUnit(row.unit),
   };
 }

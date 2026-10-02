@@ -30,6 +30,8 @@ export type FacturXLineInput = {
   vatRate: number;
   vatCategoryCode: string;
   vatExemptionReason?: string | null;
+  /** Unité marchande (BT-130 via code UN/ECE) ; null → C62. */
+  unit?: string | null;
 };
 
 /** Document facture prêt pour la génération CII / PDF Factur-X. */

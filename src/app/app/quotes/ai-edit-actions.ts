@@ -16,6 +16,7 @@ import {
 import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
 import { applyMaterialsMargin } from "@/lib/billing/materials-margin";
+import { findReferencePrice } from "@/lib/ai/recipe-reference-prices";
 
 const snapshotSchema = z.object({
   lines: z
@@ -26,6 +27,7 @@ const snapshotSchema = z.object({
         label: z.string().max(300),
         quantity: z.number().finite(),
         unitPriceEur: z.number().finite().nullable(),
+        unit: z.string().max(20).nullable().optional(),
       }),
     )
     .max(200),
@@ -99,17 +101,28 @@ export async function aiEditQuoteForm(input: { snapshot: QuoteFormSnapshot; inst
     }
   }
 
-  // 2. Prix publics web, uniquement pour les nouvelles lignes encore sans prix.
+  const { data: profile } = await auth.supabase
+    .from("profiles")
+    .select("materials_margin_rate")
+    .eq("id", auth.profileId)
+    .maybeSingle();
+  const marginRate = Number(profile?.materials_margin_rate ?? 0) || 0;
+  const marginNote = marginRate > 0 ? `, ta marge de ${String(marginRate).replace(".", ",")} % incluse` : "";
+
+  // 2. Barème de la bibliothèque d'ouvrages (même article, même unité), marge appliquée.
+  for (const op of unpriced) {
+    if (op.unit_price_eur !== null) continue;
+    const reference = findReferencePrice(op.label!.trim(), op.unit);
+    if (!reference) continue;
+    op.unit_price_eur = applyMaterialsMargin(reference.priceHtEur, marginRate);
+    pricingNotes.push(`« ${op.label} » : prix du barème Soline (${reference.referenceName})${marginNote} — à valider.`);
+  }
+
+  // 3. Prix publics web, uniquement pour les nouvelles lignes encore sans prix.
   const stillUnpriced = unpriced.filter((op) => op.unit_price_eur === null);
   if (stillUnpriced.length) {
-    const { data: profile } = await auth.supabase
-      .from("profiles")
-      .select("materials_margin_rate")
-      .eq("id", auth.profileId)
-      .maybeSingle();
-    const marginRate = Number(profile?.materials_margin_rate ?? 0) || 0;
     const estimate = await estimateMaterialUnitPricesEur(
-      stillUnpriced.map((op) => ({ name: op.label!.trim(), quantity: op.quantity ?? 1, specifications: null })),
+      stillUnpriced.map((op) => ({ name: op.label!.trim(), quantity: op.quantity ?? 1, specifications: op.unit ?? null })),
       instruction,
     );
     for (const op of stillUnpriced) {
@@ -118,7 +131,7 @@ export async function aiEditQuoteForm(input: { snapshot: QuoteFormSnapshot; inst
       // Prix d'achat estimé → prix de vente (marge des réglages, jamais affichée au client).
       op.unit_price_eur = applyMaterialsMargin(price, marginRate);
       pricingNotes.push(
-        `« ${op.label} » : prix estimé ${estimate.webUsed ? `d'après ${estimate.sources.slice(0, 3).join(", ") || "le web"}` : "(marché)"}${marginRate > 0 ? `, ta marge de ${String(marginRate).replace(".", ",")} % incluse` : ""} — à valider.`,
+        `« ${op.label} » : prix estimé ${estimate.webUsed ? `d'après ${estimate.sources.slice(0, 3).join(", ") || "le web"}` : "(marché)"}${marginNote} — à valider.`,
       );
     }
   }

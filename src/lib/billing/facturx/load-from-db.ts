@@ -76,6 +76,7 @@ type InvoiceLineRow = {
   vat_rate: number | null;
   vat_category_code: string | null;
   vat_exemption_reason: string | null;
+  unit?: string | null;
 };
 
 /** Charge une facture Supabase et la mappe vers le document Factur-X. */
@@ -109,7 +110,8 @@ export async function loadFacturXDocumentFromDb(
       .maybeSingle(),
     supabase
       .from("invoice_lines")
-      .select("label, quantity, line_total, sort_order, vat_rate, vat_category_code, vat_exemption_reason")
+      // « * » : tolérant à la migration 60 (colonne unit) non appliquée.
+      .select("*")
       .eq("invoice_id", invoiceId)
       .order("sort_order", { ascending: true }),
   ]);
@@ -138,6 +140,7 @@ export async function loadFacturXDocumentFromDb(
     vatRate: line.vat_rate ?? 20,
     vatCategoryCode: line.vat_category_code ?? "S",
     vatExemptionReason: line.vat_exemption_reason,
+    unit: line.unit ?? null,
   }));
 
   return {

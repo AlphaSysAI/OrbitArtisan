@@ -204,6 +204,7 @@ export async function duplicateQuote(quoteId: string): Promise<{ ok: true; newQu
         unit_price: m.unit_price,
         line_total: m.line_total,
         vat_rate: m.vat_rate,
+        unit: m.unit ?? null,
       })),
     );
   }

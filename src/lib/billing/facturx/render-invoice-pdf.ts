@@ -11,6 +11,7 @@ import { formatDateForPdf } from "@/lib/billing/pdf-text";
 import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 
 import type { FacturXInvoiceDocument } from "./types";
+import { materialUnitLabel } from "@/lib/quotes/material-unit";
 
 type InvoicePdfVatGroup = {
   rate: number;
@@ -112,7 +113,7 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
       const unitCents = line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents;
       return {
         designation: line.label,
-        quantity: formatQtyForPdf(line.quantity),
+        quantity: line.unit ? `${formatQtyForPdf(line.quantity)} ${materialUnitLabel(line.unit)}` : formatQtyForPdf(line.quantity),
         unitPrice: eur(unitCents),
         vat: formatRateForPdf(line.vatRate),
         total: eur(line.lineTotalCents),

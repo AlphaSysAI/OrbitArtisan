@@ -5,6 +5,7 @@ import type {
   TradeTax,
 } from "./cii-types";
 import type { FacturXInvoiceDocument, FacturXLineInput, FacturXProfile } from "./types";
+import { uneceUnitCode } from "@/lib/quotes/material-unit";
 
 const GUIDELINE_URNS: Record<FacturXProfile, string> = {
   basic: "urn:factur-x.eu:1p0:basic",
@@ -94,11 +95,11 @@ function buildLineItem(line: FacturXLineInput, currency: string): SupplyChainTra
     specifiedLineTradeAgreement: {
       netPriceProductTradePrice: {
         chargeAmount: amount(unitNetCents, currency),
-        basisQuantity: { value: 1, unitCode: "C62" },
+        basisQuantity: { value: 1, unitCode: uneceUnitCode(line.unit) },
       },
     },
     specifiedLineTradeDelivery: {
-      billedQuantity: { value: line.quantity, unitCode: "C62" },
+      billedQuantity: { value: line.quantity, unitCode: uneceUnitCode(line.unit) },
     },
     specifiedLineTradeSettlement: {
       applicableTradeTax: [buildLineTax(line)],

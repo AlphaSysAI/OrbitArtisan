@@ -45,6 +45,8 @@ export type SupplierMaterialRow = {
   similarity: number | null;
   requestedName: string;
   specifications: string | null;
+  /** Unité marchande (persistée dans quote_materials.unit). */
+  unit?: string | null;
 };
 
 export function parseEurToCents(raw: string): number | null {
@@ -92,6 +94,7 @@ type QuoteMaterialPayload = {
   supplier_sku: string | null;
   is_supplier_catalog: boolean;
   exclude_from_invoice: boolean;
+  unit: string | null;
 };
 
 export function buildMaterialsPayload(
@@ -110,6 +113,7 @@ export function buildMaterialsPayload(
       supplier_sku: m.supplierSku.trim() || null,
       is_supplier_catalog: false,
       exclude_from_invoice: m.excludeFromInvoice,
+      unit: m.unit || null,
     }));
   const supplier = supplierMaterials
     .filter((m) => m.label.trim())
@@ -122,6 +126,7 @@ export function buildMaterialsPayload(
       supplier_sku: m.supplierSku,
       is_supplier_catalog: true,
       exclude_from_invoice: m.excludeFromInvoice,
+      unit: m.unit ?? null,
       // Matériaux catalogue : toujours au taux du devis (auparavant 20 % forcé).
       vat_rate: reducedVatRate,
     }));

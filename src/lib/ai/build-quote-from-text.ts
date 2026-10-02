@@ -24,6 +24,7 @@ import {
 } from "@/lib/ai/quote-from-chat-schema";
 import { formatTradeLabel } from "@/lib/trades/taxonomy";
 import { applyMaterialsMargin } from "@/lib/billing/materials-margin";
+import { findReferencePrice } from "@/lib/ai/recipe-reference-prices";
 
 /** Similarité minimale (embeddings mistral-embed) pour proposer un produit catalogue. */
 const CATALOG_MIN_SIMILARITY = 0.6;
@@ -61,12 +62,15 @@ type NeededMaterial = {
   name_generic: string;
   quantity: number;
   specifications: string | null;
+  /** Unité d'achat (métré) : condition pour appliquer un prix de référence de la bibliothèque. */
+  unit?: string | null;
 };
 
 function materialsFromTakeoff(takeoff: MaterialTakeoff): NeededMaterial[] {
   return takeoff.materials.map((m) => ({
     name_generic: m.name_generic,
     quantity: Math.ceil(m.quantity),
+    unit: m.unit,
     // L'unité d'achat reste visible même quand un conditionnement est précisé : sans elle,
     // « 2 » + « Rouleau de 75 m² » ou « 1800 » + « Palette de 300 » est ambigu pour le chiffrage.
     specifications: m.specifications ? `${m.unit} · ${m.specifications}` : m.unit,
@@ -304,15 +308,37 @@ ${instruction}`;
       requested_name: material.name_generic,
       quantity: material.quantity,
       specifications: material.specifications,
+      unit: material.unit ?? null,
       match,
     };
   }
 
+  // 1. Barème de la bibliothèque d'ouvrages (prix moyens HT d'achat) : prioritaire.
+  //    Ligne facturée par l'artisan, marge des réglages appliquée ; ni catalogue ni web.
+  // 2. Sinon catalogue fournisseur, puis recherche web pour ce qui reste sans prix.
+  let referencePriced = 0;
   let supplierMaterials: MatchedSupplierMaterial[] = await Promise.all(
-    neededMaterials.map(matchOneMaterial),
+    neededMaterials.map((material) => {
+      const reference = findReferencePrice(material.name_generic, material.unit);
+      if (!reference) return matchOneMaterial(material);
+      referencePriced += 1;
+      return Promise.resolve<MatchedSupplierMaterial>({
+        requested_name: material.name_generic,
+        quantity: material.quantity,
+        specifications: material.specifications,
+        unit: material.unit ?? null,
+        match: null,
+        estimated_unit_price_eur: applyMaterialsMargin(reference.priceHtEur, marginRate),
+      });
+    }),
   );
+  if (referencePriced) {
+    warnings.push(
+      `${referencePriced} fourniture${referencePriced > 1 ? "s" : ""} chiffrée${referencePriced > 1 ? "s" : ""} au barème Soline (prix moyens HT)${marginRate > 0 ? `, ta marge de ${String(marginRate).replace(".", ",")} % incluse` : ""} — à valider.`,
+    );
+  }
 
-  const withoutCatalogPrice = supplierMaterials.filter((row) => !row.match);
+  const withoutCatalogPrice = supplierMaterials.filter((row) => !row.match && row.estimated_unit_price_eur == null);
   if (withoutCatalogPrice.length) {
     const estimates = await estimateMaterialUnitPricesEur(
       withoutCatalogPrice.map((row) => ({
@@ -324,7 +350,7 @@ ${instruction}`;
     );
     if (estimates.prices.size) {
       supplierMaterials = supplierMaterials.map((row) => {
-        if (row.match) return row;
+        if (row.match || row.estimated_unit_price_eur != null) return row;
         const est = lookupEstimatedUnitPrice(estimates.prices, row.requested_name);
         if (est == null) return row;
         // Prix d'achat estimé → prix de vente : marge de l'artisan (réglages), jamais affichée au client.

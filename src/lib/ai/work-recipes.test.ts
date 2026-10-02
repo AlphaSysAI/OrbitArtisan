@@ -54,3 +54,21 @@ describe("calculateTakeoffFromRecipe", () => {
     expect(() => calculateTakeoffFromRecipe("peinture_murs_et_plafonds", 1e6)).toThrow();
   });
 });
+
+describe("bibliothèque v2", () => {
+  it("expose le prix de référence HT et accepte un ouvrage sans fourniture", () => {
+    const ids = listWorkRecipes().map((r) => r.id);
+    expect(ids).toHaveLength(23);
+    expect(findWorkRecipe("maconnerie_mur_brique_20")?.materials_per_unit[0]?.reference_price_ht_eur).toBe(3.4);
+    const fouilles = calculateTakeoffFromRecipe("terrassement_fouilles_rigoles", 49.3);
+    expect(fouilles.materials).toEqual([]);
+    expect(fouilles.labor_hours_estimate).toBe(12.3);
+  });
+
+  it("arrondit cartouches et ensembles à l'unité", () => {
+    const fenetres = calculateTakeoffFromRecipe("menuiserie_pose_fenetre_applique_alu_pvc", 3);
+    expect(fenetres.materials.find((m) => m.unit === "cartouches")?.quantity).toBe(2);
+    const combles = calculateTakeoffFromRecipe("isolation_combles_perdus_soufflage", 80);
+    expect(combles.materials.find((m) => m.unit === "ens")?.quantity).toBe(1); // forfait par chantier
+  });
+});

@@ -1,4 +1,5 @@
 import type { QuotePdfTableLine, QuoteVatBreakdownRow } from "@/lib/billing/quote-pdf-types";
+import { materialUnitLabel } from "@/lib/quotes/material-unit";
 
 /**
  * 0 % = franchise en base (art. 293 B) : la base n'accepte 0 que pour une entreprise
@@ -53,6 +54,8 @@ type MaterialRow = {
   line_total: number | null;
   vat_rate: number | null;
   exclude_from_invoice?: boolean | null;
+  /** Unité marchande persistée (null : ancienne ligne → « u »). */
+  unit?: string | null;
 };
 
 export function buildQuotePdfTableLines(params: {
@@ -130,7 +133,7 @@ export function buildQuotePdfTableLines(params: {
       designation: material.label,
       detail: "Fourniture",
       quantity: material.quantity,
-      quantityLabel: "u",
+      quantityLabel: materialUnitLabel(material.unit),
       unitPriceCents: material.unit_price,
       vatRate: normalizeVatRate(material.vat_rate),
       lineTotalCents: lineTotal,

@@ -8,12 +8,21 @@ import type { MaterialTakeoff } from "@/lib/ai/quote-material-takeoff";
  * le code applique les ratios (fournitures, heures, phases). Aucune quantité inventée.
  */
 
-const RecipeMaterialSchema = z.object({
-  name_generic: z.string().min(2),
-  ratio: z.number().positive(),
-  unit: z.string().min(1),
-  specifications: z.string().nullable(),
-});
+const RecipeMaterialSchema = z
+  .object({
+    name_generic: z.string().min(2),
+    /** Quantité par unité d'ouvrage (proportionnelle à Q). */
+    ratio: z.number().positive().optional(),
+    /** Forfait par chantier, indépendant de Q (ex. 1 protection de trappe). Exclusif de `ratio`. */
+    fixed_quantity: z.number().positive().optional(),
+    unit: z.string().min(1),
+    specifications: z.string().nullable(),
+    /** Prix moyen HT d'achat (€ par unité de la ligne), barème indicatif de la bibliothèque. */
+    reference_price_ht_eur: z.number().positive().optional(),
+  })
+  .refine((m) => (m.ratio === undefined) !== (m.fixed_quantity === undefined), {
+    message: "ratio XOR fixed_quantity",
+  });
 
 const RecipeLaborPhaseSchema = z.object({
   title: z.string().min(2),
@@ -26,7 +35,8 @@ const WorkRecipeSchema = z.object({
   title: z.string(),
   unit: z.string(),
   labor_hours_per_unit: z.number().positive(),
-  materials_per_unit: z.array(RecipeMaterialSchema).min(1),
+  // Vide autorisé : ouvrage de main-d'œuvre seule (ex. fouilles à la mini-pelle).
+  materials_per_unit: z.array(RecipeMaterialSchema),
   labor_phases: z.array(RecipeLaborPhaseSchema).min(1),
 });
 
@@ -37,7 +47,9 @@ export type WorkRecipe = z.infer<typeof WorkRecipeSchema>;
 /** Phase de main-d'œuvre chiffrée (heures) issue d'une recette. */
 export type RecipeLaborPhaseHours = { title: string; hours: number };
 
-export type RecipeTakeoff = MaterialTakeoff & { labor_phases: RecipeLaborPhaseHours[] };
+export type RecipeTakeoff = MaterialTakeoff & {
+  labor_phases: RecipeLaborPhaseHours[];
+};
 
 /** Validée au chargement : une recette mal saisie (part, ratio, id) casse le build, pas un devis. */
 const RECIPES: Record<string, WorkRecipe> = z
@@ -48,10 +60,14 @@ const RECIPES: Record<string, WorkRecipe> = z
 export const MAX_RECIPE_QUANTITY = 5000;
 
 /** Unités vendues à la pièce ou au conditionnement : arrondi à l'entier supérieur (on n'achète pas 0,4 sac). */
-const DISCRETE_UNITS = /^(u|unites?|pieces?|sacs?|rouleaux?|boites?|seaux?|pots?|palettes?|bottes?)$/i;
+const DISCRETE_UNITS =
+  /^(u|unites?|pieces?|sacs?|rouleaux?|boites?|seaux?|pots?|palettes?|bottes?|cartouches?|ens)$/i;
 
 function foldUnit(unit: string): string {
-  return unit.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim();
+  return unit
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim();
 }
 
 /** Arrondi supérieur sans artefact flottant (135 × 1,12 = 151,20000000000002 → 151,2, pas 151,21). */
@@ -64,7 +80,9 @@ export function listWorkRecipes(): WorkRecipe[] {
   return Object.values(RECIPES);
 }
 
-export function findWorkRecipe(id: string | null | undefined): WorkRecipe | null {
+export function findWorkRecipe(
+  id: string | null | undefined,
+): WorkRecipe | null {
   if (!id) return null;
   return RECIPES[id.trim()] ?? null;
 }
@@ -81,28 +99,42 @@ export function formatRecipesForPrompt(): string {
  * (entier supérieur pour les unités discrètes), heures arrondies au dixième,
  * phases réparties selon `share` avec l'écart d'arrondi sur la dernière.
  */
-export function calculateTakeoffFromRecipe(recipeId: string, quantity: number): RecipeTakeoff {
+export function calculateTakeoffFromRecipe(
+  recipeId: string,
+  quantity: number,
+): RecipeTakeoff {
   const recipe = findWorkRecipe(recipeId);
   if (!recipe) throw new Error(`unknown_recipe:${recipeId}`);
-  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > MAX_RECIPE_QUANTITY) {
+  if (
+    !Number.isFinite(quantity) ||
+    quantity <= 0 ||
+    quantity > MAX_RECIPE_QUANTITY
+  ) {
     throw new Error("invalid_recipe_quantity");
   }
 
   const materials = recipe.materials_per_unit.map((m) => {
-    const raw = quantity * m.ratio;
+    const raw = m.fixed_quantity ?? quantity * m.ratio!;
     return {
       name_generic: m.name_generic,
-      quantity: DISCRETE_UNITS.test(foldUnit(m.unit)) ? Math.ceil(ceilTo(raw, 2)) : ceilTo(raw, 2),
+      quantity: DISCRETE_UNITS.test(foldUnit(m.unit))
+        ? Math.ceil(ceilTo(raw, 2))
+        : ceilTo(raw, 2),
       unit: m.unit,
       specifications: m.specifications,
     };
   });
 
-  const laborHours = Math.round(Number((quantity * recipe.labor_hours_per_unit * 10).toFixed(6))) / 10;
+  const laborHours =
+    Math.round(
+      Number((quantity * recipe.labor_hours_per_unit * 10).toFixed(6)),
+    ) / 10;
   let allocated = 0;
   const labor_phases = recipe.labor_phases.map((p, i) => {
     const last = i === recipe.labor_phases.length - 1;
-    const hours = last ? Math.round((laborHours - allocated) * 10) / 10 : Math.round(Number((laborHours * p.share * 10).toFixed(6))) / 10;
+    const hours = last
+      ? Math.round((laborHours - allocated) * 10) / 10
+      : Math.round(Number((laborHours * p.share * 10).toFixed(6))) / 10;
     allocated += hours;
     return { title: p.title, hours };
   });
@@ -117,7 +149,8 @@ export function calculateTakeoffFromRecipe(recipeId: string, quantity: number): 
     materials,
     masonry_wall_area_m2: null,
     labor_hours_estimate: laborHours > 0 ? laborHours : null,
-    calculation_notes: "Métré calculé par ratios standards — quantités indicatives, à valider sur chantier.",
+    calculation_notes:
+      "Métré calculé par ratios standards — quantités indicatives, à valider sur chantier.",
     matched_recipe_id: recipe.id,
     recipe_quantity: quantity,
     labor_phases,

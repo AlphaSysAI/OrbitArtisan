@@ -1,23 +1,63 @@
 {
   "recipes": {
+    "plancher_intermediaire_poutrelles_hourdis": {
+      "id": "plancher_intermediaire_poutrelles_hourdis",
+      "category": "Gros œuvre / Planchers",
+      "title": "Plancher intermédiaire poutrelles béton et entrevous (hourdis) avec table de compression",
+      "unit": "m²",
+      "labor_hours_per_unit": 0.65,
+      "materials_per_unit": [
+        {"name_generic": "Poutrelles béton précontraint et entrevous béton/bois", "ratio": 1.0, "unit": "m²", "specifications": "Système plancher standard 12+4 ou 16+4", "reference_price_ht_eur": 32.0},
+        {"name_generic": "Treillis soudé anti-fissuration pour table de compression (type PAF)", "ratio": 1.15, "unit": "m²", "specifications": "Panneau de treillis soudé de surface", "reference_price_ht_eur": 3.8},
+        {"name_generic": "Béton prêt à l'emploi C25/30 pour table de compression", "ratio": 0.06, "unit": "m³", "specifications": "Épaisseur 4-5 cm (+8% pertes)", "reference_price_ht_eur": 125.0},
+        {"name_generic": "Planelles de rive béton 20x5x50", "ratio": 0.45, "unit": "ml", "specifications": "Coffrage isolant de rive de plancher", "reference_price_ht_eur": 2.1}
+      ],
+      "labor_phases": [
+        {"title": "Étaiement, pose des poutrelles et mise en place des entrevous", "share": 0.45},
+        {"title": "Ferraillage de rive (planelles), chapeaux et treillis soudé", "share": 0.25},
+        {"title": "Coulage et surfaçage de la table de compression", "share": 0.30}
+      ]
+    },
     "maconnerie_mur_parpaing_20": {
       "id": "maconnerie_mur_parpaing_20",
       "category": "Gros œuvre / Maçonnerie",
-      "title": "Élévation mur porteur en parpaings creux de 20x20x50",
+      "title": "Élévation de murs porteurs en parpaings creux de 20x20x50",
       "unit": "m²",
       "labor_hours_per_unit": 1.1,
       "materials_per_unit": [
-        { "name_generic": "Parpaing creux 20x20x50", "ratio": 10.5, "unit": "u", "specifications": "Palette de 60 ou 70 u (+5% casse)" },
-        { "name_generic": "Parpaing poteau d'angle 20x20x50", "ratio": 0.8, "unit": "u", "specifications": "Pour raidisseurs verticaux d'angles et refends" },
-        { "name_generic": "Parpaing linteau U 20x20x50", "ratio": 0.4, "unit": "u", "specifications": "Pour chaînage horizontal sous toiture" },
-        { "name_generic": "Mortier de montage prêt à l'emploi", "ratio": 0.6, "unit": "sacs", "specifications": "Sac de 35 kg" },
-        { "name_generic": "Bande d'arase étanche bitumineuse", "ratio": 0.4, "unit": "ml", "specifications": "Rouleau sous DTU 20.1" },
-        { "name_generic": "Armature chaînage 4 filants HA8/10", "ratio": 0.4, "unit": "ml", "specifications": "Chaînages horizontaux et verticaux" }
+        {"name_generic": "Parpaing creux 20x20x50", "ratio": 10.5, "unit": "u", "specifications": "Palette de 60 ou 70 u (+5% casse)", "reference_price_ht_eur": 1.25},
+        {"name_generic": "Parpaing poteau d'angle 20x20x50", "ratio": 0.8, "unit": "u", "specifications": "Pour raidisseurs verticaux d'angles et refends", "reference_price_ht_eur": 1.65},
+        {"name_generic": "Parpaing linteau U 20x20x50", "ratio": 0.4, "unit": "u", "specifications": "Pour chaînages horizontaux sous toiture", "reference_price_ht_eur": 2.1},
+        {"name_generic": "Mortier de montage prêt à l'emploi", "ratio": 0.6, "unit": "sacs", "specifications": "Sac de 35 kg (~22 kg/m²)", "reference_price_ht_eur": 5.8},
+        {"name_generic": "Bande d'arase étanche bitumineuse", "ratio": 0.4, "unit": "ml", "specifications": "Rouleau sous DTU 20.1", "reference_price_ht_eur": 1.35},
+        {"name_generic": "Armature chaînage 4 filants HA8/10", "ratio": 0.4, "unit": "ml", "specifications": "Chaînages verticaux et horizontaux", "reference_price_ht_eur": 6.2},
+        {"name_generic": "Béton prêt à l'emploi pour chaînages", "ratio": 0.025, "unit": "m³", "specifications": "Remplissage des poteaux et linteaux", "reference_price_ht_eur": 125.0}
       ],
       "labor_phases": [
-        { "title": "Implantation, arase étanche et premier rang", "share": 0.15 },
-        { "title": "Élévation des murs et réservations", "share": 0.65 },
-        { "title": "Ferraillage et coulage des chaînages/linteaux", "share": 0.20 }
+        {"title": "Implantation, arase étanche et réglage du premier rang", "share": 0.15},
+        {"title": "Élévation des murs et réservations de baies", "share": 0.65},
+        {"title": "Ferraillage et coulage des chaînages et linteaux", "share": 0.2}
+      ]
+    },
+    "maconnerie_mur_brique_20": {
+      "id": "maconnerie_mur_brique_20",
+      "category": "Gros œuvre / Maçonnerie",
+      "title": "Élévation de murs porteurs en briques creuses de structure 20 cm à joint mince",
+      "unit": "m²",
+      "labor_hours_per_unit": 1.05,
+      "materials_per_unit": [
+        {"name_generic": "Brique creuse de structure 20 cm (type Calibric / BGV)", "ratio": 6.8, "unit": "u", "specifications": "Palette de 60 u (+5% casse)", "reference_price_ht_eur": 3.4},
+        {"name_generic": "Brique poteau d'angle 20 cm", "ratio": 0.8, "unit": "u", "specifications": "Pour raidisseurs d'angles et tableaux", "reference_price_ht_eur": 4.2},
+        {"name_generic": "Brique linteau U 20 cm", "ratio": 0.4, "unit": "u", "specifications": "Pour chaînages et linteaux", "reference_price_ht_eur": 4.8},
+        {"name_generic": "Mortier-colle pour briques joint mince", "ratio": 0.12, "unit": "sacs", "specifications": "Sac de 25 kg (~3 kg/m²)", "reference_price_ht_eur": 18.5},
+        {"name_generic": "Bande d'arase étanche bitumineuse", "ratio": 0.4, "unit": "ml", "specifications": "Coupure de capillarité DTU 20.1", "reference_price_ht_eur": 1.35},
+        {"name_generic": "Armature chaînage 4 filants HA8/10", "ratio": 0.4, "unit": "ml", "specifications": "Poutre chaînage 4 filants", "reference_price_ht_eur": 6.2},
+        {"name_generic": "Béton prêt à l'emploi pour chaînages", "ratio": 0.025, "unit": "m³", "specifications": "Coulage dans poteaux et blocs U", "reference_price_ht_eur": 125.0}
+      ],
+      "labor_phases": [
+        {"title": "Implantation, arase étanche et réglage du 1er rang au mortier", "share": 0.2},
+        {"title": "Élévation des murs à joint mince au rouleau", "share": 0.6},
+        {"title": "Ferraillage et coulage des chaînages et linteaux", "share": 0.2}
       ]
     },
     "couverture_toiture_tuile_fermette": {
@@ -27,162 +67,380 @@
       "unit": "m²",
       "labor_hours_per_unit": 0.9,
       "materials_per_unit": [
-        { "name_generic": "Charpente fermette industrielle bois", "ratio": 1.0, "unit": "m²", "specifications": "Entraxe 60 cm, bois traité classe 2" },
-        { "name_generic": "Écran de sous-toiture HPV R2", "ratio": 1.12, "unit": "m²", "specifications": "Rouleau de 75 m² (recouvrement 10% inclus)" },
-        { "name_generic": "Contre-latte sapin traité 27x40", "ratio": 1.8, "unit": "ml", "specifications": "Botte de 30 ml" },
-        { "name_generic": "Liteau sapin traité 27x40", "ratio": 3.0, "unit": "ml", "specifications": "Botte de 30 ml" },
-        { "name_generic": "Tuile terre cuite mécanique grand moule", "ratio": 10.5, "unit": "u", "specifications": "Palette de 300 u (+5% casse)" },
-        { "name_generic": "Tuile faîtière terre cuite", "ratio": 0.12, "unit": "ml", "specifications": "Longueur utile 30-35 cm" },
-        { "name_generic": "Closoir ventilé souple alu/cuivre", "ratio": 0.12, "unit": "ml", "specifications": "Rouleau de 5 ml ou 10 ml" },
-        { "name_generic": "Tuile de rive terre cuite", "ratio": 0.15, "unit": "ml", "specifications": "Rives individuelles" },
-        { "name_generic": "Crochets de fixation de tuile inox", "ratio": 3.5, "unit": "u", "specifications": "Boîte de 100 u" },
-        { "name_generic": "Pointes et fixations charpente", "ratio": 0.05, "unit": "kg", "specifications": "Pointes annelées et équerres" }
+        {"name_generic": "Charpente fermette industrielle bois", "ratio": 1.0, "unit": "m²", "specifications": "Entraxe 60 cm, bois traité classe 2", "reference_price_ht_eur": 24.0},
+        {"name_generic": "Écran de sous-toiture HPV R2", "ratio": 1.12, "unit": "m²", "specifications": "Rouleau de 75 m² (recouvrement 10% inclus)", "reference_price_ht_eur": 1.95},
+        {"name_generic": "Contre-latte sapin traité 27x40", "ratio": 1.8, "unit": "ml", "specifications": "Botte de 30 ml", "reference_price_ht_eur": 0.75},
+        {"name_generic": "Liteau sapin traité 27x40", "ratio": 3.0, "unit": "ml", "specifications": "Botte de 30 ml (au pureau de la tuile)", "reference_price_ht_eur": 0.75},
+        {"name_generic": "Tuile terre cuite mécanique grand moule", "ratio": 10.5, "unit": "u", "specifications": "Palette de 300 u (+5% casse)", "reference_price_ht_eur": 1.55},
+        {"name_generic": "Tuile faîtière terre cuite", "ratio": 0.12, "unit": "ml", "specifications": "Longueur utile 30-35 cm", "reference_price_ht_eur": 8.5},
+        {"name_generic": "Closoir ventilé souple alu/cuivre", "ratio": 0.12, "unit": "ml", "specifications": "Rouleau de 5 ml ou 10 ml", "reference_price_ht_eur": 6.8},
+        {"name_generic": "Tuile de rive terre cuite", "ratio": 0.15, "unit": "ml", "specifications": "Rives individuelles droite/gauche", "reference_price_ht_eur": 9.2},
+        {"name_generic": "Crochets de fixation de tuile inox", "ratio": 3.5, "unit": "u", "specifications": "Boîte de 100 u", "reference_price_ht_eur": 0.28},
+        {"name_generic": "Pointes et fixations charpente", "ratio": 0.05, "unit": "kg", "specifications": "Pointes annelées et équerres de fixation", "reference_price_ht_eur": 8.0}
       ],
       "labor_phases": [
-        { "title": "Levage et ancrage de la charpente fermette", "share": 0.35 },
-        { "title": "Pose écran HPV, contre-lattage et litelage", "share": 0.30 },
-        { "title": "Pose des tuiles, faîtage ventilé et rives", "share": 0.35 }
+        {"title": "Levage et ancrage de la charpente fermette", "share": 0.35},
+        {"title": "Pose écran HPV, contre-lattage et litelage", "share": 0.3},
+        {"title": "Pose des tuiles, faîtage ventilé et rives", "share": 0.35}
       ]
     },
     "platrerie_doublage_murs_ba13": {
       "id": "platrerie_doublage_murs_ba13",
       "category": "Plâtrerie / Isolation",
-      "title": "Doublage isolant sur ossature métallique (laine + BA13)",
+      "title": "Doublage thermique sur ossature métallique (laine de verre 100mm + BA13)",
       "unit": "m²",
       "labor_hours_per_unit": 0.65,
       "materials_per_unit": [
-        { "name_generic": "Plaque de plâtre standard BA13 250x120", "ratio": 1.05, "unit": "m²", "specifications": "Plaque de 3 m² (+5% chutes)" },
-        { "name_generic": "Laine de verre semi-rigide GR32 100mm", "ratio": 1.05, "unit": "m²", "specifications": "Rouleau ou panneau roulé" },
-        { "name_generic": "Fourrure métallique F530 ou montant M48", "ratio": 2.0, "unit": "ml", "specifications": "Entraxe 60 cm" },
-        { "name_generic": "Lisse basse / rail R48", "ratio": 0.45, "unit": "ml", "specifications": "Longueur 3m" },
-        { "name_generic": "Vis TTPC 25 mm pour plaques", "ratio": 15.0, "unit": "u", "specifications": "Boîte de 1000 u" },
-        { "name_generic": "Bande à joint papier microperforée", "ratio": 1.5, "unit": "ml", "specifications": "Rouleau de 150 ml" },
-        { "name_generic": "Enduit à joint prêt à l'emploi", "ratio": 0.35, "unit": "kg", "specifications": "Seau de 20 kg" }
+        {"name_generic": "Plaque de plâtre standard BA13 250x120", "ratio": 1.05, "unit": "m²", "specifications": "Plaque de 3 m² (+5% chutes)", "reference_price_ht_eur": 3.8},
+        {"name_generic": "Laine de verre semi-rigide GR32 R=3.15 (100mm)", "ratio": 1.05, "unit": "m²", "specifications": "Rouleau ou panneau roulé", "reference_price_ht_eur": 8.9},
+        {"name_generic": "Fourrure métallique F530", "ratio": 2.0, "unit": "ml", "specifications": "Longueur 3m ou 4m (entraxe 60 cm)", "reference_price_ht_eur": 1.45},
+        {"name_generic": "Lisse basse / rail R48", "ratio": 0.8, "unit": "ml", "specifications": "Lisse haute + lisse basse, longueur 3m", "reference_price_ht_eur": 1.6},
+        {"name_generic": "Appuis intermédiaires rupteurs thermiques", "ratio": 1.4, "unit": "u", "specifications": "Boîte de 50 u", "reference_price_ht_eur": 1.2},
+        {"name_generic": "Vis TTPC 25 mm pour plaques", "ratio": 15.0, "unit": "u", "specifications": "Boîte de 1000 u", "reference_price_ht_eur": 0.02},
+        {"name_generic": "Bande à joint papier microperforée", "ratio": 1.5, "unit": "ml", "specifications": "Rouleau de 150 ml", "reference_price_ht_eur": 0.06},
+        {"name_generic": "Enduit à joint prêt à l'emploi", "ratio": 0.35, "unit": "kg", "specifications": "Seau de 20 kg", "reference_price_ht_eur": 1.15}
       ],
       "labor_phases": [
-        { "title": "Pose ossature, lisses et appuis intermédiaires", "share": 0.35 },
-        { "title": "Pose isolant et vissage plaques BA13", "share": 0.40 },
-        { "title": "Traitement des joints (3 passes) et ponçage", "share": 0.25 }
+        {"title": "Pose ossature, lisses et appuis intermédiaires", "share": 0.35},
+        {"title": "Pose isolant et vissage plaques BA13", "share": 0.4},
+        {"title": "Traitement des joints (3 passes) et ponçage", "share": 0.25}
       ]
     },
     "platrerie_cloison_distribution_72_48": {
       "id": "platrerie_cloison_distribution_72_48",
       "category": "Plâtrerie / Cloisons",
-      "title": "Cloison de distribution 72/48 (montants 48 + 2 BA13 + laine)",
+      "title": "Cloison de distribution 72/48 (montants 48 + 2 BA13 + laine acoustique)",
       "unit": "m²",
       "labor_hours_per_unit": 0.75,
       "materials_per_unit": [
-        { "name_generic": "Plaque de plâtre standard BA13 250x120", "ratio": 2.1, "unit": "m²", "specifications": "2 parements (+5% chutes)" },
-        { "name_generic": "Laine minérale acoustique 45 mm", "ratio": 1.05, "unit": "m²", "specifications": "Rouleau acoustique" },
-        { "name_generic": "Montant métallique M48", "ratio": 2.0, "unit": "ml", "specifications": "Entraxe 60 cm" },
-        { "name_generic": "Rail métallique R48", "ratio": 0.9, "unit": "ml", "specifications": "Haut et bas" },
-        { "name_generic": "Bande résiliente acoustique 45 mm", "ratio": 0.9, "unit": "ml", "specifications": "Sous rails haut et bas" },
-        { "name_generic": "Vis TTPC 25 mm pour plaques", "ratio": 30.0, "unit": "u", "specifications": "Boîte de 1000 u" },
-        { "name_generic": "Bande à joint papier microperforée", "ratio": 3.0, "unit": "ml", "specifications": "Rouleau de 150 ml" },
-        { "name_generic": "Enduit à joint prêt à l'emploi", "ratio": 0.7, "unit": "kg", "specifications": "Seau de 20 kg" }
+        {"name_generic": "Plaque de plâtre standard BA13 250x120", "ratio": 2.1, "unit": "m²", "specifications": "2 parements (1 par face, +5% chutes)", "reference_price_ht_eur": 3.8},
+        {"name_generic": "Laine minérale acoustique 45 mm (PAR)", "ratio": 1.05, "unit": "m²", "specifications": "Rouleau acoustique 45 mm", "reference_price_ht_eur": 3.2},
+        {"name_generic": "Montant métallique M48", "ratio": 2.0, "unit": "ml", "specifications": "Entraxe 60 cm", "reference_price_ht_eur": 1.65},
+        {"name_generic": "Rail métallique R48", "ratio": 0.9, "unit": "ml", "specifications": "Haut et bas", "reference_price_ht_eur": 1.6},
+        {"name_generic": "Bande résiliente acoustique mousse 45 mm", "ratio": 0.9, "unit": "ml", "specifications": "Rouleau sous rails haut et bas", "reference_price_ht_eur": 0.45},
+        {"name_generic": "Vis TTPC 25 mm pour plaques", "ratio": 30.0, "unit": "u", "specifications": "Boîte de 1000 u", "reference_price_ht_eur": 0.02},
+        {"name_generic": "Bande à joint papier microperforée", "ratio": 3.0, "unit": "ml", "specifications": "Rouleau de 150 ml", "reference_price_ht_eur": 0.06},
+        {"name_generic": "Enduit à joint prêt à l'emploi", "ratio": 0.7, "unit": "kg", "specifications": "Seau de 20 kg", "reference_price_ht_eur": 1.15}
       ],
       "labor_phases": [
-        { "title": "Traçage et montage ossature rails/montants", "share": 0.35 },
-        { "title": "Plaquage face 1, isolant et plaquage face 2", "share": 0.40 },
-        { "title": "Bandes et passes d'enduit (2 faces)", "share": 0.25 }
+        {"title": "Traçage et montage ossature rails/montants", "share": 0.35},
+        {"title": "Plaquage face 1, isolant et plaquage face 2", "share": 0.4},
+        {"title": "Bandes et passes d'enduit sur les 2 faces", "share": 0.25}
       ]
     },
     "sol_carrelage_interieur_colle": {
       "id": "sol_carrelage_interieur_colle",
       "category": "Revêtements de sol",
-      "title": "Fourniture et pose carrelage sol intérieur collé",
+      "title": "Fourniture et pose carrelage sol intérieur grès cérame (pose collée C2)",
       "unit": "m²",
       "labor_hours_per_unit": 0.8,
       "materials_per_unit": [
-        { "name_generic": "Carrelage grès cérame émaillé", "ratio": 1.1, "unit": "m²", "specifications": "Carton (+10% chutes)" },
-        { "name_generic": "Primaire d'adhérence universel sol", "ratio": 0.2, "unit": "kg", "specifications": "Bidon de 5 kg" },
-        { "name_generic": "Mortier colle déformable C2 / C2S1", "ratio": 0.2, "unit": "sacs", "specifications": "Sac de 25 kg (~5 kg/m²)" },
-        { "name_generic": "Mortier de jointoiement carrelage hydrofuge", "ratio": 0.4, "unit": "kg", "specifications": "Sac de 5 kg" },
-        { "name_generic": "Croisillons nivelants / cales", "ratio": 4.0, "unit": "u", "specifications": "Sachet de 250 u" },
-        { "name_generic": "Plinthes carrelage assorties", "ratio": 0.45, "unit": "ml", "specifications": "Longueur unitaire 60 cm" }
+        {"name_generic": "Carrelage grès cérame émaillé grand format", "ratio": 1.1, "unit": "m²", "specifications": "Carton (+10% découpes)", "reference_price_ht_eur": 26.0},
+        {"name_generic": "Primaire d'adhérence universel sol", "ratio": 0.2, "unit": "kg", "specifications": "Bidon de 5 kg (~200 g/m²)", "reference_price_ht_eur": 6.5},
+        {"name_generic": "Mortier colle déformable C2 / C2S1", "ratio": 0.2, "unit": "sacs", "specifications": "Sac de 25 kg (~5 kg/m²)", "reference_price_ht_eur": 18.5},
+        {"name_generic": "Mortier de jointoiement carrelage hydrofuge", "ratio": 0.4, "unit": "kg", "specifications": "Sac de 5 kg", "reference_price_ht_eur": 3.8},
+        {"name_generic": "Croisillons autonivelants et cales", "ratio": 4.0, "unit": "u", "specifications": "Sachet de 250 u", "reference_price_ht_eur": 0.12},
+        {"name_generic": "Plinthes carrelage assorties", "ratio": 0.45, "unit": "ml", "specifications": "Plinthe rectifiée", "reference_price_ht_eur": 6.2}
       ],
       "labor_phases": [
-        { "title": "Préparation support et primaire d'accrochage", "share": 0.15 },
-        { "title": "Calepinage, encollage et pose des carreaux", "share": 0.65 },
-        { "title": "Nettoyage et réalisation des joints", "share": 0.20 }
+        {"title": "Nettoyage du support et passage du primaire", "share": 0.15},
+        {"title": "Calepinage, double encollage et pose des carreaux", "share": 0.65},
+        {"title": "Nettoyage et jointoiement hydrofuge", "share": 0.2}
       ]
     },
     "peinture_murs_et_plafonds": {
       "id": "peinture_murs_et_plafonds",
       "category": "Peinture / Finitions",
-      "title": "Peinture intérieure complète (préparation + impression + 2 couches)",
+      "title": "Peinture intérieure complète (préparation + impression + 2 couches finition)",
       "unit": "m²",
       "labor_hours_per_unit": 0.4,
       "materials_per_unit": [
-        { "name_generic": "Peinture sous-couche impression universelle", "ratio": 0.11, "unit": "L", "specifications": "Pot de 10 L (~9-10 m²/L)" },
-        { "name_generic": "Peinture finition velours/mate", "ratio": 0.22, "unit": "L", "specifications": "Pot de 10 L (2 couches)" },
-        { "name_generic": "Enduit de rebouchage et lissage", "ratio": 0.25, "unit": "kg", "specifications": "Seau de 15 kg" },
-        { "name_generic": "Bande de masquage et bâche de protection", "ratio": 0.2, "unit": "ml", "specifications": "Rouleau masquage et film" }
+        {"name_generic": "Peinture sous-couche impression universelle", "ratio": 0.11, "unit": "L", "specifications": "Pot de 10 L (~9-10 m²/L)", "reference_price_ht_eur": 7.5},
+        {"name_generic": "Peinture de finition velours ou mate dépolluante", "ratio": 0.22, "unit": "L", "specifications": "Pot de 10 L (2 couches, ~9 m²/L/couche)", "reference_price_ht_eur": 11.8},
+        {"name_generic": "Enduit de rebouchage et lissage prêt à l'emploi", "ratio": 0.25, "unit": "kg", "specifications": "Seau de 15 kg", "reference_price_ht_eur": 2.1},
+        {"name_generic": "Bande de masquage adhésive et bâche de protection", "ratio": 0.2, "unit": "ml", "specifications": "Rouleau masquage et bâche sol", "reference_price_ht_eur": 0.35}
       ],
       "labor_phases": [
-        { "title": "Protection et préparation des fonds (rebouchage/ponçage)", "share": 0.35 },
-        { "title": "Application sous-couche d'impression", "share": 0.25 },
-        { "title": "Application de 2 couches de finition et finitions", "share": 0.40 }
+        {"title": "Bâchage sols, calicot et préparation des supports (enduit/ponçage)", "share": 0.35},
+        {"title": "Application sous-couche d'impression régulatrice", "share": 0.25},
+        {"title": "Application des deux couches de finition au rouleau", "share": 0.4}
       ]
     },
     "electricite_renovation_totale_logement": {
       "id": "electricite_renovation_totale_logement",
       "category": "Électricité",
-      "title": "Rénovation électrique complète NFC 15-100",
+      "title": "Rénovation électrique complète aux normes NFC 15-100",
       "unit": "m²",
       "labor_hours_per_unit": 0.7,
       "materials_per_unit": [
-        { "name_generic": "Gaine ICTA préfilée 3G1.5 mm²", "ratio": 1.6, "unit": "ml", "specifications": "Couronne 100 ml (éclairage)" },
-        { "name_generic": "Gaine ICTA préfilée 3G2.5 mm²", "ratio": 2.2, "unit": "ml", "specifications": "Couronne 100 ml (prises)" },
-        { "name_generic": "Boîte d'encastrement étanche à l'air 1 poste", "ratio": 0.9, "unit": "u", "specifications": "Prof. 40 ou 50 mm" },
-        { "name_generic": "Mécanisme prise 2P+T avec plaque", "ratio": 0.6, "unit": "u", "specifications": "Prise complète appareillage" },
-        { "name_generic": "Mécanisme interrupteur va-et-vient avec plaque", "ratio": 0.2, "unit": "u", "specifications": "Interrupteur complet" },
-        { "name_generic": "Tableau électrique nu prééquipé", "ratio": 0.015, "unit": "u", "specifications": "3 à 4 rangées" },
-        { "name_generic": "Disjoncteur divisionnaire 16A/20A Ph+N", "ratio": 0.25, "unit": "u", "specifications": "Module Ph+N" },
-        { "name_generic": "Interrupteur différentiel 30mA type AC/A", "ratio": 0.04, "unit": "u", "specifications": "En-tête de rangée" }
+        {"name_generic": "Gaine ICTA préfilée 3G1.5 mm²", "ratio": 1.6, "unit": "ml", "specifications": "Couronne de 100 ml (circuits éclairage)", "reference_price_ht_eur": 0.65},
+        {"name_generic": "Gaine ICTA préfilée 3G2.5 mm²", "ratio": 2.2, "unit": "ml", "specifications": "Couronne de 100 ml (prises)", "reference_price_ht_eur": 0.95},
+        {"name_generic": "Boîte d'encastrement étanche à l'air (1 poste)", "ratio": 0.9, "unit": "u", "specifications": "Prof. 40 ou 50 mm", "reference_price_ht_eur": 0.95},
+        {"name_generic": "Mécanisme prise de courant 2P+T avec plaque", "ratio": 0.6, "unit": "u", "specifications": "Prise complète type Legrand Dooxie / Schneider Odace", "reference_price_ht_eur": 5.8},
+        {"name_generic": "Mécanisme interrupteur va-et-vient avec plaque", "ratio": 0.2, "unit": "u", "specifications": "Interrupteur complet", "reference_price_ht_eur": 5.4},
+        {"name_generic": "Tableau électrique nu prééquipé 3 à 4 rangées", "ratio": 0.015, "unit": "u", "specifications": "Coffret d'abonné", "reference_price_ht_eur": 65.0},
+        {"name_generic": "Disjoncteur divisionnaire 16A / 20A Ph+N", "ratio": 0.25, "unit": "u", "specifications": "Protection modulaire", "reference_price_ht_eur": 8.5},
+        {"name_generic": "Interrupteur différentiel 30mA (type AC / A 40A ou 63A)", "ratio": 0.04, "unit": "u", "specifications": "Protection différentielle d'en-tête de rangée", "reference_price_ht_eur": 42.0}
       ],
       "labor_phases": [
-        { "title": "Passages de gaines et incorporation boîtiers", "share": 0.50 },
-        { "title": "Câblage tableau électrique et terre", "share": 0.25 },
-        { "title": "Pose appareillage et mise en service", "share": 0.25 }
+        {"title": "Passages des gaines, incorporation des boîtiers et saignées", "share": 0.5},
+        {"title": "Câblage du tableau électrique, bornier de terre et repérage", "share": 0.25},
+        {"title": "Pose appareillage, tests d'isolement et mise en service", "share": 0.25}
       ]
     },
     "plomberie_reseau_hydrocable_multicouche": {
       "id": "plomberie_reseau_hydrocable_multicouche",
       "category": "Plomberie / Chauffage",
-      "title": "Création réseau distribution eau chaude/froide multicouche",
+      "title": "Création de réseau de distribution hydrocâblé eau chaude/eau froide en tube multicouche",
       "unit": "m²",
       "labor_hours_per_unit": 0.45,
       "materials_per_unit": [
-        { "name_generic": "Tube multicouche gainé pré-isolé D16", "ratio": 1.8, "unit": "ml", "specifications": "Couronne de 50 ml" },
-        { "name_generic": "Tube multicouche nu D20", "ratio": 0.4, "unit": "ml", "specifications": "Couronne de 25 ml" },
-        { "name_generic": "Collecteur sanitaire avec vannes intégrées", "ratio": 0.04, "unit": "u", "specifications": "Nourrice 4-5 départs 3/4" },
-        { "name_generic": "Raccords multicouche à sertir/visser D16", "ratio": 0.5, "unit": "u", "specifications": "Coudes, tés, raccords" },
-        { "name_generic": "Tuyau évacuation PVC D40 / D50 / D100", "ratio": 0.8, "unit": "ml", "specifications": "Barre 4m évacuations" }
+        {"name_generic": "Tube multicouche gainé pré-isolé D16", "ratio": 1.8, "unit": "ml", "specifications": "Couronne de 50 ml", "reference_price_ht_eur": 1.65},
+        {"name_generic": "Tube multicouche nu D20", "ratio": 0.4, "unit": "ml", "specifications": "Couronne de 25 ml", "reference_price_ht_eur": 1.95},
+        {"name_generic": "Collecteur sanitaire avec vannes intégrées (nourrice)", "ratio": 0.04, "unit": "u", "specifications": "Collecteur 4-5 départs 3/4", "reference_price_ht_eur": 38.0},
+        {"name_generic": "Raccords multicouche à sertir D16", "ratio": 0.5, "unit": "u", "specifications": "Coudes, tés, manchons", "reference_price_ht_eur": 3.8},
+        {"name_generic": "Vanne d'arrêt quart de tour à bille", "ratio": 0.05, "unit": "u", "specifications": "Vanne d'isolement générale ou par pièce", "reference_price_ht_eur": 9.5},
+        {"name_generic": "Tuyau d'évacuation PVC D40 / D50 / D100", "ratio": 0.8, "unit": "ml", "specifications": "Barre de 4m pour évacuations", "reference_price_ht_eur": 3.2},
+        {"name_generic": "Colle PVC et colliers de fixation isophoniques", "ratio": 0.02, "unit": "u", "specifications": "Pot colle 250 ml et boîte colliers", "reference_price_ht_eur": 14.0}
       ],
       "labor_phases": [
-        { "title": "Passage des fourreaux et tirage multicouche", "share": 0.45 },
-        { "title": "Montage nourrices, vannes et évacuations PVC", "share": 0.35 },
-        { "title": "Raccordements terminaux et mise sous pression", "share": 0.20 }
+        {"title": "Tirage des couronnes multicouche sous gaine", "share": 0.45},
+        {"title": "Montage des clarinettes, vannes et réseau d'évacuation gravitaire", "share": 0.35},
+        {"title": "Raccordements des terminaux et épreuve sous pression d'eau", "share": 0.2}
       ]
     },
     "terrasse_bois_lambourdes": {
       "id": "terrasse_bois_lambourdes",
       "category": "Menuiserie / Extérieur",
-      "title": "Terrasse lames bois sur lambourdes et plots réglables",
+      "title": "Terrasse extérieure en lames de bois sur lambourdes et plots réglables",
       "unit": "m²",
       "labor_hours_per_unit": 0.85,
       "materials_per_unit": [
-        { "name_generic": "Lames de terrasse bois classe 4", "ratio": 1.08, "unit": "m²", "specifications": "Longueur 3m/4m (+8% chutes)" },
-        { "name_generic": "Lambourde pin autoclave classe 4 (45x70)", "ratio": 2.5, "unit": "ml", "specifications": "Entraxe 40-50 cm" },
-        { "name_generic": "Plots PVC réglables pour terrasse", "ratio": 4.5, "unit": "u", "specifications": "Hauteur 40-60 mm" },
-        { "name_generic": "Vis terrasse inox A2 autoforantes", "ratio": 35.0, "unit": "u", "specifications": "Boîte de 500 u" },
-        { "name_generic": "Géotextile anti-repousse 100 g/m²", "ratio": 1.15, "unit": "m²", "specifications": "Rouleau de 25/50 m²" }
+        {"name_generic": "Lames de terrasse bois traité classe 4 ou composite", "ratio": 1.08, "unit": "m²", "specifications": "Longueur 3m ou 4m (+8% chutes)", "reference_price_ht_eur": 28.0},
+        {"name_generic": "Lambourde pin autoclave classe 4 (section 45x70)", "ratio": 2.5, "unit": "ml", "specifications": "Entraxe 40 à 50 cm", "reference_price_ht_eur": 3.4},
+        {"name_generic": "Plots PVC réglables pour terrasse", "ratio": 4.5, "unit": "u", "specifications": "Hauteur 40-60 mm ou 60-90 mm", "reference_price_ht_eur": 2.2},
+        {"name_generic": "Vis terrasse inox A2 / A4 autoforantes", "ratio": 35.0, "unit": "u", "specifications": "Boîte de 500 u (double vissage croisement)", "reference_price_ht_eur": 0.08},
+        {"name_generic": "Géotextile anti-repousse 100 g/m²", "ratio": 1.15, "unit": "m²", "specifications": "Rouleau de 25 ou 50 m²", "reference_price_ht_eur": 0.95},
+        {"name_generic": "Bande d'étanchéité bitumineuse pour lambourdes", "ratio": 2.5, "unit": "ml", "specifications": "Protection tête de lambourde", "reference_price_ht_eur": 0.85}
       ],
       "labor_phases": [
-        { "title": "Préparation sol, géotextile et calage plots", "share": 0.30 },
-        { "title": "Pose et mise à niveau lambourdage", "share": 0.30 },
-        { "title": "Vissage des lames et finitions", "share": 0.40 }
+        {"title": "Préparation du terrain, géotextile et répartition des plots", "share": 0.3},
+        {"title": "Pose, fixation et mise à niveau du lambourdage", "share": 0.3},
+        {"title": "Vissage régulier des lames, coupes en rives et finitions", "share": 0.4}
+      ]
+    },
+    "terrassement_fouilles_rigoles": {
+      "id": "terrassement_fouilles_rigoles",
+      "category": "Terrassement / VRD",
+      "title": "Fouilles en rigoles pour fondations superficielles à la mini-pelle (largeur 50 cm, prof. 80 cm)",
+      "unit": "ml",
+      "labor_hours_per_unit": 0.25,
+      "materials_per_unit": [],
+      "labor_phases": [
+        {"title": "Implantation et traçage à la chaux", "share": 0.3},
+        {"title": "Terrassement mécanique et mise en dépôt des terres", "share": 0.5},
+        {"title": "Dressage et nettoyage manuel des fonds de fouille", "share": 0.2}
+      ]
+    },
+    "fondations_semelles_filantes_beton_arme": {
+      "id": "fondations_semelles_filantes_beton_arme",
+      "category": "Gros œuvre / Fondations",
+      "title": "Semelles filantes en béton armé (section 50x30 cm)",
+      "unit": "ml",
+      "labor_hours_per_unit": 0.55,
+      "materials_per_unit": [
+        {"name_generic": "Béton prêt à l'emploi C25/30 XC2 en toupie", "ratio": 0.16, "unit": "m³", "specifications": "Béton de centrale avec fluidifiant (0.15 m³ + 7% pertes)", "reference_price_ht_eur": 125.0},
+        {"name_generic": "Armature semelle filante 35x15 cm 6 filants HA8/HA10", "ratio": 1.05, "unit": "ml", "specifications": "Barre de 6m ou 3m avec recouvrements", "reference_price_ht_eur": 8.5},
+        {"name_generic": "Équerres de liaison d'angles HA10", "ratio": 0.4, "unit": "u", "specifications": "Armatures d'angle façonnées", "reference_price_ht_eur": 2.2},
+        {"name_generic": "Cales d'armature plastique pour enrobage", "ratio": 2.0, "unit": "u", "specifications": "Enrobage 30 à 40 mm", "reference_price_ht_eur": 0.35}
+      ],
+      "labor_phases": [
+        {"title": "Mise en place des cales et pose du ferraillage", "share": 0.35},
+        {"title": "Coulage du béton à la pompe ou toupie", "share": 0.45},
+        {"title": "Vibration, surfaçage et mise en place des attentes de poteaux", "share": 0.2}
+      ]
+    },
+    "dallage_beton_sur_terre_plein": {
+      "id": "dallage_beton_sur_terre_plein",
+      "category": "Gros œuvre / Planchers",
+      "title": "Dallage béton sur terre-plein épaisseur 12 cm pour maison individuelle (DTU 13.3)",
+      "unit": "m²",
+      "labor_hours_per_unit": 0.5,
+      "materials_per_unit": [
+        {"name_generic": "Béton prêt à l'emploi C25/30 en toupie", "ratio": 0.13, "unit": "m³", "specifications": "Épaisseur 12 cm (+8% pertes et tassement)", "reference_price_ht_eur": 125.0},
+        {"name_generic": "Treillis soudé ST25C (panneau 2.40x6m)", "ratio": 1.15, "unit": "m²", "specifications": "Maillage anti-fissuration avec recouvrements", "reference_price_ht_eur": 4.8},
+        {"name_generic": "Film polyane sous dalle 150 microns", "ratio": 1.15, "unit": "m²", "specifications": "Rouleau barrière anti-humidité", "reference_price_ht_eur": 0.85},
+        {"name_generic": "Bande résiliente de rive périphérique 100 mm", "ratio": 0.4, "unit": "ml", "specifications": "Désolidarisation périphérique des murs", "reference_price_ht_eur": 1.1},
+        {"name_generic": "Isolant sous dallage TMS ou PSE haute densité (ép. 80-100mm)", "ratio": 1.05, "unit": "m²", "specifications": "Panneaux isolants sol à haute résistance mécanique", "reference_price_ht_eur": 17.5}
+      ],
+      "labor_phases": [
+        {"title": "Pose isolant, polyane et bande périphérique de désolidarisation", "share": 0.3},
+        {"title": "Calage et ligature du treillis soudé", "share": 0.25},
+        {"title": "Tirage du béton à la règle vibrante et talochage", "share": 0.45}
+      ]
+    },
+    "couverture_gouttiere_zinc_demi_ronde": {
+      "id": "couverture_gouttiere_zinc_demi_ronde",
+      "category": "Charpente / Zinguerie",
+      "title": "Fourniture et pose de gouttières demi-ronde en zinc naturel (dév. 25 ou 33)",
+      "unit": "ml",
+      "labor_hours_per_unit": 0.5,
+      "materials_per_unit": [
+        {"name_generic": "Gouttière demi-ronde zinc naturel dév. 25", "ratio": 1.05, "unit": "ml", "specifications": "Longueur 4m (+5% chutes)", "reference_price_ht_eur": 12.5},
+        {"name_generic": "Crochets de gouttière bandeau ou hampe", "ratio": 2.0, "unit": "u", "specifications": "Fixation tous les 50 cm", "reference_price_ht_eur": 1.8},
+        {"name_generic": "Fonds de gouttière et naissances zinc", "ratio": 0.15, "unit": "u", "specifications": "Accessoires de terminaison et raccordement descente", "reference_price_ht_eur": 7.5},
+        {"name_generic": "Étain de soudure et décapant acide", "ratio": 0.05, "unit": "kg", "specifications": "Pour soudures étanches à l'étain", "reference_price_ht_eur": 35.0}
+      ],
+      "labor_phases": [
+        {"title": "Alignement et pose des crochets avec pente 5 mm/m", "share": 0.4},
+        {"title": "Emboîtement, découpes et soudures à l'étain", "share": 0.45},
+        {"title": "Raccordement des naissances et descentes", "share": 0.15}
+      ]
+    },
+    "menuiserie_pose_fenetre_applique_alu_pvc": {
+      "id": "menuiserie_pose_fenetre_applique_alu_pvc",
+      "category": "Menuiserie extérieure",
+      "title": "Fourniture et pose d'une fenêtre 2 vantaux en applique avec précadre isolant",
+      "unit": "u",
+      "labor_hours_per_unit": 2.8,
+      "materials_per_unit": [
+        {"name_generic": "Fenêtre 2 vantaux oscillo-battante double vitrage 4/16/4 argon", "ratio": 1.0, "unit": "u", "specifications": "Standard dimensions 115x100 ou 125x120 cm", "reference_price_ht_eur": 290.0},
+        {"name_generic": "Pattes de fixation réglables et équerres", "ratio": 6.0, "unit": "u", "specifications": "Vis béton et chevilles tous les 60 cm", "reference_price_ht_eur": 1.4},
+        {"name_generic": "Bande mousse d'étanchéité précomprimée (compriband)", "ratio": 4.5, "unit": "ml", "specifications": "Étanchéité à l'air et à l'eau classe 1", "reference_price_ht_eur": 1.8},
+        {"name_generic": "Mastic silicone neutre extérieur", "ratio": 0.5, "unit": "cartouches", "specifications": "Cartouche de 310 ml pour cordon d'étanchéité", "reference_price_ht_eur": 5.5}
+      ],
+      "labor_phases": [
+        {"title": "Contrôle du gros œuvre, traçage et pose compriband", "share": 0.25},
+        {"title": "Calage aplomb/niveau et vissage des pattes de fixation", "share": 0.45},
+        {"title": "Réglage des ouvrants et joint d'étanchéité extérieur au mastic", "share": 0.3}
+      ]
+    },
+    "platrerie_faux_plafond_suspendu_ba13": {
+      "id": "platrerie_faux_plafond_suspendu_ba13",
+      "category": "Plâtrerie / Plafonds",
+      "title": "Faux plafond suspendu en plaques de plâtre BA13 sur ossature F530",
+      "unit": "m²",
+      "labor_hours_per_unit": 0.7,
+      "materials_per_unit": [
+        {"name_generic": "Plaque de plâtre standard BA13 250x120", "ratio": 1.05, "unit": "m²", "specifications": "Plaque de 3 m² (+5% chutes)", "reference_price_ht_eur": 3.8},
+        {"name_generic": "Fourrure métallique F530", "ratio": 2.2, "unit": "ml", "specifications": "Entraxe 50 cm", "reference_price_ht_eur": 1.45},
+        {"name_generic": "Suspentes métalliques articulées ou à visser", "ratio": 1.8, "unit": "u", "specifications": "Fixation tous les 1.20 m sur solives/dalle", "reference_price_ht_eur": 0.65},
+        {"name_generic": "Cornière de rive ou rail périphérique", "ratio": 0.45, "unit": "ml", "specifications": "Support de périphérie", "reference_price_ht_eur": 1.4},
+        {"name_generic": "Vis TTPC 25 mm", "ratio": 15.0, "unit": "u", "specifications": "Boîte de 1000 u", "reference_price_ht_eur": 0.02},
+        {"name_generic": "Bande à joint et enduit de finition", "ratio": 1.5, "unit": "ml", "specifications": "Traitement des joints de plafond", "reference_price_ht_eur": 0.45}
+      ],
+      "labor_phases": [
+        {"title": "Nivellement au laser et pose des suspentes", "share": 0.35},
+        {"title": "Clipsage des fourrures et vissage des plaques au lève-plaque", "share": 0.4},
+        {"title": "Bandes à joint et passes d'enduit de surfaçage", "share": 0.25}
+      ]
+    },
+    "sol_chape_fluide_anhydrite_ciment": {
+      "id": "sol_chape_fluide_anhydrite_ciment",
+      "category": "Revêtements de sol",
+      "title": "Coulage de chape fluide autonivelante épaisseur 5 cm (pour plancher chauffant ou ragréage lourd)",
+      "unit": "m²",
+      "labor_hours_per_unit": 0.2,
+      "materials_per_unit": [
+        {"name_generic": "Mortier fluide pour chape en toupie", "ratio": 0.052, "unit": "m³", "specifications": "Épaisseur 5 cm (+5% nivellement)", "reference_price_ht_eur": 160.0},
+        {"name_generic": "Bande de rive périphérique désolidarisation 8 mm", "ratio": 0.45, "unit": "ml", "specifications": "Mousse avec jupe polyane", "reference_price_ht_eur": 0.95},
+        {"name_generic": "Pigiste et produit de cure anti-évaporation", "ratio": 0.15, "unit": "L", "specifications": "Pulvérisation immédiate après coulage", "reference_price_ht_eur": 4.5}
+      ],
+      "labor_phases": [
+        {"title": "Pose des piges de niveau et étanchéité de rive", "share": 0.35},
+        {"title": "Coulage au tuyau et passage de la barre d'éboutage", "share": 0.45},
+        {"title": "Pulvérisation du produit de cure et contrôle", "share": 0.2}
+      ]
+    },
+    "sol_faience_murale_sdb_etancheite": {
+      "id": "sol_faience_murale_sdb_etancheite",
+      "category": "Revêtements de sol / Faïence",
+      "title": "Faïence murale de salle de bain avec Système de Protection à l'Eau sous Carrelage (SPEC)",
+      "unit": "m²",
+      "labor_hours_per_unit": 1.1,
+      "materials_per_unit": [
+        {"name_generic": "Carreaux de faïence murale", "ratio": 1.1, "unit": "m²", "specifications": "Carton (+10% chutes)", "reference_price_ht_eur": 22.0},
+        {"name_generic": "Kit d'étanchéité sous carrelage (SPEC)", "ratio": 0.8, "unit": "kg", "specifications": "Membrane liquide + bandes d'étanchéité d'angle", "reference_price_ht_eur": 12.0},
+        {"name_generic": "Colle carrelage en pâte prête à l'emploi D2", "ratio": 0.2, "unit": "seaux", "specifications": "Seau de 15 kg (~3.5 kg/m²)", "reference_price_ht_eur": 28.0},
+        {"name_generic": "Mortier joint hydrofuge spécial pièces humides", "ratio": 0.35, "unit": "kg", "specifications": "Sac de 5 kg antibactérien", "reference_price_ht_eur": 4.5},
+        {"name_generic": "Profilés de finition d'angle alu ou PVC", "ratio": 0.25, "unit": "ml", "specifications": "Baguette d'angle", "reference_price_ht_eur": 7.5}
+      ],
+      "labor_phases": [
+        {"title": "Application du SPEC et collage des bandes d'angle étanches", "share": 0.3},
+        {"title": "Calepinage, encollage mural et pose de la faïence", "share": 0.5},
+        {"title": "Jointoiement hydrofuge et cordon silicone d'angle", "share": 0.2}
+      ]
+    },
+    "sol_parquet_stratifie_flottant": {
+      "id": "sol_parquet_stratifie_flottant",
+      "category": "Revêtements de sol",
+      "title": "Fourniture et pose de parquet stratifié flottant avec sous-couche acoustique",
+      "unit": "m²",
+      "labor_hours_per_unit": 0.35,
+      "materials_per_unit": [
+        {"name_generic": "Lames de sol stratifié passage intensif (classe 32/33, ép. 8mm)", "ratio": 1.08, "unit": "m²", "specifications": "Paquet de 2 m² (+8% découpes)", "reference_price_ht_eur": 14.5},
+        {"name_generic": "Sous-couche acoustique et pare-vapeur intégrée", "ratio": 1.05, "unit": "m²", "specifications": "Rouleau réduction phonique 19-21 dB", "reference_price_ht_eur": 2.8},
+        {"name_generic": "Plinthes assorties décor bois", "ratio": 0.45, "unit": "ml", "specifications": "Barre de 2.40 m", "reference_price_ht_eur": 4.2},
+        {"name_generic": "Barres de seuil de jonction alu", "ratio": 0.05, "unit": "u", "specifications": "Barre de 90 cm à coller/visser", "reference_price_ht_eur": 11.5}
+      ],
+      "labor_phases": [
+        {"title": "Aspiration du sol et déroulage de la sous-couche", "share": 0.2},
+        {"title": "Pose clipsée des lames avec cales de dilatation (8 mm)", "share": 0.55},
+        {"title": "Fixation des plinthes et seuils de portes", "share": 0.25}
+      ]
+    },
+    "facade_enduit_monocouche_gratte": {
+      "id": "facade_enduit_monocouche_gratte",
+      "category": "Façade / Ravalement",
+      "title": "Enduit de façade monocouche projeté finition grattée (DTU 26.1)",
+      "unit": "m²",
+      "labor_hours_per_unit": 0.55,
+      "materials_per_unit": [
+        {"name_generic": "Enduit monocouche allégé hydrofugé (type Weber / PRB)", "ratio": 0.8, "unit": "sacs", "specifications": "Sac de 25 kg (~18-20 kg/m² pour 15 mm)", "reference_price_ht_eur": 9.8},
+        {"name_generic": "Baguettes d'angle métalliques ou PVC entoilées", "ratio": 0.25, "unit": "ml", "specifications": "Profilé d'arête 3m", "reference_price_ht_eur": 2.4},
+        {"name_generic": "Trame de renfort fibre de verre (aux angles d'ouvertures)", "ratio": 0.15, "unit": "m²", "specifications": "Mouchoirs anti-fissuration 30x30 cm", "reference_price_ht_eur": 1.2},
+        {"name_generic": "Profilé goutte d'eau et ruban de protection orange", "ratio": 0.3, "unit": "ml", "specifications": "Protection menuiseries", "reference_price_ht_eur": 0.8}
+      ],
+      "labor_phases": [
+        {"title": "Pose des profilés d'angle et calfeutrement complet des baies", "share": 0.3},
+        {"title": "Projection mécanique de l'enduit à la machine et dressage", "share": 0.4},
+        {"title": "Grattage manuel régulier et nettoyage de fin de chantier", "share": 0.3}
+      ]
+    },
+    "plomberie_remplacement_chauffe_eau_thermodynamique": {
+      "id": "plomberie_remplacement_chauffe_eau_thermodynamique",
+      "category": "Plomberie / Chauffage",
+      "title": "Fourniture et installation d'un chauffe-eau thermodynamique 200L-250L sur air ambiant/extérieur",
+      "unit": "u",
+      "labor_hours_per_unit": 6.5,
+      "materials_per_unit": [
+        {"name_generic": "Chauffe-eau thermodynamique 200L à 250L classe A+", "ratio": 1.0, "unit": "u", "specifications": "Cuve émaillée avec PAC intégrée (type Atlantic Calypso / Thermor)", "reference_price_ht_eur": 1450.0},
+        {"name_generic": "Groupe de sécurité neuf 3/4 avec siphon PVC", "ratio": 1.0, "unit": "u", "specifications": "Sécurité 7 bars avec entonnoir de décharge", "reference_price_ht_eur": 24.0},
+        {"name_generic": "Conduits rigides ou flexibles calorifugés D160 pour air", "ratio": 4.0, "unit": "ml", "specifications": "Gainage d'aspiration et rejet d'air", "reference_price_ht_eur": 18.0},
+        {"name_generic": "Grilles murales extérieures à auvent D160", "ratio": 2.0, "unit": "u", "specifications": "Grille pare-pluie extérieure avec moustiquaire", "reference_price_ht_eur": 22.0},
+        {"name_generic": "Raccords diélectriques et flexibles de raccordement", "ratio": 1.0, "unit": "ens", "specifications": "Kit de raccordement hydraulique complet", "reference_price_ht_eur": 32.0}
+      ],
+      "labor_phases": [
+        {"title": "Dépose de l'ancien ballon et percements des carottages d'air extérieur", "share": 0.35},
+        {"title": "Mise en place de l'appareil, raccordement aéraulique et évacuation des condensats", "share": 0.4},
+        {"title": "Raccordements hydrauliques, remplissage cuve et mise en service électrique", "share": 0.25}
+      ]
+    },
+    "isolation_combles_perdus_soufflage": {
+      "id": "isolation_combles_perdus_soufflage",
+      "category": "Isolation",
+      "title": "Isolation thermique de combles perdus par soufflage mécanisé (R=7 à R=8)",
+      "unit": "m²",
+      "labor_hours_per_unit": 0.15,
+      "materials_per_unit": [
+        {"name_generic": "Laine minérale ou ouate de cellulose pour soufflage", "ratio": 0.35, "unit": "sacs", "specifications": "Sac de 15 à 17 kg (~5 kg/m² pour R=7)", "reference_price_ht_eur": 18.0},
+        {"name_generic": "Piges de mesure de hauteur et repères de boîtes électriques", "ratio": 0.15, "unit": "u", "specifications": "Kit graduation soufflage", "reference_price_ht_eur": 1.8},
+        {"name_generic": "Protection trappe de visite et écart au feu conduit", "fixed_quantity": 1, "unit": "ens", "specifications": "Forfait 1 par chantier : rehausse trappe rigide + isolant incombustible", "reference_price_ht_eur": 45.0}
+      ],
+      "labor_phases": [
+        {"title": "Repérage boîtes électriques, écart au feu et protection de la trappe", "share": 0.45},
+        {"title": "Soufflage mécanisé de l'isolant à épaisseur constante (~32 cm)", "share": 0.45},
+        {"title": "Contrôle visuel des piges et remplissage de la fiche technique", "share": 0.1}
       ]
     }
   }

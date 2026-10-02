@@ -124,6 +124,7 @@ async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     vat_rate: number;
     vat_exemption_reason: string | null;
     vat_category_code: string;
+    unit?: string | null;
   }[] = [];
 
   // Point 2 audit pré-pilote : on n'ajoute plus JAMAIS de ligne par prestation
@@ -156,7 +157,7 @@ async function createInvoiceFromQuote(quoteId: string): Promise<void> {
 
   const { data: qMaterials } = await supabase
     .from("quote_materials")
-    .select("label, quantity, unit_price, line_total, vat_rate, exclude_from_invoice")
+    .select("label, quantity, unit_price, line_total, vat_rate, exclude_from_invoice, unit")
     .eq("quote_id", quoteId)
     .order("created_at", { ascending: true });
 
@@ -172,6 +173,7 @@ async function createInvoiceFromQuote(quoteId: string): Promise<void> {
       line_kind: "material",
       label: m.label,
       quantity: m.quantity,
+      unit: (m.unit as string | null) ?? null,
       unit_price: Math.round(scaled / m.quantity),
       line_total: scaled,
       sort_order: sort++,

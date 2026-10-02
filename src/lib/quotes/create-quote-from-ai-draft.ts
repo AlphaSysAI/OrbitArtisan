@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AiQuoteDraft, AiSupplierMaterialDraft } from "@/lib/ai/quote-draft-storage";
 import { exactCatalogService, scaleLaborItems } from "@/lib/quotes/ai-labor-items";
+import { normalizeMaterialUnit } from "@/lib/quotes/material-unit";
 
 function parseEurToCents(raw: string): number {
   const cleaned = raw.trim().replace(",", ".").replace(/[^0-9.]/g, "");
@@ -206,6 +207,7 @@ export async function createQuoteFromAiDraft(
       is_supplier_catalog: m.isSupplierCatalog,
       exclude_from_invoice: m.excludeFromInvoice,
       vat_rate: vatRate,
+      unit: m.unit,
     }));
 
   if (quoteMaterialRows.length) {
@@ -232,6 +234,7 @@ function mapDraftMaterials(rows: AiSupplierMaterialDraft[]) {
     supplierSku: m.supplierSku,
     isSupplierCatalog: Boolean(m.supplierProductId),
     excludeFromInvoice: m.excludeFromInvoice,
+    unit: normalizeMaterialUnit(m.unit),
   }));
 }
 

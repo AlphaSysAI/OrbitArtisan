@@ -5,6 +5,7 @@ import { z } from "zod";
 import { mistralChatParse } from "@/lib/ai/mistral";
 import { isMasonryUnitMaterial } from "@/lib/ai/quote-material-sanity";
 import { formatWebSearchForPrompt, searchWebForQuoteContext } from "@/lib/ai/web-search";
+import { estimateHouseWallDimensions, estimateRoofAreaFromFootprint, type HouseWallDimensions } from "@/lib/ai/geometry-engine";
 import {
   calculateTakeoffFromRecipe,
   findWorkRecipe,
@@ -198,6 +199,228 @@ export function isWholeHouseMasonryProject(instruction: string): boolean {
   );
 }
 
+/** Matériau de maçonnerie demandé : la brique citée l'emporte toujours ; parpaing par défaut. */
+export type MasonryMaterial = "brique" | "parpaing";
+
+const MASONRY_RECIPE_BY_MATERIAL: Record<MasonryMaterial, string> = {
+  brique: "maconnerie_mur_brique_20",
+  parpaing: "maconnerie_mur_parpaing_20",
+};
+const MASONRY_RECIPE_IDS = new Set(Object.values(MASONRY_RECIPE_BY_MATERIAL));
+
+export function detectMasonryMaterial(instruction: string): MasonryMaterial | null {
+  const text = foldForDetection(instruction);
+  if (/\bbriques?\b|monomur|optibric|calibric|thermo-?briques?/.test(text)) return "brique";
+  if (/parpaing|\bagglos?\b|blocs? (?:beton|creux)/.test(text)) return "parpaing";
+  return null;
+}
+
+/** Étage : R+1, « à étage », « sur 2 niveaux »… (texte replié, sans accents). */
+const TWO_STOREY_RE = /\br\s*\+\s*1\b|\betages?\b|\b1 etage\b|(?:sur )?(?:2|deux) niveaux/;
+
+export type HouseFloorArea = {
+  floorAreaM2: number;
+  /** Emprise au sol : S en plain-pied, S/2 avec étage ou combles aménagés. */
+  footprintM2: number;
+  levels: 1 | 2;
+  /** Second niveau en combles aménagés (et non un étage plein). */
+  atticRooms: boolean;
+};
+
+/**
+ * Surface de plancher d'une maison citée dans la demande (« maison neuve 130m2 »,
+ * « 130 m2 au sol / au plancher », « surface habitable de 130 m² »). Avec étage
+ * (R+1), l'emprise au sol vaut la moitié et les murs font deux niveaux.
+ */
+export function extractHouseFloorArea(
+  instruction: string,
+): HouseFloorArea | null {
+  const text = foldForDetection(instruction);
+  const num = (v: string) => Number(v.replace(",", "."));
+  const patterns = [
+    /(\d+(?:[.,]\d+)?)\s*m2\s*(?:au sol|au plancher|de plancher|habitables?|d'emprise|d'emprise au sol)/,
+    /(?:surface|emprise)\s*(?:au sol|habitable|de plancher|au plancher)?\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*m2/,
+    /(?:maison|pavillon|plain-pied|villa)[^.;]{0,40}?(\d+(?:[.,]\d+)?)\s*m2/,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (!m) continue;
+    const floorAreaM2 = num(m[1]!);
+    if (!(floorAreaM2 >= 20 && floorAreaM2 <= 1000)) continue;
+    const atticRooms = /combles? amenage/.test(text);
+    const twoStorey = !/plain-?pied/.test(text) && (atticRooms || TWO_STOREY_RE.test(text));
+    const levels: 1 | 2 = twoStorey ? 2 : 1;
+    return {
+      floorAreaM2,
+      footprintM2: Math.round((floorAreaM2 / levels) * 10) / 10,
+      levels,
+      atticRooms: twoStorey && atticRooms && !TWO_STOREY_RE.test(text),
+    };
+  }
+  return null;
+}
+
+/** Hauteur de maçonnerie de façade par niveau. */
+const WALL_HEIGHT_PER_LEVEL = 2.5;
+/** Combles aménagés : murs du RDC + jambettes (~1 m), pas un second niveau plein. */
+const ATTIC_KNEE_WALL_HEIGHT = 1;
+
+/** Facade height used for exterior walls: 2,50 m (R+0), 5,00 m (R+1), 3,50 m (combles aménagés). */
+function facadeHeight(house: HouseFloorArea): number {
+  if (house.levels === 1) return WALL_HEIGHT_PER_LEVEL;
+  return house.atticRooms ? WALL_HEIGHT_PER_LEVEL + ATTIC_KNEE_WALL_HEIGHT : 2 * WALL_HEIGHT_PER_LEVEL;
+}
+
+type GeometryContext = {
+  house: HouseFloorArea | null;
+  walls: (HouseWallDimensions & { material: MasonryMaterial; heightM: number }) | null;
+  roofAreaM2: number | null;
+  material: MasonryMaterial | null;
+  /** Maison neuve / gros œuvre pour un maçon (ou un particulier) : fouilles, semelles, dallage, murs chaînés. */
+  structuralShell: boolean;
+  /** La demande nomme d'autres lots que le gros œuvre (toiture, menuiseries, enduit…). */
+  extraLots: boolean;
+};
+
+/**
+ * Géométrie calculée AVANT l'appel au modèle : il reçoit les surfaces, il ne les
+ * invente pas. Murs : demande de maçonnerie / gros œuvre (ou maison neuve pour un
+ * maçon ou un particulier). Toiture : demande de toiture (ou maison neuve pour un
+ * couvreur ou un particulier). Une surface de toiture déjà chiffrée n'est pas recalculée.
+ */
+export function buildGeometryContext(instruction: string, scope: TakeoffScope): GeometryContext {
+  const material = detectMasonryMaterial(instruction);
+  const house = extractHouseFloorArea(instruction);
+  if (!house) {
+    return { house: null, walls: null, roofAreaM2: null, material, structuralShell: false, extraLots: false };
+  }
+
+  const text = foldForDetection(instruction);
+  const trade = scope.audience === "artisan" ? foldForDetection(scope.tradeLabel ?? "") : "";
+  const globalProject = /maison neuve|construction|gros oeuvre|extension|agrandissement/.test(text);
+  const masonryTrade = scope.audience === "client" || /macon|gros oeuvre|beton/.test(trade);
+  const roofTrade = scope.audience === "client" || /couvr|charpent|couverture|toiture/.test(trade);
+
+  const wallsWanted =
+    /\bmurs?\b|maconnerie|elevation|parpaing|briques?|agglo|gros oeuvre/.test(text) || (globalProject && masonryTrade);
+  const roofExplicitArea = /\d+(?:[.,]\d+)?\s*m2\s*(?:de\s*)?(?:toiture|toit|couverture)/.test(text);
+  const roofWanted =
+    !roofExplicitArea && (/\btoit|toiture|charpente|couverture/.test(text) || (globalProject && roofTrade));
+
+  const heightM = facadeHeight(house);
+  const structuralShell = wallsWanted && masonryTrade && /maison neuve|construction|gros oeuvre/.test(text);
+  return {
+    house,
+    material,
+    structuralShell,
+    extraLots: EXTRA_LOTS_RE.test(text),
+    walls: wallsWanted
+      ? { ...estimateHouseWallDimensions(house.footprintM2, heightM), material: material ?? "parpaing", heightM }
+      : null,
+    roofAreaM2: roofWanted ? estimateRoofAreaFromFootprint(house.footprintM2) : null,
+  };
+}
+
+/** Lots hors gros œuvre nommés dans la demande : seuls cas où le modèle est encore consulté. */
+const EXTRA_LOTS_RE =
+  /charpente|toiture|\btoit\b|couverture|zinguerie|gouttiere|menuiser|fenetre|\bportes?\b|enduit|facade|ravalement|placo|plaquiste|cloison|doublage|isolation|combles|plomberie|sanitaire|electri|carrelage|faience|parquet|peinture|chape|terrasse|vide sanitaire|plancher (?:haut|d'etage|etage)|escalier|assainissement|vrd/;
+
+/** Fournitures déjà couvertes par le gros œuvre calculé : retirées du métré du modèle. */
+const SHELL_COMPLEX_RE =
+  /fouille|semelle|dallage|polyane|sous dallage|treillis|poutrelle|hourdis|entrevous|planelle|beton pret|beton c\d|\bbeton\b(?!.*(?:terrasse|escalier|appui))/;
+
+/** Gros œuvre chaîné : 4 recettes sur la géométrie calculée, fournitures fusionnées. */
+export function computeHouseStructuralShell(ctx: GeometryContext): {
+  materials: MaterialTakeoff["materials"];
+  laborPhases: RecipeLaborPhaseHours[];
+  laborHours: number;
+  assumptions: string[];
+} | null {
+  if (!ctx.structuralShell || !ctx.house || !ctx.walls) return null;
+  const perimeter = ctx.walls.perimeterLinearMeters;
+  const steps: [string, number, string][] = [
+    ["terrassement_fouilles_rigoles", perimeter, `${perimeter} ml (périmètre)`],
+    ["fondations_semelles_filantes_beton_arme", perimeter, `${perimeter} ml (périmètre)`],
+    ["dallage_beton_sur_terre_plein", ctx.house.footprintM2, `${ctx.house.footprintM2} m² (emprise)`],
+    ...(ctx.house.levels === 2
+      ? ([["plancher_intermediaire_poutrelles_hourdis", ctx.house.footprintM2, `${ctx.house.footprintM2} m² (plancher d'étage)`]] as [
+          string,
+          number,
+          string,
+        ][])
+      : []),
+    [MASONRY_RECIPE_BY_MATERIAL[ctx.walls.material], ctx.walls.netWallAreaM2, `${ctx.walls.netWallAreaM2} m² nets`],
+  ];
+  const merged = new Map<string, MaterialTakeoff["materials"][number]>();
+  const laborPhases: RecipeLaborPhaseHours[] = [];
+  const assumptions: string[] = [];
+  let laborHours = 0;
+  for (const [recipeId, quantity, basis] of steps) {
+    const recipe = findWorkRecipe(recipeId);
+    if (!recipe || !(quantity > 0)) continue;
+    const part = calculateTakeoffFromRecipe(recipeId, quantity);
+    for (const m of part.materials) {
+      // Même article, même unité (ex. béton de deux recettes) : quantités cumulées.
+      const key = `${m.name_generic}|${m.unit}`;
+      const prev = merged.get(key);
+      merged.set(key, prev ? { ...prev, quantity: Math.round((prev.quantity + m.quantity) * 100) / 100 } : m);
+    }
+    laborPhases.push(...part.labor_phases);
+    laborHours += part.labor_hours_estimate ?? 0;
+    assumptions.push(`${recipe.title} : ${basis} × ${recipe.labor_hours_per_unit} h/${recipe.unit}.`);
+  }
+  if (!laborPhases.length) return null;
+  return { materials: [...merged.values()], laborPhases, laborHours: Math.round(laborHours * 10) / 10, assumptions };
+}
+
+function geometryPromptBlock(ctx: GeometryContext): string | null {
+  const lines: string[] = [];
+  if (ctx.material === "brique") {
+    lines.push("Matériau de maçonnerie IMPOSÉ : brique (demandée explicitement). N'utilise JAMAIS de parpaing ni d'agglo.");
+  }
+  if (ctx.structuralShell && ctx.walls && ctx.house) {
+    lines.push(
+      `Gros œuvre (fouilles en rigoles, semelles filantes, dallage sur terre-plein, murs en ${ctx.walls.material} chaînés) : chiffré AUTOMATIQUEMENT sur ${ctx.walls.perimeterLinearMeters} ml de périmètre, ${ctx.house.footprintM2} m² d'emprise et ${ctx.walls.netWallAreaM2} m² de murs nets. Ne liste AUCUNE de ces fournitures, "masonry_wall_area_m2" = null, "matched_recipe_id" = null, et "labor_hours_estimate" = heures des AUTRES lots demandés uniquement.`,
+    );
+  } else if (ctx.walls && ctx.house) {
+    const w = ctx.walls;
+    lines.push(
+      `Murs extérieurs (calculés, ne recalcule rien) : emprise ${ctx.house.footprintM2} m², périmètre ${w.perimeterLinearMeters} ml, hauteur ${w.heightM} m, surface brute ${w.grossWallAreaM2} m², ouvertures ${w.openingsAreaM2} m², surface nette ${w.netWallAreaM2} m².`,
+      `Ces murs en ${w.material} sont chiffrés AUTOMATIQUEMENT (blocs, mortier ou colle de montage, arase, chaînages, linteaux, béton de chaînage) : ne les liste PAS dans "materials", "masonry_wall_area_m2" = null, "matched_recipe_id" = null, et "labor_hours_estimate" = heures HORS élévation de ces murs.`,
+    );
+  }
+  if (ctx.roofAreaM2) {
+    lines.push(
+      `Surface de toiture développée (calculée : emprise × débords 12 % × pente 35 %) : ${ctx.roofAreaM2} m². C'est la quantité à utiliser pour la toiture, ne la recalcule pas.`,
+    );
+  }
+  return lines.length ? `DONNÉES GÉOMÉTRIQUES IMPOSÉES :\n${lines.map((l) => `- ${l}`).join("\n")}` : null;
+}
+
+/** Libellé normalisé d'un matériau, pour les filtres de cohérence. */
+function foldName(name: string): string {
+  return foldForDetection(name);
+}
+
+/** Composants d'un mur maçonné (déjà fournis par la recette) : à retirer du métré du modèle. */
+const WALL_COMPLEX_RE =
+  /parpaing|\bagglos?\b|\bbriques?\b|blocs? (?:beton|creux)|\barase\b|chainage|linteau|mortier[- ]colle|mortier de montage/;
+
+/**
+ * DTU 20.1 : les chaînages se font en armatures HA (4 filants), jamais en treillis
+ * soudé (réservé aux dallages). Toute ligne « treillis … chaînage » est retirée.
+ */
+function dropMeshForTieBeams(materials: MaterialTakeoff["materials"]): {
+  materials: MaterialTakeoff["materials"];
+  dropped: boolean;
+} {
+  const kept = materials.filter((m) => {
+    const n = foldName(`${m.name_generic} ${m.specifications ?? ""}`);
+    return !(/treillis/.test(n) && /chainage|poteau|raidisseur|linteau/.test(n));
+  });
+  return { materials: kept, dropped: kept.length !== materials.length };
+}
+
 /**
  * Métré automatique utile ? (appel Tavily + Mistral : réservé aux projets quantifiables)
  * - dépannage unitaire sans dimension chiffrée → non ;
@@ -272,6 +495,23 @@ export async function runMaterialTakeoff(
 ): Promise<(MaterialTakeoff & { webUsed: boolean; laborPhases?: RecipeLaborPhaseHours[] }) | null> {
   if (!needsMaterialTakeoff(instruction)) return null;
 
+  const geometry = buildGeometryContext(instruction, scope);
+  const shell = computeHouseStructuralShell(geometry);
+  // Maçon + maison neuve sans autre lot nommé : gros œuvre 100 % déterministe,
+  // ni recherche web ni appel au modèle (plus rapide, aucune quantité improvisée).
+  if (shell && scope.audience === "artisan" && !geometry.extraLots) {
+    return {
+      work_summary: `Gros œuvre maison neuve ${geometry.house!.floorAreaM2} m² — murs en ${geometry.walls!.material}`,
+      assumptions: [...geometryAssumptions(geometry), ...shell.assumptions],
+      materials: shell.materials,
+      masonry_wall_area_m2: geometry.walls!.netWallAreaM2,
+      labor_hours_estimate: shell.laborHours,
+      calculation_notes: "Gros œuvre calculé par ratios standards (fouilles, semelles, dallage, murs) — à valider sur chantier.",
+      webUsed: false,
+      laborPhases: shell.laborPhases,
+    };
+  }
+
   const web = await searchWebForQuoteContext(buildWebSearchQuery(instruction));
   const webBlock = web ? formatWebSearchForPrompt(web) : null;
 
@@ -306,7 +546,10 @@ Matrice par corps d'état (désignations à reprendre telles quelles) :
   faîtage), « Closoir ventilé » (ml), « Tuile de rive » (ml de rive), « Crochet / pointe de fixation tuile », fixations
   charpente (« Équerre / connecteur de charpente », « Pointe annelée »). Pente, nombre de pans et longueurs de faîtage
   et de rives sont des hypothèses à écrire dans assumptions.
-- Maçonnerie (parpaing / brique) : règle parpaings ci-dessous ; mortier en sacs dans materials.
+- Maçonnerie (parpaing / brique) : le matériau cité par la demande est impératif (brique demandée = jamais de parpaing).
+  Les murs (blocs, mortier ou colle de montage, arase, chaînages, linteaux) sont calculés par le code à partir de
+  "masonry_wall_area_m2" : ne les liste pas. Chaînages (DTU 20.1) : « Armature chaînage 4 filants HA » ou acier HA,
+  JAMAIS de treillis soudé (réservé aux dallages et planchers).
 - Isolation / Façade / Bardage : isolant (type, épaisseur, R), pare-pluie ou pare-vapeur, ossature secondaire
   (tasseaux ou rails), vêture / bardage, fixations, profils d'angle et de départ.
 - Plâtrerie / Doublage / Cloison : jamais « placo » seul. « Plaque de plâtre BA13 » (hydro H1 en pièce humide, feu
@@ -336,11 +579,13 @@ Désignations et unités (elles servent à la recherche de prix en ligne et au c
   « Sac de 25 kg », « Boîte de 1000 », « Section 27×40 »). Si unit = sacs / rouleaux / boîtes, quantity compte ces
   conditionnements, pas les m² ou kg.
 
-Parpaings / agglos (règle impérative) :
+Murs maçonnés — parpaings ou briques (règle impérative) :
 - Ils concernent les murs porteurs, pas le plancher, la dalle ni la toiture.
-- Ne les liste JAMAIS dans "materials" et ne calcule JAMAIS leur quantité : indique uniquement la surface totale de
-  murs à monter dans "masonry_wall_area_m2" (m², ouvertures déduites si connues) — le nombre de blocs est calculé
-  automatiquement. Sans mur en parpaings, laisse ce champ null.
+- Ne liste JAMAIS les blocs ni leur mortier, arase, chaînages ou linteaux dans "materials" et ne calcule JAMAIS leur
+  quantité : indique uniquement la surface nette de murs à monter dans "masonry_wall_area_m2" (m², ouvertures
+  déduites) — tout le complexe est calculé automatiquement. Sans mur maçonné, laisse ce champ null.
+- N'invente aucune formule géométrique : si des DONNÉES GÉOMÉTRIQUES IMPOSÉES sont fournies, utilise-les telles quelles.
+- "labor_hours_estimate" n'inclut PAS l'élévation de ces murs (ajoutée par le code).
 
 Autres règles :
 - Ne cumule pas plusieurs lots en multipliant plusieurs fois la même surface au sol.
@@ -385,9 +630,11 @@ ${formatRecipesForPrompt()}
   "matched_recipe_id" = null, "recipe_quantity" = null, et établis le métré complet comme décrit ci-dessus.`;
 
   const assumptionHint = takeoffAssumptionHint(instruction);
+  const geometryBlock = geometryPromptBlock(geometry);
 
   const userParts = [`Description des travaux :\n${instruction}`];
-  if (assumptionHint) {
+  if (geometryBlock) userParts.push(geometryBlock);
+  if (assumptionHint && !geometry.house) {
     userParts.push(assumptionHint);
   }
   if (webBlock) {
@@ -409,11 +656,11 @@ ${formatRecipesForPrompt()}
       temperature: 0.15,
       jsonSchema: MATERIAL_TAKEOFF_JSON_SCHEMA,
       jsonExample: `{
-  "work_summary": "Mur en parpaings 10 ml × 2 m",
-  "assumptions": ["Parpaing 20×20×50 cm", "Pas d'ouverture déduite", "Chute mortier 10 %"],
+  "work_summary": "Mur en parpaings 10 ml × 2 m sur semelle filante",
+  "assumptions": ["Semelle filante 50 × 25 cm", "Pas d'ouverture déduite", "Pertes béton 5 %"],
   "materials": [
-    { "name_generic": "Mortier bâtard prêt à l'emploi", "quantity": 12, "unit": "sacs", "specifications": "Sac de 35 kg" },
-    { "name_generic": "Sable 0/4", "quantity": 1.2, "unit": "m³", "specifications": "Vrac" }
+    { "name_generic": "Béton prêt à l'emploi C25/30", "quantity": 1.4, "unit": "m³", "specifications": "Semelle filante" },
+    { "name_generic": "Armature semelle filante HA", "quantity": 10, "unit": "ml", "specifications": "Longueur 6 m" }
   ],
   "masonry_wall_area_m2": 20,
   "labor_hours_estimate": 16,
@@ -428,49 +675,103 @@ ${formatRecipesForPrompt()}
 
   // Recette reconnue + quantité plausible : métré 100 % déterministe (Q × ratios),
   // les fournitures éventuellement proposées par le modèle sont ignorées.
-  const recipe = findWorkRecipe(takeoff.matched_recipe_id);
-  const recipeQuantity = takeoff.recipe_quantity ?? null;
+  // Gros œuvre chaîné prioritaire : une recette isolée ne doit pas l'écraser.
+  let recipe = shell ? null : findWorkRecipe(takeoff.matched_recipe_id);
+  let recipeQuantity = takeoff.recipe_quantity ?? null;
+  if (recipe && MASONRY_RECIPE_IDS.has(recipe.id)) {
+    // Matériau demandé prioritaire (brique ≠ parpaing) ; surface de murs calculée si maison.
+    recipe = findWorkRecipe(MASONRY_RECIPE_BY_MATERIAL[geometry.material ?? "parpaing"]) ?? recipe;
+    if (geometry.walls) recipeQuantity = geometry.walls.netWallAreaM2;
+  } else if (recipe?.id === "couverture_toiture_tuile_fermette" && geometry.roofAreaM2) {
+    recipeQuantity = geometry.roofAreaM2;
+  }
   if (recipe && recipeQuantity && recipeQuantity <= MAX_RECIPE_QUANTITY) {
     const { labor_phases, ...fromRecipe } = calculateTakeoffFromRecipe(recipe.id, recipeQuantity);
     return {
       ...fromRecipe,
-      assumptions: [...fromRecipe.assumptions, ...takeoff.assumptions],
+      assumptions: [...fromRecipe.assumptions, ...geometryAssumptions(geometry), ...takeoff.assumptions],
       // Les fournitures viennent des ratios, pas du web : pas de mention « sources web ».
       webUsed: false,
       laborPhases: labor_phases,
     };
   }
 
-  // Calcul déterministe des parpaings/agglos à partir de la surface estimée par le
-  // LLM (jamais l'inverse) — voir computeMasonryBlockCount(). Défensif : si le modèle
-  // a quand même listé un parpaing/agglo dans "materials" malgré la consigne, on le
-  // retire pour éviter un doublon avec la ligne calculée.
-  let materials = takeoff.materials;
-  const assumptions = [...takeoff.assumptions];
+  // Métré génératif : murs maçonnés toujours calculés par la recette du matériau
+  // demandé, à partir de la surface calculée (maison) ou estimée par le modèle.
+  const assumptions = [...geometryAssumptions(geometry), ...takeoff.assumptions];
+  const meshCheck = dropMeshForTieBeams(takeoff.materials);
+  let materials = meshCheck.materials;
+  if (meshCheck.dropped) {
+    assumptions.push("Treillis soudé retiré des chaînages : armatures HA 4 filants (DTU 20.1).");
+  }
 
-  if (takeoff.masonry_wall_area_m2) {
-    const ignoredByLlm = materials.filter((m) => isMasonryUnitMaterial(m.name_generic));
-    if (ignoredByLlm.length) {
-      materials = materials.filter((m) => !isMasonryUnitMaterial(m.name_generic));
-    }
+  if (shell) {
+    // Gros œuvre déterministe + autres lots du modèle (doublons de gros œuvre retirés).
+    const others = materials.filter((m) => {
+      const n = foldName(m.name_generic);
+      return !isMasonryUnitMaterial(m.name_generic) && !WALL_COMPLEX_RE.test(n) && !SHELL_COMPLEX_RE.test(n);
+    });
+    const otherHours = takeoff.labor_hours_estimate ?? 0;
+    return {
+      ...takeoff,
+      materials: [...shell.materials, ...others],
+      assumptions: [...assumptions, ...shell.assumptions],
+      masonry_wall_area_m2: geometry.walls!.netWallAreaM2,
+      labor_hours_estimate: Math.round((shell.laborHours + otherHours) * 10) / 10,
+      webUsed: web !== null,
+      laborPhases: [
+        ...shell.laborPhases,
+        ...(otherHours > 0 ? [{ title: `Autres lots : ${takeoff.work_summary || "travaux demandés"}`.slice(0, 160), hours: otherHours }] : []),
+      ],
+    };
+  }
 
-    const blockCount = computeMasonryBlockCount(takeoff.masonry_wall_area_m2);
+  const wallArea = geometry.walls?.netWallAreaM2 ?? takeoff.masonry_wall_area_m2 ?? null;
+  let laborHours = takeoff.labor_hours_estimate;
+  if (wallArea && wallArea <= MAX_RECIPE_QUANTITY) {
+    const material = geometry.walls?.material ?? geometry.material ?? "parpaing";
+    const walls = calculateTakeoffFromRecipe(MASONRY_RECIPE_BY_MATERIAL[material], wallArea);
+    // Doublons proposés par le modèle malgré la consigne (blocs, mortier, arase, chaînages) : retirés.
     materials = [
-      ...materials,
-      {
-        name_generic: "Parpaing creux 20×20×50",
-        quantity: blockCount,
-        unit: "U",
-        specifications: `Calculé : ${takeoff.masonry_wall_area_m2} m² × ${MASONRY_BLOCKS_PER_M2}/m² + ${Math.round(MASONRY_WASTE_MARGIN * 100)} % chute`,
-      },
+      ...materials.filter((m) => !isMasonryUnitMaterial(m.name_generic) && !WALL_COMPLEX_RE.test(foldName(m.name_generic))),
+      ...walls.materials,
     ];
+    laborHours = Math.round(((laborHours ?? 0) + (walls.labor_hours_estimate ?? 0)) * 10) / 10 || null;
     assumptions.push(
-      `Parpaings calculés automatiquement à partir de la surface de mur estimée (${takeoff.masonry_wall_area_m2} m²) — ratio ${MASONRY_BLOCKS_PER_M2} blocs/m², pas une estimation directe du modèle.`,
+      `Murs en ${material} calculés automatiquement : ${wallArea} m² nets × ratios de la recette (blocs, mortier, arase, chaînages HA, linteaux) ; élévation ${walls.labor_hours_estimate} h incluse.`,
     );
   }
 
   if (!materials.length) return null;
-  return { ...takeoff, materials, assumptions, webUsed: web !== null };
+  return {
+    ...takeoff,
+    materials,
+    assumptions,
+    masonry_wall_area_m2: wallArea,
+    labor_hours_estimate: laborHours,
+    webUsed: web !== null,
+  };
+}
+
+/** Hypothèses géométriques visibles par l'artisan (traçabilité du calcul). */
+function geometryAssumptions(ctx: GeometryContext): string[] {
+  if (!ctx.house) return [];
+  const h = (ctx.walls?.heightM ?? facadeHeight(ctx.house)).toFixed(2).replace(".", ",");
+  const out =
+    ctx.house.levels === 2
+      ? [
+          `Configuration ${ctx.house.atticRooms ? "combles aménagés" : "R+1"} détectée : emprise au sol ${ctx.house.footprintM2} m², plancher intermédiaire ${ctx.house.footprintM2} m², élévation des murs ${ctx.house.atticRooms ? "RDC + jambettes" : "sur 2 niveaux"} (hauteur ${h} m).`,
+        ]
+      : [`Surface citée : ${ctx.house.floorAreaM2} m² (plain-pied).`];
+  if (ctx.walls) {
+    out.push(
+      `Murs : périmètre 4 × √${ctx.house.footprintM2} × 1,08 = ${ctx.walls.perimeterLinearMeters} ml ; hauteur ${ctx.walls.heightM} m ; ${ctx.walls.grossWallAreaM2} m² bruts − ${ctx.walls.openingsAreaM2} m² d'ouvertures (18 %) = ${ctx.walls.netWallAreaM2} m² nets.`,
+    );
+  }
+  if (ctx.roofAreaM2) {
+    out.push(`Toiture : ${ctx.house.footprintM2} m² × 1,12 (débords) × pente 35 % = ${ctx.roofAreaM2} m² développés.`);
+  }
+  return out;
 }
 
 export function formatTakeoffForQuotePrompt(takeoff: MaterialTakeoff, webUsed: boolean): string {

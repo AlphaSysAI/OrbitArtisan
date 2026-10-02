@@ -40,6 +40,7 @@ import {
 import { safeHttpUrl } from "@/lib/security/safe-url";
 import { cn } from "@/lib/utils";
 import { formatCents } from "@/lib/format/money";
+import { normalizeMaterialUnit } from "@/lib/quotes/material-unit";
 
 /** Franchise en base de TVA (293 B) : aucun choix de taux, pas de TVA affichée. */
 const VatFranchiseContext = React.createContext(false);
@@ -50,6 +51,11 @@ type Service = {
   duration: number;
   price: number | null;
 };
+
+/** Unité renvoyée par l'IA → unité canonique de la ligne (persistée, affichée telle quelle). */
+function formUnit(unit: string | null | undefined, row: MaterialRow): Pick<MaterialRow, "unit"> {
+  return { unit: normalizeMaterialUnit(unit) ?? row.unit };
+}
 
 function emptyMaterialRow(): MaterialRow {
   return {
@@ -150,6 +156,7 @@ type EditQuoteInitialData = {
     unitPriceCents: number;
     vatRate: string;
     excludeFromInvoice: boolean;
+    unit?: string | null;
   }[];
   reducedVatRate: string;
   workSiteAddress: string;
@@ -264,6 +271,7 @@ export function QuoteForm({
           similarity: m.similarity,
           requestedName: m.requestedName,
           specifications: m.specifications,
+          unit: m.unit ?? null,
         })),
       );
     }
@@ -326,7 +334,7 @@ export function QuoteForm({
           id: uuid(),
           label: m.label,
           description: "",
-          unit: "U",
+          unit: normalizeMaterialUnit(m.unit) ?? "U",
           vatRate: sameVatRate(m.vatRate, editQuote.reducedVatRate) ? "" : m.vatRate,
           quantity: m.quantity,
           unitPriceEur: (m.unitPriceCents / 100).toString().replace(".", ","),
@@ -440,7 +448,14 @@ export function QuoteForm({
         })),
         ...state.materials
           .filter((m) => m.label.trim())
-          .map((m) => ({ id: m.id, source: "manual" as const, label: m.label, quantity: m.quantity, unitPriceEur: eurNum(m.unitPriceEur) })),
+          .map((m) => ({
+            id: m.id,
+            source: "manual" as const,
+            label: m.label,
+            quantity: m.quantity,
+            unitPriceEur: eurNum(m.unitPriceEur),
+            unit: m.unit || null,
+          })),
       ],
       labor: state.laborLines
         .filter((l) => l.title.trim() || hoursToMinutes(l.hours) > 0)
@@ -484,11 +499,14 @@ export function QuoteForm({
         .filter((m) => !m.label.trim() ? false : byId.has(m.id))
         .map((m) => {
           const l = byId.get(m.id)!;
-          return { ...m, label: l.label, quantity: l.quantity, unitPriceEur: commaEur(l.unitPriceEur) };
+          return { ...m, label: l.label, quantity: l.quantity, unitPriceEur: commaEur(l.unitPriceEur), ...formUnit(l.unit, m) };
         }),
       ...next.lines
         .filter((l) => l.source === "manual" && !knownManual.has(l.id))
-        .map((l) => ({ ...emptyMaterialRow(), id: l.id, label: l.label, quantity: l.quantity, unitPriceEur: commaEur(l.unitPriceEur) })),
+        .map((l) => {
+          const row = emptyMaterialRow();
+          return { ...row, id: l.id, label: l.label, quantity: l.quantity, unitPriceEur: commaEur(l.unitPriceEur), ...formUnit(l.unit, row) };
+        }),
     ]);
     const laborById = new Map(state.laborLines.map((l) => [l.id, l]));
     const nextLabor = next.labor.map((l) => ({
@@ -1381,7 +1399,8 @@ const MaterialRowEditor = React.memo(function MaterialRowEditor({
             value={m.unit}
             onChange={(e) => onChange(m.id, { unit: e.target.value })}
           >
-            {WORK_UNITS.map((u) => (
+            {/* Unité hors liste (sacs, kg, L… issue de l'IA ou d'un devis rechargé) : conservée. */}
+            {[...WORK_UNITS, ...((WORK_UNITS as readonly string[]).includes(m.unit) || !m.unit ? [] : [m.unit])].map((u) => (
               <option key={u} value={u}>
                 {u}
               </option>

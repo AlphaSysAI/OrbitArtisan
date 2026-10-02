@@ -16,6 +16,8 @@ export type FormPatchLine = {
   quantity: number;
   /** Prix unitaire HT en euros, null si non renseigné. */
   unitPriceEur: number | null;
+  /** Unité d'achat normalisée (u, m², ml, sacs…) : clé de correspondance avec le barème. */
+  unit?: string | null;
 };
 
 export type FormPatchLabor = { id: string; title: string; hours: number };
@@ -45,6 +47,8 @@ export const formPatchOperationSchema = z.object({
   label: z.string().nullable(),
   quantity: z.number().nullable(),
   unit_price_eur: z.number().nullable(),
+  /** Unité d'achat de la fourniture (add_line / update_line), sinon null. */
+  unit: z.string().nullable().optional(),
   hours: z.number().nullable(),
   text: z.string().nullable(),
 });
@@ -70,13 +74,14 @@ export const FORM_PATCH_JSON_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["op", "target", "label", "quantity", "unit_price_eur", "hours", "text"],
+        required: ["op", "target", "label", "quantity", "unit_price_eur", "unit", "hours", "text"],
         properties: {
           op: { type: "string", enum: [...FORM_PATCH_OPS] },
           target: nullable("string"),
           label: nullable("string"),
           quantity: nullable("number"),
           unit_price_eur: nullable("number"),
+          unit: nullable("string"),
           hours: nullable("number"),
           text: nullable("string"),
         },
@@ -91,9 +96,10 @@ export const FORM_PATCH_SYSTEM_PROMPT = `Tu modifies un devis d'artisan du bâti
 
 Tu ne réécris pas le devis : tu listes les OPÉRATIONS à appliquer.
 - add_line : ajouter une fourniture. label = désignation courte (ex. « Sac de colle carrelage C2 25 kg »),
-  quantity = quantité demandée, unit_price_eur = prix unitaire HT s'il est DONNÉ, sinon null (ne jamais inventer).
+  quantity = quantité demandée, unit_price_eur = prix unitaire HT s'il est DONNÉ, sinon null (ne jamais inventer),
+  unit = unité d'achat de la quantité (u, m², ml, m³, sacs, kg, L, rouleaux, boîtes…), null si impossible à déduire.
 - update_line : modifier une fourniture existante (target = F1, F2…). Ne renseigne que ce qui change
-  (label et/ou quantity et/ou unit_price_eur), le reste à null.
+  (label et/ou quantity et/ou unit_price_eur et/ou unit), le reste à null.
 - remove_line : supprimer une fourniture (target = F…).
 - add_labor : ajouter une ligne de main-d'œuvre (label = intitulé, hours = heures).
 - update_labor : modifier une ligne de main-d'œuvre (target = M1, M2… ; label et/ou hours).
@@ -122,7 +128,9 @@ function laborRef(index: number): string {
 /** Contexte compact envoyé au modèle (références courtes à la place des identifiants internes). */
 export function describeSnapshot(s: QuoteFormSnapshot): string {
   const fmt = (n: number | null) => (n === null ? "prix à compléter" : `${n.toFixed(2)} € HT`);
-  const lines = s.lines.map((l, i) => `${lineRef(i)} | ${l.label || "(sans libellé)"} | qté ${l.quantity} | ${fmt(l.unitPriceEur)}`);
+  const lines = s.lines.map(
+    (l, i) => `${lineRef(i)} | ${l.label || "(sans libellé)"} | qté ${l.quantity}${l.unit ? ` ${l.unit}` : ""} | ${fmt(l.unitPriceEur)}`,
+  );
   const labor = s.labor.map((l, i) => `${laborRef(i)} | ${l.title || "(sans intitulé)"} | ${l.hours} h`);
   return [
     `Taux horaire : ${s.laborRateEur !== null ? `${s.laborRateEur} €/h HT` : "non renseigné"}`,
@@ -144,6 +152,10 @@ const validQty = (q: number | null): q is number => q !== null && Number.isFinit
 const validPrice = (p: number | null): p is number => p !== null && Number.isFinite(p) && p >= 0 && p <= 1_000_000;
 const validHours = (h: number | null): h is number => h !== null && Number.isFinite(h) && h > 0 && h <= 2_000;
 const cleanLabel = (s: string | null) => s?.trim().replace(/\s+/g, " ") ?? "";
+const cleanUnit = (u: string | null | undefined) => {
+  const v = u?.trim().replace(/\s+/g, " ") ?? "";
+  return v && v.length <= 20 ? v : null;
+};
 
 /**
  * Applique les opérations. Toute opération invalide est ignorée et signalée —
@@ -177,7 +189,7 @@ export function applyFormPatch(
         if (!validQty(op.quantity)) warnings.push(`« ${label} » : quantité non précisée, 1 par défaut.`);
         const price = validPrice(op.unit_price_eur) ? round2(op.unit_price_eur) : null;
         if (price === null) warnings.push(`« ${label} » : prix à compléter.`);
-        lines.push({ id: newId(), source: "manual", label, quantity, unitPriceEur: price });
+        lines.push({ id: newId(), source: "manual", label, quantity, unitPriceEur: price, unit: cleanUnit(op.unit) });
         changes.push(`+ ${quantity} × ${label}${price !== null ? ` à ${formatEuros(price)} HT` : " (prix à compléter)"}`);
         break;
       }
@@ -203,6 +215,11 @@ export function applyFormPatch(
         if (validPrice(op.unit_price_eur) && round2(op.unit_price_eur) !== before.unitPriceEur) {
           parts.push(`prix ${before.unitPriceEur !== null ? formatEuros(before.unitPriceEur) : "—"} → ${formatEuros(round2(op.unit_price_eur))} HT`);
           next.unitPriceEur = round2(op.unit_price_eur);
+        }
+        const unit = cleanUnit(op.unit);
+        if (unit && unit !== before.unit) {
+          parts.push(`unité → ${unit}`);
+          next.unit = unit;
         }
         if (!parts.length) {
           warnings.push(`« ${before.label} » : modification incomprise.`);

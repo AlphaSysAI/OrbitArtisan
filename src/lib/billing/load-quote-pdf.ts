@@ -117,7 +117,8 @@ export async function loadQuotePdfDocument(
       .order("created_at", { ascending: true }),
     supabase
       .from("quote_materials")
-      .select("label, quantity, unit_price, line_total, vat_rate, exclude_from_invoice, supplier_url")
+      // « * » : tolérant à la migration 60 (colonne unit) non appliquée.
+      .select("*")
       .eq("quote_id", quoteId)
       .order("created_at", { ascending: true }),
   ]);

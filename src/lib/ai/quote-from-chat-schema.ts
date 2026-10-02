@@ -100,6 +100,8 @@ export type MatchedSupplierMaterial = {
   } | null;
   /** Prix unitaire HT estimé (web / LLM) si aucun produit catalogue. */
   estimated_unit_price_eur?: number | null;
+  /** Unité marchande issue du métré. */
+  unit?: string | null;
 };
 
 export type GenerateQuoteFromChatResponse = {
