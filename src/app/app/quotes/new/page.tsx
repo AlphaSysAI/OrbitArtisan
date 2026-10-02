@@ -53,7 +53,7 @@ export default async function NewQuotePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, slug, accent_color, labor_rate_per_hour, vat_regime")
+    .select("id, business_name, slug, accent_color, labor_rate_per_hour, materials_margin_rate, vat_regime")
     .eq("user_id", user!.id)
     .maybeSingle();
 
@@ -214,6 +214,7 @@ export default async function NewQuotePage({
     <QuoteForm
       accentColor={accent}
       profileLaborRatePerHourCents={profile.labor_rate_per_hour ?? null}
+      materialsMarginRate={Number(profile.materials_margin_rate ?? 0) || 0}
       vatFranchise={profile.vat_regime === "franchise"}
       services={safeServices}
       conversationPrefill={conversationPrefill}

@@ -17,6 +17,7 @@ import { ClientQuotePdfDownloadButton } from "@/components/quotes/quote-document
 import { ClientQuoteActions } from "./client-quote-actions";
 import { formatDateTimeFr } from "@/lib/format/date";
 import { formatCents } from "@/lib/format/money";
+import { vatCertificationLines, vatCertificationScope } from "@/lib/billing/vat-certification";
 
 export default async function ClientQuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
   const { quoteId } = await params;
@@ -34,7 +35,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id,status,customer_user_id,artisan_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,valid_until",
+      "id,status,customer_user_id,artisan_id,signed_at,signed_by_name,rejected_at,labor_rate_per_hour,labor_duration_minutes,labor_total,materials_total,grand_total,notes,created_at,updated_at,valid_until,reduced_vat_rate,work_site_address,work_site_postal_code,work_site_city",
     )
     .eq("id", quoteId)
     .maybeSingle();
@@ -55,7 +56,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
 
   const { data: materialLines } = await supabase
     .from("quote_materials")
-    .select("label,quantity,unit_price,line_total")
+    .select("label,quantity,unit_price,line_total,vat_rate,exclude_from_invoice")
     .eq("quote_id", quoteId)
     .order("created_at", { ascending: true });
 
@@ -235,7 +236,20 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
               )}
 
               <ClientQuotePdfDownloadButton quoteId={quoteId} />
-              <ClientQuoteActions quoteId={quoteId} status={q.status} expired={isExpired} />
+              <ClientQuoteActions
+                quoteId={quoteId}
+                status={q.status}
+                expired={isExpired}
+                vatCertificationLines={vatCertificationLines(
+                  vatCertificationScope([
+                    Number(quote.reduced_vat_rate ?? 20),
+                    ...(materialLines ?? [])
+                      .filter((m) => !m.exclude_from_invoice)
+                      .map((m) => Number(m.vat_rate ?? 20)),
+                  ]),
+                  [quote.work_site_address, quote.work_site_postal_code, quote.work_site_city].filter(Boolean).join(", "),
+                )}
+              />
             </CardContent>
           </Card>
         </div>

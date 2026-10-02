@@ -35,6 +35,7 @@ export function ProfileForm({
     slug: string;
     accent_color: string | null;
     labor_rate_per_hour: number | null;
+    materials_margin_rate?: number | null;
     trade_category: string | null;
     trade: string | null;
   };
@@ -53,6 +54,10 @@ export function ProfileForm({
     return String(initialValues.labor_rate_per_hour / 100).replace(".", ",");
   });
 
+  const [marginRate, setMarginRate] = React.useState(() =>
+    initialValues.materials_margin_rate ? String(initialValues.materials_margin_rate).replace(".", ",") : "",
+  );
+
   async function onSubmit(formData: FormData) {
     const res = await upsertProfile(formData);
     if (!res.ok) {
@@ -67,6 +72,8 @@ export function ProfileForm({
                 ? "Couleur invalide (format #RRGGBB)."
                 : res.error === "invalid_trade"
                   ? "Sélection de métier invalide : choisis un secteur puis un métier."
+                  : res.error === "invalid_margin"
+                    ? "Marge sur les fournitures invalide (entre 0 et 200 %)."
                   : "Impossible d’enregistrer. Réessaie.",
       );
       return;
@@ -265,6 +272,28 @@ export function ProfileForm({
             className="h-11"
           />
         </div>
+      </div>
+
+      <div className="space-y-2 rounded-2xl border bg-muted/20 p-5">
+        <div>
+          <Label htmlFor="materials_margin_rate" className="text-base">
+            Marge sur les fournitures (%)
+          </Label>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Appliquée automatiquement aux prix d&apos;achat estimés par Soline (ex. 30 : un parpaing trouvé à
+            2,20 € HT est chiffré 2,86 € HT). Elle n&apos;apparaît jamais sur le devis, seul le prix final
+            est affiché. Tes prix de bibliothèque et tes saisies ne sont pas modifiés.
+          </p>
+        </div>
+        <Input
+          id="materials_margin_rate"
+          name="materials_margin_rate"
+          inputMode="decimal"
+          placeholder="Ex. 30"
+          value={marginRate}
+          onChange={(e) => setMarginRate(e.target.value)}
+          className="h-11 sm:max-w-40"
+        />
       </div>
 
       <div className="flex flex-col gap-3 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">

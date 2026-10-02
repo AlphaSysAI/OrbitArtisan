@@ -29,14 +29,24 @@ function done(token: string, res: ResponseResult): ResponseResult {
   return res;
 }
 
-export async function acceptQuoteAction(token: string, signerName: string, approved: boolean): Promise<ResponseResult> {
+export async function acceptQuoteAction(
+  token: string,
+  signerName: string,
+  approved: boolean,
+  vatCertified = false,
+): Promise<ResponseResult> {
   const r = resolve(token);
   if (!r) return { ok: false, error: "not_found" };
   if (!approved) return { ok: false, error: "invalid_input" };
   const h = await headers();
   return done(
     token,
-    await acceptQuoteByLink(r.db, r.id, { signerName, ip: await clientIp(), userAgent: h.get("user-agent") }),
+    await acceptQuoteByLink(r.db, r.id, {
+      signerName,
+      ip: await clientIp(),
+      userAgent: h.get("user-agent"),
+      vatCertified,
+    }),
   );
 }
 

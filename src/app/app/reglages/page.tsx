@@ -100,7 +100,7 @@ export default async function ArtisanSettingsPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "id, name, first_name, last_name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, trade_category, trade, ops_nudges_enabled",
+      "id, name, first_name, last_name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, materials_margin_rate, trade_category, trade, ops_nudges_enabled",
     )
     .eq("user_id", user!.id)
     .maybeSingle();
@@ -282,6 +282,7 @@ export default async function ArtisanSettingsPage({
     slug: "",
     accent_color: null as string | null,
     labor_rate_per_hour: null as number | null,
+    materials_margin_rate: 0 as number | null,
     trade_category: null as string | null,
     trade: null as string | null,
   };

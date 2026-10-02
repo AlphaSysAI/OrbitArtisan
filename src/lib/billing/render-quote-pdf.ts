@@ -111,6 +111,25 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
     out.gap(8);
   }
 
+  if (doc.vatCertification) {
+    const c = doc.vatCertification;
+    out.sectionTitle("Certification du client — TVA à taux réduit (art. 279-0 bis et 278-0 bis A du CGI)");
+    for (const line of c.lines) out.paragraph(line, { size: 7.5, lineGap: 10 });
+    if (c.certifiedAt) {
+      out.callout([
+        {
+          text: `Certifié par ${c.signerName ?? "le client"} le ${formatDateTimeFr(c.certifiedAt, { dateStyle: "long", timeStyle: "short" })}.`,
+          bold: true,
+        },
+      ]);
+    } else {
+      out.paragraph("La signature du bon pour accord ci-dessous vaut certification de ces conditions par le client.", {
+        size: 7.5,
+      });
+    }
+    out.gap(6);
+  }
+
   if (doc.acceptance) {
     const a = doc.acceptance;
     const when = formatDateTimeFr(a.signedAt, { dateStyle: "long", timeStyle: "short" });

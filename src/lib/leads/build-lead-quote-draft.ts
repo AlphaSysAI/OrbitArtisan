@@ -24,6 +24,7 @@ export async function buildLeadQuoteDraft(params: {
     labor_rate_per_hour: number | null;
     trade_category?: string | null;
     trade?: string | null;
+    materials_margin_rate?: number | null;
   };
   lead: {
     description: string;

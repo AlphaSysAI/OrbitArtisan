@@ -23,6 +23,7 @@ import {
   type MatchedSupplierMaterial,
 } from "@/lib/ai/quote-from-chat-schema";
 import { formatTradeLabel } from "@/lib/trades/taxonomy";
+import { applyMaterialsMargin } from "@/lib/billing/materials-margin";
 
 /** Similarité minimale (embeddings mistral-embed) pour proposer un produit catalogue. */
 const CATALOG_MIN_SIMILARITY = 0.6;
@@ -94,6 +95,7 @@ export async function buildQuoteFromText(params: {
     /** Métier déclaré (nomenclature) : borne le périmètre du devis. */
     trade_category?: string | null;
     trade?: string | null;
+    materials_margin_rate?: number | null;
   };
   services: ServiceRow[];
   customerLabel?: string | null;
@@ -111,6 +113,7 @@ export async function buildQuoteFromText(params: {
       : "non renseigné";
 
   const tradeLabel = formatTradeLabel(profile.trade_category, profile.trade);
+  const marginRate = Number(profile.materials_margin_rate ?? 0) || 0;
 
   const warnings: string[] = [];
   let takeoffBlock = "";
@@ -324,12 +327,14 @@ ${instruction}`;
         if (row.match) return row;
         const est = lookupEstimatedUnitPrice(estimates.prices, row.requested_name);
         if (est == null) return row;
-        return { ...row, estimated_unit_price_eur: est };
+        // Prix d'achat estimé → prix de vente : marge de l'artisan (réglages), jamais affichée au client.
+        return { ...row, estimated_unit_price_eur: applyMaterialsMargin(est, marginRate) };
       });
+      const marginNote = marginRate > 0 ? ` Ta marge de ${String(marginRate).replace(".", ",")} % est incluse.` : "";
       warnings.push(
-        estimates.webUsed
+        (estimates.webUsed
           ? `Prix matériaux estimés d'après les prix publics (${estimates.sources.slice(0, 4).join(", ")}) — à valider.`
-          : "Prix matériaux estimés (marché, sans recherche web) — à valider.",
+          : "Prix matériaux estimés (marché, sans recherche web) — à valider.") + marginNote,
       );
     } else if (withoutCatalogPrice.length) {
       warnings.push(

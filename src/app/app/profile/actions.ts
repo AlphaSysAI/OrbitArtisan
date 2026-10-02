@@ -8,6 +8,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { seedDefaultWorkLibraryForUser } from "@/lib/work-library/actions";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
+import { parseMaterialsMarginRate } from "@/lib/billing/materials-margin";
 
 function normalizeSlug(input: string) {
   return input
@@ -24,6 +25,10 @@ export async function upsertProfile(formData: FormData) {
   const description = String(formData.get("description") ?? "").trim();
   const accentRaw = String(formData.get("accent_color") ?? "").trim();
   const laborRateRaw = String(formData.get("labor_rate_per_hour") ?? "").trim();
+  const materialsMarginRate = parseMaterialsMarginRate(String(formData.get("materials_margin_rate") ?? ""));
+  if (materialsMarginRate === null) {
+    return { ok: false as const, error: "invalid_margin" as const };
+  }
   const slugRaw = String(formData.get("slug") ?? "");
   const slug = normalizeSlug(slugRaw);
 
@@ -107,6 +112,7 @@ export async function upsertProfile(formData: FormData) {
     // logo_url : géré par uploadArtisanLogo / removeArtisanLogo (logo-actions.ts), jamais par ce formulaire.
     accent_color,
     labor_rate_per_hour,
+    materials_margin_rate: materialsMarginRate,
     slug,
     trade_category,
     trade,

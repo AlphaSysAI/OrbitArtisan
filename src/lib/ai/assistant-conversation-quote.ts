@@ -26,6 +26,7 @@ export async function tryConversationContextQuote(params: {
     labor_rate_per_hour: number | null;
     trade_category?: string | null;
     trade?: string | null;
+    materials_margin_rate?: number | null;
   };
   pageContext: AssistantPageContextPayload | null;
   message: string;

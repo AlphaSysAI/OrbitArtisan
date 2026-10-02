@@ -14,6 +14,7 @@ import { getPublicSiteUrl } from "@/lib/site-url";
 import { parisDayKey } from "@/lib/format/date";
 import { formatCents } from "@/lib/format/money";
 import { formatPhoneFr, normalizeCustomerPhone } from "@/lib/phone";
+import { vatCertificationScope } from "@/lib/billing/vat-certification";
 
 type Db = SupabaseClient;
 
@@ -60,6 +61,8 @@ type QuoteResponseView = {
     userId: string;
   };
   clientPhone: string | null;
+  /** Texte de certification TVA taux réduit à valider à l'acceptation (vide = taux normal). */
+  vatCertificationLines: string[];
 };
 
 function todayParis(): string {
@@ -116,7 +119,21 @@ export async function loadQuoteForResponse(db: Db, quoteId: string): Promise<Quo
       userId: artisan.user_id as string,
     },
     clientPhone: (client?.phone as string | null) ?? null,
+    vatCertificationLines: doc?.vatCertification?.lines ?? [],
   };
+}
+
+/** Le devis comporte-t-il une ligne à taux réduit (main-d'œuvre ou fourniture) ? */
+export async function quoteRequiresVatCertification(db: Db, quoteId: string): Promise<boolean> {
+  const [{ data: quote }, { data: materials }] = await Promise.all([
+    db.from("quotes").select("reduced_vat_rate").eq("id", quoteId).maybeSingle(),
+    db.from("quote_materials").select("vat_rate, exclude_from_invoice").eq("quote_id", quoteId),
+  ]);
+  const rates = [
+    Number(quote?.reduced_vat_rate ?? 20),
+    ...(materials ?? []).filter((m) => !m.exclude_from_invoice).map((m) => Number(m.vat_rate ?? 20)),
+  ];
+  return vatCertificationScope(rates).required;
 }
 
 /** Premier affichage de la page par le client : alimente « consulté » côté artisan. */
@@ -150,13 +167,18 @@ async function computeHash(db: Db, quoteId: string): Promise<string> {
   return computeQuoteDocumentHash({ quote: quote!, services: services ?? [], materials: materials ?? [] });
 }
 
-export type ResponseResult = { ok: true } | { ok: false; error: "not_found" | "not_acceptable" | "invalid_name" | "invalid_input" | "rate_limited" };
+export type ResponseResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error: "not_found" | "not_acceptable" | "invalid_name" | "invalid_input" | "rate_limited" | "certification_required";
+    };
 
 /** Acceptation par le client depuis le lien e-mail. Mêmes règles que client_accept_quote. */
 export async function acceptQuoteByLink(
   db: Db,
   quoteId: string,
-  input: { signerName: string; ip: string | null; userAgent: string | null },
+  input: { signerName: string; ip: string | null; userAgent: string | null; vatCertified?: boolean },
 ): Promise<ResponseResult> {
   const name = input.signerName.trim().replace(/\s+/g, " ");
   if (name.length < 2 || name.length > 120) return { ok: false, error: "invalid_name" };
@@ -164,6 +186,9 @@ export async function acceptQuoteByLink(
   const view = await loadQuoteForResponse(db, quoteId);
   if (!view) return { ok: false, error: "not_found" };
   if (view.status !== "sent" || view.expired) return { ok: false, error: "not_acceptable" };
+  // Taux réduit : la certification du client est la condition du taux (art. 279-0 bis CGI).
+  const certify = view.vatCertificationLines.length > 0;
+  if (certify && !input.vatCertified) return { ok: false, error: "certification_required" };
 
   const hash = await computeHash(db, quoteId);
   const signedAt = new Date().toISOString();
@@ -177,6 +202,7 @@ export async function acceptQuoteByLink(
       signed_user_agent: input.userAgent?.slice(0, 400) ?? null,
       signed_document_hash: hash,
       response_channel: "email_link",
+      vat_certified_at: certify ? signedAt : null,
       rejected_at: null,
     })
     .eq("id", quoteId)
@@ -469,9 +495,10 @@ export async function forwardArtisanReplyToGuest(db: Db, conversationId: string,
 export async function completeAccountAcceptance(
   db: Db,
   quoteId: string,
-  input: { signerName: string; ip: string | null; userAgent: string | null },
+  input: { signerName: string; ip: string | null; userAgent: string | null; vatCertified?: boolean },
 ): Promise<void> {
   const hash = await computeHash(db, quoteId);
+  const certify = Boolean(input.vatCertified) && (await quoteRequiresVatCertification(db, quoteId));
   await db
     .from("quotes")
     .update({
@@ -479,6 +506,7 @@ export async function completeAccountAcceptance(
       signed_ip: input.ip?.slice(0, 64) ?? null,
       signed_user_agent: input.userAgent?.slice(0, 400) ?? null,
       response_channel: "account",
+      ...(certify ? { vat_certified_at: new Date().toISOString() } : {}),
     })
     .eq("id", quoteId)
     .eq("status", "accepted");
@@ -506,6 +534,9 @@ export async function recordArtisanAcceptance(
   if (input.scanPath && !input.scanPath.startsWith(`${artisanId}/${quoteId}/`)) return { ok: false, error: "invalid_input" };
 
   const hash = await computeHash(db, quoteId);
+  // Papier signé : le devis imprimé porte la certification, la signature la vaut.
+  // Accord oral : aucune certification écrite → elle devra figurer sur la facture.
+  const certify = input.channel === "artisan_paper" && (await quoteRequiresVatCertification(db, quoteId));
   const { data } = await db
     .from("quotes")
     .update({
@@ -515,6 +546,7 @@ export async function recordArtisanAcceptance(
       signed_document_hash: hash,
       response_channel: input.channel,
       signed_scan_path: input.scanPath,
+      vat_certified_at: certify ? signedAt.toISOString() : null,
       rejected_at: null,
     })
     .eq("id", quoteId)

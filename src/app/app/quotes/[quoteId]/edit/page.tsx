@@ -24,7 +24,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, slug, accent_color, labor_rate_per_hour, vat_regime")
+    .select("id, business_name, slug, accent_color, labor_rate_per_hour, materials_margin_rate, vat_regime")
     .eq("user_id", user!.id)
     .maybeSingle();
 
@@ -117,6 +117,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
     <QuoteForm
       accentColor={accent}
       profileLaborRatePerHourCents={profile.labor_rate_per_hour ?? null}
+      materialsMarginRate={Number(profile.materials_margin_rate ?? 0) || 0}
       vatFranchise={profile.vat_regime === "franchise"}
       services={safeServices}
       conversationPrefill={conversationPrefill}
@@ -139,7 +140,6 @@ export default async function EditQuotePage({ params }: { params: Promise<{ quot
           excludeFromInvoice: !!m.exclude_from_invoice,
         })),
         reducedVatRate: quote.reduced_vat_rate != null ? String(quote.reduced_vat_rate) : "20",
-        generateVatAttestation: !!quote.generate_vat_attestation,
         workSiteAddress: quote.work_site_address ?? "",
         workSiteCity: quote.work_site_city ?? "",
         workSitePostalCode: quote.work_site_postal_code ?? "",

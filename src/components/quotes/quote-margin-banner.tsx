@@ -1,5 +1,6 @@
 "use client";
 
+import { materialCostRatioFromMargin } from "@/lib/billing/materials-margin";
 import { computeQuoteMarginPreview } from "@/lib/billing/quote-margin";
 import { cn } from "@/lib/utils";
 import { formatCents } from "@/lib/format/money";
@@ -8,15 +9,18 @@ export function QuoteMarginBanner({
   grandTotalCents,
   laborTotalCents,
   materialsTotalCents,
+  materialsMarginRate = 0,
 }: {
   grandTotalCents: number;
   laborTotalCents: number;
   materialsTotalCents: number;
+  materialsMarginRate?: number;
 }) {
   const margin = computeQuoteMarginPreview({
     grandTotalCents,
     laborTotalCents,
     materialsTotalCents,
+    materialCostRatio: materialCostRatioFromMargin(materialsMarginRate),
   });
 
   const positive = margin.grossMarginCents >= 0;

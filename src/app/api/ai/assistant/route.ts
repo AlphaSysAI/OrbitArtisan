@@ -266,6 +266,7 @@ async function buildQuoteDraftResponse(
     labor_rate_per_hour: number | null;
     trade_category?: string | null;
     trade?: string | null;
+    materials_margin_rate?: number | null;
   },
   params: {
     instruction: string;
@@ -423,7 +424,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, description, labor_rate_per_hour, trade_category, trade")
+    .select("id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
     .eq("user_id", user.id)
     .maybeSingle();
 

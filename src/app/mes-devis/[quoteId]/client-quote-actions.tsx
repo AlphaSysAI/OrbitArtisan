@@ -16,20 +16,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { clientAcceptQuote, clientRejectQuote } from "../actions";
+import { VAT_CERTIFICATION_CHECKBOX } from "@/lib/billing/vat-certification";
 
 export function ClientQuoteActions({
   quoteId,
   status,
   expired = false,
+  vatCertificationLines = [],
 }: {
   quoteId: string;
   status: string;
+  /** Taux réduit : texte que le client certifie en acceptant (vide = taux normal). */
+  vatCertificationLines?: string[];
   /** Devis "sent" dont la date de validité (valid_until) est dépassée. */
   expired?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [signerName, setSignerName] = React.useState("");
   const [ack, setAck] = React.useState(false);
+  const [vatCertified, setVatCertified] = React.useState(false);
+  const needsCertification = vatCertificationLines.length > 0;
   const [loading, setLoading] = React.useState<"accept" | "reject" | null>(null);
 
   if (status !== "sent") {
@@ -54,16 +60,24 @@ export function ClientQuoteActions({
       toast.error("Coche la case pour confirmer la validation du devis.");
       return;
     }
+    if (needsCertification && !vatCertified) {
+      toast.error("Coche la certification TVA pour bénéficier du taux réduit.");
+      return;
+    }
     if (signerName.trim().length < 2) {
       toast.error("Saisis ton nom complet pour signer.");
       return;
     }
     setLoading("accept");
-    const res = await clientAcceptQuote(quoteId, signerName);
+    const res = await clientAcceptQuote(quoteId, signerName, vatCertified);
     setLoading(null);
     if (!res.ok) {
       toast.error(
-        res.error === "invalid_name" ? "Nom de signature invalide." : "Impossible de valider le devis.",
+        res.error === "invalid_name"
+          ? "Nom de signature invalide."
+          : res.error === "certification_required"
+            ? "La certification TVA est requise pour ce devis à taux réduit."
+            : "Impossible de valider le devis.",
       );
       return;
     }
@@ -117,6 +131,22 @@ export function ClientQuoteActions({
                 />
                 <span>Je confirme avoir lu le devis et j’accepte les montants indiqués.</span>
               </label>
+              {needsCertification ? (
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  {vatCertificationLines.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                  <label className="flex cursor-pointer items-start gap-3 pt-1 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={vatCertified}
+                      onChange={(e) => setVatCertified(e.target.checked)}
+                      className="mt-1 size-4 rounded border"
+                    />
+                    <span>{VAT_CERTIFICATION_CHECKBOX}</span>
+                  </label>
+                </div>
+              ) : null}
             </div>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>

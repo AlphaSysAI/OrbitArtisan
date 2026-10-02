@@ -15,6 +15,7 @@ import {
 } from "@/lib/quotes/form-patch";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
+import { applyMaterialsMargin } from "@/lib/billing/materials-margin";
 
 const snapshotSchema = z.object({
   lines: z
@@ -101,6 +102,12 @@ export async function aiEditQuoteForm(input: { snapshot: QuoteFormSnapshot; inst
   // 2. Prix publics web, uniquement pour les nouvelles lignes encore sans prix.
   const stillUnpriced = unpriced.filter((op) => op.unit_price_eur === null);
   if (stillUnpriced.length) {
+    const { data: profile } = await auth.supabase
+      .from("profiles")
+      .select("materials_margin_rate")
+      .eq("id", auth.profileId)
+      .maybeSingle();
+    const marginRate = Number(profile?.materials_margin_rate ?? 0) || 0;
     const estimate = await estimateMaterialUnitPricesEur(
       stillUnpriced.map((op) => ({ name: op.label!.trim(), quantity: op.quantity ?? 1, specifications: null })),
       instruction,
@@ -108,9 +115,10 @@ export async function aiEditQuoteForm(input: { snapshot: QuoteFormSnapshot; inst
     for (const op of stillUnpriced) {
       const price = lookupEstimatedUnitPrice(estimate.prices, op.label!.trim());
       if (price === null) continue;
-      op.unit_price_eur = price;
+      // Prix d'achat estimé → prix de vente (marge des réglages, jamais affichée au client).
+      op.unit_price_eur = applyMaterialsMargin(price, marginRate);
       pricingNotes.push(
-        `« ${op.label} » : prix estimé ${estimate.webUsed ? `d'après ${estimate.sources.slice(0, 3).join(", ") || "le web"}` : "(marché)"} — à valider.`,
+        `« ${op.label} » : prix estimé ${estimate.webUsed ? `d'après ${estimate.sources.slice(0, 3).join(", ") || "le web"}` : "(marché)"}${marginRate > 0 ? `, ta marge de ${String(marginRate).replace(".", ",")} % incluse` : ""} — à valider.`,
       );
     }
   }

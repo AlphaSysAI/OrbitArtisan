@@ -7,11 +7,11 @@ import {
   notifyQuoteAccepted,
   notifyQuoteRejected,
 } from "@/lib/notifications/notify-events";
-import { completeAccountAcceptance } from "@/lib/quotes/quote-response";
+import { completeAccountAcceptance, quoteRequiresVatCertification } from "@/lib/quotes/quote-response";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
-export async function clientAcceptQuote(quoteId: string, signerName: string) {
+export async function clientAcceptQuote(quoteId: string, signerName: string, vatCertified = false) {
   const name = signerName.trim();
   if (name.length < 2) {
     return { ok: false as const, error: "invalid_name" as const };
@@ -28,6 +28,12 @@ export async function clientAcceptQuote(quoteId: string, signerName: string) {
     .select("artisan_id")
     .eq("id", quoteId)
     .maybeSingle();
+
+  // Taux réduit : certification du client obligatoire avant acceptation (art. 279-0 bis CGI).
+  const admin0 = createSupabaseServiceRoleClient();
+  if (admin0 && !vatCertified && (await quoteRequiresVatCertification(admin0, quoteId))) {
+    return { ok: false as const, error: "certification_required" as const };
+  }
 
   const { error } = await supabase.rpc("client_accept_quote", {
     p_quote_id: quoteId,
@@ -48,6 +54,7 @@ export async function clientAcceptQuote(quoteId: string, signerName: string) {
       signerName: name,
       ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip"),
       userAgent: h.get("user-agent"),
+      vatCertified,
     }).catch((e) => console.error("[devis] preuve acceptation compte", quoteId, e));
   }
 

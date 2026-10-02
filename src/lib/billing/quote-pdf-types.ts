@@ -49,7 +49,11 @@ export type QuotePdfDocument = {
   totalTtcCents: number;
   notes?: string | null;
   workSiteAddress?: string | null;
-  generateVatAttestation?: boolean;
+  /**
+   * Certification du client pour les taux réduits (remplace l'attestation depuis le
+   * 01/03/2025) : texte certifié + horodatage si validée à l'acceptation.
+   */
+  vatCertification?: { lines: string[]; certifiedAt: Date | null; signerName: string | null } | null;
   legalFooterLines: string[];
   legalWarnings: string[];
   retractionNotice: QuoteRetractionNotice;

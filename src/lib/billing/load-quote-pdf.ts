@@ -16,6 +16,7 @@ import type { QuotePdfDocument } from "@/lib/billing/quote-pdf-types";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { loadLogoBytesForPdf } from "@/lib/branding/logo";
 import { splitSalesTermsLines } from "@/lib/legal/default-artisan-sales-terms";
+import { vatCertificationLines, vatCertificationScope } from "@/lib/billing/vat-certification";
 
 async function ensureQuoteNumber(
   supabase: SupabaseClient,
@@ -43,6 +44,7 @@ type QuotePdfRow = {
   work_site_postal_code: string | null;
   reduced_vat_rate: number | null;
   generate_vat_attestation: boolean | null;
+  vat_certified_at?: string | null;
   quote_number?: string | null;
   retraction_waived?: boolean | null;
   valid_until?: string | null;
@@ -147,6 +149,10 @@ export async function loadQuotePdfDocument(
 
   const vatBreakdown = computeVatBreakdown(tableLines);
   const vatFranchise = isVatFranchiseDocument(tableLines);
+  const certificationLines = vatCertificationLines(
+    vatCertificationScope(tableLines.map((l) => l.vatRate)),
+    workSite || null,
+  );
   const totals = sumQuoteTotals(vatBreakdown);
 
   const directPurchaseLines = (materials ?? [])
@@ -211,12 +217,17 @@ export async function loadQuotePdfDocument(
     ...totals,
     notes: quote.notes,
     workSiteAddress: workSite || null,
-    generateVatAttestation: !!quote.generate_vat_attestation,
+    vatCertification: certificationLines.length
+      ? {
+          lines: certificationLines,
+          certifiedAt: quote.vat_certified_at ? new Date(quote.vat_certified_at) : null,
+          signerName: quote.signed_by_name?.trim() || null,
+        }
+      : null,
     legalFooterLines: buildQuotePdfFooterLines({
       profile: legalProfile,
       validUntil,
       paymentTermsDays: profile.default_payment_terms_days ?? 30,
-      generateVatAttestation: !!quote.generate_vat_attestation,
       vatFranchise,
     }),
     legalWarnings: validation.warnings,

@@ -106,8 +106,6 @@ export function buildQuotePdfFooterLines(params: {
   profile: QuoteLegalProfile;
   validUntil: Date;
   paymentTermsDays: number;
-  generateVatAttestation?: boolean;
-  vatAttestationNote?: boolean;
   vatFranchise?: boolean;
 }): string[] {
   const lines: string[] = [];
@@ -123,11 +121,6 @@ export function buildQuotePdfFooterLines(params: {
       ? "TVA non applicable, art. 293 B du CGI. Les prix indiqués sont des prix nets, en euros."
       : "Les prix sont exprimés en euros hors taxes. TVA en sus au taux en vigueur applicable à chaque prestation.",
   );
-  if (params.generateVatAttestation && !params.vatFranchise) {
-    lines.push(
-      "TVA à taux réduit : une attestation simplifiée (logement de plus de 2 ans) est jointe ou disponible sur demande — le client doit la signer avant exécution des travaux.",
-    );
-  }
   lines.push(
     "Acceptation : le client signe ci-dessous « Bon pour accord » avec la mention « Lu et approuvé, devis reçu avant exécution des travaux » et la date.",
   );

@@ -423,15 +423,6 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                     )
                   ) : null}
 
-                  {(quote as { generate_vat_attestation?: boolean }).generate_vat_attestation ? (
-                    <a
-                      href={`/api/quotes/${quoteId}/vat-attestation`}
-                      className={buttonVariants({ variant: "outline", className: "w-full justify-center" })}
-                      download
-                    >
-                      Télécharger attestation TVA (PDF)
-                    </a>
-                  ) : null}
                 </>
               ) : null}
             </CardContent>

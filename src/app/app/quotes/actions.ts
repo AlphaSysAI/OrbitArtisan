@@ -105,7 +105,6 @@ type ResolvedQuoteInput = {
   linkedCustomerUserId: string | null;
   quoteStatus: "draft" | "sent";
   reducedVatRate: number | null;
-  generateVatAttestation: boolean;
   workSiteAddress: string | null;
   workSiteCity: string | null;
   workSitePostalCode: string | null;
@@ -252,7 +251,6 @@ async function resolveQuoteInput(
   const reducedVatRaw = String(formData.get("reduced_vat_rate") ?? "").trim();
   const reducedVatRate =
     reducedVatRaw === "5.5" || reducedVatRaw === "10" || reducedVatRaw === "20" ? Number(reducedVatRaw) : null;
-  const generateVatAttestation = String(formData.get("generate_vat_attestation") ?? "") === "1";
   const workSiteAddress = String(formData.get("work_site_address") ?? "").trim() || null;
   const workSiteCity = String(formData.get("work_site_city") ?? "").trim() || null;
   const workSitePostalCode = String(formData.get("work_site_postal_code") ?? "").trim() || null;
@@ -315,7 +313,6 @@ async function resolveQuoteInput(
       linkedCustomerUserId,
       quoteStatus,
       reducedVatRate,
-      generateVatAttestation,
       workSiteAddress,
       workSiteCity,
       workSitePostalCode,
@@ -480,7 +477,8 @@ export async function createQuote(formData: FormData) {
       materials_total: d.materialsTotalCents,
       grand_total: d.grandTotalCents,
       reduced_vat_rate: d.reducedVatRate,
-      generate_vat_attestation: d.generateVatAttestation && (d.reducedVatRate === 5.5 || d.reducedVatRate === 10),
+      // Attestation séparée supprimée le 01/03/2025 : certification client sur le devis.
+      generate_vat_attestation: false,
       work_site_address: d.workSiteAddress,
       work_site_city: d.workSiteCity,
       work_site_postal_code: d.workSitePostalCode,
@@ -583,7 +581,8 @@ export async function updateQuote(quoteId: string, formData: FormData) {
       materials_total: d.materialsTotalCents,
       grand_total: d.grandTotalCents,
       reduced_vat_rate: d.reducedVatRate,
-      generate_vat_attestation: d.generateVatAttestation && (d.reducedVatRate === 5.5 || d.reducedVatRate === 10),
+      // Attestation séparée supprimée le 01/03/2025 : certification client sur le devis.
+      generate_vat_attestation: false,
       work_site_address: d.workSiteAddress,
       work_site_city: d.workSiteCity,
       work_site_postal_code: d.workSitePostalCode,

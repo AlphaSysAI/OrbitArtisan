@@ -136,6 +136,7 @@ export default async function QuoteResponsePage({ params }: { params: Promise<{ 
         callbackRequested={Boolean(view.callbackRequestedAt)}
         guestMessaging={!view.customerUserId}
         thread={thread}
+        vatCertificationLines={view.vatCertificationLines}
       />
 
       <footer className="space-y-2 px-1 pb-6 text-center text-xs text-slate-500">

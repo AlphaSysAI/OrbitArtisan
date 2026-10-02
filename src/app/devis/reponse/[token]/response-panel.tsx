@@ -9,6 +9,7 @@ import type { GuestThreadMessage } from "@/lib/quotes/quote-response";
 import { acceptQuoteAction, rejectQuoteAction, requestCallbackAction, sendGuestMessageAction } from "./actions";
 import { formatDateTimeFr } from "@/lib/format/date";
 import { formatPhoneFr } from "@/lib/phone";
+import { VAT_CERTIFICATION_CHECKBOX } from "@/lib/billing/vat-certification";
 
 const REASONS: { value: string; label: string }[] = [
   { value: "price", label: "Le prix" },
@@ -20,6 +21,7 @@ const REASONS: { value: string; label: string }[] = [
 
 const ERRORS: Record<string, string> = {
   not_acceptable: "Ce devis n'est plus modifiable (déjà traité ou expiré). Rechargez la page.",
+  certification_required: "Cochez la certification TVA : elle conditionne le taux réduit appliqué sur ce devis.",
   invalid_name: "Indiquez votre prénom et votre nom.",
   invalid_input: "Vérifiez les informations saisies.",
   rate_limited: "Trop de messages envoyés. Réessayez dans une heure ou appelez l'artisan.",
@@ -39,6 +41,8 @@ export function QuoteResponsePanel(props: {
   callbackRequested: boolean;
   guestMessaging: boolean;
   thread: GuestThreadMessage[];
+  /** Taux réduit : texte que le client certifie en acceptant (vide = taux normal). */
+  vatCertificationLines: string[];
 }) {
   const router = useRouter();
   const [step, setStep] = React.useState<Step>(props.canRespond ? null : "contact");
@@ -48,6 +52,8 @@ export function QuoteResponsePanel(props: {
 
   const [name, setName] = React.useState(props.defaultName);
   const [approved, setApproved] = React.useState(false);
+  const [vatCertified, setVatCertified] = React.useState(false);
+  const needsCertification = props.vatCertificationLines.length > 0;
   const [reason, setReason] = React.useState("");
   const [comment, setComment] = React.useState("");
   const [phone, setPhone] = React.useState(props.defaultPhone ? formatPhoneFr(props.defaultPhone) : "");
@@ -110,7 +116,7 @@ export function QuoteResponsePanel(props: {
           className="space-y-4 rounded-2xl border bg-white p-5 shadow-sm"
           onSubmit={(e) => {
             e.preventDefault();
-            void run(() => acceptQuoteAction(props.token, name, approved), "Merci ! Votre acceptation est enregistrée.");
+            void run(() => acceptQuoteAction(props.token, name, approved, vatCertified), "Merci ! Votre acceptation est enregistrée.");
           }}
         >
           <h2 className="text-lg font-semibold">Accepter le devis</h2>
@@ -138,10 +144,27 @@ export function QuoteResponsePanel(props: {
               et j&apos;en accepte le contenu et le montant.
             </span>
           </label>
+          {needsCertification ? (
+            <div className="space-y-2 rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">
+              <p className="font-medium text-slate-800">TVA à taux réduit</p>
+              {props.vatCertificationLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+              <label className="flex items-start gap-3 pt-1 text-sm text-slate-900">
+                <input
+                  type="checkbox"
+                  checked={vatCertified}
+                  onChange={(e) => setVatCertified(e.target.checked)}
+                  className="mt-0.5 size-5 shrink-0"
+                />
+                <span>{VAT_CERTIFICATION_CHECKBOX}</span>
+              </label>
+            </div>
+          ) : null}
           <div className="flex gap-2">
             <button
               type="submit"
-              disabled={pending || !approved || name.trim().length < 2}
+              disabled={pending || !approved || (needsCertification && !vatCertified) || name.trim().length < 2}
               className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl font-semibold text-white disabled:opacity-50"
               style={primary}
             >

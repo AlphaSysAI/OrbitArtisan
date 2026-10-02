@@ -152,7 +152,6 @@ type EditQuoteInitialData = {
     excludeFromInvoice: boolean;
   }[];
   reducedVatRate: string;
-  generateVatAttestation: boolean;
   workSiteAddress: string;
   workSiteCity: string;
   workSitePostalCode: string;
@@ -163,6 +162,7 @@ export function QuoteForm({
   services,
   accentColor,
   profileLaborRatePerHourCents,
+  materialsMarginRate = 0,
   conversationPrefill,
   loadAiDraft = false,
   aiDraftKey,
@@ -175,6 +175,8 @@ export function QuoteForm({
   services: Service[];
   accentColor: string;
   profileLaborRatePerHourCents: number | null;
+  /** Marge fournitures des réglages : sert à l'indicateur de marge (jamais affichée au client). */
+  materialsMarginRate?: number;
   conversationPrefill?: {
     conversationId: string;
     customerUserId?: string | null;
@@ -216,7 +218,6 @@ export function QuoteForm({
   const [submitting, setSubmitting] = React.useState(false);
   const [pendingSaveMode, setPendingSaveMode] = React.useState<"draft" | "send">("draft");
   const [reducedVatRate, setReducedVatRate] = React.useState(vatFranchise ? "0" : "20");
-  const [generateVatAttestation, setGenerateVatAttestation] = React.useState(false);
   const [workSiteAddress, setWorkSiteAddress] = React.useState("");
   const [workSiteCity, setWorkSiteCity] = React.useState("");
   const [workSitePostalCode, setWorkSitePostalCode] = React.useState("");
@@ -315,7 +316,6 @@ export function QuoteForm({
     setCustomerEmail(editQuote.customerEmail);
     setNotes(editQuote.notes);
     setReducedVatRate(editQuote.reducedVatRate);
-    setGenerateVatAttestation(editQuote.generateVatAttestation);
     setWorkSiteAddress(editQuote.workSiteAddress);
     setWorkSiteCity(editQuote.workSiteCity);
     setWorkSitePostalCode(editQuote.workSitePostalCode);
@@ -703,7 +703,6 @@ export function QuoteForm({
         />
         <input type="hidden" name="labor_rate_per_hour_eur" value={laborRateEur} />
         <input type="hidden" name="reduced_vat_rate" value={reducedVatRate} />
-        <input type="hidden" name="generate_vat_attestation" value={generateVatAttestation ? "1" : "0"} />
         <input type="hidden" name="work_site_address" value={workSiteAddress} />
         <input type="hidden" name="retraction_waived" value={retractionWaived ? "1" : "0"} />
         <input type="hidden" name="work_site_city" value={workSiteCity} />
@@ -883,7 +882,7 @@ export function QuoteForm({
                 <CardDescription>
                   S&apos;applique à la main-d&apos;œuvre et à toutes les fournitures. Une ligne peut avoir un
                   autre taux si besoin (menu « TVA » de la ligne). Taux réduits : logement de plus de 2 ans,
-                  avec attestation du client.
+                  certifié par le client sur le devis.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -895,9 +894,6 @@ export function QuoteForm({
                     value={reducedVatRate}
                     onChange={(e) => {
                       setReducedVatRate(e.target.value);
-                      if (e.target.value !== "5.5" && e.target.value !== "10") {
-                        setGenerateVatAttestation(false);
-                      }
                     }}
                   >
                     <option value="20">20 % (taux normal)</option>
@@ -907,19 +903,15 @@ export function QuoteForm({
                 </div>
                 {(reducedVatRate === "10" || reducedVatRate === "5.5") && (
                   <>
-                    <label className="flex items-start gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={generateVatAttestation}
-                        onChange={(e) => setGenerateVatAttestation(e.target.checked)}
-                        className="mt-1 rounded border"
-                      />
-                      <span>Générer l&apos;attestation TVA simplifiée (Cerfa 1301-SD) en PDF après création</span>
-                    </label>
-                    {generateVatAttestation && (
+                    <p className="text-sm text-muted-foreground">
+                      Le devis portera la certification du client (logement de plus de 2 ans, pas de construction
+                      neuve ni d&apos;agrandissement de plus de 10 %) : il la valide en signant. L&apos;ancienne
+                      attestation séparée n&apos;existe plus depuis le 1er mars 2025.
+                    </p>
+                    {(
                       <div className="grid gap-4 sm:grid-cols-3">
                         <div className="space-y-2 sm:col-span-3">
-                          <Label>Adresse du chantier *</Label>
+                          <Label>Adresse du logement concerné</Label>
                           <Input
                             value={workSiteAddress}
                             onChange={(e) => setWorkSiteAddress(e.target.value)}
@@ -1124,6 +1116,7 @@ export function QuoteForm({
         grandTotalCents={grandTotalCents}
         laborTotalCents={laborTotalCents}
         materialsTotalCents={materialsTotalCents}
+        materialsMarginRate={materialsMarginRate}
       />
     </div>
   );
