@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { deleteService, updateService } from "./actions";
+import { formatCents } from "@/lib/format/money";
 
 function formatPriceDisplay(price: number | null) {
   if (price == null) return "Sur devis";
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(price / 100);
+  return formatCents(price);
 }
 
 export function ServiceRow({

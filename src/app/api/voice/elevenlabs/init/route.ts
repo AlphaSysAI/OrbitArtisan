@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
-import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
 import { verifyVoiceToolSecret } from "@/lib/voice/voice-secret";
 import { hasAnyVisitRange, parseVisitHours } from "@/lib/appointments/visit-hours";
+import { normalizePhoneE164 } from "@/lib/phone";
 
 /**
  * Webhook d'initiation de conversation ElevenLabs (appels Twilio entrants).

@@ -114,7 +114,7 @@ function escapeXml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export type EmbedFacturXOptions = {
+type EmbedFacturXOptions = {
   visualPdf: Uint8Array;
   xml: string;
   profile: FacturXProfile;

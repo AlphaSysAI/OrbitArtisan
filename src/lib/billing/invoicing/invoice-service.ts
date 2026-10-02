@@ -24,9 +24,9 @@ const VALID_VAT_RATES = [0, 5.5, 10, 20];
  */
 const FINALIZE_CLAIM_STALE_MS = 2 * 60 * 1000;
 
-export type InvoiceEmissionFlow = "e_invoicing" | "e_reporting";
+type InvoiceEmissionFlow = "e_invoicing" | "e_reporting";
 
-export type FinalizeInvoiceSuccess = {
+type FinalizeInvoiceSuccess = {
   ok: true;
   invoiceId: string;
   flow: InvoiceEmissionFlow;
@@ -39,7 +39,7 @@ export type FinalizeInvoiceSuccess = {
   eReportingQueueId?: string;
 };
 
-export type FinalizeInvoiceError = {
+type FinalizeInvoiceError = {
   ok: false;
   code:
     | "not_found"
@@ -57,7 +57,7 @@ export type FinalizeInvoiceError = {
   message: string;
 };
 
-export type FinalizeInvoiceResult = FinalizeInvoiceSuccess | FinalizeInvoiceError;
+type FinalizeInvoiceResult = FinalizeInvoiceSuccess | FinalizeInvoiceError;
 
 type InvoiceFinalizeRow = {
   id: string;

@@ -12,7 +12,7 @@ import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 
 import type { FacturXInvoiceDocument } from "./types";
 
-export type InvoicePdfVatGroup = {
+type InvoicePdfVatGroup = {
   rate: number;
   categoryCode: string;
   baseCents: number;

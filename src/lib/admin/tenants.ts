@@ -1,6 +1,6 @@
 import "server-only";
 
-import { formatPriceHtEur, getPlanMrrCents, getPlanVoiceCalls, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { getPlanMrrCents, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
 import {
   emptyAdminMetrics,
@@ -30,7 +30,7 @@ export type AdminTenantRow = {
   invoicesCount: number;
 };
 
-export type AdminPlatformMetrics = {
+type AdminPlatformMetrics = {
   artisansTotal: number;
   artisansActive: number;
   artisansSuspended: number;
@@ -344,4 +344,3 @@ export async function getAdminTenant(profileId: string): Promise<AdminTenantRow 
   };
 }
 
-export { getPlanVoiceCalls };

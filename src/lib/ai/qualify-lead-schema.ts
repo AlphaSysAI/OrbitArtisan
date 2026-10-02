@@ -2,13 +2,9 @@ import { z } from "zod";
 
 /** Analyse structurée d'une demande de particulier, en vue d'un chiffrage. */
 
-export const LEAD_URGENCIES = ["urgent", "cette_semaine", "flexible"] as const;
-export const LEAD_COMPLEXITIES = ["simple", "moyenne", "elevee"] as const;
-export const LEAD_CONFIDENCES = ["faible", "moyenne", "bonne"] as const;
-
-export type LeadUrgency = (typeof LEAD_URGENCIES)[number];
-export type LeadComplexity = (typeof LEAD_COMPLEXITIES)[number];
-export type LeadConfidence = (typeof LEAD_CONFIDENCES)[number];
+const LEAD_URGENCIES = ["urgent", "cette_semaine", "flexible"] as const;
+const LEAD_COMPLEXITIES = ["simple", "moyenne", "elevee"] as const;
+const LEAD_CONFIDENCES = ["faible", "moyenne", "bonne"] as const;
 
 function coerceText(max: number) {
   return (v: unknown) => String(v ?? "").trim().slice(0, max);

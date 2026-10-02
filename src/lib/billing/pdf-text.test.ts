@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { renderInvoicePdf } from "@/lib/billing/facturx/render-invoice-pdf";
 
 import { formatEurosForPdf, sanitizePdfText } from "./pdf-text";
+import { formatEuros } from "@/lib/format/money";
 
 describe("sanitizePdfText", () => {
   it("convertit l'espace fine insécable produite par Intl", () => {
-    const raw = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(1200);
+    const raw = formatEuros(1200);
     expect(raw).toContain("\u202F");
     expect(sanitizePdfText(raw)).not.toContain("\u202F");
   });

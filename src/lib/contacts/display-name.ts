@@ -1,4 +1,4 @@
-export type ContactNameInput = {
+type ContactNameInput = {
   /** Nom saisi sur devis, facture, RDV, lead… */
   name?: string | null;
   /** Nom du profil client (`customer_profiles.display_name`) */
@@ -7,13 +7,13 @@ export type ContactNameInput = {
   fallback?: string;
 };
 
-export function emailLocalPart(email: string | null | undefined): string | null {
+function emailLocalPart(email: string | null | undefined): string | null {
   if (!email) return null;
   const local = email.split("@")[0]?.trim();
   return local || null;
 }
 
-export function looksLikeEmailAddress(value: string): boolean {
+function looksLikeEmailAddress(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 

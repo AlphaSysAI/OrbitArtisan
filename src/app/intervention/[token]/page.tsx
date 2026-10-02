@@ -7,6 +7,7 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 import { WorkOrderSignatureForm } from "./work-order-signature-form";
+import { formatDateTimeFr } from "@/lib/format/date";
 
 type WorkOrderPayload = {
   id: string;
@@ -74,7 +75,7 @@ export default async function PublicWorkOrderPage({ params }: { params: Promise<
 
       {isSigned ? (
         <p className="rounded-xl border border-green-600/30 bg-green-500/5 p-4 text-center text-sm">
-          Signé par {wo.client_signature_name} le {wo.signed_at ? new Date(wo.signed_at).toLocaleString("fr-FR") : ""}
+          Signé par {wo.client_signature_name} le {wo.signed_at ? formatDateTimeFr(wo.signed_at) : ""}
         </p>
       ) : (
         <WorkOrderSignatureForm token={token} />

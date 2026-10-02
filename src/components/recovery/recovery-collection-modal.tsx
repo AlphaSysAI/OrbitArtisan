@@ -16,12 +16,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { recoveryErrorMessage } from "@/lib/recovery/action-errors";
+import { formatCents } from "@/lib/format/money";
 
-function formatEur(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
-
-export type RecoveryCollectionModalProps = {
+type RecoveryCollectionModalProps = {
   invoiceId: string;
   invoiceNumber: string;
   amountDueCents: number;
@@ -82,7 +79,7 @@ export function RecoveryCollectionModal({
           <div className="rounded-lg bg-muted/50 p-3 text-sm">
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Créance réclamée</span>
-              <span className="font-medium">{formatEur(amountDueCents)}</span>
+              <span className="font-medium">{formatCents(amountDueCents)}</span>
             </div>
             <div className="mt-1 flex justify-between gap-4">
               <span className="text-muted-foreground">Coût si échec</span>

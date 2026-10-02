@@ -237,7 +237,7 @@ export async function markVoiceIntakeRead(intakeId: string): Promise<SimpleResul
   return error ? { ok: false, error: "update_failed" } : { ok: true };
 }
 
-export type VoiceCorrectionResult =
+type VoiceCorrectionResult =
   | { ok: true; transcript: string; changes: string[]; warnings: string[] }
   | { ok: false; error: "auth" | "not_found" | "not_editable" | "audio_invalid" | "empty" | "transcription_failed" | "patch_failed" };
 

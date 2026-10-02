@@ -78,7 +78,7 @@ function resolveRelativeDay(raw: string, now: Date): string | null {
   return null;
 }
 
-export type ResolvedAppointmentDate = {
+type ResolvedAppointmentDate = {
   dateIso: string | null;
   /** `history` = date reprise du tour de conversation précédent. */
   source: "message" | "history" | null;

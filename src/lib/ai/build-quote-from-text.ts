@@ -65,7 +65,9 @@ function materialsFromTakeoff(takeoff: MaterialTakeoff): NeededMaterial[] {
   return takeoff.materials.map((m) => ({
     name_generic: m.name_generic,
     quantity: Math.ceil(m.quantity),
-    specifications: m.specifications ?? m.unit,
+    // L'unité d'achat reste visible même quand un conditionnement est précisé : sans elle,
+    // « 2 » + « Rouleau de 75 m² » ou « 1800 » + « Palette de 300 » est ambigu pour le chiffrage.
+    specifications: m.specifications ? `${m.unit} · ${m.specifications}` : m.unit,
   }));
 }
 
@@ -121,25 +123,32 @@ export async function buildQuoteFromText(params: {
     warnings.push("Le métré automatique n'a pas pu être calculé — complète les matériaux à la main.");
   }
 
-  const systemPrompt = `Tu es un expert en chiffrage pour artisans du bâtiment en France.
+  const systemPrompt = `Tu es un expert en chiffrage pour artisans du bâtiment en France (TCE).
 L'artisan dicte ou écrit une instruction pour préparer un devis.
 Extrais un brouillon structuré.
 
 Matériaux :
-- Si un bloc « Métré automatique » est fourni, reprends EXACTEMENT ces matériaux et quantités dans needed_materials.
-- Sinon, n'invente pas de matériaux absents de l'instruction.
+- Si un bloc « Métré automatique » est fourni, reprends CHAQUE matériau de ce bloc dans needed_materials, un par un,
+  avec sa désignation technique exacte, sa quantité et son conditionnement (specifications). INTERDIT : regrouper,
+  résumer, renommer ou tronquer des postes (pas de « fournitures toiture », « accessoires divers »).
+- Sinon, n'invente pas de matériaux absents de l'instruction ; désignations marchandes standard (comme en négoce).
 - Ne multiplie pas les quantités : plancher et toiture ne se chiffrent pas en parpaings.
-- Si un matériau est mentionné sans prix, mets-le quand même dans needed_materials (specifications = unité : sacs, m³, U…).
+- Si un matériau est mentionné sans prix, mets-le quand même dans needed_materials (specifications = unité et
+  conditionnement : sacs de 25 kg, m², ml, u…).
 
 Prestations :
 - catalog_service_titles : uniquement parmi le catalogue (orthographe proche OK).
 - Si aucune prestation catalogue ne correspond, laisse catalog_service_titles vide et décris le travail dans labor_items + notes.
 
 Main-d'œuvre :
-- labor_items : quantity = heures estimées, unit_price = taux horaire en euros (utilise ${laborRateEur} €/h si cohérent).
-- Si un métré indique des heures MO, utilise-les comme base.
+- labor_items : une ligne par phase d'exécution, dans l'ordre du chantier — jamais un forfait global
+  (pas « Travaux toiture 40 h » mais « Pose charpente fermette », « Pose écran sous-toiture, contre-lattage et litelage »,
+  « Pose tuiles, faîtage et rives »).
+- quantity = heures estimées, unit_price = taux horaire en euros (utilise ${laborRateEur} €/h si cohérent).
+- Si le métré indique des heures MO, répartis-les entre les phases : la somme des heures doit rester égale au total du métré.
 
-notes : synthèse courte pour le devis (max 500 caractères), en français. Mentionne que le métré est indicatif si applicable.`;
+notes : réserves techniques en français, 500 caractères maximum : métré indicatif à valider sur place, hypothèses
+structurantes (pente, état et planéité des supports, accès chantier, évacuation des gravats) — pas de répétition des lignes.`;
 
   const userPrompt = `Artisan: ${profile.business_name ?? "Artisan"}
 ${profile.description ? `Description: ${profile.description}` : ""}
@@ -163,11 +172,14 @@ ${instruction}`;
       temperature: 0.2,
       jsonSchema: QUOTE_EXTRACTION_JSON_SCHEMA,
       jsonExample: `{
-  "labor_items": [{ "description": "Construction mur", "quantity": 8, "unit_price": 45 }],
+  "labor_items": [
+    { "description": "Implantation et montage des murs en parpaings", "quantity": 12, "unit_price": 45 },
+    { "description": "Réalisation des chaînages et linteaux", "quantity": 4, "unit_price": 45 }
+  ],
   "catalog_service_titles": ["Maçonnerie"],
   "needed_materials": [
-    { "name_generic": "Parpaing", "quantity": 1000, "specifications": null },
-    { "name_generic": "Ciment", "quantity": 5, "specifications": "sacs" }
+    { "name_generic": "Parpaing creux 20×20×50", "quantity": 1000, "specifications": "u" },
+    { "name_generic": "Mortier bâtard prêt à l'emploi", "quantity": 5, "specifications": "sacs · Sac de 35 kg" }
   ],
   "notes": "Mur 50 m — vérifier métrés et accès chantier."
 }`,

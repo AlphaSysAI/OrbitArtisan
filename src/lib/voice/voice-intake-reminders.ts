@@ -18,7 +18,7 @@ import { getPublicSiteUrl } from "@/lib/site-url";
  */
 const REMINDER_SCHEDULE_HOURS = [2, 24] as const;
 
-export type VoiceIntakeReminderResult = {
+type VoiceIntakeReminderResult = {
   processed: number;
   sent: number;
   errors: string[];

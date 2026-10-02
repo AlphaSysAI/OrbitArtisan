@@ -14,7 +14,7 @@ export type NearbyArtisan = {
   distance_km: number;
 };
 
-export type SearchNearbyResult =
+type SearchNearbyResult =
   | { ok: true; artisans: NearbyArtisan[] }
   | { ok: false; error: "invalid_input" | "invalid_trade" | "search_failed" };
 

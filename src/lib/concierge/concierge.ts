@@ -4,19 +4,20 @@ import { createHmac } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { formatPhoneFr } from "@/lib/concierge/format-phone";
 import { buildAnonymizedSummary, formatBudget, type AnonymizedLeadSummary } from "@/lib/concierge/summary";
 import { emailButton, escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
+import { signToken, verifyToken } from "@/lib/security/signed-token";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { formatPhoneFr } from "@/lib/phone";
 
 type Db = SupabaseClient;
 
 /** Rayon de recherche des prospects (km) : plus large que le matching inscrits (30 km). */
-export const CONCIERGE_RADIUS_KM = 40;
+const CONCIERGE_RADIUS_KM = 40;
 const MAX_ARTISANS = 3;
 
-export type ConciergeProspect = {
+type ConciergeProspect = {
   id: string;
   business_name: string;
   phone: string;
@@ -26,7 +27,6 @@ export type ConciergeProspect = {
   distance_km: number;
 };
 
-export { formatPhoneFr };
 
 /**
  * Chantier finalisé par un particulier : si moins de 3 artisans INSCRITS ont été
@@ -175,7 +175,7 @@ export async function ensureConciergeInvite(
   return { token: data.token as string, url: inviteUrl(data.token as string) };
 }
 
-export function inviteUrl(token: string): string {
+function inviteUrl(token: string): string {
   return `${getPublicSiteUrl()}/rejoindre/${token}`;
 }
 
@@ -183,16 +183,15 @@ export function optOutUrl(prospectId: string): string {
   return `${getPublicSiteUrl()}/stop/${optOutToken(prospectId)}`;
 }
 
-/** Lien de désinscription (RGPD) signé, inclus dans chaque SMS. */
-export function optOutToken(prospectId: string): string {
-  const key = process.env.APPOINTMENT_LINK_SECRET?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
-  return `${prospectId}.${createHmac("sha256", key).update(`prospect-optout:${prospectId}`).digest("base64url").slice(0, 24)}`;
+/** Lien de désinscription (RGPD) signé, inclus dans chaque SMS. Signature courte (24) conservée : les liens déjà envoyés restent valides. */
+const OPT_OUT_SIG_LENGTH = 24;
+
+function optOutToken(prospectId: string): string {
+  return signToken("prospect-optout", prospectId, { sigLength: OPT_OUT_SIG_LENGTH });
 }
 
 export function verifyOptOutToken(token: string): string | null {
-  const [id] = token.split(".");
-  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return null;
-  return optOutToken(id) === token ? id : null;
+  return verifyToken("prospect-optout", token, { sigLength: OPT_OUT_SIG_LENGTH });
 }
 
 /** SMS « Intéressé » : court, identifié, avec lien d'inscription et désinscription. */

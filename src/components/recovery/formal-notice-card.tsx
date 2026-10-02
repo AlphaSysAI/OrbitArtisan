@@ -31,13 +31,11 @@ import {
   type FormalNoticeStatus,
   type FormalNoticeSummary,
 } from "@/lib/recovery/types";
-
-function formatEur(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatDateFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(value));
+  return formatDateFr(value, { dateStyle: "long" });
 }
 
 const BADGE_VARIANTS: Partial<
@@ -51,10 +49,10 @@ const BADGE_VARIANTS: Partial<
 };
 
 function formatMonth(value: string): string {
-  return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(value));
+  return formatDateFr(value, { month: "long", year: "numeric" });
 }
 
-export type FormalNoticeCardProps = {
+type FormalNoticeCardProps = {
   invoiceId: string;
   amountDueCents: number;
   daysOverdue: number;
@@ -163,7 +161,7 @@ export function FormalNoticeCard({
           <dl className="grid gap-1 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Montant réclamé</dt>
-              <dd className="font-medium">{formatEur(amountDueCents)}</dd>
+              <dd className="font-medium">{formatCents(amountDueCents)}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Retard</dt>
@@ -209,9 +207,7 @@ export function FormalNoticeCard({
             </p>
             <p className="text-muted-foreground">
               Votre prochain recommandé inclus sera disponible le{" "}
-              {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(
-                new Date(quota.periodEnd),
-              )}
+              {formatDate(quota.periodEnd)}
               . Les recommandés non utilisés ne se reportent pas d&apos;un mois sur l&apos;autre.
             </p>
           </div>

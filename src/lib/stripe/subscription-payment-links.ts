@@ -17,7 +17,7 @@ const PAYMENT_LINK_ENV_KEYS: Record<SubscriptionPlanId, Record<BillingInterval, 
   },
 };
 
-export function getPaymentLinkEnvKey(planId: SubscriptionPlanId, interval: BillingInterval): string {
+function getPaymentLinkEnvKey(planId: SubscriptionPlanId, interval: BillingInterval): string {
   return PAYMENT_LINK_ENV_KEYS[planId][interval];
 }
 

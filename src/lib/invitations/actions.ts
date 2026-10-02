@@ -12,7 +12,7 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-export type InvitationPreview = {
+type InvitationPreview = {
   token: string;
   email: string;
   invitedName: string | null;
@@ -188,7 +188,7 @@ export async function getInvitationByToken(token: string): Promise<InvitationPre
   };
 }
 
-export type AcceptInvitationResult =
+type AcceptInvitationResult =
   | { ok: true; accountType: PlatformAccountType; conversationId?: string }
   | { ok: false; error: string };
 
@@ -240,7 +240,3 @@ function revalidateAfterAccept() {
   revalidatePath("/app/reglages");
 }
 
-/** @deprecated Utiliser acceptPlatformInvitation */
-export async function acceptClientInvitation(token: string) {
-  return acceptPlatformInvitation(token);
-}

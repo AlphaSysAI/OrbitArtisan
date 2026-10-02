@@ -5,18 +5,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { formatDateFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 const REMINDER_SCHEDULE_DAYS = [7, 14, 21, 30] as const;
 
-function formatEur(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
-
-function formatDateFr(date: string): string {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(date));
-}
-
-export type ReminderRunResult = {
+type ReminderRunResult = {
   processed: number;
   sent: number;
   markedOverdue: number;
@@ -76,8 +70,8 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
     const bodyHtml = `
       <p>Bonjour${inv.customer_name ? ` ${escapeHtml(inv.customer_name)}` : ""},</p>
       <p>Nous vous rappelons que la facture <strong>${escapeHtml(inv.invoice_number)}</strong>
-      d'un montant de <strong>${formatEur(inv.grand_total ?? 0)}</strong>
-      était due le <strong>${formatDateFr(inv.due_date)}</strong>.</p>
+      d'un montant de <strong>${formatCents(inv.grand_total)}</strong>
+      était due le <strong>${formatDateFr(inv.due_date, { dateStyle: "long" })}</strong>.</p>
       <p>Merci de procéder au règlement dans les meilleurs délais.</p>
       <p>Cordialement,<br/>${escapeHtml(profile?.business_name ?? "Votre artisan")}</p>
     `;
@@ -86,7 +80,7 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
       to: inv.customer_email,
       subject,
       html: bodyHtml,
-      text: `Relance facture ${inv.invoice_number} — ${formatEur(inv.grand_total ?? 0)} — échéance ${formatDateFr(inv.due_date)}`,
+      text: `Relance facture ${inv.invoice_number} — ${formatCents(inv.grand_total)} — échéance ${formatDateFr(inv.due_date, { dateStyle: "long" })}`,
     });
 
     if (!emailResult.ok) {
@@ -145,7 +139,7 @@ export async function sendManualInvoiceReminder(
   const bodyHtml = `
     <p>Bonjour${inv.customer_name ? ` ${escapeHtml(inv.customer_name)}` : ""},</p>
     <p>Rappel concernant la facture <strong>${escapeHtml(inv.invoice_number)}</strong>
-    (${formatEur(inv.grand_total ?? 0)}${inv.due_date ? `, échéance ${formatDateFr(inv.due_date)}` : ""}).</p>
+    (${formatCents(inv.grand_total)}${inv.due_date ? `, échéance ${formatDateFr(inv.due_date, { dateStyle: "long" })}` : ""}).</p>
     <p>Cordialement,<br/>${escapeHtml(profile?.business_name ?? "Votre artisan")}</p>
     <p><a href="${getPublicSiteUrl()}/compte/factures/${inv.id}">Voir la facture</a></p>
   `;

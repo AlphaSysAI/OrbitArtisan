@@ -55,36 +55,6 @@ export async function listWorkCategories() {
   return { ok: true as const, items: data ?? [] };
 }
 
-export async function upsertWorkCategory(name: string, id?: string) {
-  const trimmed = name.trim();
-  if (!trimmed) return { ok: false as const, error: "missing_name" as const };
-
-  const { supabase, userId } = await requireUserId();
-
-  if (id) {
-    const { error } = await supabase
-      .from("work_categories")
-      .update({ name: trimmed })
-      .eq("id", id)
-      .eq("user_id", userId);
-    if (error) return { ok: false as const, error: "update_failed" as const };
-  } else {
-    const { error } = await supabase.from("work_categories").insert({ user_id: userId, name: trimmed });
-    if (error) return { ok: false as const, error: "insert_failed" as const };
-  }
-
-  revalidatePath("/app/ouvrages");
-  return { ok: true as const };
-}
-
-export async function deleteWorkCategory(id: string) {
-  const { supabase, userId } = await requireUserId();
-  const { error } = await supabase.from("work_categories").delete().eq("id", id).eq("user_id", userId);
-  if (error) return { ok: false as const, error: "delete_failed" as const };
-  revalidatePath("/app/ouvrages");
-  return { ok: true as const };
-}
-
 export async function listWorkItems(params?: { q?: string; categoryId?: string | null }) {
   const { supabase, userId } = await requireUserId();
 

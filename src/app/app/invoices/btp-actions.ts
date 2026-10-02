@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 
 import {
   createTypedInvoiceFromQuote,
-  sumInvoicedOnQuote,
 } from "@/lib/billing/create-btp-invoice";
 import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
@@ -12,7 +11,7 @@ import { redirect } from "next/navigation";
 import { frozenInvoicingResult, isDraftInvoicingFrozenForCustomer } from "@/lib/billing/invoicing-freeze";
 import { resolveCustomerClassification } from "@/lib/billing/invoicing/resolve-customer-classification";
 
-export async function createCreditNoteFromInvoice(
+async function createCreditNoteFromInvoice(
   invoiceId: string,
 ): Promise<{ ok: true; creditNoteId: string } | { ok: false; error: string }> {
   const auth = await requireArtisanProfileId();
@@ -94,7 +93,7 @@ export async function createCreditNoteFromInvoice(
   return { ok: true, creditNoteId: creditNote.id };
 }
 
-export async function releaseRetention(invoiceId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+async function releaseRetention(invoiceId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const auth = await requireArtisanProfileId();
   if (!auth.ok) return { ok: false, error: auth.error === "auth" ? "auth" : "profile" };
   const { supabase, profileId } = auth;

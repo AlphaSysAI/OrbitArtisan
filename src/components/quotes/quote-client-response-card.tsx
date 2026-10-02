@@ -7,6 +7,8 @@ import { toast } from "sonner";
 
 import { markCallbackHandled, markQuoteAcceptedByArtisan, markQuoteRejectedByArtisan } from "@/app/app/quotes/response-actions";
 import { Button } from "@/components/ui/button";
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatPhoneFr } from "@/lib/phone";
 
 const REASON_LABELS: Record<string, string> = {
   price: "Le prix",
@@ -32,11 +34,7 @@ const ERRORS: Record<string, string> = {
 };
 
 function when(iso: string) {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
-}
-
-function national(p: string) {
-  return p.startsWith("+33") ? `0${p.slice(3)}`.replace(/(\d{2})(?=\d)/g, "$1 ") : p;
+  return formatDateTimeFr(iso, { dateStyle: "medium", timeStyle: "short" });
 }
 
 /** Photo de chantier → JPEG ≤ 1600 px : léger à envoyer en 4G. Les PDF passent tels quels. */
@@ -133,7 +131,7 @@ export function QuoteClientResponseCard(props: {
                 href={`tel:${props.callback!.phone}`}
                 className="inline-flex h-9 items-center gap-2 rounded-md bg-foreground px-3 font-medium text-background"
               >
-                <PhoneCall className="size-4" /> Rappeler le {national(props.callback!.phone)}
+                <PhoneCall className="size-4" /> Rappeler le {formatPhoneFr(props.callback!.phone)}
               </a>
             ) : null}
             <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => void onCallbackDone()}>

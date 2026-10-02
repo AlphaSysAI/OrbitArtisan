@@ -10,7 +10,7 @@ const COUNTRY_RE = /^[A-Z]{2}$/;
 /** Format simplifié FR : FR + 2 car. + 9 chiffres SIREN */
 const VAT_FR_RE = /^FR[A-HJ-NP-Z0-9]{2}\d{9}$/;
 
-export function normalizeDigits(input: string | null | undefined): string | null {
+function normalizeDigits(input: string | null | undefined): string | null {
   if (!input) return null;
   const digits = input.replace(/\s/g, "");
   return digits || null;
@@ -33,13 +33,13 @@ export function validateSiret(input: string | null | undefined, siren?: string |
   return digits;
 }
 
-export function validateNafCode(input: string | null | undefined): string | null {
+function validateNafCode(input: string | null | undefined): string | null {
   if (!input) return null;
   const code = input.trim().toUpperCase();
   return NAF_RE.test(code) ? code : null;
 }
 
-export function validateCountryCode(input: string | null | undefined): string {
+function validateCountryCode(input: string | null | undefined): string {
   if (!input) return "FR";
   const code = input.trim().toUpperCase();
   return COUNTRY_RE.test(code) ? code : "FR";
@@ -54,24 +54,24 @@ export function validateVatNumber(input: string | null | undefined): string | nu
   return null;
 }
 
-export function validateTradeRegisterNumber(input: string | null | undefined): string | null {
+function validateTradeRegisterNumber(input: string | null | undefined): string | null {
   if (!input) return null;
   const trimmed = input.trim();
   return trimmed.length >= 3 ? trimmed : null;
 }
 
-export type LegalEntityValidationResult =
+type LegalEntityValidationResult =
   | { ok: true; fields: LegalEntityValidatedFields }
   | { ok: false; error: LegalEntityValidationError };
 
-export type LegalEntityValidationError =
+type LegalEntityValidationError =
   | "invalid_siren"
   | "invalid_siret"
   | "invalid_naf"
   | "invalid_vat"
   | "invalid_trade_register";
 
-export type LegalEntityValidatedFields = {
+type LegalEntityValidatedFields = {
   siren: string | null;
   siret: string | null;
   vat_number: string | null;
@@ -80,7 +80,7 @@ export type LegalEntityValidatedFields = {
   trade_register_number: string | null;
 };
 
-export type LegalEntityInput = {
+type LegalEntityInput = {
   siren?: string | null;
   siret?: string | null;
   vat_number?: string | null;

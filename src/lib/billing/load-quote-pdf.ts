@@ -17,7 +17,7 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { loadLogoBytesForPdf } from "@/lib/branding/logo";
 import { splitSalesTermsLines } from "@/lib/legal/default-artisan-sales-terms";
 
-export async function ensureQuoteNumber(
+async function ensureQuoteNumber(
   supabase: SupabaseClient,
   quoteId: string,
 ): Promise<string | null> {

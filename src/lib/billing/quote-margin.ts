@@ -1,9 +1,11 @@
+import {  } from "@/lib/format/money";
+
 /**
  * Hypothèse générique, volontairement non personnalisée par artisan (cf. commentaire
  * de `computeQuoteMarginPreview` plus bas) : estimation du déboursé matière (% du PV
  * fournitures facturées).
  */
-export const DEFAULT_MATERIAL_COST_RATIO = 0.65;
+const DEFAULT_MATERIAL_COST_RATIO = 0.65;
 
 /**
  * Hypothèse générique de coût de main-d'œuvre (% du PV MO). Pour un solo sans salarié,
@@ -11,9 +13,9 @@ export const DEFAULT_MATERIAL_COST_RATIO = 0.65;
  * matériel, temps non facturable...), pas un salaire réellement versé — la marge
  * affichée reste donc indicative même dans ce cas.
  */
-export const DEFAULT_LABOR_COST_RATIO = 0.65;
+const DEFAULT_LABOR_COST_RATIO = 0.65;
 
-export type QuoteMarginPreview = {
+type QuoteMarginPreview = {
   grandTotalCents: number;
   laborTotalCents: number;
   materialsTotalCents: number;
@@ -62,6 +64,3 @@ export function computeQuoteMarginPreview(input: {
   };
 }
 
-export function formatMarginEur(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}

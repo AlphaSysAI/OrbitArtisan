@@ -70,7 +70,7 @@ export const MaterialTakeoffSchema = z.object({
 
 export type MaterialTakeoff = z.infer<typeof MaterialTakeoffSchema>;
 
-export const MATERIAL_TAKEOFF_JSON_SCHEMA: Record<string, unknown> = {
+const MATERIAL_TAKEOFF_JSON_SCHEMA: Record<string, unknown> = {
   type: "object",
   properties: {
     work_summary: { type: "string" },
@@ -110,15 +110,59 @@ export const MATERIAL_TAKEOFF_JSON_SCHEMA: Record<string, unknown> = {
  * un autre format de bloc.
  */
 export const MASONRY_BLOCKS_PER_M2 = 10;
-export const MASONRY_WASTE_MARGIN = 0.05;
+const MASONRY_WASTE_MARGIN = 0.05;
 
 /** Calcule un nombre de parpaings/agglos de façon déterministe — jamais via le LLM. */
 export function computeMasonryBlockCount(wallAreaM2: number): number {
   return Math.ceil(wallAreaM2 * MASONRY_BLOCKS_PER_M2 * (1 + MASONRY_WASTE_MARGIN));
 }
 
-const WORK_KEYWORDS =
-  /mur|parpaing|agglo|brique|bloc|dalle|chape|toiture|carrelage|enduit|cloison|fondation|terrasse|maçonnerie|maconnerie|beton|béton|linteau|poteau|hourdis|planelle|plancher/i;
+/** Minuscules, sans accents ni exposants (m² → m2, œ → oe) : les regex ci-dessous travaillent sur ce texte. */
+function foldForDetection(text: string): string {
+  return text
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/œ/g, "oe")
+    .replace(/[’`]/g, "'");
+}
+
+/** Gros œuvre / couverture / VRD : métré dès qu'une dimension chiffrée est donnée. */
+const STRUCTURAL_WORK =
+  /mur|parpaing|agglo|brique|bloc|dalle|chape|\btoit|charpente|couverture|tuile|carrelage|enduit|cloison|fondation|terrasse|terrassement|maconnerie|beton|linteau|poteau|hourdis|planelle|plancher/;
+
+/** Second œuvre et formulations de particuliers : métré si dimension OU surface / pièce identifiable. */
+const FINISHING_WORK = new RegExp(
+  [
+    // Peinture / finitions
+    "peinture", "peindre", "tapisserie", "toile de verre", "enduit", "lissage", "\\bmurs\\b", "plafond",
+    // Plâtrerie / isolation
+    "placo", "\\bba ?13\\b", "cloison", "doublage", "laine de (?:verre|roche)", "isolant", "isolation", "combles",
+    // Sols
+    "carrelage", "faience", "parquet", "stratifie", "sol pvc", "\\blino", "chape", "ragreage",
+    // Électricité
+    "tableau electrique", "pieuvre", "remise aux normes", "renovation electrique", "cablage", "\\bprises\\b",
+    // Plomberie / sanitaire
+    "salle de bains?", "douche", "\\breseau", "alimentation", "evacuation", "multicouche", "\\bper\\b",
+    "chauffe-eau", "cumulus", "tuyauterie", "tuyaux",
+    // Extérieur / menuiserie
+    "terrasse", "bardage", "cloture", "\\bdalle",
+    // Langage profane
+    "refaire (?:le toit|la toiture)", "renover", "agrandissement", "extension", "separer une piece",
+  ].join("|"),
+);
+
+/** Dimension chiffrée : 135 m2, 12ml, 2,5 m, 80 cm, 10 x 2, 10 m lin… */
+const NUMERIC_DIMENSION =
+  /\d+(?:[.,]\d+)?\s*(?:m[23l]?|cm|mm|metres?|meters?)\b|\d+(?:[.,]\d+)?\s*[x×*]\s*\d+|\d+(?:[.,]\d+)?\s*m\s*lin/;
+
+/** Grandeur sans chiffre exploitable directement : unité citée, cote, pièce ou logement entier. */
+const SIZE_HINT =
+  /\b(?:m2|m3|ml|metres?|surface|longueur|largeur|hauteur|pans?|mesures?|chambres?|salon|sejour|maison|appartement|pieces?|complete?s?|totale?s?|entiere?s?)\b/;
+
+/** Dépannage unitaire : pas de métré (quota Tavily / Mistral, latence), sauf dimension chiffrée explicite. */
+const UNIT_REPAIR =
+  /recherche de fuite|\bfuite\b|\bfuit\b|debouch|depann|\ben panne\b|ne (?:marche|fonctionne) plus|(?:remplace|change)\w*\s+(?:(?:de |d'|du |le |la |les |l'|un |une |mon |ma |mes )\s*)*(?:mitigeur|robinet|wc|toilettes?|chasse d'eau|joint|ballon|chauffe-eau|cumulus|disjoncteur|differentiel|prise|interrupteur|serrure|vitre|ampoule|tuile|siphon)/;
 
 /** Chantier global sans métré explicite (maison neuve, gros œuvre…). */
 export function isWholeHouseMasonryProject(instruction: string): boolean {
@@ -127,25 +171,26 @@ export function isWholeHouseMasonryProject(instruction: string): boolean {
   );
 }
 
-/** Détecte une description de chantier où un métré automatique est utile. */
+/**
+ * Métré automatique utile ? (appel Tavily + Mistral : réservé aux projets quantifiables)
+ * - dépannage unitaire sans dimension chiffrée → non ;
+ * - gros œuvre / couverture → si dimension chiffrée ou maison entière ;
+ * - second œuvre → si dimension chiffrée, surface citée ou pièce / logement identifié.
+ */
 export function needsMaterialTakeoff(instruction: string): boolean {
-  const text = instruction.trim();
-  if (text.length < 12) return false;
+  const raw = instruction.trim();
+  if (raw.length < 12) return false;
+  const text = foldForDetection(raw);
 
-  const hasWork = WORK_KEYWORDS.test(text);
-  if (!hasWork) return false;
+  const hasNumericDimension = NUMERIC_DIMENSION.test(text);
+  if (UNIT_REPAIR.test(text) && !hasNumericDimension) return false;
 
-  const hasDimension =
-    /\d+[,.]?\d*\s*(m(?:l|²|³|ètre|eter|ètres|eters)?|cm|mm)\b/i.test(text) ||
-    /\d+\s*[x×]\s*\d+/i.test(text) ||
-    /\d+[,.]?\d*\s*m\s*lin/i.test(text);
+  if (STRUCTURAL_WORK.test(text) && (hasNumericDimension || isWholeHouseMasonryProject(raw))) return true;
 
-  if (hasDimension) return true;
-
-  return isWholeHouseMasonryProject(text);
+  return FINISHING_WORK.test(text) && (hasNumericDimension || SIZE_HINT.test(text));
 }
 
-export function takeoffAssumptionHint(instruction: string): string | null {
+function takeoffAssumptionHint(instruction: string): string | null {
   if (!isWholeHouseMasonryProject(instruction)) return null;
   if (/\d+[,.]?\d*\s*m(?:²|2)\b/i.test(instruction)) return null;
 
@@ -157,7 +202,7 @@ export function takeoffAssumptionHint(instruction: string): string | null {
 
 function buildWebSearchQuery(instruction: string): string {
   const compact = instruction.replace(/\s+/g, " ").trim().slice(0, 220);
-  return `quantité matériaux chantier BTP France ${compact} métré parpaing ciment sable`;
+  return `métré quantités fournitures ratios DTU BTP France ${compact}`;
 }
 
 /**
@@ -172,25 +217,79 @@ export async function runMaterialTakeoff(
   const web = await searchWebForQuoteContext(buildWebSearchQuery(instruction));
   const webBlock = web ? formatWebSearchForPrompt(web) : null;
 
-  const systemPrompt = `Tu es un métreur / économiste de la construction en France (BTP).
-À partir de la description de travaux, estime les matériaux nécessaires et les quantités réalistes.
+  const systemPrompt = `Tu es métreur / économiste de la construction TCE en France (BTP, DTU, RE2020).
+À partir de la description de travaux, établis le métré des FOURNITURES de l'ouvrage complet, prêt à être chiffré.
 
-Règles :
-- Applique les ratios métiers standards du BTP en France ; documente chaque hypothèse dimensionnelle dans "assumptions".
-- Les parpaings / agglos concernent les murs porteurs — pas le plancher, la dalle ni la toiture (hourdis, béton, charpente, couverture).
-- IMPORTANT — parpaings/agglos : ne les liste JAMAIS dans "materials" et ne calcule JAMAIS toi-même leur
-  quantité. Indique uniquement la surface totale de murs porteurs à monter dans "masonry_wall_area_m2"
-  (m², déductions des ouvertures si pertinent) — le nombre de blocs est calculé automatiquement à partir
-  de cette surface avec un ratio fixe. Si aucun mur porteur en parpaings n'est nécessaire, laisse ce champ null.
+RÈGLE D'INTERPRÉTATION DU LANGAGE PROFANE ET CLIENT :
+L'instruction peut émaner soit d'un artisan pressé, soit d'un particulier non professionnel via un formulaire web.
+- Ne prends jamais au pied de la lettre une approximation ou une erreur de vocabulaire profane :
+  * « Toit / toiture en ossature bois » → il s'agit TOUJOURS d'une charpente bois (fermette ou traditionnelle) supportant
+    la couverture, JAMAIS de murs à ossature bois (MOB).
+  * « Plâtre sur les murs / séparer une pièce » → cloisons de distribution ou doublage sur ossature métallique avec
+    plaques de plâtre (type BA13).
+  * « Refaire les tuyaux / la tuyauterie » → réseau hydrocâblé normalisé (PER ou multicouche, raccords, collecteurs, vannes).
+  * « Refaire le sol » → décomposition selon le revêtement mentionné (primaire, colle ou sous-couche, revêtement,
+    plinthes, barres de seuil).
+- Traduis systématiquement l'intention brute selon les règles de l'art (DTU), en nomenclature marchande professionnelle,
+  et note l'interprétation retenue dans "assumptions".
+
+RÈGLE D'OR — zéro oubli DTU :
+Tout ouvrage demandé est décomposé en son complexe technique complet (support, structure, étanchéité/protection,
+finition, fixations, accessoires). N'inclus QUE les lots demandés ou indissociables de l'ouvrage décrit
+(« réfection de couverture » n'inclut pas la charpente ; « toiture neuve » l'inclut).
+
+Matrice par corps d'état (désignations à reprendre telles quelles) :
+- Charpente / Couverture : « ossature bois » est INTERDIT pour un toit (réservé aux murs MOB). Charpente =
+  « Charpente fermette industrielle » (fourniture exprimée en m² de toiture) ou « Panne bois massif » / « Chevron bois
+  massif » (ml). Complexe obligatoire : « Écran sous-toiture HPV » (+10 % recouvrement), « Contre-latte » (ml),
+  « Liteau bois traité » (ml), « Tuile terre cuite mécanique » ou « Tuile béton » (u, +5 % casse), « Tuile faîtière » (ml de
+  faîtage), « Closoir ventilé » (ml), « Tuile de rive » (ml de rive), « Crochet / pointe de fixation tuile », fixations
+  charpente (« Équerre / connecteur de charpente », « Pointe annelée »). Pente, nombre de pans et longueurs de faîtage
+  et de rives sont des hypothèses à écrire dans assumptions.
+- Maçonnerie (parpaing / brique) : règle parpaings ci-dessous ; mortier en sacs dans materials.
+- Isolation / Façade / Bardage : isolant (type, épaisseur, R), pare-pluie ou pare-vapeur, ossature secondaire
+  (tasseaux ou rails), vêture / bardage, fixations, profils d'angle et de départ.
+- Plâtrerie / Doublage / Cloison : jamais « placo » seul. « Plaque de plâtre BA13 » (hydro H1 en pièce humide, feu
+  si exigé, +10 % chutes), « Rail R48 » / « Montant M48 » (ou 70/90 selon hauteur, entraxe 60 cm), « Vis TTPC 25 »
+  (~15 u/m² de parement), « Bande à joint papier » (rouleaux), « Enduit à joint » (sacs ou seaux),
+  « Bande résiliente » ; isolant acoustique si cloison séparative.
+- Carrelage / Sols : jamais « carrelage » seul. « Primaire d'adhérence » (L), « Colle carrelage C2 » ou C2S
+  (sacs de 25 kg, ~5 kg/m² en double encollage), carreaux en m² (+10 % chutes), « Croisillons autonivelants »,
+  « Mortier de jointoiement » (sacs) ; ragréage si support à reprendre.
+- Peinture : « Impression / sous-couche » (L), « Peinture de finition » 2 couches (L, ~10 m²/L par couche),
+  « Enduit de lissage / rebouchage », consommables significatifs (« Ruban de masquage », « Bâche de protection »).
+- Plomberie / Chauffage : tubes « PER » ou « Multicouche » (couronnes ou barres, diamètre), raccords à sertir ou à
+  glissement, collecteurs, vannes d'arrêt, colliers de fixation, évacuations « Tube PVC » (diamètre) + raccords + colle PVC.
+- Électricité (NF C 15-100) : « Gaine ICTA préfilée » (diamètre, section), « Tableau électrique » / divisionnaire,
+  « Disjoncteur divisionnaire » par calibre, « Interrupteur différentiel 30 mA », appareillage (prises, interrupteurs),
+  « Boîte d'encastrement étanche à l'air », câbles « R2V / RO2V » pour les liaisons hors gaine.
+- Terrassement / VRD : « Géotextile », « Grave non traitée GNT 0/31.5 » ou tout-venant (t ou m³), « Sable de pose »,
+  « Bordure béton », pavés ou enrobé.
+
+Désignations et unités (elles servent à la recherche de prix en ligne et au catalogue fournisseur) :
+- "name_generic" : désignation marchande standard, comme en négoce (« Écran sous-toiture HPV », « Montant M48 »,
+  « Câble RO2V 3G2,5 »). Jamais de contexte flou (« bois pour toiture », « plâtre salon »), jamais de marque.
+- "unit" : unité réelle d'achat : m², ml, sacs, rouleaux, boîtes, u, kg, L, m³, t.
+- "quantity" : exprimée dans cette unité, chutes / recouvrements / casse inclus, arrondie à l'entier supérieur
+  pour u, sacs, rouleaux et boîtes.
+- "specifications" : conditionnement d'achat standard et caractéristique utile (« Rouleau de 75 m² », « Botte de 30 ml »,
+  « Sac de 25 kg », « Boîte de 1000 », « Section 27×40 »). Si unit = sacs / rouleaux / boîtes, quantity compte ces
+  conditionnements, pas les m² ou kg.
+
+Parpaings / agglos (règle impérative) :
+- Ils concernent les murs porteurs, pas le plancher, la dalle ni la toiture.
+- Ne les liste JAMAIS dans "materials" et ne calcule JAMAIS leur quantité : indique uniquement la surface totale de
+  murs à monter dans "masonry_wall_area_m2" (m², ouvertures déduites si connues) — le nombre de blocs est calculé
+  automatiquement. Sans mur en parpaings, laisse ce champ null.
+
+Autres règles :
 - Ne cumule pas plusieurs lots en multipliant plusieurs fois la même surface au sol.
-- Prévois une marge de chute réaliste pour les AUTRES matériaux (ciment, sable…) et indique-la dans "assumptions".
-- Détaille les hypothèses dans "assumptions" (dimensions bloc, épaisseur joint, ouvertures non déduites si absentes, etc.).
-- "materials" : noms génériques en français, quantités arrondies à l'entier supérieur pour les U/sacs — hors parpaings/agglos (cf. règle ci-dessus).
-- "unit" : U, sacs, m³, kg, L, ml, m²…
-- "labor_hours_estimate" : heures MO réalistes pour l'ouvrage décrit.
+- "assumptions" : TOUTES les déductions (pente, surfaces développées, entraxes, épaisseurs, formats, taux de chute,
+  supports supposés sains, ouvertures non déduites…).
+- "labor_hours_estimate" : total d'heures réaliste d'un artisan qualifié pour l'ensemble des tâches décrites.
 - "calculation_notes" : rappel court que le métré est indicatif et doit être validé sur site.
 - Si des références web sont fournies, croise-les avec ton expertise ; ne copie pas aveuglément.
-- Ne liste pas d'outillage consommable mineur (seaux, truelles) sauf si quantités significatives.`;
+- Pas d'outillage (seaux, truelles, disques) sauf quantités significatives.`;
 
   const assumptionHint = takeoffAssumptionHint(instruction);
 
@@ -218,10 +317,10 @@ Règles :
       jsonSchema: MATERIAL_TAKEOFF_JSON_SCHEMA,
       jsonExample: `{
   "work_summary": "Mur en parpaings 10 ml × 2 m",
-  "assumptions": ["Parpaing 20×20×50 cm", "Pas d'ouverture déduite"],
+  "assumptions": ["Parpaing 20×20×50 cm", "Pas d'ouverture déduite", "Chute mortier 10 %"],
   "materials": [
-    { "name_generic": "Mortier ciment", "quantity": 12, "unit": "sacs", "specifications": "35 kg" },
-    { "name_generic": "Sable", "quantity": 1.2, "unit": "m³", "specifications": null }
+    { "name_generic": "Mortier bâtard prêt à l'emploi", "quantity": 12, "unit": "sacs", "specifications": "Sac de 35 kg" },
+    { "name_generic": "Sable 0/4", "quantity": 1.2, "unit": "m³", "specifications": "Vrac" }
   ],
   "masonry_wall_area_m2": 20,
   "labor_hours_estimate": 16,

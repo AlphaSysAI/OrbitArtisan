@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { MISTRAL_EXTRACTION_MODEL, mistralChat, parseJsonFromLlm } from "@/lib/ai/mistral";
+import { MISTRAL_EXTRACTION_MODEL, mistralChatParse } from "@/lib/ai/mistral";
 import { estimateMaterialUnitPricesEur, lookupEstimatedUnitPrice } from "@/lib/ai/quote-material-unit-pricing";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import {
@@ -33,40 +33,26 @@ const snapshotSchema = z.object({
   notes: z.string().max(5000),
 });
 
-export type AiEditResult =
+type AiEditResult =
   | { ok: true; patch: FormPatch; pricingNotes: string[] }
   | { ok: false; error: "auth" | "invalid" | "rate_limited" | "ai_failed" };
 
 async function llmFormPatch(snapshot: QuoteFormSnapshot, instruction: string): Promise<FormPatch> {
-  const messages = [
-    { role: "system" as const, content: FORM_PATCH_SYSTEM_PROMPT },
-    { role: "user" as const, content: `DEVIS ACTUEL\n${describeSnapshot(snapshot)}\n\nCONSIGNE :\n« ${instruction} »` },
-  ];
-  const formats = [
-    { type: "json_schema" as const, name: "quote_form_patch", schema: FORM_PATCH_JSON_SCHEMA as unknown as Record<string, unknown>, strict: true },
-    "json_object" as const,
-  ];
-  let last: unknown = null;
-  for (const responseFormat of formats) {
-    try {
-      const raw = await mistralChat({
-        model: MISTRAL_EXTRACTION_MODEL,
-        messages:
-          responseFormat === "json_object"
-            ? [...messages, { role: "system", content: `JSON conforme à : ${JSON.stringify(FORM_PATCH_JSON_SCHEMA)}` }]
-            : messages,
-        temperature: 0,
-        maxTokens: 2000,
-        responseFormat,
-      });
-      const parsed = formPatchSchema.safeParse(parseJsonFromLlm(raw));
-      if (parsed.success) return parsed.data;
-      last = parsed.error;
-    } catch (error) {
-      last = error;
-    }
-  }
-  throw last instanceof Error ? last : new Error("patch_failed");
+  return mistralChatParse(
+    formPatchSchema,
+    [
+      { role: "system", content: FORM_PATCH_SYSTEM_PROMPT },
+      { role: "user", content: `DEVIS ACTUEL\n${describeSnapshot(snapshot)}\n\nCONSIGNE :\n« ${instruction} »` },
+    ],
+    "quote_form_patch",
+    {
+      jsonSchema: FORM_PATCH_JSON_SCHEMA as unknown as Record<string, unknown>,
+      strictSchema: true,
+      model: MISTRAL_EXTRACTION_MODEL,
+      temperature: 0,
+      maxTokens: 2000,
+    },
+  );
 }
 
 /**

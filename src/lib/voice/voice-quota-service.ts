@@ -3,14 +3,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { notifyVoiceQuotaThreshold } from "@/lib/notifications/notify-events";
-import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
 import { detectVoiceQuotaThreshold } from "@/lib/voice/voice-quota-alerts";
 
 import { isBillableCall, resolveVoiceQuota, type VoiceQuotaSnapshot } from "./resolve-voice-quota";
+import { normalizePhoneE164 } from "@/lib/phone";
 
-export type { VoiceQuotaSnapshot };
 
-export type ProcessTwilioCallResult =
+type ProcessTwilioCallResult =
   | {
       ok: true;
       duplicate: boolean;

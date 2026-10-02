@@ -1,7 +1,7 @@
 import { buildLegalMentionLines, type ArtisanLegalProfile } from "@/lib/billing/legal-mentions";
 import { formatDateForPdf } from "@/lib/billing/pdf-text";
 
-export type QuoteLegalProfile = Omit<ArtisanLegalProfile, "business_name"> & {
+type QuoteLegalProfile = Omit<ArtisanLegalProfile, "business_name"> & {
   business_name: string | null;
   addressLine1?: string | null;
   postalCode?: string | null;

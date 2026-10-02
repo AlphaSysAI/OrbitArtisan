@@ -1,5 +1,5 @@
 /** Couleurs alignées sur :root dans globals.css (primary, brand). */
-export const SOLINE_MARK_COLORS = {
+const SOLINE_MARK_COLORS = {
   primary: "#243447",
   primaryForeground: "#faf9f7",
   brand: "#c96b2e",

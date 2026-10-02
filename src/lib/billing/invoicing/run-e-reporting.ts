@@ -7,7 +7,7 @@ import {
 } from "./e-reporting";
 import { createEReportingSubmitter } from "./e-reporting-submitter";
 
-export type RunEReportingResult = {
+type RunEReportingResult = {
   processedGroups: number;
   submittedTransactions: number;
   failedTransactions: number;

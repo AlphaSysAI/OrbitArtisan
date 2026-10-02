@@ -139,7 +139,7 @@ export function StepShell({
   );
 }
 
-export function ChoiceButton({
+function ChoiceButton({
   emoji,
   label,
   onClick,

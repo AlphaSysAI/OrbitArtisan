@@ -1,7 +1,6 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { paymentErrorMessage } from "@/lib/stripe/user-messages";
 
-export { paymentErrorMessage };
 
 export function PaymentErrorAlert({ code }: { code: string | undefined }) {
   const msg = paymentErrorMessage(code);

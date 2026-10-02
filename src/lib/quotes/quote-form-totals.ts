@@ -74,7 +74,7 @@ export function laborLineCents(laborRateCents: number | null, minutes: number): 
   return laborRateCents != null && minutes > 0 ? Math.round((laborRateCents * minutes) / 60) : null;
 }
 
-export type LaborLinePayload = { title: string; minutes: number; service_id: string | null };
+type LaborLinePayload = { title: string; minutes: number; service_id: string | null };
 
 export function buildLaborLinesPayload(laborLines: LaborLine[]): LaborLinePayload[] {
   return laborLines
@@ -82,7 +82,7 @@ export function buildLaborLinesPayload(laborLines: LaborLine[]): LaborLinePayloa
     .filter((l) => l.title || l.minutes > 0);
 }
 
-export type QuoteMaterialPayload = {
+type QuoteMaterialPayload = {
   label: string;
   quantity: number;
   unit_price_eur: string;

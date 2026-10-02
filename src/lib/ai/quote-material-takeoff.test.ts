@@ -57,3 +57,36 @@ describe("computeMasonryBlockCount", () => {
     expect(computeMasonryBlockCount(20)).toBe(210);
   });
 });
+
+describe("needsMaterialTakeoff — corps d'état et langage profane", () => {
+  it.each([
+    "135m2 de toiture neuve tuile et ossature bois",
+    "135 m² de toiture neuve",
+    "Peinture des murs et plafond du salon",
+    "peindre une chambre de 12 m2",
+    "Pose placo BA13 cloison 15 ml hauteur 2,50 m",
+    "isolation des combles perdus 80 m²",
+    "carrelage salle de bain 8 m2",
+    "Pose parquet stratifié dans tout l'appartement",
+    "rénovation électrique complète de la maison, tableau électrique et prises",
+    "refaire les tuyaux de la maison en multicouche",
+    "terrasse bois de 20 m2",
+    "je veux refaire le toit de ma maison, environ 100 m2",
+    "séparer une pièce en deux, longueur 4 mètres",
+  ])("déclenche : %s", (text) => {
+    expect(needsMaterialTakeoff(text)).toBe(true);
+  });
+
+  it.each([
+    "recherche de fuite sous l'évier",
+    "remplacement mitigeur cuisine",
+    "débouchage wc bouché",
+    "changement disjoncteur qui saute",
+    "changer 3 tuiles cassées sur le toit de la maison",
+    "chauffe-eau en panne dans l'appartement",
+    "devis pour M. Dupont, rénovation salle de bain",
+    "prévoir un per pour plus tard",
+  ])("ne déclenche pas : %s", (text) => {
+    expect(needsMaterialTakeoff(text)).toBe(false);
+  });
+});

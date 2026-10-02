@@ -11,7 +11,9 @@ import { notifyUserActivity } from "@/lib/notifications/send-push";
 import { computeQuoteDocumentHash } from "@/lib/quotes/quote-document-hash";
 import { quoteResponseUrl } from "@/lib/quotes/response-link";
 import { getPublicSiteUrl } from "@/lib/site-url";
-import { normalizeCustomerPhone } from "@/lib/vitrine/customer-phone";
+import { parisDayKey } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
+import { formatPhoneFr, normalizeCustomerPhone } from "@/lib/phone";
 
 type Db = SupabaseClient;
 
@@ -22,13 +24,13 @@ export const REJECTION_REASONS = {
   project_cancelled: "Projet abandonné ou reporté",
   other: "Autre raison",
 } as const;
-export type RejectionReason = keyof typeof REJECTION_REASONS;
+type RejectionReason = keyof typeof REJECTION_REASONS;
 
 export function isRejectionReason(v: unknown): v is RejectionReason {
   return typeof v === "string" && v in REJECTION_REASONS;
 }
 
-export type QuoteResponseView = {
+type QuoteResponseView = {
   id: string;
   artisanId: string;
   status: "draft" | "sent" | "accepted" | "rejected";
@@ -61,7 +63,7 @@ export type QuoteResponseView = {
 };
 
 function todayParis(): string {
-  return new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  return parisDayKey();
 }
 
 export async function loadQuoteForResponse(db: Db, quoteId: string): Promise<QuoteResponseView | null> {
@@ -193,7 +195,7 @@ async function sendAcceptanceEmails(db: Db, view: QuoteResponseView, signerName:
     const doc = await loadQuotePdfDocument(db, view.id, view.artisanId, { issuerClient: db });
     const pdf = doc ? Buffer.from(await renderQuotePdf(doc)).toString("base64") : null;
     const attachments = pdf ? [{ filename: `devis-${view.quoteNumber.replace(/[^\w-]+/g, "-")}-accepte.pdf`, content: pdf }] : undefined;
-    const total = formatEur(view.totalTtcCents);
+    const total = formatCents(view.totalTtcCents);
 
     if (view.customerEmail) {
       await sendEmail({
@@ -294,7 +296,7 @@ export async function requestCallbackByLink(db: Db, quoteId: string, rawPhone: s
   }
 
   const who = view.customerName?.trim() || "Un client";
-  const national = phone.startsWith("+33") ? `0${phone.slice(3)}`.replace(/(\d{2})(?=\d)/g, "$1 ") : phone;
+  const national = formatPhoneFr(phone);
   const url = view.clientId ? `${getPublicSiteUrl()}/app/clients/${view.clientId}` : `${getPublicSiteUrl()}/app/quotes/${view.id}`;
   notifyUserActivity(view.artisan.userId, {
     title: "📞 Demande de rappel",
@@ -457,10 +459,6 @@ export async function forwardArtisanReplyToGuest(db: Db, conversationId: string,
     text: `${from} : ${body}${link ? `\nRépondre : ${link}` : ""}`,
   });
   if (!res.ok) console.error("[messages] relais e-mail invité", conversationId, res.error);
-}
-
-function formatEur(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
 
 /**

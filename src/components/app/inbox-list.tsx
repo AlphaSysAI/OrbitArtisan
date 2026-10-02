@@ -13,6 +13,7 @@ import {
 
 import type { InboxItem, InboxKind, InboxTone } from "@/lib/clients/inbox";
 import { cn } from "@/lib/utils";
+import { formatDateFr } from "@/lib/format/date";
 
 const ICON: Record<InboxKind, LucideIcon> = {
   call: PhoneIncoming,
@@ -33,7 +34,7 @@ const TONE: Record<InboxTone, string> = {
 
 function ago(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 0) return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  if (diff < 0) return formatDateFr(iso, { day: "numeric", month: "short" });
   const min = Math.floor(diff / 60_000);
   if (min < 60) return `${Math.max(min, 1)} min`;
   const h = Math.floor(min / 60);

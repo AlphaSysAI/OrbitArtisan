@@ -21,6 +21,8 @@ import { appointmentStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
 import { cn } from "@/lib/utils";
+import { formatDateFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 type Artisan = {
   id: string;
@@ -49,10 +51,6 @@ const RDV_ERROR_LABELS: Record<string, string> = {
   unauthorized: "Connecte-toi pour finaliser cette demande de rendez-vous.",
   insert_failed: "Le rendez-vous n’a pas pu être enregistré. Réessaie ou contacte l’artisan.",
 };
-
-function euros(cents: number | null | undefined) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((cents ?? 0) / 100);
-}
 
 /** RDV commencé il y a moins de 2 h : encore affiché comme « à venir ». */
 function recentCutoffIso() {
@@ -242,7 +240,7 @@ export default async function CompteHomePage({
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">Devis à consulter — {nameOf(q.artisan_id)}</span>
                     <span className="block text-sm text-muted-foreground">
-                      {euros(q.grand_total)} HT · à accepter ou refuser en ligne
+                      {formatCents(q.grand_total)} HT · à accepter ou refuser en ligne
                     </span>
                   </span>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
@@ -272,8 +270,8 @@ export default async function CompteHomePage({
                       {inv.status === "overdue" ? " (en retard)" : ""}
                     </span>
                     <span className="block text-sm text-muted-foreground">
-                      {euros(inv.grand_total)}
-                      {inv.due_date ? ` · échéance le ${new Date(inv.due_date).toLocaleDateString("fr-FR")}` : ""}
+                      {formatCents(inv.grand_total)}
+                      {inv.due_date ? ` · échéance le ${formatDateFr(inv.due_date)}` : ""}
                     </span>
                   </span>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />

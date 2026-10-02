@@ -1,5 +1,5 @@
 import { isNonArtisanLabel, resolveProspectTrade } from "@/lib/concierge/trade-mapping";
-import { normalizeCustomerPhone } from "@/lib/vitrine/customer-phone";
+import { normalizeCustomerPhone } from "@/lib/phone";
 
 /**
  * Parse un export d'annuaire (CSV ou JSON) en prospects prêts à insérer.
@@ -57,7 +57,7 @@ function resolveColumns(headers: string[]) {
 }
 
 /** CSV RFC 4180 (guillemets, séparateur « , » ou « ; » détecté sur l'en-tête). */
-export function parseCsv(text: string): Record<string, string>[] {
+function parseCsv(text: string): Record<string, string>[] {
   const src = text.replace(/^﻿/, "");
   const firstLine = src.slice(0, src.indexOf("\n") === -1 ? undefined : src.indexOf("\n"));
   const sep = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";

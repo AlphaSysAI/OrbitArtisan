@@ -6,12 +6,7 @@ import { escapeHtml } from "@/lib/email/html";
 import { sendEmail } from "@/lib/email/send-email";
 import { notifyUserActivity } from "@/lib/notifications/send-push";
 import { getPublicSiteUrl } from "@/lib/site-url";
-
-function formatFrenchNumber(e164: string): string {
-  if (!e164.startsWith("+33") || e164.length !== 12) return e164;
-  const national = `0${e164.slice(3)}`;
-  return national.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
-}
+import { formatPhoneFr } from "@/lib/phone";
 
 /**
  * Prévient l'artisan que son numéro Soline est désactivé (désabonnement, passage en
@@ -31,7 +26,7 @@ export async function notifyVoiceNumberReleased(
     const userId = profile?.user_id as string | undefined;
     if (!userId) return;
 
-    const number = formatFrenchNumber(input.phoneE164);
+    const number = formatPhoneFr(input.phoneE164);
     const hello = (profile?.first_name as string | null)?.trim();
 
     notifyUserActivity(userId, {

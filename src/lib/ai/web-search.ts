@@ -1,12 +1,12 @@
 import "server-only";
 
-export type WebSearchHit = {
+type WebSearchHit = {
   title: string;
   url: string;
   snippet: string;
 };
 
-export type WebSearchResult = {
+type WebSearchResult = {
   query: string;
   answer: string | null;
   hits: WebSearchHit[];

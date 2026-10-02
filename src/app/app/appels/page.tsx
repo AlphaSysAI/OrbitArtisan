@@ -26,23 +26,12 @@ import { planIncludesSolineVoice, SOLINE_SUBSCRIPTION_SETTINGS_HREF } from "@/li
 
 import { VoiceIntakeActions, VoiceIntakeArchiveButton } from "./voice-intake-actions";
 import { VoiceIntakeCard } from "./voice-intake-card";
-
-function formatPhoneE164(raw: string | null | undefined): string {
-  if (!raw?.trim()) return "Numéro inconnu";
-  const n = raw.trim();
-  if (n.startsWith("+33") && n.length >= 11) {
-    const local = "0" + n.slice(3);
-    return local.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
-  }
-  return n;
-}
-
-function formatEur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
+import { formatPhoneFr } from "@/lib/phone";
 
 function formatDate(iso: string) {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+  return formatDateTimeFr(iso, { dateStyle: "medium", timeStyle: "short" });
 }
 
 function statusBadge(status: string) {
@@ -328,7 +317,7 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p data-title className="text-base font-semibold tracking-tight">
-                    {item.customer_name?.trim() || formatPhoneE164(item.from_number)}
+                    {item.customer_name?.trim() || (formatPhoneFr(item.from_number) || "Numéro inconnu")}
                   </p>
                   {statusBadge(item.status)}
                   {urgent ? (
@@ -341,9 +330,9 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
                   ) : null}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {item.customer_name?.trim() ? `${formatPhoneE164(item.from_number)} · ` : ""}
+                  {item.customer_name?.trim() ? `${(formatPhoneFr(item.from_number) || "Numéro inconnu")} · ` : ""}
                   {formatDate(item.created_at)}
-                  {totals != null ? ` · ${formatEur(totals.grandTotalCents)} estimé` : ""}
+                  {totals != null ? ` · ${formatCents(totals.grandTotalCents)} estimé` : ""}
                 </p>
                 {urgent && item.urgency_reason ? (
                   <p className="text-sm font-medium text-red-700">{item.urgency_reason}</p>
@@ -359,7 +348,7 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
                   {item.customer_name ?? "Client"} · {item.customer_email ?? "—"} ·{" "}
                   {item.from_number ? (
                     <a href={`tel:${item.from_number.replace(/[^\d+]/g, "")}`} className="font-medium text-foreground underline underline-offset-4">
-                      {formatPhoneE164(item.from_number)}
+                      {(formatPhoneFr(item.from_number) || "Numéro inconnu")}
                     </a>
                   ) : (
                     "Numéro inconnu"
@@ -382,12 +371,12 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
                     {draft.matchedServiceIds?.length && totals ? (
                       <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                         <p>
-                          Main d&apos;œuvre : {formatDuration(totals.laborDurationMinutes)} — {formatEur(totals.laborTotalCents)}
+                          Main d&apos;œuvre : {formatDuration(totals.laborDurationMinutes)} — {formatCents(totals.laborTotalCents)}
                         </p>
                         {totals.materialLines.map((m, i) => (
                           <p key={i}>
                             {m.quantity} × {m.label}
-                            {m.excludeFromInvoice ? " (hors facture)" : ` — ${formatEur(m.lineTotalCents)}`}
+                            {m.excludeFromInvoice ? " (hors facture)" : ` — ${formatCents(m.lineTotalCents)}`}
                           </p>
                         ))}
                       </div>

@@ -50,7 +50,7 @@ const MIN_SPREAD: Record<LeadQualification["complexity"], number> = {
 /** Un déplacement facturé au minimum : personne ne se déplace pour une heure sèche. */
 const MIN_BILLABLE_HOURS = 1.5;
 
-export type PricingContext = {
+type PricingContext = {
   hourlyRateEur: number;
   /** D'où vient le taux : tarifs réels des candidats ou grille de référence. */
   source: "artisans" | "reference";

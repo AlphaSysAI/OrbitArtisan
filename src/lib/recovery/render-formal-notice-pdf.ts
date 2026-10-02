@@ -43,7 +43,7 @@ export type FormalNoticeDocument = {
   penaltyRate?: number;
 };
 
-export type FormalNoticeAmounts = {
+type FormalNoticeAmounts = {
   principalCents: number;
   penaltiesCents: number;
   indemnityCents: number;

@@ -16,7 +16,7 @@ import {
 import type { NotificationBadgeKey } from "@/lib/notifications/types";
 import { SOLINE_CALLS_HUB_PATH } from "@/lib/voice/soline-voice-access";
 
-export type AppNavItem = {
+type AppNavItem = {
   href: string;
   label: string;
   shortLabel: string;

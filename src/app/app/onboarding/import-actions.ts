@@ -74,7 +74,7 @@ const saveSchema = z.object({
     .max(60),
 });
 
-export type SaveImportResult =
+type SaveImportResult =
   | { ok: true; completed: boolean; missing: string[]; importedLines: number }
   | { ok: false; error: string; field?: string };
 

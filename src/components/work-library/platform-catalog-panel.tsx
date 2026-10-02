@@ -10,12 +10,13 @@ import {
   copyPlatformItemToLibrary,
 } from "@/lib/work-library/platform-catalog-actions";
 import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types";
-import { computeDebourseSec, formatEur } from "@/lib/work-library/pricing";
+import { computeDebourseSec } from "@/lib/work-library/pricing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import { formatEuros } from "@/lib/format/money";
 
 export function PlatformCatalogPanel({
   items,
@@ -181,9 +182,9 @@ export function PlatformCatalogPanel({
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{item.workCategory}</td>
                         <td className="px-4 py-3">{item.unit}</td>
-                        <td className="px-4 py-3 text-right tabular-nums">{formatEur(item.unitPriceHt)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{formatEuros(item.unitPriceHt)}</td>
                         <td className="px-4 py-3 text-right text-xs tabular-nums text-muted-foreground">
-                          {formatEur(debourse)}
+                          {formatEuros(debourse)}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <Button

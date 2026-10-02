@@ -1,11 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
+import { formatDateFr, formatDateTimeFr, parisDayKey } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export type TimelineKind = "call" | "message" | "quote" | "invoice" | "appointment" | "project" | "callback";
 export type TimelineTone = "neutral" | "info" | "success" | "warning" | "danger";
 
-export type TimelineItem = {
+type TimelineItem = {
   key: string;
   kind: TimelineKind;
   /** Élément déplaçable vers une autre fiche (« Pas ce client ? »). */
@@ -18,7 +20,7 @@ export type TimelineItem = {
   fromClient?: boolean;
 };
 
-export type ClientTodo = { key: string; label: string; href: string; tone: TimelineTone };
+type ClientTodo = { key: string; label: string; href: string; tone: TimelineTone };
 
 const QUOTE_STATUS: Record<string, { label: string; tone: TimelineTone }> = {
   draft: { label: "Brouillon", tone: "neutral" },
@@ -35,10 +37,6 @@ const REJECTION: Record<string, string> = {
   other: "autre raison",
 };
 
-function eur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
-
 function short(text: string | null | undefined, max = 160): string | null {
   const t = text?.replace(/\s+/g, " ").trim();
   if (!t) return null;
@@ -46,7 +44,7 @@ function short(text: string | null | undefined, max = 160): string | null {
 }
 
 function todayIso() {
-  return new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  return parisDayKey();
 }
 
 /**
@@ -126,7 +124,7 @@ export async function loadClientTimeline(
   for (const q of quotes.data ?? []) {
     const status = QUOTE_STATUS[q.status as string] ?? QUOTE_STATUS.draft!;
     const number = (q.quote_number as string | null) ?? "brouillon";
-    const parts: string[] = [eur((q.grand_total as number) ?? 0) + " HT"];
+    const parts: string[] = [formatCents((q.grand_total as number) ?? 0) + " HT"];
     if (q.status === "sent") parts.push(q.viewed_at ? "consulté par le client" : "pas encore consulté");
     if (q.status === "accepted" && q.signed_by_name) parts.push(`signé par ${q.signed_by_name}`);
     if (q.status === "rejected" && q.rejection_reason) parts.push(`motif : ${REJECTION[q.rejection_reason as string] ?? "—"}`);
@@ -179,7 +177,7 @@ export async function loadClientTimeline(
       detachable: null,
       at: ((inv.finalized_at ?? inv.created_at) as string),
       title: `${invoiceTypeLabel(inv.invoice_type as string)} ${inv.invoice_number ?? ""}`.trim(),
-      detail: `${eur((inv.grand_total as number) ?? 0)}${inv.due_date && inv.status !== "paid" ? ` · échéance ${new Date(`${inv.due_date}T12:00:00Z`).toLocaleDateString("fr-FR")}` : ""}`,
+      detail: `${formatCents((inv.grand_total as number) ?? 0)}${inv.due_date && inv.status !== "paid" ? ` · échéance ${formatDateFr(inv.due_date as string)}` : ""}`,
       badge,
       href: `/app/invoices/${inv.id}`,
     });
@@ -187,9 +185,7 @@ export async function loadClientTimeline(
   }
 
   for (const a of appts.data ?? []) {
-    const when = new Intl.DateTimeFormat("fr-FR", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Paris" }).format(
-      new Date(a.start_time as string),
-    );
+    const when = formatDateTimeFr(a.start_time as string, { dateStyle: "full", timeStyle: "short" });
     const upcoming = new Date(a.start_time as string).getTime() > Date.now();
     items.push({
       key: `appt-${a.id}`,

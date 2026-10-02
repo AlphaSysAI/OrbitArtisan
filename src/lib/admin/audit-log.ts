@@ -2,7 +2,7 @@ import "server-only";
 
 import { getAdminDb } from "@/lib/admin/db";
 
-export type AdminAuditAction =
+type AdminAuditAction =
   | "tenant.update"
   | "tenant.suspend"
   | "tenant.reactivate"

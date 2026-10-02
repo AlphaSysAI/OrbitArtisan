@@ -9,9 +9,9 @@ import { sendEmail } from "@/lib/email/send-email";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 /** Lien de confirmation valable 14 jours. */
-export const ACCOUNTANT_CONFIRM_TTL_MS = 14 * 86_400_000;
+const ACCOUNTANT_CONFIRM_TTL_MS = 14 * 86_400_000;
 /** Délai minimum entre deux envois du lien (anti-abus). */
-export const ACCOUNTANT_CONFIRM_RESEND_MS = 10 * 60_000;
+const ACCOUNTANT_CONFIRM_RESEND_MS = 10 * 60_000;
 
 export function hashConfirmToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -22,7 +22,7 @@ export function isConfirmTokenFormat(token: string): boolean {
 }
 
 
-export type SendConfirmationResult = { ok: true } | { ok: false; error: "too_soon" | "no_email" | "send_failed" | "db" };
+type SendConfirmationResult = { ok: true } | { ok: false; error: "too_soon" | "no_email" | "send_failed" | "db" };
 
 /**
  * Génère un nouveau jeton (l'ancien devient invalide) et envoie au comptable le lien
@@ -76,7 +76,7 @@ export async function sendAccountantConfirmation(
   return { ok: true };
 }
 
-export type ConfirmationLookup =
+type ConfirmationLookup =
   | { ok: true; profileId: string; userId: string; businessName: string; accountantEmail: string }
   | { ok: false; error: "invalid" | "expired" };
 

@@ -14,18 +14,15 @@ import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
 
 import { CancelInvitationButton } from "../contacts/cancel-invitation-button";
 import { NewClientDialog } from "./new-client-dialog";
-
-function nationalPhone(p: string | null) {
-  if (!p) return null;
-  return p.startsWith("+33") ? `0${p.slice(3)}`.replace(/(\d{2})(?=\d)/g, "$1 ") : p;
-}
+import { formatDateFr } from "@/lib/format/date";
+import { formatPhoneFr } from "@/lib/phone";
 
 function relative(iso: string) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
   if (days <= 0) return "aujourd'hui";
   if (days === 1) return "hier";
   if (days < 30) return `il y a ${days} j`;
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+  return formatDateFr(iso, { day: "numeric", month: "short", year: "numeric" });
 }
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -122,7 +119,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 <AppListItem
                   href={`/app/clients/${c.id}`}
                   title={c.display_name as string}
-                  subtitle={[nationalPhone(c.phone as string | null), c.email, `activité ${relative(c.last_activity_at as string)}`]
+                  subtitle={[formatPhoneFr(c.phone as string | null), c.email, `activité ${relative(c.last_activity_at as string)}`]
                     .filter(Boolean)
                     .join(" · ")}
                   meta={

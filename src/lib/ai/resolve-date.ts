@@ -1,3 +1,5 @@
+import { formatDateFr } from "@/lib/format/date";
+
 /** Résolution de dates FR / relatives pour l’assistant. */
 
 const MONTHS: Record<string, number> = {
@@ -89,9 +91,5 @@ export function resolveFrenchDateQuery(raw: string | null | undefined, now = new
 export function formatIsoDateFr(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  return formatDateFr(iso, { weekday: "long", day: "numeric", month: "long" });
 }

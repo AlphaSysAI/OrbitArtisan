@@ -45,7 +45,7 @@ export function isAndroid(): boolean {
 
 export const PWA_INSTALL_DISMISS_KEY = "alphasys-pwa-install-dismissed-at";
 export const PWA_INSTALLED_KEY = "alphasys-pwa-installed";
-export const PWA_DISMISS_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
+const PWA_DISMISS_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 export function wasPwaInstalled(): boolean {
   if (typeof window === "undefined") return false;
@@ -58,7 +58,7 @@ export function rememberPwaInstalled(): void {
   window.localStorage.setItem(PWA_INSTALLED_KEY, "1");
 }
 
-export function wasInstallPromptDismissedRecently(): boolean {
+function wasInstallPromptDismissedRecently(): boolean {
   if (typeof window === "undefined") return true;
   const raw = window.localStorage.getItem(PWA_INSTALL_DISMISS_KEY);
   if (!raw) return false;
@@ -75,7 +75,7 @@ export function rememberInstallPromptDismissed(): void {
 type InstalledRelatedApp = { platform?: string; id?: string; url?: string };
 
 /** Chrome Android : détecte une PWA déjà installée même en navigation classique. */
-export async function hasInstalledRelatedWebApp(): Promise<boolean> {
+async function hasInstalledRelatedWebApp(): Promise<boolean> {
   if (typeof navigator === "undefined") return false;
   const nav = navigator as Navigator & {
     getInstalledRelatedApps?: () => Promise<InstalledRelatedApp[]>;

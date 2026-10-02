@@ -6,13 +6,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   evaluateSubscriptionAccess,
   subscriptionBlockRedirectReason,
-  type SubscriptionBlockReason,
 } from "@/lib/billing/subscription-access";
 
 const PROFILE_SUBSCRIPTION_SELECT =
   "subscription_status, trial_ends_at, account_status, deleted_at";
 
-export async function loadArtisanSubscriptionAccess(
+async function loadArtisanSubscriptionAccess(
   supabase: SupabaseClient,
   userId: string,
 ) {
@@ -23,15 +22,6 @@ export async function loadArtisanSubscriptionAccess(
     .maybeSingle();
 
   return evaluateSubscriptionAccess(profile ?? null);
-}
-
-export async function assertCanCreateDocuments(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<{ ok: true } | { ok: false; reason: SubscriptionBlockReason }> {
-  const access = await loadArtisanSubscriptionAccess(supabase, userId);
-  if (access.allowed) return { ok: true };
-  return { ok: false, reason: access.reason ?? "trial_expired" };
 }
 
 export async function redirectIfCannotCreateDocuments(supabase: SupabaseClient, userId: string): Promise<void> {

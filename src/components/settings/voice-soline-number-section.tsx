@@ -6,18 +6,9 @@ import { Phone } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatPhoneFr } from "@/lib/phone";
 
-function formatPhoneE164(raw: string | null | undefined): string {
-  if (!raw?.trim()) return "";
-  const n = raw.trim();
-  if (n.startsWith("+33") && n.length >= 11) {
-    const local = "0" + n.slice(3);
-    return local.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
-  }
-  return n;
-}
-
-export type VoiceSolineNumberSectionProps = {
+type VoiceSolineNumberSectionProps = {
   phoneE164: string | null;
   planIncludesVoice: boolean;
   /** Essai sans carte : numéro activé dès l'enregistrement d'un moyen de paiement. */
@@ -31,7 +22,7 @@ export function VoiceSolineNumberSection({
   needsPaymentMethod = false,
   subscriptionHref,
 }: VoiceSolineNumberSectionProps) {
-  const displayValue = phoneE164 ? formatPhoneE164(phoneE164) : "";
+  const displayValue = phoneE164 ? formatPhoneFr(phoneE164) : "";
   const placeholder = !planIncludesVoice
     ? "Inclus avec les formules Pro et Premium"
     : phoneE164

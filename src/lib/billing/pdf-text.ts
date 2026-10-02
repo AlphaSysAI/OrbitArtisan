@@ -1,3 +1,6 @@
+import { formatDateFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
+
 /**
  * Assainissement du texte destiné aux polices standard de pdf-lib.
  *
@@ -57,11 +60,11 @@ export function sanitizePdfText(value: string): string {
 /** Montant en centimes formaté en euros, encodable en WinAnsi. */
 export function formatEurosForPdf(cents: number): string {
   return sanitizePdfText(
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100),
+    formatCents(cents),
   );
 }
 
 /** Date formatée en français long, encodable en WinAnsi. */
 export function formatDateForPdf(date: Date): string {
-  return sanitizePdfText(new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(date));
+  return sanitizePdfText(formatDateFr(date, { dateStyle: "long" }));
 }

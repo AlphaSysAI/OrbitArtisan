@@ -9,7 +9,7 @@ import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe } from "@/lib/stripe/server";
 import { resolveSubscriptionPriceId } from "@/lib/stripe/subscription-prices";
 
-export type AmbassadorCheckoutError = "promo_not_configured" | "price_not_found" | "checkout_failed";
+type AmbassadorCheckoutError = "promo_not_configured" | "price_not_found" | "checkout_failed";
 
 /**
  * Checkout Session serveur avec le coupon ambassadeur.

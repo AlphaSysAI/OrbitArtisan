@@ -20,6 +20,8 @@ import { loadClientTimeline, type TimelineKind, type TimelineTone } from "@/lib/
 import { cn } from "@/lib/utils";
 
 import { ClientComposer, DetachItemButton, EditClientDialog, MergeClientDialog } from "./client-widgets";
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatPhoneFr } from "@/lib/phone";
 
 const KIND_ICON: Record<TimelineKind, LucideIcon> = {
   call: PhoneCall,
@@ -39,15 +41,8 @@ const TONE: Record<TimelineTone, string> = {
   danger: "bg-red-500/10 text-red-700 dark:text-red-300",
 };
 
-function national(p: string | null) {
-  if (!p) return null;
-  return p.startsWith("+33") ? `0${p.slice(3)}`.replace(/(\d{2})(?=\d)/g, "$1 ") : p;
-}
-
 function when(iso: string) {
-  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Paris" }).format(
-    new Date(iso),
-  );
+  return formatDateTimeFr(iso, { dateStyle: "medium", timeStyle: "short" });
 }
 
 export default async function ClientFichePage({ params }: { params: Promise<{ clientId: string }> }) {
@@ -93,7 +88,7 @@ export default async function ClientFichePage({ params }: { params: Promise<{ cl
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold tracking-tight">{client.display_name as string}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {[national(phone), email].filter(Boolean).join(" · ") || "Aucune coordonnée"}
+              {[formatPhoneFr(phone), email].filter(Boolean).join(" · ") || "Aucune coordonnée"}
             </p>
             {address ? <p className="text-sm text-muted-foreground">{address}</p> : null}
             {client.customer_user_id ? (
@@ -226,7 +221,7 @@ export default async function ClientFichePage({ params }: { params: Promise<{ cl
           candidates={(others ?? []).map((o) => ({
             id: o.id as string,
             name: o.display_name as string,
-            hint: [national(o.phone as string | null), o.email].filter(Boolean).join(" · ") || "sans coordonnées",
+            hint: [formatPhoneFr(o.phone as string | null), o.email].filter(Boolean).join(" · ") || "sans coordonnées",
           }))}
         />
       </div>

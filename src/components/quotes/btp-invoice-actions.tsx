@@ -16,10 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-function formatEur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatCents } from "@/lib/format/money";
 
 export function BtpInvoiceActions({
   quoteId,
@@ -92,7 +89,7 @@ export function BtpInvoiceActions({
 
   if (remaining <= 0) {
     return (
-      <p className="text-sm text-muted-foreground">Devis entièrement facturé ({formatEur(quoteGrandTotalCents)}).</p>
+      <p className="text-sm text-muted-foreground">Devis entièrement facturé ({formatCents(quoteGrandTotalCents)}).</p>
     );
   }
 
@@ -100,8 +97,8 @@ export function BtpInvoiceActions({
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Reste à facturer : <strong className="text-foreground">{formatEur(remaining)}</strong>
-          {alreadyInvoicedCents > 0 ? ` (${formatEur(alreadyInvoicedCents)} déjà facturé)` : null}
+          Reste à facturer : <strong className="text-foreground">{formatCents(remaining)}</strong>
+          {alreadyInvoicedCents > 0 ? ` (${formatCents(alreadyInvoicedCents)} déjà facturé)` : null}
         </p>
         <div className="rounded-xl border border-amber-600/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
           {invoicingFrozenMessage}
@@ -114,8 +111,8 @@ export function BtpInvoiceActions({
     <>
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Reste à facturer : <strong className="text-foreground">{formatEur(remaining)}</strong>
-          {alreadyInvoicedCents > 0 ? ` (${formatEur(alreadyInvoicedCents)} déjà facturé)` : null}
+          Reste à facturer : <strong className="text-foreground">{formatCents(remaining)}</strong>
+          {alreadyInvoicedCents > 0 ? ` (${formatCents(alreadyInvoicedCents)} déjà facturé)` : null}
         </p>
         <div className="flex flex-col gap-2">
           <Button type="button" variant="outline" className="w-full" onClick={() => setDepositOpen(true)}>
@@ -132,7 +129,7 @@ export function BtpInvoiceActions({
           <DialogHeader>
             <DialogTitle>Facture d&apos;acompte</DialogTitle>
             <DialogDescription>
-              Génère une facture pour un pourcentage du devis ({formatEur(quoteGrandTotalCents)} TTC facturé par
+              Génère une facture pour un pourcentage du devis ({formatCents(quoteGrandTotalCents)} TTC facturé par
               vous).
             </DialogDescription>
           </DialogHeader>
@@ -146,7 +143,7 @@ export function BtpInvoiceActions({
             />
             <p className="text-xs text-muted-foreground">
               Montant estimé :{" "}
-              {formatEur(Math.round((quoteGrandTotalCents * (Number(depositPercent) || 0)) / 100))}
+              {formatCents(Math.round((quoteGrandTotalCents * (Number(depositPercent) || 0)) / 100))}
             </p>
           </div>
           <DialogFooter>

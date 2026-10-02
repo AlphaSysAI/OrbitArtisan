@@ -3,7 +3,7 @@
 import { extractFrenchDates } from "@/lib/ai/extract-dates";
 import { formatIsoDateFr, resolveFrenchDateQuery } from "@/lib/ai/resolve-date";
 
-export type FastNavigateResult = {
+type FastNavigateResult = {
   href: string;
   label: string;
   reply: string;
@@ -23,12 +23,12 @@ function normalize(s: string): string {
 const CONFIRM_RE =
   /^(ok|oui|ouais|go|vas[- ]?y|allez[- ]?y|c est bon|parfait|d accord|dac|ye[sp]|let s go|monte|ouvre)$/i;
 
-export function isConfirmationMessage(message: string): boolean {
+function isConfirmationMessage(message: string): boolean {
   return CONFIRM_RE.test(message.trim());
 }
 
 /** Question / demande d’info (répondre depuis la BDD, pas seulement naviguer). */
-export function looksLikeDataQuestion(message: string): boolean {
+function looksLikeDataQuestion(message: string): boolean {
   const m = normalize(message);
   if (/\?\s*$/.test(message.trim())) return true;
   return (

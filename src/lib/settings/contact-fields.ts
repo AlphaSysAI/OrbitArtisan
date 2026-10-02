@@ -1,4 +1,4 @@
-export type ContactFields = {
+type ContactFields = {
   phone: string | null;
   address_line1: string | null;
   address_line2: string | null;

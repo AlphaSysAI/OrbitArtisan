@@ -2,10 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AssistantPageContextPayload } from "@/lib/ai/assistant-page-context";
 import { invoiceStatusLabel, quoteStatusLabel } from "@/lib/status-labels";
-
-function formatEur(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatCents } from "@/lib/format/money";
 
 export async function buildAssistantPageContextBlock(
   supabase: SupabaseClient,
@@ -27,7 +24,7 @@ export async function buildAssistantPageContextBlock(
       .maybeSingle();
     if (data) {
       lines.push(
-        `Devis ouvert : client ${data.customer_name ?? "—"}, statut ${quoteStatusLabel(data.status)}, total ${formatEur(data.grand_total ?? 0)}${data.sent_at ? ", déjà envoyé" : ""}.`,
+        `Devis ouvert : client ${data.customer_name ?? "—"}, statut ${quoteStatusLabel(data.status)}, total ${formatCents(data.grand_total)}${data.sent_at ? ", déjà envoyé" : ""}.`,
       );
     }
   }
@@ -41,7 +38,7 @@ export async function buildAssistantPageContextBlock(
       .maybeSingle();
     if (data) {
       lines.push(
-        `Facture ouverte : client ${data.customer_name ?? "—"}, statut ${invoiceStatusLabel(data.status)}, total ${formatEur(data.grand_total ?? 0)}${data.due_date ? `, échéance ${data.due_date}` : ""}.`,
+        `Facture ouverte : client ${data.customer_name ?? "—"}, statut ${invoiceStatusLabel(data.status)}, total ${formatCents(data.grand_total)}${data.due_date ? `, échéance ${data.due_date}` : ""}.`,
       );
     }
   }

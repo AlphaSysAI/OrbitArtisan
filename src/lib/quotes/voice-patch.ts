@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { AiQuoteDraft, AiSupplierMaterialDraft } from "@/lib/ai/quote-draft-storage";
+import { formatEuros } from "@/lib/format/money";
 
 /**
  * Correction vocale d'un devis pré-rempli : le LLM ne réécrit JAMAIS le devis.
@@ -9,7 +10,7 @@ import type { AiQuoteDraft, AiSupplierMaterialDraft } from "@/lib/ai/quote-draft
  * Les totaux ne viennent jamais du LLM : ils sont recalculés par computeDraftTotals.
  */
 
-export const PATCH_OPS = [
+const PATCH_OPS = [
   "add_material",
   "update_material",
   "remove_material",
@@ -90,7 +91,7 @@ Règles :
    recopie la phrase dans "unresolved".
 6. Tous les champs non utilisés d'une opération valent null.`;
 
-export type DraftLineRef = { ref: string; id: string; label: string; quantity: number; unitPriceEur: string };
+type DraftLineRef = { ref: string; id: string; label: string; quantity: number; unitPriceEur: string };
 
 /** Références courtes et stables (L1…) données au modèle à la place des identifiants internes. */
 export function draftLineRefs(draft: Pick<AiQuoteDraft, "supplierMaterials">): DraftLineRef[] {
@@ -107,11 +108,7 @@ function eurString(n: number): string {
   return (Math.round(n * 100) / 100).toFixed(2);
 }
 
-function fmt(n: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
-}
-
-export type ApplyResult = {
+type ApplyResult = {
   draft: AiQuoteDraft;
   changes: string[];
   warnings: string[];
@@ -166,7 +163,7 @@ export function applyQuotePatch(
           requestedName: label,
           specifications: null,
         });
-        changes.push(`+ ${quantity} × ${label}${price !== null ? ` à ${fmt(price)} HT` : " (prix à compléter)"}`);
+        changes.push(`+ ${quantity} × ${label}${price !== null ? ` à ${formatEuros(price)} HT` : " (prix à compléter)"}`);
         break;
       }
       case "update_material": {
@@ -183,7 +180,7 @@ export function applyQuotePatch(
           next.quantity = op.quantity;
         }
         if (validPrice(op.unit_price_eur) && eurString(op.unit_price_eur) !== before.unitPriceEur) {
-          parts.push(`prix ${fmt(Number(before.unitPriceEur))} → ${fmt(op.unit_price_eur)} HT`);
+          parts.push(`prix ${formatEuros(Number(before.unitPriceEur))} → ${formatEuros(op.unit_price_eur)} HT`);
           next.unitPriceEur = eurString(op.unit_price_eur);
         }
         const label = op.label?.trim();
@@ -217,7 +214,7 @@ export function applyQuotePatch(
         const cents = Math.round(op.amount_eur * 100);
         const before = laborTotalOverrideCents ?? opts.currentLaborTotalCents;
         laborTotalOverrideCents = cents;
-        changes.push(`Main-d'œuvre : ${before !== null ? `${fmt(before / 100)} → ` : ""}${fmt(cents / 100)} HT`);
+        changes.push(`Main-d'œuvre : ${before !== null ? `${formatEuros(before / 100)} → ` : ""}${formatEuros(cents / 100)} HT`);
         break;
       }
       case "set_labor_hours": {

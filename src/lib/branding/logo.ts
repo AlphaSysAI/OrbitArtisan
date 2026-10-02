@@ -4,7 +4,7 @@ import { VITRINE_MEDIA_BUCKET } from "@/lib/vitrine/gallery";
 export const LOGO_MAX_BYTES = 900 * 1024;
 export const LOGO_MAX_SIDE_PX = 800;
 
-export type LogoKind = "png" | "jpeg";
+type LogoKind = "png" | "jpeg";
 
 /** Détection par signature binaire (on ne fait jamais confiance au type MIME annoncé). */
 export function detectLogoKind(bytes: Uint8Array): LogoKind | null {

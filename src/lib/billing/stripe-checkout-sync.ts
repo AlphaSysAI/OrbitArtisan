@@ -36,7 +36,7 @@ async function resolvePlanFromPaymentLinkSession(
   return resolvePlanFromPaymentLinkUrl(paymentLink.url);
 }
 
-export function isSaasSubscriptionCheckoutSession(session: Stripe.Checkout.Session): boolean {
+function isSaasSubscriptionCheckoutSession(session: Stripe.Checkout.Session): boolean {
   if (session.mode !== "subscription" || !session.subscription) return false;
   if (session.metadata?.checkout_kind === "saas_subscription") return true;
   return !!session.payment_link;

@@ -9,6 +9,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { listConversationsForArtisan } from "@/lib/messages/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatDateTimeFr } from "@/lib/format/date";
 
 export default async function ArtisanMessagesPage() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -70,14 +71,8 @@ export default async function ArtisanMessagesPage() {
                 title={item.customer_label}
                 subtitle={
                   item.is_lead
-                    ? `Demande Soline · ${new Date(item.updated_at).toLocaleString("fr-FR", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}`
-                    : new Date(item.updated_at).toLocaleString("fr-FR", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })
+                    ? `Demande Soline · ${formatDateTimeFr(item.updated_at)}`
+                    : formatDateTimeFr(item.updated_at)
                 }
               />
             </li>

@@ -10,7 +10,7 @@ import { getPublicSiteUrl } from "@/lib/site-url";
 
 type Db = SupabaseClient;
 
-export type CustomerAppointmentView = {
+type CustomerAppointmentView = {
   id: string;
   status: "pending" | "confirmed" | "cancelled";
   startTime: string;

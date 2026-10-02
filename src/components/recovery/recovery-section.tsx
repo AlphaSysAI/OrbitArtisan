@@ -6,10 +6,7 @@ import { RECOVERY_STATUS_LABELS } from "@/lib/recovery/types";
 
 import { FormalNoticeCard } from "./formal-notice-card";
 import { RecoveryCollectionModal } from "./recovery-collection-modal";
-
-function formatEur(amountEuros: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amountEuros);
-}
+import { formatEuros } from "@/lib/format/money";
 
 /**
  * Bloc recouvrement de la page facture : mise en demeure LRAR (J+30) puis
@@ -75,11 +72,11 @@ export async function RecoverySection({
             )}
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Créance</dt>
-              <dd>{formatEur(data.collectionCase.amountTotal)}</dd>
+              <dd>{formatEuros(data.collectionCase.amountTotal)}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Déjà recouvré</dt>
-              <dd>{formatEur(data.collectionCase.amountCollected)}</dd>
+              <dd>{formatEuros(data.collectionCase.amountCollected)}</dd>
             </div>
           </dl>
         </div>

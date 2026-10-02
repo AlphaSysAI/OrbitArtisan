@@ -38,6 +38,7 @@ import {
 } from "@/lib/quotes/quote-form-totals";
 import { safeHttpUrl } from "@/lib/security/safe-url";
 import { cn } from "@/lib/utils";
+import { formatCents } from "@/lib/format/money";
 
 /** Franchise en base de TVA (293 B) : aucun choix de taux, pas de TVA affichée. */
 const VatFranchiseContext = React.createContext(false);
@@ -64,9 +65,8 @@ function emptyMaterialRow(): MaterialRow {
   };
 }
 
-const eurFormatter = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 function formatEur(cents: number): string {
-  return eurFormatter.format(cents / 100);
+  return formatCents(cents);
 }
 
 function formatVatRate(rate: string | number): string {
@@ -121,7 +121,7 @@ function formatHoursFromMinutes(minutes: number) {
   return (minutes / 60).toFixed(2).replace(".", ",");
 }
 
-export type EditQuoteInitialData = {
+type EditQuoteInitialData = {
   id: string;
   customerName: string;
   customerEmail: string;

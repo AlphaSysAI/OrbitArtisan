@@ -60,7 +60,7 @@ export type InvoiceForEditPage = CoreInvoiceRow &
   BtpInvoiceRow &
   RecoveryInvoiceRow;
 
-export type LoadInvoiceForEditResult =
+type LoadInvoiceForEditResult =
   | { ok: true; invoice: InvoiceForEditPage }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "load_error"; message: string };
@@ -72,7 +72,7 @@ export function isInvoiceIdFormat(invoiceId: string): boolean {
   return UUID_RE.test(invoiceId);
 }
 
-export type InvoiceListRow = CoreInvoiceRow &
+type InvoiceListRow = CoreInvoiceRow &
   Partial<EinvoicingInvoiceRow> &
   Partial<Pick<BtpInvoiceRow, "invoice_type">>;
 

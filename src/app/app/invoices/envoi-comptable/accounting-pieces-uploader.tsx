@@ -20,7 +20,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import { deleteAccountingPiece } from "./actions";
 
-export type PendingPieceView = { path: string; name: string; size: number };
+type PendingPieceView = { path: string; name: string; size: number };
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} Ko`;

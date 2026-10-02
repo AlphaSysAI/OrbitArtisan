@@ -47,7 +47,7 @@ export const getIsPlatformAdmin = cache(async (userId: string): Promise<boolean>
 const ARTISAN_SHELL_PROFILE_SELECT =
   "id, subscription_status, subscription_plan, trial_ends_at, account_status, deleted_at, voice_number_assignment_pending_at, stripe_subscription_id";
 
-export type ArtisanShellProfile = {
+type ArtisanShellProfile = {
   id: string;
   subscription_status: string | null;
   subscription_plan: string | null;

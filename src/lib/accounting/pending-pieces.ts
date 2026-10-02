@@ -6,7 +6,7 @@ import { ACCOUNTING_UPLOADS_BUCKET, displayNameFromStorageName } from "@/lib/acc
 
 export const ACCOUNTING_EXPORT_PAGE_PATH = "/app/invoices/envoi-comptable";
 
-export type PendingPiece = { path: string; name: string; size: number };
+type PendingPiece = { path: string; name: string; size: number };
 
 /**
  * Pièces ajoutées par l'artisan, en attente du prochain envoi. Lecture directe du

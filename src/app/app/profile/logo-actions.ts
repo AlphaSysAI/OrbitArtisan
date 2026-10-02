@@ -7,7 +7,7 @@ import { detectLogoKind, LOGO_MAX_BYTES, logoStoragePath, ownLogoStoragePath } f
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { VITRINE_MEDIA_BUCKET, vitrineMediaPublicUrl } from "@/lib/vitrine/gallery";
 
-export type LogoActionResult =
+type LogoActionResult =
   | { ok: true; logoUrl: string | null }
   | { ok: false; error: "auth" | "missing_file" | "too_large" | "invalid_type" | "upload_failed" | "update_failed" };
 

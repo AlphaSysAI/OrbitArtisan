@@ -87,11 +87,3 @@ export function resolvePwaOrAppRootRedirect(
   return absoluteRedirect(resolveUnauthenticatedHomePath(), origin);
 }
 
-/** @deprecated Utiliser resolvePwaOrAppRootRedirect */
-export function resolveAppRootRedirect(
-  request: NextRequest,
-  isAuthenticated: boolean,
-  isArtisan: boolean,
-): NextResponse | null {
-  return resolvePwaOrAppRootRedirect(request, isAuthenticated, isArtisan);
-}

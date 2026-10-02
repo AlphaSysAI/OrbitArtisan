@@ -263,7 +263,7 @@ export function formatTradeLabel(
  * `autre` n'est volontairement rattaché à aucun domaine : c'est une valeur de
  * saisie côté artisan, pas une entrée de recherche client.
  */
-export type TradeDomain = {
+type TradeDomain = {
   id: string;
   label: string;
   emoji: string;

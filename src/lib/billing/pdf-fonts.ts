@@ -15,7 +15,7 @@ import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, StandardFonts, type PDFFont } from "pdf-lib";
 
-export type EmbeddedFonts = { regular: PDFFont; bold: PDFFont; embedded: boolean };
+type EmbeddedFonts = { regular: PDFFont; bold: PDFFont; embedded: boolean };
 
 const FONT_DIR = path.join(process.cwd(), "src", "assets", "fonts");
 const ICC_PATH = path.join(process.cwd(), "src", "assets", "color", "sRGB-IEC61966-2.1.icc");

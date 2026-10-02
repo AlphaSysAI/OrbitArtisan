@@ -15,21 +15,6 @@ export function invoiceTypeLabel(type: string | null | undefined): string {
   return INVOICE_TYPE_LABELS.standard;
 }
 
-export function invoiceNumberPrefix(type: InvoiceType): string {
-  switch (type) {
-    case "deposit":
-      return "ACO";
-    case "progress":
-      return "SIT";
-    case "final":
-      return "SOL";
-    case "credit_note":
-      return "AVO";
-    default:
-      return "INV";
-  }
-}
-
 /** Montant facturable restant sur un devis (centimes). */
 export function computeRemainingBillableCents(
   quoteGrandTotalCents: number,

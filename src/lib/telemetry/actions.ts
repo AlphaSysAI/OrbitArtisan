@@ -1,12 +1,13 @@
 "use server";
 
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
+import { parisDayKey } from "@/lib/format/date";
 
 /** Présence du jour (1 écriture max / jour / artisan, clé primaire). */
 export async function recordDailyPresence(): Promise<void> {
   const auth = await requireArtisanProfileId();
   if (!auth.ok) return;
-  const day = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  const day = parisDayKey();
   await auth.supabase
     .from("artisan_activity_days")
     .upsert({ artisan_id: auth.profileId, day }, { onConflict: "artisan_id,day", ignoreDuplicates: true });

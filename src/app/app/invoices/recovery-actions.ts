@@ -27,7 +27,7 @@ import { createRecoveryCase, type RubypayeurDocument } from "@/lib/services/ruby
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
-export type RecoveryActionResult =
+type RecoveryActionResult =
   | { ok: true }
   | { ok: false; error: string };
 

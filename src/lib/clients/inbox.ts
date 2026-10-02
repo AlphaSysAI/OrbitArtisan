@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getUnreadConversationIds } from "@/lib/notifications/unread-items";
+import { formatDateFr, formatDateTimeFr, parisDayKey } from "@/lib/format/date";
 
 export type InboxTone = "danger" | "warning" | "success" | "info";
 export type InboxKind = "call" | "callback" | "message" | "quote_accepted" | "quote_rejected" | "appointment" | "invoice_late";
@@ -26,7 +27,7 @@ const REJECTION: Record<string, string> = {
 };
 
 function todayParis() {
-  return new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
+  return parisDayKey();
 }
 
 function clip(text: string | null | undefined, max = 110): string | null {
@@ -204,9 +205,7 @@ export async function loadArtisanInbox(
       kind: "appointment",
       tone: "warning",
       title: "Rendez-vous à confirmer",
-      detail: new Intl.DateTimeFormat("fr-FR", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Paris" }).format(
-        new Date(a.start_time as string),
-      ),
+      detail: formatDateTimeFr(a.start_time as string, { dateStyle: "full", timeStyle: "short" }),
       at: a.start_time as string,
       href: "/app/rdv",
       clientName: nameOf(a.client_id, a.customer_name),
@@ -219,7 +218,7 @@ export async function loadArtisanInbox(
       kind: "invoice_late",
       tone: "danger",
       title: "Facture en retard de paiement",
-      detail: `${inv.invoice_number ?? ""} · échéance ${new Date(`${inv.due_date}T12:00:00Z`).toLocaleDateString("fr-FR")}`,
+      detail: `${inv.invoice_number ?? ""} · échéance ${formatDateFr(inv.due_date as string)}`,
       at: `${inv.due_date}T00:00:00Z`,
       href: `/app/invoices/${inv.id}`,
       clientName: nameOf(inv.client_id, inv.customer_name),

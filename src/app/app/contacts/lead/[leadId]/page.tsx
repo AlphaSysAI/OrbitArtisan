@@ -9,6 +9,7 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { artisanCanViewLead } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { formatCents } from "@/lib/format/money";
 
 export default async function ArtisanLeadContactPage({
   params,
@@ -58,7 +59,7 @@ export default async function ArtisanLeadContactPage({
   });
 
   const formatEur = (cents: number) =>
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+    formatCents(cents);
 
   const estimate =
     lead.estimate_min != null && lead.estimate_max != null

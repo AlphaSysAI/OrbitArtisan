@@ -1,3 +1,5 @@
+import {  } from "@/lib/format/money";
+
 /** Calcule le déboursé sec unitaire (fourniture + main-d'œuvre au coût). */
 export function computeDebourseSec(materialCost: number, laborCost: number): number {
   const material = Number.isFinite(materialCost) ? materialCost : 0;
@@ -30,6 +32,3 @@ export function computeMarginPercent(debourseSec: number, sellingPriceHt: number
   return Math.round(margin * 10) / 10;
 }
 
-export function formatEur(value: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
-}

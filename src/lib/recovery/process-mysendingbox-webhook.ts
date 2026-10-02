@@ -13,7 +13,7 @@ import {
 import { buildRecoveryDocumentPath, uploadRecoveryDocument } from "./storage";
 import type { FormalNoticeStatus } from "./types";
 
-export type MySendingBoxWebhookResult =
+type MySendingBoxWebhookResult =
   | { ok: true; invoiceId: string; noticeId: string; status: FormalNoticeStatus; ignored?: boolean }
   | { ok: false; code: "unknown_event" | "letter_not_found" | "persist_failed"; message: string };
 

@@ -17,13 +17,13 @@ import type { SolineVoiceMode, VoiceQuotaSnapshot } from "./voice-quota-types";
 
 export type { VoiceQuotaSnapshot };
 
-export type VoiceEntitlementInput = {
+type VoiceEntitlementInput = {
   subscription_plan: string | null;
   subscription_status: string | null;
   trial_ends_at: string | null;
 };
 
-export type VoiceEntitlement = {
+type VoiceEntitlement = {
   isTrial: boolean;
   callsIncluded: number;
   overageCallCents: number;

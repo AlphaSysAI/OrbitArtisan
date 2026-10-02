@@ -1,6 +1,8 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { formatDateFr } from "@/lib/format/date";
+import { formatEuros } from "@/lib/format/money";
 
-export type VatAttestationData = {
+type VatAttestationData = {
   artisanBusinessName: string;
   artisanName: string | null;
   artisanSiret: string | null;
@@ -18,10 +20,6 @@ export type VatAttestationData = {
 const MARGIN = 50;
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
-
-function formatEur(value: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
-}
 
 function wrapLines(text: string, maxChars: number): string[] {
   const words = text.split(/\s+/);
@@ -64,7 +62,7 @@ export async function renderVatAttestationPdf(data: VatAttestationData): Promise
 
   draw("ATTESTATION SIMPLIFIÉE — TVA À TAUX RÉDUIT", { size: 14, bold: true });
   draw(`Taux applicable : ${data.vatRate} % (logement achevé depuis plus de 2 ans)`, { size: 10 });
-  draw(`Référence devis : ${data.quoteId.slice(0, 8).toUpperCase()} · Date : ${data.quoteDate.toLocaleDateString("fr-FR")}`);
+  draw(`Référence devis : ${data.quoteId.slice(0, 8).toUpperCase()} · Date : ${formatDateFr(data.quoteDate)}`);
   y -= 10;
 
   draw("1. Identité du client (acquéreur / maître d'ouvrage)", { size: 11, bold: true });
@@ -83,7 +81,7 @@ export async function renderVatAttestationPdf(data: VatAttestationData): Promise
   draw(
     "Les travaux concernent des locaux à usage d'habitation achevés depuis plus de deux ans au sens de l'article 278-0 bis A du CGI.",
   );
-  draw(`Montant HT du devis concerné : ${formatEur(data.quoteTotalHtEur)}`);
+  draw(`Montant HT du devis concerné : ${formatEuros(data.quoteTotalHtEur)}`);
   y -= 8;
 
   draw("4. Déclaration du client", { size: 11, bold: true });

@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifyUserActivity, sendPushToUser } from "@/lib/notifications/send-push";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { formatDateFr, parisDayKey } from "@/lib/format/date";
 
 const siteUrl = getPublicSiteUrl();
 
@@ -212,15 +213,14 @@ export async function notifyNewAppointment(
   if (!userId) return;
 
   const start = new Date(input.startTime);
-  const when = start.toLocaleString("fr-FR", {
-    timeZone: "Europe/Paris",
+  const when = formatDateFr(start, {
     weekday: "short",
     day: "numeric",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(start);
+  const day = parisDayKey(start);
 
   notifyUserActivity(userId, {
     title: input.pendingValidation ? "RDV pris par Soline — à valider" : "Nouveau rendez-vous",

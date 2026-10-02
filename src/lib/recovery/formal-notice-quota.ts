@@ -20,7 +20,7 @@ import type { FormalNoticeQuota } from "./types";
  * Une lettre refusée par MySendingBox n'est jamais affranchie : elle ne
  * consomme donc pas le quota (absence de `mysendingbox_letter_id`).
  */
-export type QuotaPeriod = { start: Date; end: Date };
+type QuotaPeriod = { start: Date; end: Date };
 
 export type { FormalNoticeQuota };
 

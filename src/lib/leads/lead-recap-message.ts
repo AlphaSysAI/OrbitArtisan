@@ -1,7 +1,7 @@
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
 import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
 
-export type LeadRecapInput = {
+type LeadRecapInput = {
   contactName: string;
   contactEmail: string | null;
   contactPhone: string | null;

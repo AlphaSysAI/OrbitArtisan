@@ -1,7 +1,7 @@
 import { validateLegalEntityFields } from "@/lib/billing/legal-entity-validation";
 import { normalizePhone, normalizePostalCode } from "@/lib/settings/contact-fields";
 
-export type ArtisanOnboardingProfile = {
+type ArtisanOnboardingProfile = {
   onboarding_completed_at?: string | null;
   name?: string | null;
   business_name?: string | null;
@@ -73,7 +73,7 @@ export function artisanNeedsOnboarding(profile: ArtisanOnboardingProfile | null 
   return true;
 }
 
-export type OnboardingStep = 1 | 2;
+type OnboardingStep = 1 | 2;
 
 export function resolveOnboardingStep(profile: ArtisanOnboardingProfile): OnboardingStep {
   if (!isOnboardingContactStepComplete(profile)) return 1;

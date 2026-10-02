@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getAdminTenant } from "@/lib/admin/tenants";
 import { formatPriceHtEur, SUBSCRIPTION_PLANS } from "@/lib/billing/subscription-plans";
+import { formatDateTimeFr } from "@/lib/format/date";
 
 export default async function AdminTenantDetailPage({
   params,
@@ -140,7 +141,7 @@ export default async function AdminTenantDetailPage({
           </div>
           <div>
             <p className="text-muted-foreground">Inscription</p>
-            <p className="font-medium">{new Date(tenant.createdAt).toLocaleString("fr-FR")}</p>
+            <p className="font-medium">{formatDateTimeFr(tenant.createdAt)}</p>
           </div>
         </CardContent>
       </Card>

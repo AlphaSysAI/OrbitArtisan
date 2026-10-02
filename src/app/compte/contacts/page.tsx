@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { listCustomerContacts } from "@/lib/contacts/actions";
+import { formatDateTimeFr } from "@/lib/format/date";
 
 export default async function CustomerContactsPage({
   searchParams,
@@ -55,10 +56,7 @@ export default async function CustomerContactsPage({
                 <p className="font-medium">{item.artisanLabel}</p>
                 <p className="text-xs text-muted-foreground">
                   Dernière activité :{" "}
-                  {new Date(item.lastActivityAt).toLocaleString("fr-FR", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
+                  {formatDateTimeFr(item.lastActivityAt)}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

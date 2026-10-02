@@ -12,7 +12,7 @@ import { embedDocumentFonts } from "@/lib/billing/pdf-fonts";
 
 import { formatEurosForPdf, sanitizePdfText } from "@/lib/billing/pdf-text";
 
-export const A4 = { width: 595.28, height: 841.89 } as const;
+const A4 = { width: 595.28, height: 841.89 } as const;
 const M = 40; // marge
 const CONTENT_W = A4.width - 2 * M;
 const FOOTER_H = 34;
@@ -25,7 +25,7 @@ const ZEBRA = rgb(0.972, 0.976, 0.98);
 const WHITE = rgb(1, 1, 1);
 const DEFAULT_ACCENT = rgb(0.145, 0.204, 0.278); // bleu ardoise Soline
 
-export type PdfTheme = { accent: RGB; accentSoft: RGB };
+type PdfTheme = { accent: RGB; accentSoft: RGB };
 
 /** Couleur d'accent de l'artisan si elle reste lisible en texte blanc, sinon ardoise. */
 export function resolvePdfTheme(accentHex: string | null | undefined): PdfTheme {
@@ -62,7 +62,7 @@ export async function embedLogoImage(pdf: PDFDocument, bytes: Uint8Array | null 
   return null;
 }
 
-export type TableRow = {
+type TableRow = {
   designation: string;
   detail?: string | null;
   quantity: string;

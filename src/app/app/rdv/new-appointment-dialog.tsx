@@ -25,7 +25,7 @@ export type AppointmentContactOption = {
   email: string | null;
 };
 
-export type NewAppointmentPrefill = {
+type NewAppointmentPrefill = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;

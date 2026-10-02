@@ -74,7 +74,7 @@ export async function cancelAppointment(appointmentId: string) {
   return result;
 }
 
-export type CreateAppointmentInput = {
+type CreateAppointmentInput = {
   customerName: string;
   customerEmail: string;
   customerPhone?: string | null;
@@ -86,7 +86,7 @@ export type CreateAppointmentInput = {
   status?: "pending" | "confirmed";
 };
 
-export type CreateAppointmentResult =
+type CreateAppointmentResult =
   | { ok: true; id: string; startTime: string; dateIso: string }
   | {
       ok: false;

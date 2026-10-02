@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label";
 import { setVoiceOverageCap } from "@/features/voice/actions";
 import { formatCentsHtEur } from "@/lib/billing/subscription-plans";
 import { formatVoiceQuotaMonthLabel, type VoiceQuotaSnapshot } from "@/lib/voice/voice-quota-types";
+import { formatDateFr } from "@/lib/format/date";
 
-export type VoiceQuotaSettingsFormProps = {
+type VoiceQuotaSettingsFormProps = {
   quota: VoiceQuotaSnapshot;
 };
 
@@ -49,7 +50,7 @@ export function VoiceQuotaSettingsForm({ quota }: VoiceQuotaSettingsFormProps) {
           <p className="text-sm text-muted-foreground">
             Un appel compte s&apos;il dure au moins 30 secondes.{" "}
             {quota.isTrial ? "Appels valables jusqu'à la fin de l'essai, le " : "Compteur remis à zéro le "}
-            {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(quota.periodEnd))}
+            {formatDateFr(quota.periodEnd, { dateStyle: "long" })}
             {quota.isTrial ? "." : ", sans report des appels non utilisés."}
           </p>
         </div>

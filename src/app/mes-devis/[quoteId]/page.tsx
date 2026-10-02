@@ -15,6 +15,8 @@ import { QuoteSummary } from "@/components/ai/quote-summary";
 import { ClientQuotePdfDownloadButton } from "@/components/quotes/quote-document-actions-card";
 
 import { ClientQuoteActions } from "./client-quote-actions";
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export default async function ClientQuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
   const { quoteId } = await params;
@@ -120,9 +122,7 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
                         </div>
                         {s.unit_price != null ? (
                           <p className="text-sm font-medium">
-                            {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                              (s.unit_price ?? 0) / 100,
-                            )}
+                            {formatCents(s.unit_price)}
                           </p>
                         ) : (
                           <p className="text-sm text-muted-foreground">sur devis</p>
@@ -151,16 +151,12 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
                           <p className="font-medium">{m.label}</p>
                           <p className="text-sm text-muted-foreground">
                             Qté {m.quantity} ·{" "}
-                            {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                              (m.unit_price ?? 0) / 100,
-                            )}{" "}
+                            {formatCents(m.unit_price)}{" "}
                             / unité
                           </p>
                         </div>
                         <p className="text-sm font-medium">
-                          {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                            (m.line_total ?? 0) / 100,
-                          )}
+                          {formatCents(m.line_total)}
                         </p>
                       </div>
                     </li>
@@ -194,39 +190,31 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
                 <div className="flex items-center justify-between text-sm">
                   <span>Main d&apos;œuvre</span>
                   <span className="font-medium">
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                      (quote.labor_total ?? 0) / 100,
-                    )}
+                    {formatCents(quote.labor_total)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <span>
                     {quote.labor_duration_minutes} min ·{" "}
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                      (quote.labor_rate_per_hour ?? 0) / 100,
-                    )}
+                    {formatCents(quote.labor_rate_per_hour)}
                     /h
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span>Fournitures</span>
                   <span className="font-medium">
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                      (quote.materials_total ?? 0) / 100,
-                    )}
+                    {formatCents(quote.materials_total)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between pt-2 text-base font-semibold">
                   <span>Total HT</span>
                   <span>
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                      (quote.grand_total ?? 0) / 100,
-                    )}
+                    {formatCents(quote.grand_total)}
                   </span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Reçu le {new Date(quote.created_at).toLocaleString("fr-FR")}
+                Reçu le {formatDateTimeFr(quote.created_at)}
               </p>
 
               {q.status === "accepted" && q.signed_at && (
@@ -235,14 +223,14 @@ export default async function ClientQuoteDetailPage({ params }: { params: Promis
                   <p className="mt-1 text-muted-foreground">
                     Signature : <span className="font-medium text-foreground">{q.signed_by_name}</span>
                     {" · "}
-                    {new Date(q.signed_at).toLocaleString("fr-FR")}
+                    {formatDateTimeFr(q.signed_at)}
                   </p>
                 </div>
               )}
 
               {q.status === "rejected" && q.rejected_at && (
                 <div className="rounded-xl border border-red-600/30 bg-red-500/5 p-3 text-sm text-muted-foreground">
-                  Refus enregistré le {new Date(q.rejected_at).toLocaleString("fr-FR")}.
+                  Refus enregistré le {formatDateTimeFr(q.rejected_at)}.
                 </div>
               )}
 

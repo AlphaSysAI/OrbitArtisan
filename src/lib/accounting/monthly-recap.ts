@@ -2,6 +2,7 @@ import { escapeCsv } from "@/lib/accounting/invoices-csv";
 import { computeInvoicePdfTotals } from "@/lib/billing/facturx/render-invoice-pdf";
 import { INVOICE_TYPE_LABELS, type InvoiceType } from "@/lib/billing/invoice-types";
 import { escapeHtml } from "@/lib/email/html";
+import { formatCents } from "@/lib/format/money";
 
 /**
  * Récapitulatif mensuel pour le comptable + résumé chiffré pour l'artisan.
@@ -10,7 +11,7 @@ import { escapeHtml } from "@/lib/email/html";
  * Les avoirs viennent en négatif.
  */
 
-export type RecapInvoice = {
+type RecapInvoice = {
   id: string;
   invoiceNumber: string | null;
   invoiceType: string | null;
@@ -20,7 +21,7 @@ export type RecapInvoice = {
   lines: { lineTotalCents: number; vatRate: number; vatCategoryCode?: string | null }[];
 };
 
-export type MonthlyRecap = {
+type MonthlyRecap = {
   invoiceCount: number;
   byType: { type: InvoiceType; label: string; count: number }[];
   totalHtCents: number;
@@ -85,7 +86,6 @@ export function buildMonthlyRecap(input: { invoices: RecapInvoice[]; remindersSe
   };
 }
 
-const eur = (c: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(c / 100);
 const rate = (r: number) => `${String(r).replace(".", ",")} %`;
 const plural = (n: number, s: string, p = `${s}s`) => `${n} ${n > 1 ? p : s}`;
 
@@ -93,15 +93,15 @@ const plural = (n: number, s: string, p = `${s}s`) => `${n} ${n > 1 ? p : s}`;
 export function recapHtml(recap: MonthlyRecap): string {
   const cell = "padding:6px 10px;border-bottom:1px solid #e2e8f0";
   const rows = recap.vatByRate
-    .map((v) => `<tr><td style="${cell}">TVA ${rate(v.rate)}</td><td style="${cell};text-align:right">${eur(v.baseCents)}</td><td style="${cell};text-align:right">${eur(v.vatCents)}</td></tr>`)
+    .map((v) => `<tr><td style="${cell}">TVA ${rate(v.rate)}</td><td style="${cell};text-align:right">${formatCents(v.baseCents)}</td><td style="${cell};text-align:right">${formatCents(v.vatCents)}</td></tr>`)
     .join("");
   const types = recap.byType.map((t) => `${escapeHtml(t.label)} : ${t.count}`).join(" · ");
   return `
     <table style="border-collapse:collapse;font-size:14px;margin:12px 0;min-width:320px">
       <thead><tr><th style="${cell};text-align:left">Ventilation</th><th style="${cell};text-align:right">Base HT</th><th style="${cell};text-align:right">TVA</th></tr></thead>
       <tbody>${rows}
-        <tr><td style="${cell};font-weight:600">Total</td><td style="${cell};text-align:right;font-weight:600">${eur(recap.totalHtCents)}</td><td style="${cell};text-align:right;font-weight:600">${eur(recap.totalVatCents)}</td></tr>
-        <tr><td style="${cell};font-weight:600">Total TTC</td><td colspan="2" style="${cell};text-align:right;font-weight:600">${eur(recap.totalTtcCents)}</td></tr>
+        <tr><td style="${cell};font-weight:600">Total</td><td style="${cell};text-align:right;font-weight:600">${formatCents(recap.totalHtCents)}</td><td style="${cell};text-align:right;font-weight:600">${formatCents(recap.totalVatCents)}</td></tr>
+        <tr><td style="${cell};font-weight:600">Total TTC</td><td colspan="2" style="${cell};text-align:right;font-weight:600">${formatCents(recap.totalTtcCents)}</td></tr>
       </tbody>
     </table>
     <p style="font-size:14px">${escapeHtml(types)}<br/>
@@ -137,7 +137,7 @@ export function recapCsv(recap: MonthlyRecap, periodLabel: string): string {
  */
 export function artisanRecapMessage(recap: MonthlyRecap, monthLabel: string): string {
   const parts = [
-    `${plural(recap.invoiceCount, "facture")} (${eur(recap.totalHtCents)} HT)`,
+    `${plural(recap.invoiceCount, "facture")} (${formatCents(recap.totalHtCents)} HT)`,
     recap.piecesCount ? plural(recap.piecesCount, "justificatif") : null,
     recap.remindersSent === 0 ? "0 relance nécessaire" : `${plural(recap.remindersSent, "relance")} envoyée${recap.remindersSent > 1 ? "s" : ""} pour toi`,
   ].filter(Boolean);

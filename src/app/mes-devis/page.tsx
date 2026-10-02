@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { FileText } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import {
   fetchNotificationWatermark,
@@ -12,6 +12,8 @@ import {
 } from "@/lib/notifications/unread-items";
 import { quoteStatusLabel } from "@/lib/status-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export default async function MesDevisPage() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -85,18 +87,13 @@ export default async function MesDevisPage() {
                     ) : null}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(q.created_at).toLocaleString("fr-FR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}{" "}
+                    {formatDateTimeFr(q.created_at)}{" "}
                     · Statut : {quoteStatusLabel(q.status)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm font-semibold">
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                      (q.grand_total ?? 0) / 100,
-                    )}{" "}
+                    {formatCents(q.grand_total)}{" "}
                     HT
                   </span>
                   <Link href={`/mes-devis/${q.id}`} className={buttonVariants({ size: "sm" })}>

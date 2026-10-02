@@ -67,7 +67,7 @@ export type RecoveryContext = {
   debtor: RecoveryDebtor;
 };
 
-export type LoadRecoveryContextResult =
+type LoadRecoveryContextResult =
   | { ok: true; context: RecoveryContext }
   | { ok: false; error: "not_found" | "profile_incomplete" | "debtor_address_missing" | "load_failed" };
 

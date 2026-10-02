@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export type ContactSettingsInitial = {
+type ContactSettingsInitial = {
   /** Legacy : utilisé si firstName / lastName absents */
   displayName?: string;
   firstName?: string;

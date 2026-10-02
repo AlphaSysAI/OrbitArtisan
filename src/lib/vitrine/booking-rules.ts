@@ -19,7 +19,7 @@ export async function loadVitrineVisitHours(admin: SupabaseClient, artisanId: st
   return parsed?.ok && hasAnyVisitRange(parsed.value) ? parsed.value : DEFAULT_VISIT_HOURS;
 }
 
-export type VitrineSlotCheck =
+type VitrineSlotCheck =
   | { ok: true; durationMinutes: number }
   | { ok: false; error: "invalid_slot" | "slot_taken" };
 

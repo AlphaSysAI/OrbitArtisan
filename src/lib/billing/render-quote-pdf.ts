@@ -11,8 +11,8 @@ import {
 } from "@/lib/billing/pdf-document";
 import { formatDateForPdf } from "@/lib/billing/pdf-text";
 import type { QuotePdfDocument } from "@/lib/billing/quote-pdf-types";
+import { formatDateTimeFr } from "@/lib/format/date";
 
-export type { QuotePdfDocument } from "@/lib/billing/quote-pdf-types";
 
 const WARNING = rgb(0.6, 0.36, 0.05);
 const MUTED = rgb(0.42, 0.45, 0.5);
@@ -113,11 +113,7 @@ export async function renderQuotePdf(doc: QuotePdfDocument): Promise<Uint8Array>
 
   if (doc.acceptance) {
     const a = doc.acceptance;
-    const when = new Intl.DateTimeFormat("fr-FR", {
-      dateStyle: "long",
-      timeStyle: "short",
-      timeZone: "Europe/Paris",
-    }).format(a.signedAt);
+    const when = formatDateTimeFr(a.signedAt, { dateStyle: "long", timeStyle: "short" });
     const how =
       a.channel === "artisan_paper"
         ? "signature manuscrite sur papier, enregistrée par l'entreprise"

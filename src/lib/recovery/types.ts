@@ -25,7 +25,7 @@ export const FORMAL_NOTICE_STATUSES = [
 
 export type FormalNoticeStatus = (typeof FORMAL_NOTICE_STATUSES)[number];
 
-export function isRecoveryStatus(value: unknown): value is RecoveryStatus {
+function isRecoveryStatus(value: unknown): value is RecoveryStatus {
   return typeof value === "string" && (RECOVERY_STATUSES as readonly string[]).includes(value);
 }
 

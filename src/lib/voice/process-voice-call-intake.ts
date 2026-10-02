@@ -13,7 +13,7 @@ import { summarizeCallTranscript } from "./summarize-call-transcript";
 
 type ServiceRow = { id: string; title: string; duration: number; price: number | null };
 
-export type VoiceCallIntakeResult = {
+type VoiceCallIntakeResult = {
   intakeId: string;
   summary: string;
   draft: AiQuoteDraft;

@@ -11,6 +11,7 @@ import type { CatalogCandidate, VerifiedDocument } from "@/lib/onboarding/verify
 import { cn } from "@/lib/utils";
 
 import { analyzeQuoteFileAction, buildImportReviewAction, saveImportAction } from "./import-actions";
+import { formatCents } from "@/lib/format/money";
 
 type FieldKey = keyof ImportReview["fields"];
 
@@ -88,7 +89,7 @@ async function prepare(file: File): Promise<File> {
 }
 
 function eur(cents: number | null) {
-  return cents === null ? "prix ?" : new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+  return cents === null ? "prix ?" : formatCents(cents);
 }
 
 export function OnboardingImport({ existing }: { existing: Partial<Record<FieldKey | "vat_regime", string>> }) {

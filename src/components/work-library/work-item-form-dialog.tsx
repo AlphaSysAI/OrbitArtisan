@@ -3,13 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
-import {
-  computeDebourseSec,
-  computeLaborCostFromHours,
-  computeMarginPercent,
-  computeSellingPriceFromMargin,
-  formatEur,
-} from "@/lib/work-library/pricing";
+import { computeDebourseSec, computeLaborCostFromHours, computeMarginPercent, computeSellingPriceFromMargin } from "@/lib/work-library/pricing";
 import type { WorkCategory, WorkItemWithCategory } from "@/lib/work-library/types";
 import { VAT_RATES, WORK_UNITS, type VatRate } from "@/lib/work-library/units";
 import { upsertWorkItem } from "@/lib/work-library/actions";
@@ -26,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { formatEuros } from "@/lib/format/money";
 
 const selectClassName = cn(
   "flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm",
@@ -236,7 +231,7 @@ export function WorkItemFormDialog({
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            Déboursé sec : <strong>{formatEur(debourse)}</strong>
+            Déboursé sec : <strong>{formatEuros(debourse)}</strong>
             {impliedMargin != null ? (
               <>
                 {" "}

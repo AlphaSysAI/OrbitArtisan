@@ -17,10 +17,7 @@ import {
 } from "@/lib/notifications/unread-items";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { quoteStatusLabel } from "@/lib/status-labels";
-
-function formatEur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatCents } from "@/lib/format/money";
 
 export default async function QuotesPage() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -116,7 +113,7 @@ export default async function QuotesPage() {
                   name: q.customer_name,
                   email: q.customer_email,
                 })}
-                subtitle={`Total ${formatEur(q.grand_total ?? 0)}`}
+                subtitle={`Total ${formatCents(q.grand_total)}`}
                 meta={
                   <Badge
                     variant={

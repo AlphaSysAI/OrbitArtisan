@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { sendMessage } from "@/lib/messages/actions";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
-import { normalizeCustomerPhone } from "@/lib/vitrine/customer-phone";
+import { normalizeCustomerPhone } from "@/lib/phone";
 
 type Result = { ok: true; id?: string } | { ok: false; error: string };
 

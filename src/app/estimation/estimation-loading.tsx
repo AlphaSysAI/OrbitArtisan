@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Loader2 } from "lucide-react";
 
-export const ESTIMATION_LOADING_MESSAGES = [
+const ESTIMATION_LOADING_MESSAGES = [
   { afterMs: 0, text: "On chiffre ta demande…" },
   { afterMs: 2500, text: "Nous analysons ton besoin en détail…" },
   {

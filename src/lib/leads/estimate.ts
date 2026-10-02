@@ -9,7 +9,7 @@ import "server-only";
  * tunnel — seule cette fonction est appelée par l'action serveur.
  */
 
-export type EstimateRange = {
+type EstimateRange = {
   /** Euros TTC, arrondis. */
   min: number;
   max: number;

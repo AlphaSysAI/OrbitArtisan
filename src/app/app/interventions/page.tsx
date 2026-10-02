@@ -12,6 +12,7 @@ import { getPublicSiteUrl } from "@/lib/site-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { createWorkOrder } from "../chantiers/actions";
+import { formatDateFr } from "@/lib/format/date";
 
 export default async function InterventionsPage() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -78,7 +79,7 @@ export default async function InterventionsPage() {
                   <p className="font-medium">{o.title}</p>
                   <p className="text-sm text-muted-foreground">
                     {o.reference_number} · {o.client_name ?? "—"} · {o.status}
-                    {o.signed_at ? ` · Signé ${new Date(o.signed_at).toLocaleDateString("fr-FR")}` : ""}
+                    {o.signed_at ? ` · Signé ${formatDateFr(o.signed_at)}` : ""}
                   </p>
                 </div>
               </div>

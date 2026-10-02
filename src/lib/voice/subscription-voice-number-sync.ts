@@ -12,7 +12,7 @@ import {
 import { syncArtisanVoiceNumberMapping } from "@/lib/voice/voice-number-registry";
 import { notifyVoiceNumberReleased } from "@/lib/voice/voice-number-release-notice";
 
-export type SubscriptionVoiceSyncInput = {
+type SubscriptionVoiceSyncInput = {
   profileId: string;
   planId: SubscriptionPlanId | null;
   subscriptionStatus: SubscriptionStatus;
@@ -81,7 +81,7 @@ export async function clearVoiceNumberAssignmentPending(
 
 type ClaimRow = { pool_id: string; phone_e164: string };
 
-export type SubscriptionVoiceSyncResult = {
+type SubscriptionVoiceSyncResult = {
   assigned: boolean;
   released: boolean;
   /** Aucun numéro disponible : l'artisan est en attente (achat déclenché sauf provisionIfMissing=false). */

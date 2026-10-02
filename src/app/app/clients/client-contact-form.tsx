@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { nationalPhoneFr } from "@/lib/phone";
 
 export type ClientContactDefaults = {
   display_name?: string | null;
@@ -13,11 +14,6 @@ export type ClientContactDefaults = {
   postal_code?: string | null;
   city?: string | null;
 };
-
-function national(p: string | null | undefined) {
-  if (!p) return "";
-  return p.startsWith("+33") ? `0${p.slice(3)}` : p;
-}
 
 /** Champs communs création / modification d'une fiche client. */
 export function ClientContactFields({ defaults = {} }: { defaults?: ClientContactDefaults }) {
@@ -30,7 +26,7 @@ export function ClientContactFields({ defaults = {} }: { defaults?: ClientContac
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="cf-phone">Téléphone</Label>
-          <Input id="cf-phone" name="phone" type="tel" inputMode="tel" defaultValue={national(defaults.phone)} className="h-11 text-base" />
+          <Input id="cf-phone" name="phone" type="tel" inputMode="tel" defaultValue={nationalPhoneFr(defaults.phone)} className="h-11 text-base" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="cf-email">E-mail</Label>

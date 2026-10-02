@@ -5,11 +5,11 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
-import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
 import { verifyVoiceToolSecret } from "@/lib/voice/voice-secret";
 import type { SolineVoiceMode } from "@/lib/voice/voice-quota-types";
+import { normalizePhoneE164 } from "@/lib/phone";
 
-export type VoiceContext = {
+type VoiceContext = {
   artisanId: string;
   db: SupabaseClient;
   body: Record<string, unknown>;
@@ -17,7 +17,7 @@ export type VoiceContext = {
   mode: SolineVoiceMode;
 };
 
-export type VoiceResolveResult =
+type VoiceResolveResult =
   | { ok: true; ctx: VoiceContext }
   | { ok: false; response: NextResponse };
 

@@ -17,7 +17,7 @@ export type AssistantPageContextPayload = {
   entityId?: string;
 };
 
-export type AssistantPageContext = AssistantPageContextPayload & {
+type AssistantPageContext = AssistantPageContextPayload & {
   welcome: string;
   /** 1 à 2 actions suggérées selon la page. */
   suggestions: string[];

@@ -6,7 +6,7 @@ export type EmailAttachment = {
   content: string;
 };
 
-export type SendEmailInput = {
+type SendEmailInput = {
   to: string;
   subject: string;
   html: string;
@@ -17,7 +17,7 @@ export type SendEmailInput = {
   attachments?: EmailAttachment[];
 };
 
-export type SendEmailResult =
+type SendEmailResult =
   | { ok: true; id: string; provider: "resend" | "console" }
   | { ok: false; error: string };
 

@@ -7,7 +7,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * En-tête `elevenlabs-signature: t=<unix>,v0=<hex>` où
  * hex = HMAC-SHA256(secret, `${t}.${corps brut}`).
  */
-export const ELEVENLABS_SIGNATURE_TOLERANCE_SECONDS = 30 * 60;
+const ELEVENLABS_SIGNATURE_TOLERANCE_SECONDS = 30 * 60;
 
 export function verifyElevenLabsSignature(params: {
   rawBody: string;
@@ -39,7 +39,7 @@ export function verifyElevenLabsSignature(params: {
 
 type TranscriptTurn = { role?: string; message?: string | null };
 
-export type ParsedPostCall = {
+type ParsedPostCall = {
   conversationId: string | null;
   calledNumber: string | null;
   callerNumber: string | null;

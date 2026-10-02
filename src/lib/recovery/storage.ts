@@ -3,12 +3,12 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Bucket privé : tous les accès passent par des URL signées côté serveur. */
-export const RECOVERY_DOCUMENTS_BUCKET = "recovery-documents";
+const RECOVERY_DOCUMENTS_BUCKET = "recovery-documents";
 
 /** Durée de validité des URL signées transmises aux prestataires (7 jours). */
-export const RECOVERY_SIGNED_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
+const RECOVERY_SIGNED_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-export type RecoveryDocumentKind =
+type RecoveryDocumentKind =
   | "formal-notice"
   | "filing-proof"
   | "delivery-proof"
@@ -16,7 +16,7 @@ export type RecoveryDocumentKind =
   | "invoice"
   | "signed-quote";
 
-export type StorageResult<T> = { ok: true; data: T } | { ok: false; error: string };
+type StorageResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 function slugify(value: string): string {
   return (
@@ -81,17 +81,3 @@ export async function createRecoveryDocumentSignedUrl(
   return { ok: true, data: data.signedUrl };
 }
 
-/** Télécharge un document du bucket (réutilisation des preuves déjà archivées). */
-export async function downloadRecoveryDocument(
-  admin: SupabaseClient,
-  path: string,
-): Promise<StorageResult<Uint8Array>> {
-  const { data, error } = await admin.storage.from(RECOVERY_DOCUMENTS_BUCKET).download(path);
-
-  if (error || !data) {
-    const message = error?.message ?? "download_empty";
-    return { ok: false, error: `storage_download_failed: ${message}` };
-  }
-
-  return { ok: true, data: new Uint8Array(await data.arrayBuffer()) };
-}

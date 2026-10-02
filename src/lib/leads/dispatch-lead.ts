@@ -35,7 +35,7 @@ type MediaRow = {
   kind: "photo" | "video";
 };
 
-export type DispatchLeadResult =
+type DispatchLeadResult =
   | { ok: true; dispatched: number; skipped: number }
   | { ok: false; error: string };
 

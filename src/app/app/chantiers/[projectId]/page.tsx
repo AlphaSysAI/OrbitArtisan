@@ -14,10 +14,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
 import { addTimeEntry } from "../actions";
-
-function formatEur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatDateFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export default async function ChantierDetailPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -69,16 +67,16 @@ export default async function ChantierDetailPage({ params }: { params: Promise<{
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="app-surface p-5">
           <p className="text-xs uppercase text-muted-foreground">Budget devisé</p>
-          <p className="text-2xl font-semibold">{formatEur(budget)}</p>
+          <p className="text-2xl font-semibold">{formatCents(budget)}</p>
         </div>
         <div className="app-surface p-5">
           <p className="text-xs uppercase text-muted-foreground">MO saisie ({Math.round(actualMinutes / 60)} h)</p>
-          <p className="text-2xl font-semibold">{formatEur(actualMoCents)}</p>
+          <p className="text-2xl font-semibold">{formatCents(actualMoCents)}</p>
         </div>
         <div className={cn("app-surface p-5", marginCents >= 0 ? "border-green-600/30" : "border-red-600/30")}>
           <p className="text-xs uppercase text-muted-foreground">Marge estimée</p>
           <p className="text-2xl font-semibold">
-            {formatEur(marginCents)} <span className="text-base font-normal">({marginPct} %)</span>
+            {formatCents(marginCents)} <span className="text-base font-normal">({marginPct} %)</span>
           </p>
         </div>
       </div>
@@ -113,11 +111,11 @@ export default async function ChantierDetailPage({ params }: { params: Promise<{
             {entries.map((e) => (
               <li key={e.id} className="flex justify-between gap-4 border-b py-2 last:border-0">
                 <span>
-                  {new Date(e.entry_date).toLocaleDateString("fr-FR")} — {e.duration_minutes} min
+                  {formatDateFr(e.entry_date)} — {e.duration_minutes} min
                   {e.description ? ` · ${e.description}` : ""}
                   {e.worker_name ? ` (${e.worker_name})` : ""}
                 </span>
-                <span className="font-medium tabular-nums">{formatEur(e.cost_cents)}</span>
+                <span className="font-medium tabular-nums">{formatCents(e.cost_cents)}</span>
               </li>
             ))}
           </ul>

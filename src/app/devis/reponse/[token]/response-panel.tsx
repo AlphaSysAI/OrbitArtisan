@@ -7,6 +7,8 @@ import { Check, Loader2, MessageSquare, Phone, PhoneCall, X } from "lucide-react
 import type { GuestThreadMessage } from "@/lib/quotes/quote-response";
 
 import { acceptQuoteAction, rejectQuoteAction, requestCallbackAction, sendGuestMessageAction } from "./actions";
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatPhoneFr } from "@/lib/phone";
 
 const REASONS: { value: string; label: string }[] = [
   { value: "price", label: "Le prix" },
@@ -25,10 +27,6 @@ const ERRORS: Record<string, string> = {
 };
 
 type Step = "accept" | "reject" | "contact" | null;
-
-function nationalPhone(p: string) {
-  return p.startsWith("+33") ? `0${p.slice(3)}`.replace(/(\d{2})(?=\d)/g, "$1 ") : p;
-}
 
 export function QuoteResponsePanel(props: {
   token: string;
@@ -52,7 +50,7 @@ export function QuoteResponsePanel(props: {
   const [approved, setApproved] = React.useState(false);
   const [reason, setReason] = React.useState("");
   const [comment, setComment] = React.useState("");
-  const [phone, setPhone] = React.useState(props.defaultPhone ? nationalPhone(props.defaultPhone) : "");
+  const [phone, setPhone] = React.useState(props.defaultPhone ? formatPhoneFr(props.defaultPhone) : "");
   const [callbackSent, setCallbackSent] = React.useState(props.callbackRequested);
   const [message, setMessage] = React.useState("");
 
@@ -221,7 +219,7 @@ export function QuoteResponsePanel(props: {
                 className="flex h-12 items-center justify-center gap-2 rounded-xl font-semibold text-white"
                 style={primary}
               >
-                <Phone className="size-4" /> {nationalPhone(props.artisanPhone)}
+                <Phone className="size-4" /> {formatPhoneFr(props.artisanPhone)}
               </a>
             ) : null}
             <form
@@ -273,7 +271,7 @@ export function QuoteResponsePanel(props: {
                     >
                       {m.body}
                       <span className="mt-1 block text-[11px] opacity-60">
-                        {new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(m.createdAt))}
+                        {formatDateTimeFr(m.createdAt)}
                       </span>
                     </li>
                   ))}

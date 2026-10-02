@@ -1,13 +1,13 @@
 /** Pont léger entre la page devis et le FAB assistant (événements window). */
 
-export type AssistantOpenOptions = {
+type AssistantOpenOptions = {
   /** Pré-remplit le champ de saisie à l'ouverture. */
   message?: string;
   /** Active la dictée mains libres dès l'ouverture. */
   handsFree?: boolean;
 };
 
-export const ASSISTANT_OPEN_EVENT = "soline:assistant-open";
+const ASSISTANT_OPEN_EVENT = "soline:assistant-open";
 
 /** Nombre d'assistants à l'écoute (0 tant que le composant, chargé à la demande, n'est pas monté). */
 let listenerCount = 0;

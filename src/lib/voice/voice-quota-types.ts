@@ -1,3 +1,5 @@
+import { formatDateFr } from "@/lib/format/date";
+
 /** Quota vocal Soline du mois civil, compté en appels — importable côté client. */
 
 /**
@@ -30,7 +32,5 @@ export type VoiceQuotaSnapshot = {
 };
 
 export function formatVoiceQuotaMonthLabel(periodStart: string): string {
-  return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(
-    new Date(periodStart),
-  );
+  return formatDateFr(periodStart, { month: "long", year: "numeric" });
 }

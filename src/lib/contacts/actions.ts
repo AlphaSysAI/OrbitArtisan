@@ -7,7 +7,7 @@ import { getPublicSiteUrl } from "@/lib/site-url";
 import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export type PendingInvitationItem = {
+type PendingInvitationItem = {
   kind: "pending";
   id: string;
   email: string;
@@ -17,7 +17,7 @@ export type PendingInvitationItem = {
   accountType: "client" | "artisan";
 };
 
-export type LinkedContactItem = {
+type LinkedContactItem = {
   kind: "linked";
   customerUserId: string | null;
   leadId: string | null;
@@ -29,7 +29,7 @@ export type LinkedContactItem = {
   href: string;
 };
 
-export type ArtisanContactItem = PendingInvitationItem | LinkedContactItem;
+type ArtisanContactItem = PendingInvitationItem | LinkedContactItem;
 
 export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanContactItem[] } | { ok: false; error: string; items: [] }> {
   // Session mise en cache par requête (perf, point 6) : appelée depuis le
@@ -164,7 +164,7 @@ export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanC
   return { ok: true, items: [...pendingItems, ...linkedItems] };
 }
 
-export type CustomerContactItem = {
+type CustomerContactItem = {
   artisanId: string;
   artisanLabel: string;
   slug: string;
@@ -360,7 +360,7 @@ export type CustomerDeletionCounts = {
   upcomingAppointments: number;
 };
 
-export type DeleteCustomerResult =
+type DeleteCustomerResult =
   | { ok: true }
   | {
       ok: false;

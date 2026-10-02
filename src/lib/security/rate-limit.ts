@@ -15,7 +15,7 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
  * Disponibilité d'abord : si la base ne répond pas, la requête passe (et c'est loggé).
  */
 
-export type RateLimitRule = { bucket: string; max: number; windowSeconds: number };
+type RateLimitRule = { bucket: string; max: number; windowSeconds: number };
 
 export const RATE_LIMITS = {
   leadCreate: { bucket: "lead_create", max: 8, windowSeconds: 3600 },
@@ -37,7 +37,7 @@ export function ipFromHeaders(h: Headers): string {
   return h.get("x-real-ip")?.trim() || h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 }
 
-export async function currentRequestIp(): Promise<string> {
+async function currentRequestIp(): Promise<string> {
   return ipFromHeaders(await headers());
 }
 

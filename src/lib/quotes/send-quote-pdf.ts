@@ -8,23 +8,9 @@ import { sendMessageWithPdfAttachment } from "@/lib/messages/send-pdf-message";
 import { validateQuoteBeforeSend } from "@/lib/quotes/validate-quote-before-send";
 import { buildQuoteNotificationMessage } from "@/lib/quotes/supplier-links";
 import type { DirectPurchaseItem } from "@/lib/quotes/supplier-links";
+import { formatCents } from "@/lib/format/money";
 
-export async function renderQuotePdfBytes(
-  supabase: SupabaseClient,
-  quoteId: string,
-  artisanId: string,
-  options?: { skipLegalValidation?: boolean },
-): Promise<Uint8Array | null> {
-  if (!options?.skipLegalValidation) {
-    const check = await validateQuoteBeforeSend(supabase, quoteId, artisanId);
-    if (!check.ok) return null;
-  }
-  const doc = await loadQuotePdfDocument(supabase, quoteId, artisanId);
-  if (!doc) return null;
-  return renderQuotePdf(doc);
-}
-
-export type SendQuotePdfResult =
+type SendQuotePdfResult =
   | { ok: true }
   | { ok: false; error: "pdf_failed" }
   | { ok: false; error: "quote_pdf_profile_incomplete"; validation: import("@/lib/billing/quote-pdf-legal").QuoteLegalValidation };
@@ -51,9 +37,7 @@ export async function sendQuotePdfInConversation(
   const pdfBytes = await renderQuotePdf(doc);
 
   // Montant TTC du PDF joint (et non grand_total, qui est HT).
-  const totalFmt = `${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-    doc.totalTtcCents / 100,
-  )} TTC`;
+  const totalFmt = `${formatCents(doc.totalTtcCents)} TTC`;
 
   const body = buildQuoteNotificationMessage({
     totalFormatted: totalFmt,

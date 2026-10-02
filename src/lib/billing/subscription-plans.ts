@@ -114,7 +114,7 @@ export function formatCentsHtEur(cents: number): string {
   return formatPriceHtEur(cents / 100);
 }
 
-export function getPlanPriceHtEur(planId: SubscriptionPlanId, interval: BillingInterval): number {
+function getPlanPriceHtEur(planId: SubscriptionPlanId, interval: BillingInterval): number {
   const plan = SUBSCRIPTION_PLANS.find((item) => item.id === planId);
   if (!plan) return 0;
   return interval === "annual" ? plan.priceAnnualHtEur : plan.priceMonthlyHtEur;

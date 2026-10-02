@@ -5,16 +5,16 @@ export const TRIAL_DURATION_DAYS = 30;
 /** « incomplete » : compte créé, essai pas encore démarré (aucun essai sans carte bancaire). */
 export type SubscriptionStatus = "incomplete" | "trialing" | "active" | "past_due" | "canceled";
 
-export type SubscriptionAccessInput = {
+type SubscriptionAccessInput = {
   subscription_status?: string | null;
   trial_ends_at?: string | null;
   account_status?: string | null;
   deleted_at?: string | null;
 };
 
-export type SubscriptionBlockReason = "no_subscription" | "trial_expired" | "past_due" | "canceled" | "suspended" | "no_profile";
+type SubscriptionBlockReason = "no_subscription" | "trial_expired" | "past_due" | "canceled" | "suspended" | "no_profile";
 
-export type SubscriptionAccessResult = {
+type SubscriptionAccessResult = {
   allowed: boolean;
   reason?: SubscriptionBlockReason;
   status: SubscriptionStatus | "unknown";
@@ -30,7 +30,7 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
   canceled: "Résilié",
 };
 
-export function isSubscriptionStatus(value: string): value is SubscriptionStatus {
+function isSubscriptionStatus(value: string): value is SubscriptionStatus {
   return value === "incomplete" || value === "trialing" || value === "active" || value === "past_due" || value === "canceled";
 }
 
@@ -90,7 +90,7 @@ export function evaluateSubscriptionAccess(profile: SubscriptionAccessInput | nu
 }
 
 /** Chemins où la création de devis est bloquée si l'abonnement ne le permet pas. */
-export const SUBSCRIPTION_DOCUMENT_BLOCKED_PATHS = ["/app/quotes/new"] as const;
+const SUBSCRIPTION_DOCUMENT_BLOCKED_PATHS = ["/app/quotes/new"] as const;
 
 export function isSubscriptionDocumentBlockedPath(pathname: string): boolean {
   return SUBSCRIPTION_DOCUMENT_BLOCKED_PATHS.some(

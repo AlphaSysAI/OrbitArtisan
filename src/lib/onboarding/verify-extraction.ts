@@ -59,7 +59,7 @@ export type VerifiedDocument = {
   lines: CatalogCandidate[];
 };
 
-export function normalizeForMatch(text: string): string {
+function normalizeForMatch(text: string): string {
   return text
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -186,7 +186,7 @@ export function verifyExtraction(ext: QuoteExtraction, source: string): Verified
   return { readable: ext.readable && ext.document_kind !== "other", legal, vatFranchise, lines };
 }
 
-export type InferredVatRegime = { value: "normal" | "franchise" | null; reason: "document" | "conflict" | "unknown" };
+type InferredVatRegime = { value: "normal" | "franchise" | null; reason: "document" | "conflict" | "unknown" };
 
 /**
  * Régime de TVA constaté sur les devis. Mention 293 B vérifiée → franchise ;

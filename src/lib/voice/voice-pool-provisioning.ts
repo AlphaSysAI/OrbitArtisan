@@ -24,7 +24,7 @@ import { clampBulkCount, readRefillPolicy, shouldAlertPoolCapacity } from "@/lib
 
 type NumberType = "local" | "national" | "mobile";
 
-export type ProvisioningConfig = {
+type ProvisioningConfig = {
   accountSid: string;
   authToken: string;
   bundleSid: string;
@@ -101,7 +101,7 @@ async function elevenlabsRequest(
 }
 
 /** Import dans ElevenLabs + agent + URL de statut reposée. Renvoie le phone_number_id. */
-export async function importIntoElevenLabs(
+async function importIntoElevenLabs(
   config: ProvisioningConfig,
   params: { phoneE164: string; twilioSid: string | null; label: string },
 ): Promise<string> {
@@ -303,7 +303,7 @@ export async function provisionVoiceNumbersForAdmin(
 
 const PROVISIONING_LOCK_MS = 10 * 60_000;
 
-export type ArtisanProvisionResult =
+type ArtisanProvisionResult =
   | { ok: true; phoneE164: string | null; skipped?: "locked_or_not_waiting" | "already_served" }
   | { ok: false; error: string };
 
@@ -426,7 +426,7 @@ export async function retryElevenLabsImport(
   return { ok: true };
 }
 
-export type QuarantineReleaseResult = { phoneE164: string; ok: boolean; error?: string };
+type QuarantineReleaseResult = { phoneE164: string; ok: boolean; error?: string };
 
 /**
  * Fin de quarantaine (30 jours après un désabonnement) : le numéro est retiré d'ElevenLabs,

@@ -8,8 +8,8 @@ import { getAdminDb } from "@/lib/admin/db";
 import { listAlerts } from "@/lib/concierge/admin-queries";
 import { formatBudget } from "@/lib/concierge/summary";
 import { cn } from "@/lib/utils";
+import { formatDateTimeFr } from "@/lib/format/date";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" });
 
 export default async function AdminConciergePage({
   searchParams,
@@ -60,7 +60,7 @@ export default async function AdminConciergePage({
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Budget {formatBudget(a.summary.budget)} · {a.registered_count} inscrit{a.registered_count > 1 ? "s" : ""} déjà positionné
-                    {a.registered_count > 1 ? "s" : ""} · {dateFmt.format(new Date(a.created_at))}
+                    {a.registered_count > 1 ? "s" : ""} · {formatDateTimeFr(a.created_at)}
                   </p>
                   {a.summary.need ? <p className="mt-2 max-w-3xl text-sm">{a.summary.need}</p> : null}
                 </div>

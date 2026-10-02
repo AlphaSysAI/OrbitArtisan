@@ -13,13 +13,13 @@ export type MySendingBoxAddress = {
   address_country: string;
 };
 
-export type SendLetterSource =
+type SendLetterSource =
   /** URL HTTPS publiquement joignable (ex. URL signée Supabase Storage). */
   | { kind: "remote"; url: string }
   /** Octets du PDF transmis en multipart. */
   | { kind: "file"; pdf: Uint8Array; filename: string };
 
-export type SendLetterInput = {
+type SendLetterInput = {
   /** Expéditeur (l'artisan) — obligatoire pour `lr` et `lrar`. */
   from: MySendingBoxAddress;
   /** Destinataire (le débiteur). */
@@ -37,14 +37,14 @@ export type SendLetterInput = {
 };
 
 /** Objet File MySendingBox (preuves, document envoyé). */
-export type MySendingBoxFile = {
+type MySendingBoxFile = {
   _id: string;
   url: string;
   type: string;
   page_count?: number;
 };
 
-export type MySendingBoxLetter = {
+type MySendingBoxLetter = {
   _id: string;
   status?: string;
   mode?: "test" | "live";
@@ -63,7 +63,7 @@ export type MySendingBoxLetter = {
   price?: { total?: number } | null;
 };
 
-export type MySendingBoxResult<T> =
+type MySendingBoxResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; status?: number };
 
@@ -74,10 +74,6 @@ function authHeader(apiKey: string): string {
 
 function readApiKey(): string | null {
   return process.env.MYSENDINGBOX_API_KEY?.trim() || null;
-}
-
-export function isMySendingBoxConfigured(): boolean {
-  return readApiKey() !== null;
 }
 
 function normalizeLetter(raw: Record<string, unknown>): MySendingBoxLetter {
@@ -246,42 +242,6 @@ export async function sendFormalNoticeLRAR(
   }
 
   return { ok: true, data: letter };
-}
-
-/** Récupère l'état courant d'une lettre (statut, suivi, preuves). */
-export async function getLetterStatus(
-  letterId: string,
-): Promise<MySendingBoxResult<MySendingBoxLetter>> {
-  const apiKey = readApiKey();
-  if (!apiKey) return { ok: false, error: "mysendingbox_not_configured" };
-
-  const trimmed = letterId.trim();
-  if (!trimmed) return { ok: false, error: "mysendingbox_missing_letter_id" };
-
-  let res: Response;
-  try {
-    res = await fetch(`${MYSENDINGBOX_API_URL}/letters/${encodeURIComponent(trimmed)}`, {
-      method: "GET",
-      headers: { Authorization: authHeader(apiKey), Accept: "application/json" },
-      cache: "no-store",
-    });
-  } catch (error) {
-    return {
-      ok: false,
-      error: `mysendingbox_network: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-
-  const { raw, json } = await parseResponse(res);
-
-  if (!res.ok) {
-    return { ok: false, error: extractErrorMessage(json, raw, res.status), status: res.status };
-  }
-  if (!json || typeof json !== "object") {
-    return { ok: false, error: "mysendingbox_invalid_response", status: res.status };
-  }
-
-  return { ok: true, data: normalizeLetter(json as Record<string, unknown>) };
 }
 
 /** Télécharge une preuve (dépôt / distribution) depuis l'URL signée MySendingBox. */

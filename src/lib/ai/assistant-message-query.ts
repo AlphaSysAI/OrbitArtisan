@@ -6,8 +6,9 @@ import { looksLikeOpenCommand } from "@/lib/ai/assistant-fast-path";
 import { extractFrenchDates } from "@/lib/ai/extract-dates";
 import { formatIsoDateFr } from "@/lib/ai/resolve-date";
 import { matchContactByQuery, type ContactCandidate } from "@/lib/ai/match-contact";
+import { formatDateTimeFr } from "@/lib/format/date";
 
-export type IncomingMessageHit = {
+type IncomingMessageHit = {
   conversationId: string;
   contactLabel: string;
   messageId: string;
@@ -34,17 +35,17 @@ function isExplicitQuestion(message: string): boolean {
 }
 
 /** Message reçu / envoi / messagerie (pas RDV). */
-export function looksLikeMessageTopic(message: string): boolean {
+function looksLikeMessageTopic(message: string): boolean {
   const m = normalize(message);
   return /\b(message|messages|messagerie|conversation|sms|ecrit|recu|recue|envoye|envoyee)\b/.test(m);
 }
 
-export function looksLikeMessageDataQuestion(message: string): boolean {
+function looksLikeMessageDataQuestion(message: string): boolean {
   if (!looksLikeMessageTopic(message)) return false;
   return isExplicitQuestion(message) || /\b(recu|reçu|envoye|envoyé|dernier|derniere|nouveau|nouvelle)\b/i.test(message);
 }
 
-export function looksLikeOpenMessageCommand(message: string): boolean {
+function looksLikeOpenMessageCommand(message: string): boolean {
   if (!looksLikeMessageTopic(message)) return false;
   if (!looksLikeOpenCommand(message)) return false;
   const m = normalize(message);
@@ -56,7 +57,7 @@ export function looksLikeOpenMessageCommand(message: string): boolean {
 }
 
 /** Extrait un nom de contact après « de / avec … ». */
-export function extractContactQueryFromMessage(message: string): string | null {
+function extractContactQueryFromMessage(message: string): string | null {
   const patterns = [
     /\b(?:message|messages|messagerie|conversation|sms)\s+(?:de|du|d['']|avec|from|par)\s+(.+?)(?:\s+le\s+\d|\s*\?|$)/i,
     /\b(?:recu|reçu|envoye|envoyé|dernier|derniere)\s+(?:message\s+)?(?:de|du|d['']|avec|from|par)\s+(.+?)(?:\s+le\s+\d|\s*\?|$)/i,
@@ -144,7 +145,7 @@ async function conversationIdsForArtisan(
   return single;
 }
 
-export async function findIncomingMessages(
+async function findIncomingMessages(
   supabase: SupabaseClient,
   artisanId: string,
   artisanUserId: string,
@@ -225,10 +226,7 @@ export async function tryOpenMessageNavigation(
   }
 
   const hit = hits[0]!;
-  const when = new Date(hit.createdAt).toLocaleString("fr-FR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  const when = formatDateTimeFr(hit.createdAt);
 
   return {
     href: `/app/messages/${hit.conversationId}`,
@@ -270,10 +268,7 @@ export async function answerMessageQuestion(
   }
 
   const hit = hits[0]!;
-  const when = new Date(hit.createdAt).toLocaleString("fr-FR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  const when = formatDateTimeFr(hit.createdAt);
 
   if (hits.length === 1) {
     return {
@@ -286,7 +281,7 @@ export async function answerMessageQuestion(
   const lines = hits
     .slice(0, 3)
     .map((h) => {
-      const t = new Date(h.createdAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+      const t = formatDateTimeFr(h.createdAt);
       return `• ${h.contactLabel} (${t}) : « ${truncateBody(h.body, 80)} »`;
     })
     .join("\n");

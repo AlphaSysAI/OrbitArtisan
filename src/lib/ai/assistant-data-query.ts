@@ -4,8 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { formatDateListFr } from "@/lib/ai/extract-dates";
 import { formatIsoDateFr } from "@/lib/ai/resolve-date";
+import { formatTimeFr } from "@/lib/format/date";
 
-export type AppointmentLite = {
+type AppointmentLite = {
   id: string;
   start_time: string;
   status: string;
@@ -30,7 +31,7 @@ function statusLabel(status: string): string {
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return formatTimeFr(iso);
 }
 
 /**

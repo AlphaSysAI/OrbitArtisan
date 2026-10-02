@@ -27,7 +27,7 @@ export type ProspectRow = {
   created_at: string;
 };
 
-export type AlertRow = {
+type AlertRow = {
   id: string;
   lead_id: string;
   registered_count: number;

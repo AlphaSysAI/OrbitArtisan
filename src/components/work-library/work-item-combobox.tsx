@@ -12,9 +12,9 @@ import {
 import { platformItemAsWorkItem } from "@/lib/work-library/platform-to-work-item";
 import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types";
 import type { WorkItemWithCategory } from "@/lib/work-library/types";
-import { formatEur } from "@/lib/work-library/pricing";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { formatEuros } from "@/lib/format/money";
 
 type ComboboxOption =
   | { kind: "library"; item: WorkItemWithCategory }
@@ -156,7 +156,7 @@ export function WorkItemCombobox({
                     <span className="font-medium">{item.title}</span>
                     <span className="text-xs text-muted-foreground">
                       {item.reference ? `${item.reference} · ` : ""}
-                      {item.unit} · {formatEur(item.unit_price_ht)} HT · TVA {item.default_vat_rate} %
+                      {item.unit} · {formatEuros(item.unit_price_ht)} HT · TVA {item.default_vat_rate} %
                       {item.category_name ? ` · ${item.category_name}` : ""}
                     </span>
                   </button>
@@ -184,7 +184,7 @@ export function WorkItemCombobox({
                     </span>
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {item.reference} · {item.unit} · {formatEur(item.unitPriceHt)} HT · TVA{" "}
+                    {item.reference} · {item.unit} · {formatEuros(item.unitPriceHt)} HT · TVA{" "}
                     {item.defaultVatRate} % · {item.workCategory}
                   </span>
                 </button>

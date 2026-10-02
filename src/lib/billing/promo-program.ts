@@ -35,7 +35,7 @@ export type PromoProgramStatus = {
 };
 
 /** Résultat de l'enregistrement du code (inscription ou Réglages). */
-export type PromoClaimResult =
+type PromoClaimResult =
   | "registered"
   | "already_enrolled"
   | "full"

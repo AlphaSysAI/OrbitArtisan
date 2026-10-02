@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ActivityKind =
+type ActivityKind =
   | "onboarding_import"
   | "onboarding_saved"
   | "voice_patch"

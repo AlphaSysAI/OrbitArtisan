@@ -1,6 +1,7 @@
 import { listAdminAuditLogs } from "@/app/admin/actions";
 import { AdminSetupAlert } from "@/components/admin/admin-setup-alert";
 import { getAdminDb } from "@/lib/admin/db";
+import { formatDateTimeFr } from "@/lib/format/date";
 
 export default async function AdminLogsPage({
   searchParams,
@@ -63,7 +64,7 @@ export default async function AdminLogsPage({
               items.map((row) => (
                 <tr key={row.id as string} className="border-b last:border-0 align-top">
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                    {new Date(row.created_at as string).toLocaleString("fr-FR")}
+                    {formatDateTimeFr(row.created_at as string, { dateStyle: "short", timeStyle: "medium" })}
                   </td>
                   <td className="px-4 py-3">{adminEmails.get(row.admin_user_id as string) ?? row.admin_user_id}</td>
                   <td className="px-4 py-3 font-mono text-xs">{row.action as string}</td>

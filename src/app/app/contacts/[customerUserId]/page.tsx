@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 
 import { DeleteCustomerButton } from "./delete-customer-button";
 import { MessageCustomerButton } from "./message-customer-button";
+import { formatDateFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export default async function ArtisanCustomerPage({
   params,
@@ -60,7 +62,7 @@ export default async function ArtisanCustomerPage({
   const deletionCounts = await getCustomerDeletionCounts(customerUserId);
 
   const formatEur = (cents: number) =>
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+    formatCents(cents);
 
   const customerLabel = formatContactDisplayName({
     profileName: cp?.display_name,
@@ -112,7 +114,7 @@ export default async function ArtisanCustomerPage({
                       className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
                     >
                       <span>
-                        {new Date(q.created_at).toLocaleDateString("fr-FR")} ·{" "}
+                        {formatDateFr(q.created_at)} ·{" "}
                         <span className="text-muted-foreground">{quoteStatusLabel(q.status)}</span>
                       </span>
                       <span className="font-medium">{formatEur(q.grand_total)}</span>
@@ -150,7 +152,7 @@ export default async function ArtisanCustomerPage({
                       className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
                     >
                       <span>
-                        {new Date(inv.created_at).toLocaleDateString("fr-FR")} ·{" "}
+                        {formatDateFr(inv.created_at)} ·{" "}
                         <span className="text-muted-foreground">
                           {invoiceStatusLabel(inv.status)}
                         </span>

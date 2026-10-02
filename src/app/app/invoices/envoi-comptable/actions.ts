@@ -7,7 +7,7 @@ import { ACCOUNTING_UPLOADS_BUCKET } from "@/lib/accounting/export-schedule";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
-export type AccountingActionResult = { ok: true } | { ok: false; error: string };
+type AccountingActionResult = { ok: true } | { ok: false; error: string };
 
 const PAGE = "/app/invoices/envoi-comptable";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -10,7 +10,7 @@ import { allowRequest, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { sendBookingReceiptEmail } from "@/lib/appointments/customer-emails";
 import { checkVitrineSlot } from "@/lib/vitrine/booking-rules";
-import { normalizeCustomerPhone } from "@/lib/vitrine/customer-phone";
+import { normalizeCustomerPhone } from "@/lib/phone";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -45,7 +45,7 @@ async function ensureConversationWithAdmin(admin: AdminClient, artisanId: string
   });
 }
 
-export type SubmitVitrineAppointmentResult =
+type SubmitVitrineAppointmentResult =
   | { ok: true; mode: "done" }
   | {
       ok: false;
@@ -193,7 +193,7 @@ export async function submitVitrineAppointmentAsGuest(formData: FormData): Promi
   return { ok: true, mode: "done" };
 }
 
-export type FinalizePendingResult =
+type FinalizePendingResult =
   | { ok: true }
   | {
       ok: false;

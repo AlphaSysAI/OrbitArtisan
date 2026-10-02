@@ -9,7 +9,6 @@ import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getAdminDb } from "@/lib/admin/db";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { computeTrialEndsAt, type SubscriptionStatus } from "@/lib/billing/subscription-access";
 import {
   planIncludesSolineVoice,
@@ -33,7 +32,7 @@ async function guardAdmin() {
   return { user: res.user, admin };
 }
 
-export async function updateTenantProfile(
+async function updateTenantProfile(
   profileId: string,
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -77,7 +76,7 @@ export async function updateTenantProfile(
   return { ok: true };
 }
 
-export async function updateTenantPlan(
+async function updateTenantPlan(
   profileId: string,
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -346,10 +345,6 @@ export async function assignTenantVoiceFromPool(
   revalidatePath(`/admin/tenants/${profileId}`);
   revalidatePath("/app/reglages");
   return { ok: true };
-}
-
-export async function updateTenantVoiceNumberForm(profileId: string, formData: FormData) {
-  await updateTenantVoiceNumber(profileId, formData);
 }
 
 export async function listAdminAuditLogs(page = 1, pageSize = 30) {

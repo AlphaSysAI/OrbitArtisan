@@ -27,6 +27,8 @@ import { InvoiceEditForm } from "./invoice-edit-form";
 import { InvoiceFinalizeForm } from "./invoice-finalize-form";
 import { InvoiceVatCorrectionForm } from "./invoice-vat-correction-form";
 import { InvoiceAccessDeniedPanel, InvoiceLoadErrorPanel } from "./invoice-status-panels";
+import { formatDateFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
 
@@ -128,7 +130,7 @@ function InvoiceDetailView({
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {customerLabel} ·{" "}
-            {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((invoice.grand_total ?? 0) / 100)}
+            {formatCents(invoice.grand_total)}
           </p>
           {invoice.finalized_at ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -136,7 +138,7 @@ function InvoiceDetailView({
               <span className="text-sm text-muted-foreground">
                 Finalisée · {invoiceStatusLabel(invoice.status)}
                 {invoice.due_date
-                  ? ` · Échéance ${new Date(invoice.due_date).toLocaleDateString("fr-FR")}`
+                  ? ` · Échéance ${formatDateFr(invoice.due_date)}`
                   : ""}
                 {emissionFlow ? ` · ${FLOW_LABELS[emissionFlow] ?? displayText(emissionFlow)}` : ""}
               </span>
@@ -263,7 +265,7 @@ function InvoiceDetailView({
                     </span>
                   </div>
                   <span className="font-medium">
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((line.line_total ?? 0) / 100)}
+                    {formatCents(line.line_total)}
                   </span>
                 </li>
               ))}
@@ -273,7 +275,7 @@ function InvoiceDetailView({
           )}
           <p className="mt-4 text-sm font-semibold">
             Total :{" "}
-            {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((invoice.grand_total ?? 0) / 100)}
+            {formatCents(invoice.grand_total)}
           </p>
         </CardContent>
       </Card>

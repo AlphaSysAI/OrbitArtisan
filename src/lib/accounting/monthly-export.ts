@@ -123,7 +123,7 @@ async function renderInvoiceAttachment(db: Db, invoiceId: string, invoiceNumber:
   }
 }
 
-export type SendExportResult =
+type SendExportResult =
   | { ok: true; status: "sent" | "skipped"; invoiceCount: number; attachmentCount: number; parts: number }
   | { ok: false; error: string };
 
@@ -133,7 +133,7 @@ export type SendExportResult =
  * ajoutées sont supprimées après envoi réussi uniquement (en cas d'échec, elles
  * restent pour la nouvelle tentative).
  */
-export async function sendAccountingExport(
+async function sendAccountingExport(
   db: Db,
   profile: ExportProfile,
   period: string,
@@ -325,7 +325,7 @@ async function markFailed(db: Db, profile: ExportProfile, period: string, error:
   });
 }
 
-export type AccountingRunResult = { notices: number; sent: number; skipped: number; failed: number; purged: number };
+type AccountingRunResult = { notices: number; sent: number; skipped: number; failed: number; purged: number };
 
 /**
  * Cron quotidien (soir, heure de Paris) :

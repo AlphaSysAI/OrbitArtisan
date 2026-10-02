@@ -1,6 +1,6 @@
 export const WORK_UNITS = ["m²", "ml", "m³", "U", "forfait", "h", "jour"] as const;
 
-export type WorkUnit = (typeof WORK_UNITS)[number];
+type WorkUnit = (typeof WORK_UNITS)[number];
 
 export const VAT_RATES = [5.5, 10, 20] as const;
 

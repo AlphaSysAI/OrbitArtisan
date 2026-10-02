@@ -5,7 +5,7 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requireArtisanProfileIdOrRedirect, requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
+import { requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
 
 import { redirectIfCannotCreateDocuments } from "@/lib/billing/require-document-access";
 import {
@@ -27,7 +27,7 @@ export async function createInvoiceFromQuoteForm(formData: FormData): Promise<vo
   await createInvoiceFromQuote(quoteId);
 }
 
-export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
+async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   const userAuth = await requireAuthenticatedUser();
   if (!userAuth.ok) redirect("/login");
   const { supabase, userId } = userAuth;
@@ -202,83 +202,6 @@ export async function createInvoiceFromQuote(quoteId: string): Promise<void> {
   revalidatePath("/compte/factures");
   revalidatePath(`/compte/factures/${invoice.id}`);
   redirect(`/app/invoices/${invoice.id}`);
-}
-
-/**
- * NB : cette action semble inutilisée (aucun import trouvé ailleurs dans le
- * code — voir InvoiceEditForm/updateInvoiceDetail, câblée elle sur la page
- * de détail). Conservée mais corrigée par prudence en même temps que son
- * quasi-doublon, pour ne pas laisser une action non câblée réintroduire le
- * même risque si elle est un jour rebranchée.
- */
-export async function updateInvoice(formData: FormData): Promise<void> {
-  const invoiceId = String(formData.get("invoice_id") ?? "").trim();
-  const notes = String(formData.get("notes") ?? "").trim();
-  const status = String(formData.get("status") ?? "draft").trim();
-
-  if (!invoiceId) redirect("/app/invoices");
-  if (!["draft", "sent", "paid", "overdue"].includes(status)) redirect(`/app/invoices/${invoiceId}?error=status`);
-
-  const { supabase, profileId } = await requireArtisanProfileIdOrRedirect();
-
-  const { data: inv } = await supabase.from("invoices").select("id, artisan_id").eq("id", invoiceId).maybeSingle();
-  if (!inv || inv.artisan_id !== profileId) redirect("/app/invoices");
-
-  // Point 4 audit pré-pilote : invoice_number n'est plus jamais écrit ici —
-  // attribué automatiquement à la finalisation (compteur séquentiel).
-  const { error } = await supabase
-    .from("invoices")
-    .update({
-      notes: notes || null,
-      status,
-    })
-    .eq("id", invoiceId);
-
-  if (error) redirect(`/app/invoices/${invoiceId}?error=update`);
-
-  revalidatePath("/app/invoices");
-  revalidatePath(`/app/invoices/${invoiceId}`);
-  revalidatePath("/compte");
-  revalidatePath("/compte/factures");
-  revalidatePath(`/compte/factures/${invoiceId}`);
-}
-
-const FINALIZE_ERROR_MESSAGES: Record<string, string> = {
-  not_found: "Facture introuvable.",
-  already_finalized: "Cette facture est déjà finalisée.",
-  not_draft: "Seul un brouillon peut être finalisé.",
-  no_lines: "Ajoute des lignes via le devis avant de finaliser.",
-  invoicing_frozen:
-    "Facturation désactivée pour ce client professionnel (SIREN + TVA renseignés) — en attente du raccordement à une Plateforme Agréée pour la transmission Factur-X, obligatoire pour les clients B2B. La facturation des particuliers reste disponible.",
-  generation_failed: "Échec de génération du document.",
-  pa_submission_failed: "Échec d'envoi à la Plateforme Agréée.",
-  persist_failed: "Impossible d'enregistrer la finalisation.",
-};
-
-export async function finalizeInvoiceForm(formData: FormData): Promise<void> {
-  const invoiceId = String(formData.get("invoice_id") ?? "").trim();
-  if (!invoiceId) redirect("/app/invoices?error=missing");
-
-  const { supabase, profileId } = await requireArtisanProfileIdOrRedirect([], "/login?next=/app/invoices");
-
-  const { createInvoiceService } = await import("@/lib/billing/invoicing");
-  const service = createInvoiceService(supabase);
-  const result = await service.finalize(invoiceId, profileId);
-
-  if (!result.ok) {
-    const code = result.code in FINALIZE_ERROR_MESSAGES ? result.code : "persist_failed";
-    redirect(`/app/invoices/${invoiceId}?finalize_error=${encodeURIComponent(code)}`);
-  }
-
-  revalidatePath("/app/invoices");
-  revalidatePath(`/app/invoices/${invoiceId}`);
-  revalidatePath("/compte");
-  revalidatePath("/compte/factures");
-  revalidatePath(`/compte/factures/${invoiceId}`);
-
-  redirect(
-    `/app/invoices/${invoiceId}?finalized=1&flow=${encodeURIComponent(result.flow)}&download=1`,
-  );
 }
 
 export async function startStripeExpressOnboarding(): Promise<void> {

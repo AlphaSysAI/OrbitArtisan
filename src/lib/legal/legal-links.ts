@@ -5,4 +5,3 @@ export const LEGAL_PAGE_LINKS = [
   { href: "/confidentialite", label: "Confidentialité" },
 ] as const;
 
-export type LegalPagePath = (typeof LEGAL_PAGE_LINKS)[number]["href"];

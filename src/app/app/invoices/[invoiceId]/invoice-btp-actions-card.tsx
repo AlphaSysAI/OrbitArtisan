@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { createCreditNoteForm, releaseRetentionForm } from "../btp-actions";
+import { formatCents } from "@/lib/format/money";
 
 export function InvoiceBtpActionsCard({
   invoiceId,
@@ -39,7 +40,7 @@ export function InvoiceBtpActionsCard({
                 <input type="hidden" name="invoice_id" value={invoiceId} />
                 <Button type="submit" variant="outline" size="sm">
                   Libérer retenue (
-                  {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(retentionAmount / 100)}
+                  {formatCents(retentionAmount)}
                   )
                 </Button>
               </form>

@@ -1,3 +1,5 @@
+import { parisDayKey } from "@/lib/format/date";
+
 /**
  * Score de risque d'abandon — règles simples, explicables, testées.
  * Pas de ML : sur ce segment, 5 signaux métier suffisent et chaque relance
@@ -20,7 +22,7 @@ export type RiskInput = {
   trialDaysRemaining: number | null;
 };
 
-export type RiskSignalCode = "forwarding_inactive" | "stale_intakes" | "inactive" | "call_drop" | "no_quotes" | "trial_low_usage";
+type RiskSignalCode = "forwarding_inactive" | "stale_intakes" | "inactive" | "call_drop" | "no_quotes" | "trial_low_usage";
 
 export type RiskSignal = { code: RiskSignalCode; weight: number; detail: Record<string, string | number> };
 
@@ -31,7 +33,7 @@ export type RiskAssessment = { score: number; level: RiskLevel; signals: RiskSig
 const DAY = 86_400_000;
 
 function parisDay(d: Date): string {
-  return new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(d);
+  return parisDayKey(d);
 }
 
 /** Jours ouvrés (lun-ven) écoulés depuis la dernière présence, jour courant exclu. */

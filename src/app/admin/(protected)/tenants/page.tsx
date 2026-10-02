@@ -6,6 +6,7 @@ import { TenantFilters } from "@/components/admin/tenant-filters";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { listAdminTenants, type ArtisanAccountStatus } from "@/lib/admin/tenants";
 import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { formatDateFr } from "@/lib/format/date";
 
 export default async function AdminTenantsPage({
   searchParams,
@@ -81,7 +82,7 @@ export default async function AdminTenantsPage({
                     {tenant.quotesCount} devis · {tenant.invoicesCount} factures
                   </td>
                   <td className="px-4 py-4 align-top text-muted-foreground">
-                    {new Date(tenant.createdAt).toLocaleDateString("fr-FR")}
+                    {formatDateFr(tenant.createdAt)}
                   </td>
                   <td className="px-4 py-4 align-top">
                     <TenantActions tenant={tenant} />

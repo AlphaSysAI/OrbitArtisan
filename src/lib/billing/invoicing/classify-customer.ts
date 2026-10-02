@@ -1,7 +1,7 @@
 import { validateSiren, validateSiret, validateVatNumber } from "@/lib/billing/legal-entity-validation";
 
 /** Identifiants légaux client utilisés pour le routage B2B / B2C. */
-export type CustomerLegalIds = {
+type CustomerLegalIds = {
   siren?: string | null;
   siret?: string | null;
   vatNumber?: string | null;

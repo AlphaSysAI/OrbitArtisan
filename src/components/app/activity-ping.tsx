@@ -3,13 +3,14 @@
 import * as React from "react";
 
 import { recordDailyPresence } from "@/lib/telemetry/actions";
+import { parisDayKey } from "@/lib/format/date";
 
 const KEY = "soline:presence-day";
 
 /** Signale l'ouverture de l'app une fois par jour (hors ligne ou storage bloqué : sans effet). */
 export function ActivityPing() {
   React.useEffect(() => {
-    const day = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
+    const day = parisDayKey();
     try {
       if (localStorage.getItem(KEY) === day) return;
     } catch {

@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { validateQuoteLegalProfile, type QuoteLegalValidation } from "@/lib/billing/quote-pdf-legal";
 
-export type QuoteSendValidationResult =
+type QuoteSendValidationResult =
   | { ok: true; warnings: string[] }
   | { ok: false; error: "quote_not_found" | "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation };
 

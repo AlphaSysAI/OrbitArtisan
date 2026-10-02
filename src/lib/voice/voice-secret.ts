@@ -5,7 +5,7 @@ import { timingSafeEqual } from "node:crypto";
  * « Bearer » / « Bearer: » et espaces ou retours à la ligne parasites (collage
  * dans Vercel ou dans un secret ElevenLabs).
  */
-export function normalizeVoiceSecret(raw: string | null | undefined): string {
+function normalizeVoiceSecret(raw: string | null | undefined): string {
   return (raw ?? "")
     .trim()
     .replace(/^["']|["']$/g, "")

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export function AppSkeleton({ className }: { className?: string }) {
+function AppSkeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded-xl bg-muted", className)} />;
 }
 

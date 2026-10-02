@@ -1,8 +1,5 @@
 import type { FacturXInvoiceDocument } from "@/lib/billing/facturx/types";
 
-/** Statuts file e-reporting (alignés supabase/init.sql). */
-export type EReportingQueueStatus = "pending" | "batched" | "submitted" | "failed";
-
 export type EReportingVatLine = {
   rate: number;
   basisCents: number;

@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getMarketingHomeHref } from "@/lib/site-url";

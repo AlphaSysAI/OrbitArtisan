@@ -7,6 +7,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 import { QuoteResponsePanel } from "./response-panel";
+import { formatDateFr, formatDateTimeFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
 
@@ -15,16 +17,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-function eur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
-
 function dateFr(iso: string, withTime = false) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    dateStyle: "long",
-    ...(withTime ? { timeStyle: "short" } : {}),
-    timeZone: "Europe/Paris",
-  }).format(new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso));
+  return withTime ? formatDateTimeFr(iso, { dateStyle: "long", timeStyle: "short" }) : formatDateFr(iso, { dateStyle: "long" });
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -88,9 +82,9 @@ export default async function QuoteResponsePage({ params }: { params: Promise<{ 
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-sm text-slate-500">Montant total</p>
-            <p className="text-3xl font-bold tabular-nums">{eur(view.totalTtcCents)}</p>
+            <p className="text-3xl font-bold tabular-nums">{formatCents(view.totalTtcCents)}</p>
             <p className="text-sm text-slate-500">
-              {view.vatFranchise ? "TVA non applicable, art. 293 B du CGI" : `TTC · ${eur(view.totalHtCents)} HT`}
+              {view.vatFranchise ? "TVA non applicable, art. 293 B du CGI" : `TTC · ${formatCents(view.totalHtCents)} HT`}
             </p>
           </div>
           <a

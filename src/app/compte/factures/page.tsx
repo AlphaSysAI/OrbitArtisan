@@ -5,13 +5,15 @@ import { Receipt } from "lucide-react";
 import { PayInvoiceForm } from "@/components/compte/pay-invoice-form";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { invoiceStatusLabel } from "@/lib/status-labels";
 import { isStripeConfigured } from "@/lib/stripe/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { PaymentErrorAlert } from "./payment-alerts";
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export default async function ClientInvoicesPage({
   searchParams,
@@ -86,17 +88,12 @@ export default async function ClientInvoicesPage({
                   </div>
                   <p className="text-sm text-muted-foreground">{artisanName(inv.artisan_id)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(inv.updated_at ?? inv.created_at).toLocaleString("fr-FR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
+                    {formatDateTimeFr(inv.updated_at ?? inv.created_at)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   <span className="text-sm font-semibold tabular-nums">
-                    {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                      (inv.grand_total ?? 0) / 100,
-                    )}
+                    {formatCents(inv.grand_total)}
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
                     {inv.status === "sent" && stripeEnabled && artisanForId(inv.artisan_id)?.stripe_transfers_enabled ? (

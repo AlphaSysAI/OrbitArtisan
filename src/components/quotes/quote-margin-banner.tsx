@@ -1,7 +1,8 @@
 "use client";
 
-import { computeQuoteMarginPreview, formatMarginEur } from "@/lib/billing/quote-margin";
+import { computeQuoteMarginPreview } from "@/lib/billing/quote-margin";
 import { cn } from "@/lib/utils";
+import { formatCents } from "@/lib/format/money";
 
 export function QuoteMarginBanner({
   grandTotalCents,
@@ -33,14 +34,14 @@ export function QuoteMarginBanner({
         </p>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm tabular-nums">
           <span>
-            HT : <strong>{formatMarginEur(margin.grandTotalCents)}</strong>
+            HT : <strong>{formatCents(margin.grandTotalCents)}</strong>
           </span>
           <span className="text-muted-foreground">
-            Matière : {formatMarginEur(margin.estimatedMaterialCostCents)}
+            Matière : {formatCents(margin.estimatedMaterialCostCents)}
           </span>
-          <span className="text-muted-foreground">MO : {formatMarginEur(margin.estimatedLaborCostCents)}</span>
+          <span className="text-muted-foreground">MO : {formatCents(margin.estimatedLaborCostCents)}</span>
           <span className={cn("font-semibold", positive ? "text-green-700 dark:text-green-400" : "text-destructive")}>
-            Marge : {formatMarginEur(margin.grossMarginCents)} ({margin.grossMarginPercent} %)
+            Marge : {formatCents(margin.grossMarginCents)} ({margin.grossMarginPercent} %)
           </span>
         </div>
       </div>

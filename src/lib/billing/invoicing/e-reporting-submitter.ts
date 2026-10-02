@@ -1,13 +1,13 @@
 import type { EReportingBatchPayload } from "./e-reporting";
 
-export type EReportingSubmissionResult = {
+type EReportingSubmissionResult = {
   submissionId: string;
   status: "submitted" | "queued";
   rawResponse?: unknown;
 };
 
 /** Soumission des lots e-reporting vers la PA ou l'administration. */
-export interface IEReportingSubmitter {
+interface IEReportingSubmitter {
   submitBatch(payload: EReportingBatchPayload): Promise<EReportingSubmissionResult>;
 }
 
@@ -15,7 +15,7 @@ export interface IEReportingSubmitter {
  * Soumission HTTP générique (endpoint PA e-reporting / concentrateur).
  * Body JSON : lot groupé par artisan et période.
  */
-export class HttpEReportingSubmitter implements IEReportingSubmitter {
+class HttpEReportingSubmitter implements IEReportingSubmitter {
   constructor(
     private readonly apiUrl: string,
     private readonly apiKey: string,
@@ -54,7 +54,7 @@ export class HttpEReportingSubmitter implements IEReportingSubmitter {
 }
 
 /** No-op pour dev / tests — marque le lot comme soumis sans appel externe. */
-export class NoopEReportingSubmitter implements IEReportingSubmitter {
+class NoopEReportingSubmitter implements IEReportingSubmitter {
   async submitBatch(payload: EReportingBatchPayload): Promise<EReportingSubmissionResult> {
     return {
       submissionId: `noop-ereporting-${payload.artisanId}-${Date.now()}`,

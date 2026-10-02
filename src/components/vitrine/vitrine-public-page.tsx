@@ -11,6 +11,7 @@ import { BookAppointmentForm } from "@/app/site/[slug]/book-appointment-form";
 import { getMarketingHomeHref } from "@/lib/site-url";
 import { type VitrineOwnerAppointment, VitrineOwnerCalendar } from "@/components/vitrine/vitrine-owner-calendar";
 import { shadeAccent } from "@/lib/vitrine-theme";
+import { formatCents } from "@/lib/format/money";
 
 type Profile = {
   id: string;
@@ -37,7 +38,7 @@ export type VitrineGalleryItem = {
 
 function formatPrice(price: number | null) {
   if (price == null) return "Sur devis";
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(price / 100);
+  return formatCents(price);
 }
 
 function formatDuration(minutes: number) {

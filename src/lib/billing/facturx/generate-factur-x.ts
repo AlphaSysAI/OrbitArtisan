@@ -8,6 +8,7 @@ import type {
   FacturXInvoiceDocument,
 } from "./types";
 import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
+import { formatDateFr } from "@/lib/format/date";
 
 /**
  * Génère une facture Factur-X complète :
@@ -57,10 +58,7 @@ export async function generateFacturX(
 }
 
 function formatShortDate(date: Date): string {
-  return new Intl.DateTimeFormat("fr-FR").format(date);
+  return formatDateFr(date);
 }
 
-export { buildCrossIndustryInvoice } from "./build-cii-invoice";
-export { embedFacturXInPdf, FACTURX_XML_FILENAME } from "./embed-factur-x-pdf";
-export { renderInvoicePdf } from "./render-invoice-pdf";
 export * from "./types";

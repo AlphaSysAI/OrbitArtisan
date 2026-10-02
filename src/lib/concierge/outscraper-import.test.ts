@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { isFrenchMobile } from "./format-phone";
 import { parseProspectRecords } from "./parse-prospects";
 import { readXlsxRows } from "./read-xlsx";
 import { resolveProspectTrade } from "./trade-mapping";
+import { isFrenchMobile } from "@/lib/phone";
 
 /** Construit un .xlsx minimal (zip « stored », sans compression) pour les tests. */
 function buildXlsx(files: Record<string, string>): Buffer {

@@ -1,4 +1,4 @@
-import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
+import { nationalPhoneFr, normalizePhoneE164 } from "@/lib/phone";
 
 /** Chiffres nationaux FR (0XXXXXXXXX) pour composition USSD depuis le portable. */
 export function phoneToNationalUssdDigits(phone: string | null | undefined): string | null {
@@ -6,9 +6,7 @@ export function phoneToNationalUssdDigits(phone: string | null | undefined): str
   if (!raw) return null;
   const e164 = normalizePhoneE164(raw);
   if (!e164) return null;
-  if (e164.startsWith("+33") && e164.length >= 12) {
-    return `0${e164.slice(3)}`;
-  }
+  if (e164.startsWith("+33") && e164.length === 12) return nationalPhoneFr(e164);
   const digits = raw.replace(/\D/g, "");
   if (digits.startsWith("0") && digits.length === 10) return digits;
   return digits.length >= 9 ? digits : null;

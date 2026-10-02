@@ -6,7 +6,7 @@ import type { FormalNoticeStatus } from "./types";
  * Événements `letter.*` du canal papier MySendingBox.
  * @see https://docs.mysendingbox.fr/ — « Event Type Letter »
  */
-export const MYSENDINGBOX_LETTER_EVENTS = [
+const MYSENDINGBOX_LETTER_EVENTS = [
   "letter.created",
   "letter.accepted",
   "letter.filing_proof",
@@ -23,7 +23,7 @@ export const MYSENDINGBOX_LETTER_EVENTS = [
   "letter.canceled",
 ] as const;
 
-export type MySendingBoxLetterEvent = (typeof MYSENDINGBOX_LETTER_EVENTS)[number];
+type MySendingBoxLetterEvent = (typeof MYSENDINGBOX_LETTER_EVENTS)[number];
 
 const FileSchema = z
   .object({

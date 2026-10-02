@@ -10,10 +10,7 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { createProject } from "./actions";
-
-function formatEur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatCents } from "@/lib/format/money";
 
 export default async function ChantiersPage() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -81,7 +78,7 @@ export default async function ChantiersPage() {
                     <p className="text-sm text-muted-foreground">{p.client_name ?? "—"} · {p.status}</p>
                   </div>
                 </div>
-                <span className="text-sm font-medium tabular-nums">{formatEur(p.budget_total_cents ?? 0)}</span>
+                <span className="text-sm font-medium tabular-nums">{formatCents(p.budget_total_cents)}</span>
               </Link>
             </li>
           ))}

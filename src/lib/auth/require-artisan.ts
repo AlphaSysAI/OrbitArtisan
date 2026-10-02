@@ -13,7 +13,7 @@ import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
  * raccourci pour le cas courant.
  */
 
-export type RequireArtisanUserResult =
+type RequireArtisanUserResult =
   | { ok: true; supabase: SupabaseClient; userId: string; userEmail: string | null }
   | { ok: false; error: "auth" };
 
@@ -24,7 +24,7 @@ export async function requireAuthenticatedUser(): Promise<RequireArtisanUserResu
   return { ok: true, supabase, userId: user.id, userEmail: user.email ?? null };
 }
 
-export type ResolveArtisanProfileResult =
+type ResolveArtisanProfileResult =
   | { ok: true; profileId: string; profile: Record<string, unknown> }
   | { ok: false; error: "missing_profile" };
 
@@ -54,7 +54,7 @@ export async function resolveArtisanProfile(
   return { ok: true, profileId: profile.id as string, profile };
 }
 
-export type RequireArtisanProfileResult =
+type RequireArtisanProfileResult =
   | { ok: true; supabase: SupabaseClient; userId: string; profileId: string; profile: Record<string, unknown> }
   | { ok: false; error: "auth" | "missing_profile" };
 

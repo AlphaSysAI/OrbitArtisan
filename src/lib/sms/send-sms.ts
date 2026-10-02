@@ -1,10 +1,10 @@
 import "server-only";
 
 import twilio from "twilio";
+import { normalizePhoneE164 } from "@/lib/phone";
 
-import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
 
-export type SendSmsResult = { ok: true; sid: string } | { ok: false; error: "not_configured" | "invalid_number" | "send_failed" };
+type SendSmsResult = { ok: true; sid: string } | { ok: false; error: "not_configured" | "invalid_number" | "send_failed" };
 
 /**
  * Envoi SMS transactionnel via Twilio.

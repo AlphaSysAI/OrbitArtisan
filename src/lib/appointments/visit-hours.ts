@@ -24,7 +24,7 @@ export type VisitHours = Record<IsoWeekday, VisitRange[]>;
 export const VISIT_DURATION_OPTIONS = [30, 45, 60, 90, 120] as const;
 
 /** Délai minimum entre l'appel et le premier créneau proposé. */
-export const VISIT_MIN_LEAD_MINUTES = 120;
+const VISIT_MIN_LEAD_MINUTES = 120;
 /** Horizon de recherche des créneaux. */
 export const VISIT_SEARCH_DAYS = 14;
 /** Un RDV pris par Soline sans validation expire au bout de 24 h. */
@@ -138,7 +138,7 @@ export function zonedCalendarDay(
   };
 }
 
-export type BusyInterval = { start: Date; end: Date };
+type BusyInterval = { start: Date; end: Date };
 
 /** Plages par défaut quand l'artisan n'a rien réglé : du lundi au vendredi, 9 h – 12 h et 14 h – 18 h. */
 export const DEFAULT_VISIT_HOURS: VisitHours = {
@@ -152,7 +152,7 @@ export const DEFAULT_VISIT_HOURS: VisitHours = {
 };
 
 /** Jour ISO (1 = lundi) d'une date civile. */
-export function isoWeekdayOf(ymd: { year: number; month: number; day: number }): IsoWeekday {
+function isoWeekdayOf(ymd: { year: number; month: number; day: number }): IsoWeekday {
   const js = new Date(Date.UTC(ymd.year, ymd.month - 1, ymd.day)).getUTCDay(); // 0 = dimanche
   return String(js === 0 ? 7 : js) as IsoWeekday;
 }

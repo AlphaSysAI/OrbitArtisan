@@ -12,10 +12,10 @@ export type DirectPurchaseItem = {
 };
 
 /** Limite imposée par sendMessage() : au-delà, l'insertion est rejetée. */
-export const MESSAGE_MAX_LENGTH = 8000;
+const MESSAGE_MAX_LENGTH = 8000;
 
 /** N'accepte que http(s) : une URL collée à la main peut être vide ou d'un schéma inattendu. */
-export function isSafeHttpUrl(raw: string | null | undefined): boolean {
+function isSafeHttpUrl(raw: string | null | undefined): boolean {
   if (!raw) return false;
   try {
     const parsed = new URL(raw.trim());

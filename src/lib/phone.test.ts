@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeCustomerPhone } from "./customer-phone";
+import { formatPhoneFr, nationalPhoneFr, normalizeCustomerPhone } from "./phone";
 
 describe("normalizeCustomerPhone", () => {
   it("accepte les formats français courants", () => {
@@ -19,5 +19,14 @@ describe("normalizeCustomerPhone", () => {
     expect(normalizeCustomerPhone("0612")).toBeNull();
     expect(normalizeCustomerPhone("06 12 34 56")).toBeNull();
     expect(normalizeCustomerPhone("+33 6 12 34 56")).toBeNull();
+  });
+});
+
+describe("affichage", () => {
+  it("formate les numéros français, laisse les autres", () => {
+    expect(formatPhoneFr("+33612345678")).toBe("06 12 34 56 78");
+    expect(nationalPhoneFr("+33612345678")).toBe("0612345678");
+    expect(formatPhoneFr("+32470123456")).toBe("+32470123456");
+    expect(formatPhoneFr(null)).toBe("");
   });
 });

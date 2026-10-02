@@ -23,10 +23,8 @@ import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { withdrawErrorMessage } from "@/lib/stripe/user-messages";
 
 import { createInvoiceFromQuoteForm, startStripeExpressOnboarding, withdrawStripeFunds } from "./actions";
-
-function formatEur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatDateFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 /** Au-delà, on n'attend plus Stripe (réseau chantier, incident Stripe) : solde affiché à 0 comme en cas d'erreur. */
 const STRIPE_BALANCE_TIMEOUT_MS = 5000;
@@ -72,7 +70,7 @@ function StripeBalanceView({
           <span aria-hidden>— €</span>
         </p>
       ) : (
-        <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">{formatEur(eurAvailable)}</p>
+        <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">{formatCents(eurAvailable)}</p>
       )}
       <p className="text-sm text-muted-foreground">
         {payoutsEnabled
@@ -229,7 +227,7 @@ export default async function InvoicesPage({
               <>
                 {!profile.stripe_account_id ? (
                   <>
-                    <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">{formatEur(0)}</p>
+                    <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">{formatCents(0)}</p>
                     <p className="text-sm text-muted-foreground">
                       Active les paiements en ligne pour encaisser et retirer.
                     </p>
@@ -294,9 +292,9 @@ export default async function InvoicesPage({
                   })}
                   subtitle={
                     <>
-                      Total {formatEur(q.grand_total ?? 0)}
+                      Total {formatCents(q.grand_total)}
                       {q.signed_at
-                        ? ` · Signé le ${new Date(q.signed_at).toLocaleDateString("fr-FR")}`
+                        ? ` · Signé le ${formatDateFr(q.signed_at)}`
                         : null}
                     </>
                   }
@@ -352,7 +350,7 @@ export default async function InvoicesPage({
                         email: inv.customer_email,
                       })}
                       {" · "}
-                      {invoiceStatusLabel(inv.status)} · {formatEur(inv.grand_total ?? 0)}
+                      {invoiceStatusLabel(inv.status)} · {formatCents(inv.grand_total)}
                       {inv.e_invoicing_rejection_reason ? (
                         <span className="mt-0.5 block text-destructive">
                           Refus PA : {inv.e_invoicing_rejection_reason}

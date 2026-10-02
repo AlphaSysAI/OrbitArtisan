@@ -21,6 +21,8 @@ import {
   PaymentPaidAlert,
   PaymentPendingAlert,
 } from "../payment-alerts";
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 export default async function ClientInvoiceDetailPage({
   params,
@@ -131,7 +133,7 @@ export default async function ClientInvoiceDetailPage({
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Émise le{" "}
-            {new Date(invoice.created_at).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}
+            {formatDateTimeFr(invoice.created_at, { dateStyle: "long", timeStyle: "short" })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -158,9 +160,7 @@ export default async function ClientInvoiceDetailPage({
             <div>
               <p className="text-sm text-muted-foreground">Total à payer</p>
               <p className="text-2xl font-semibold tabular-nums">
-                {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                  (invoice.grand_total ?? 0) / 100,
-                )}
+                {formatCents(invoice.grand_total)}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -198,18 +198,14 @@ export default async function ClientInvoiceDetailPage({
                   <span className="ml-2 text-xs text-muted-foreground">{invoiceLineKindLabel(line.line_kind)}</span>
                 </div>
                 <span className="font-medium tabular-nums">
-                  {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                    (line.line_total ?? 0) / 100,
-                  )}
+                  {formatCents(line.line_total)}
                 </span>
               </li>
             ))}
           </ul>
           <p className="mt-4 text-sm font-semibold">
             Total :{" "}
-            {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-              (invoice.grand_total ?? 0) / 100,
-            )}
+            {formatCents(invoice.grand_total)}
           </p>
         </CardContent>
       </Card>

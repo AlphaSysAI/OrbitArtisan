@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AnonymizedLeadSummary } from "@/lib/concierge/summary";
 
-export type InviteView = {
+type InviteView = {
   id: string;
   token: string;
   prospectId: string;
@@ -54,7 +54,7 @@ export async function loadInvite(db: SupabaseClient, token: string): Promise<Inv
   };
 }
 
-export type ClaimResult = { ok: true; conversationId: string | null } | { ok: false; error: "invalid" | "expired" | "taken" | "lead_closed" | "full" };
+type ClaimResult = { ok: true; conversationId: string | null } | { ok: false; error: "invalid" | "expired" | "taken" | "lead_closed" | "full" };
 
 /**
  * Le prospect s'est inscrit : on lui attribue le chantier (rang libre parmi 3),

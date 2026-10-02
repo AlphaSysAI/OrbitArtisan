@@ -38,7 +38,7 @@ type ProfileRow = {
   registration_recorded_at: string | null;
 };
 
-export async function loadProfileForVoiceSnapshot(
+async function loadProfileForVoiceSnapshot(
   supabase: SupabaseClient,
   artisanId: string,
 ): Promise<{ profile: ProfileRow; email: string | null } | null> {
@@ -81,7 +81,7 @@ export function buildVoiceNumberArtisanSnapshot(
   };
 }
 
-export async function closeOpenVoiceAssignments(params: {
+async function closeOpenVoiceAssignments(params: {
   supabase: SupabaseClient;
   phoneE164?: string;
   artisanId?: string;
@@ -104,7 +104,7 @@ export async function closeOpenVoiceAssignments(params: {
   await query;
 }
 
-export async function openVoiceNumberAssignment(params: {
+async function openVoiceNumberAssignment(params: {
   supabase: SupabaseClient;
   phoneE164: string;
   artisanId: string;
@@ -216,7 +216,7 @@ export async function syncArtisanVoiceNumberMapping(params: {
   return { ok: true };
 }
 
-export type VoiceAssignmentLookupRow = {
+type VoiceAssignmentLookupRow = {
   assignment_id: string;
   phone_e164: string;
   artisan_id: string;

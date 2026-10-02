@@ -21,6 +21,7 @@ import { isStripeConfigured } from "@/lib/stripe/server";
 import { isStripeSubscriptionPaymentLinksConfigured } from "@/lib/stripe/subscription-payment-links";
 
 import type { VoiceQuotaSnapshot } from "@/lib/voice/voice-quota-types";
+import { formatDateFr, formatDateTimeFr } from "@/lib/format/date";
 
 type SubscriptionProfile = {
   subscription_plan: string | null;
@@ -150,11 +151,7 @@ export function SubscriptionSettingsSection({
           <AlertDescription>
             Il vous reste <strong>{access.daysRemaining} jour{access.daysRemaining > 1 ? "s" : ""}</strong>
             {access.trialEndsAt
-              ? ` (jusqu'au ${access.trialEndsAt.toLocaleDateString("fr-FR", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })})`
+              ? ` (jusqu'au ${formatDateFr(access.trialEndsAt, { dateStyle: "long" })})`
               : null}
             .{" "}
             {hasStripeSubscription
@@ -178,11 +175,7 @@ export function SubscriptionSettingsSection({
             <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Fin d&apos;essai</dt>
             <dd className="mt-1 text-lg font-semibold">
               {access.trialEndsAt
-                ? access.trialEndsAt.toLocaleDateString("fr-FR", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })
+                ? formatDateFr(access.trialEndsAt, { dateStyle: "long" })
                 : "—"}
             </dd>
           </div>
@@ -247,7 +240,7 @@ export function SubscriptionSettingsSection({
                   <div>
                     <p className="font-medium">{billingEventLabel(event)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(event.created_at).toLocaleString("fr-FR")}
+                      {formatDateTimeFr(event.created_at)}
                       {planLabel ? ` · ${planLabel}` : null}
                       {event.billing_interval === "annual"
                         ? " · Annuel"

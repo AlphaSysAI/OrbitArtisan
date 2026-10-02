@@ -5,9 +5,9 @@ import { ProspectNotesForm, ProspectQuickActions } from "@/components/admin/conc
 import { ProspectIdentity, ProspectStatusBadge } from "@/components/admin/concierge/prospect-bits";
 import { getAdminDb } from "@/lib/admin/db";
 import { getProspect } from "@/lib/concierge/admin-queries";
+import { formatDateTimeFr } from "@/lib/format/date";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" });
-const fmt = (d: string | null) => (d ? dateFmt.format(new Date(d)) : "—");
+const fmt = (d: string | null) => (d ? formatDateTimeFr(d) : "—");
 
 export default async function AdminProspectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

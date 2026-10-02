@@ -674,7 +674,7 @@ export async function deleteQuote(quoteId: string) {
   return { ok: true as const };
 }
 
-export type SendDraftQuoteResult =
+type SendDraftQuoteResult =
   | { ok: true; emailSent: boolean; notifyFailed: boolean }
   | { ok: false; error: "auth" | "missing_profile" | "not_found" | "not_draft" | "no_email" | "update_failed" }
   | { ok: false; error: "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation };
@@ -797,7 +797,7 @@ export async function sendDraftQuote(quoteId: string): Promise<SendDraftQuoteRes
   return { ok: true, emailSent, notifyFailed };
 }
 
-export type ResendQuoteEmailResult =
+type ResendQuoteEmailResult =
   | { ok: true }
   | { ok: false; error: "auth" | "missing_profile" | "not_found" | "not_sent" | "no_email" | "email_failed" }
   | { ok: false; error: "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation };

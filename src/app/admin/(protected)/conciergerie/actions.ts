@@ -9,9 +9,9 @@ import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import { ensureConciergeInvite, interestedEmail, interestedSmsBody, optOutUrl } from "@/lib/concierge/concierge";
 import { sendEmail } from "@/lib/email/send-email";
 import { importProspects, PROSPECT_IMPORT_MAX_BYTES, type ImportResult } from "@/lib/concierge/import-prospects";
-import { isFrenchMobile } from "@/lib/concierge/format-phone";
 import type { AnonymizedLeadSummary } from "@/lib/concierge/summary";
 import { sendTransactionalSms } from "@/lib/sms/send-sms";
+import { isFrenchMobile } from "@/lib/phone";
 
 type Fail = { ok: false; error: string };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

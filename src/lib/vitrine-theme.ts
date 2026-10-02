@@ -13,11 +13,11 @@ const TRADE_KEYWORDS: { pattern: RegExp; hex: string }[] = [
 /** Couleur par défaut “chaleureuse artisan” si aucun mot-clé ne correspond. */
 export const VITRINE_DEFAULT_ACCENT = "#ea580c";
 
-export function isValidAccentHex(value: string): boolean {
+function isValidAccentHex(value: string): boolean {
   return /^#[0-9A-Fa-f]{6}$/.test(value.trim());
 }
 
-export function normalizeAccentHex(value: string): string {
+function normalizeAccentHex(value: string): string {
   return value.trim().toLowerCase();
 }
 
@@ -46,7 +46,3 @@ export function shadeAccent(hex: string, factor = 0.35): string {
   return `#${mix(r).toString(16).padStart(2, "0")}${mix(g).toString(16).padStart(2, "0")}${mix(b).toString(16).padStart(2, "0")}`;
 }
 
-/** Légère teinte de fond pour le hero. */
-export function heroGradientTop(accent: string): string {
-  return `linear-gradient(165deg, ${accent}22 0%, ${accent}08 28%, #fffbf5 55%, #ffffff 100%)`;
-}

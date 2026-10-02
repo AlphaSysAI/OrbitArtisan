@@ -67,7 +67,7 @@ function normalize(s: string): string {
 }
 
 /** Détail chantier cité explicitement dans le message (hors contexte écran). */
-export function hasWorkDetailInMessage(message: string): boolean {
+function hasWorkDetailInMessage(message: string): boolean {
   const m = normalize(message);
   return /\b(mur|m2|m²|ml|parpaing|carrelage|renov|renovation|installation|reparation|peinture|plomberie|toiture|fenetre|porte|electric|sdb|cuisine|chambre|metre|intervention|chantier|fuite|dalle|ite|iti|couverture|menuiserie|macon|gros oeuvre|structure)\b/.test(
     m,
@@ -119,7 +119,7 @@ export function looksLikeExplicitNewQuoteRequest(message: string): boolean {
   );
 }
 
-export function looksLikeVagueQuoteRequest(message: string): boolean {
+function looksLikeVagueQuoteRequest(message: string): boolean {
   if (!looksLikeQuoteRequest(message)) return false;
   if (looksLikeExplicitNewQuoteRequest(message)) return true;
   if (looksLikeQuoteForPageContext(message)) return false;
@@ -145,11 +145,11 @@ export function hasEnoughWorkForQuoteBuild(message: string, workDescription: str
   return hasWorkDetailInMessage(message);
 }
 
-export function parseQuoteIntakeCancel(message: string): boolean {
+function parseQuoteIntakeCancel(message: string): boolean {
   return /\b(annule|annuler|stop|laisse|oublie|quitte)\b/.test(normalize(message));
 }
 
-export function parseClientKind(message: string): "known" | "new" | null {
+function parseClientKind(message: string): "known" | "new" | null {
   const m = normalize(message);
   if (/\b(nouveau|nouvelle|new|premier|premiere|inconnu|pas encore|jamais|prospect)\b/.test(m)) {
     return "new";
@@ -169,7 +169,7 @@ function stripEmail(text: string): string {
   return text.replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, "").replace(/\s+/g, " ").trim();
 }
 
-export function createQuoteIntakeStart(): QuoteIntakeState {
+function createQuoteIntakeStart(): QuoteIntakeState {
   return {
     active: true,
     step: "client_kind",
@@ -279,7 +279,7 @@ Règles :
   };
 }
 
-export type QuoteIntakeTurnParams = {
+type QuoteIntakeTurnParams = {
   supabase: SupabaseClient;
   profile: {
     id: string;
@@ -293,7 +293,7 @@ export type QuoteIntakeTurnParams = {
   startNew: boolean;
 };
 
-export type QuoteIntakeProcessResult =
+type QuoteIntakeProcessResult =
   | { kind: "continue"; response: AssistantApiResponse }
   | { kind: "cancel" }
   | { kind: "build"; intake: QuoteIntakeState; instruction: string; customerLabel: string | null; matched: ReturnType<typeof matchContactByQuery> };
@@ -521,7 +521,7 @@ export async function processQuoteIntakeTurn(
   return null;
 }
 
-export function looksLikeQuoteIntakeDone(message: string): boolean {
+function looksLikeQuoteIntakeDone(message: string): boolean {
   return /\b(suffisant|genere|génère|genere le|génère le|lance|valide|ok pour le devis|prets|prêt)\b/.test(
     normalize(message),
   );

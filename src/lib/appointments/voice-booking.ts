@@ -15,7 +15,7 @@ import {
 } from "@/lib/appointments/visit-hours";
 import { notifyNewAppointment } from "@/lib/notifications/notify-events";
 import { sendTransactionalSms } from "@/lib/sms/send-sms";
-import { normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
+import { normalizePhoneE164 } from "@/lib/phone";
 
 type Db = SupabaseClient;
 
@@ -68,7 +68,7 @@ async function listFreeSlots(db: Db, artisanId: string, settings: BookingSetting
   });
 }
 
-export type VoiceSlotsResult =
+type VoiceSlotsResult =
   | { ok: true; slots: { start_time: string; label: string }[]; duration_minutes: number }
   | { ok: false; error: "booking_not_configured" | "no_slot_available" | "server_error"; message: string };
 
@@ -107,7 +107,7 @@ export async function getVoiceBookingSlots(db: Db, artisanId: string, now = new 
   }
 }
 
-export type VoiceBookResult =
+type VoiceBookResult =
   | { ok: true; appointment_id: string; start_time: string; label: string; message: string }
   | {
       ok: false;

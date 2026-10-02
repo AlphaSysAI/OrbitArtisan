@@ -3,7 +3,7 @@ import { z } from "zod";
 import { normalizeRubypayeurStatus, type RubypayeurCaseStatus } from "@/lib/services/rubypayeur";
 
 /** Événements de cycle de vie d'un dossier RubyPayeur. */
-export const RUBYPAYEUR_EVENTS = [
+const RUBYPAYEUR_EVENTS = [
   "case.accepted",
   "case.in_progress",
   "case.partially_collected",
@@ -12,7 +12,7 @@ export const RUBYPAYEUR_EVENTS = [
   "case.canceled",
 ] as const;
 
-export type RubypayeurEvent = (typeof RUBYPAYEUR_EVENTS)[number];
+type RubypayeurEvent = (typeof RUBYPAYEUR_EVENTS)[number];
 
 const MoneySchema = z.union([z.number(), z.string()]).transform((value) => {
   const parsed = typeof value === "number" ? value : Number.parseFloat(value.replace(",", "."));

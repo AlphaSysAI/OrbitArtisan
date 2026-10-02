@@ -14,7 +14,7 @@ function parseEurToCents(raw: string): number {
 
 /** Taux de TVA BTP valides (normal + taux réduits rénovation ; 0 = franchise 293 B, imposé par la base). */
 const VALID_VAT_RATES = [20, 10, 5.5, 0] as const;
-export type QuoteVatRate = (typeof VALID_VAT_RATES)[number];
+type QuoteVatRate = (typeof VALID_VAT_RATES)[number];
 
 /** Normalise un taux de TVA saisi (écran de validation) : replie sur 20 % si invalide. */
 export function normalizeVatRate(raw: unknown): QuoteVatRate {
@@ -22,7 +22,7 @@ export function normalizeVatRate(raw: unknown): QuoteVatRate {
   return (VALID_VAT_RATES as readonly number[]).includes(n) ? (n as QuoteVatRate) : 20;
 }
 
-export type CreateQuoteFromDraftParams = {
+type CreateQuoteFromDraftParams = {
   supabase: SupabaseClient;
   artisanId: string;
   draft: AiQuoteDraft;
@@ -39,7 +39,7 @@ export type CreateQuoteFromDraftParams = {
   vatRate?: number;
 };
 
-export type CreateQuoteFromDraftResult =
+type CreateQuoteFromDraftResult =
   | { ok: true; quoteId: string; grandTotalCents: number }
   | { ok: false; error: string };
 
@@ -50,7 +50,7 @@ export type CreateQuoteFromDraftResult =
  * `/app/appels`) et la création réelle du devis, pour que les deux affichent
  * toujours le même chiffre (point "fidélité preview" audit pré-pilote, vague 4).
  */
-export function resolveLaborDurationMinutes(
+function resolveLaborDurationMinutes(
   draftLaborDurationMinutes: number,
   serviceIds: string[],
   serviceDurationsById: Map<string, number>,
@@ -222,7 +222,7 @@ function mapDraftMaterials(rows: AiSupplierMaterialDraft[]) {
   }));
 }
 
-export type DraftMaterialLine = {
+type DraftMaterialLine = {
   label: string;
   quantity: number;
   unitPriceCents: number;
@@ -230,7 +230,7 @@ export type DraftMaterialLine = {
   excludeFromInvoice: boolean;
 };
 
-export type DraftTotals = {
+type DraftTotals = {
   laborDurationMinutes: number;
   laborTotalCents: number;
   materialsTotalCents: number;
@@ -254,7 +254,7 @@ export type DraftTotals = {
  * sinon taux horaire × durée. Avec un montant imposé sans durée, on compte 1 h
  * (ligne « forfait ») pour que quantité × prix unitaire reste lisible sur le PDF.
  */
-export function resolveDraftLabor(
+function resolveDraftLabor(
   draft: Pick<AiQuoteDraft, "laborTotalOverrideCents">,
   laborRatePerHourCents: number,
   durationMinutes: number,
@@ -305,11 +305,3 @@ export function computeDraftTotals(
   };
 }
 
-/** Estimation du total TTC indicatif depuis un brouillon (affichage liste appels). */
-export function estimateDraftTotalCents(
-  draft: AiQuoteDraft,
-  laborRatePerHourCents: number | null,
-  serviceDurationsById: Map<string, number>,
-): number | null {
-  return computeDraftTotals(draft, laborRatePerHourCents, serviceDurationsById)?.grandTotalCents ?? null;
-}

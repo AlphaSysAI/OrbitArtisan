@@ -24,10 +24,7 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { loadArtisanInbox, type InboxItem } from "@/lib/clients/inbox";
 import { InboxList } from "@/components/app/inbox-list";
 import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
-
-function formatEur(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatCents } from "@/lib/format/money";
 
 export default async function AppHomePage({ searchParams }: { searchParams: Promise<{ bienvenue?: string }> }) {
   const welcome = (await searchParams).bienvenue === "1";
@@ -169,7 +166,7 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
             <DashboardStatCard
               icon={Euro}
               title="Revenus encaissés"
-              value={formatEur(revenueCents)}
+              value={formatCents(revenueCents)}
               description="Total des factures payées"
               href="/app/invoices"
               actionLabel="Voir les factures"

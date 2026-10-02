@@ -10,9 +10,9 @@ import "server-only";
  * ajuster si leur schéma diffère.
  */
 
-export type DebtorType = "company" | "individual";
+type DebtorType = "company" | "individual";
 
-export type RubypayeurDebtor = {
+type RubypayeurDebtor = {
   type: DebtorType;
   name: string;
   /** Obligatoire en B2B (`type: "company"`). */
@@ -27,7 +27,7 @@ export type RubypayeurDebtor = {
   countryCode?: string;
 };
 
-export type RubypayeurCreditor = {
+type RubypayeurCreditor = {
   name: string;
   siren?: string | null;
   siret?: string | null;
@@ -54,7 +54,7 @@ export type RubypayeurDocument = {
   url: string;
 };
 
-export type RubypayeurCaseInput = {
+type RubypayeurCaseInput = {
   /** Référence interne (id facture) pour réconcilier les webhooks. */
   externalReference: string;
   invoiceNumber: string;
@@ -74,7 +74,7 @@ export type RubypayeurCaseInput = {
   notes?: string | null;
 };
 
-export type RubypayeurCase = {
+type RubypayeurCase = {
   caseId: string;
   status: RubypayeurCaseStatus;
   rawResponse?: unknown;
@@ -89,7 +89,7 @@ export type RubypayeurCaseStatus =
   | "failed"
   | "canceled";
 
-export type RubypayeurResult<T> =
+type RubypayeurResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; status?: number };
 
@@ -139,10 +139,6 @@ function readConfig(): { apiUrl: string; apiKey: string } | null {
   const apiKey = process.env.RUBYPAYEUR_API_KEY?.trim();
   if (!apiUrl || !apiKey) return null;
   return { apiUrl, apiKey };
-}
-
-export function isRubypayeurConfigured(): boolean {
-  return readConfig() !== null;
 }
 
 function buildCasePayload(input: RubypayeurCaseInput): Record<string, unknown> {
@@ -283,47 +279,6 @@ export async function createRecoveryCase(
       rawResponse: json,
     },
   };
-}
-
-/** Consulte l'état d'un dossier (réconciliation / rattrapage de webhook manqué). */
-export async function getRecoveryCase(
-  caseId: string,
-): Promise<RubypayeurResult<RubypayeurCase>> {
-  const config = readConfig();
-  if (!config) return { ok: false, error: "rubypayeur_not_configured" };
-
-  const trimmed = caseId.trim();
-  if (!trimmed) return { ok: false, error: "rubypayeur_missing_case_id" };
-
-  try {
-    const res = await fetch(`${config.apiUrl}/recovery-cases/${encodeURIComponent(trimmed)}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${config.apiKey}`, Accept: "application/json" },
-      cache: "no-store",
-    });
-
-    const rawText = await res.text();
-    if (!res.ok) {
-      return { ok: false, error: `rubypayeur_${res.status}: ${rawText.slice(0, 300)}`, status: res.status };
-    }
-
-    const json = JSON.parse(rawText) as Record<string, unknown>;
-    const resolvedId = json.case_id ?? json.id ?? trimmed;
-
-    return {
-      ok: true,
-      data: {
-        caseId: String(resolvedId),
-        status: normalizeRubypayeurStatus(json.status),
-        rawResponse: json,
-      },
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error: `rubypayeur_network: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
 }
 
 /**

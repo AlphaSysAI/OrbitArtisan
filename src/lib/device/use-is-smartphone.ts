@@ -3,7 +3,7 @@
 import * as React from "react";
 
 /** Détection légère smartphone (GPS fiable) — hors tablettes et desktop. */
-export function detectSmartphone(): boolean {
+function detectSmartphone(): boolean {
   if (typeof navigator === "undefined") return false;
 
   const uaData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;

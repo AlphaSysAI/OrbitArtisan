@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { formatPhoneFr, isFrenchMobile } from "@/lib/concierge/format-phone";
 import type { ProspectRow, ProspectStatus } from "@/lib/concierge/admin-queries";
 import { findTrade } from "@/lib/trades/taxonomy";
+import { formatPhoneFr, isFrenchMobile } from "@/lib/phone";
 
 const STATUS: Record<ProspectStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   new: { label: "Nouveau", variant: "secondary" },
@@ -17,7 +17,7 @@ export function ProspectStatusBadge({ status }: { status: ProspectStatus }) {
   return <Badge variant={s.variant}>{s.label}</Badge>;
 }
 
-export function tradeLabel(p: Pick<ProspectRow, "trade" | "trade_category">): string {
+function tradeLabel(p: Pick<ProspectRow, "trade" | "trade_category">): string {
   return findTrade(p.trade_category, p.trade)?.label ?? p.trade;
 }
 

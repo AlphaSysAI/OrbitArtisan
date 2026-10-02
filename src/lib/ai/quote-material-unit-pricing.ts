@@ -45,13 +45,13 @@ const JSON_SCHEMA: Record<string, unknown> = {
   required: ["items"],
 };
 
-export type MaterialToPrice = {
+type MaterialToPrice = {
   name: string;
   quantity: number;
   specifications: string | null;
 };
 
-export type MaterialPriceEstimate = {
+type MaterialPriceEstimate = {
   prices: Map<string, number>;
   /** Au moins une recherche Tavily a renvoyé des résultats exploitables. */
   webUsed: boolean;
@@ -111,13 +111,22 @@ export async function estimateMaterialUnitPricesEur(
       [
         {
           role: "system",
-          content: `Tu estimes des prix unitaires HT en euros pour des fournitures BTP en France.
+          content: `Tu estimes des prix unitaires HT en euros pour des fournitures BTP en France (négoce pro / GSB).
 Règles :
-- Un prix par ligne, cohérent avec le négoce / grande surface pro (pas de main-d'œuvre).
-- Si des références web sont fournies pour une ligne, pars des prix QUI Y FIGURENT (convertis TTC → HT en divisant par 1,2 si le prix est TTC) et prends la valeur médiane des produits comparables.
-- Attention à l'unité : prix au sac, au m², à la pièce… cohérent avec la quantité demandée.
+- Un prix par ligne, fourniture seule (jamais de main-d'œuvre ni de pose), STRICTEMENT HORS TAXES.
+- Références web : pars des prix QUI Y FIGURENT et prends la médiane des produits comparables. Les enseignes grand
+  public (Leroy Merlin, Castorama, Brico Dépôt, Bricoman, ManoMano…) affichent du TTC : divise par 1,20. En cas de doute
+  sur HT/TTC, considère TTC et divise par 1,20.
+- Unité : le prix correspond à l'unité indiquée en tête des précisions (u, m², ml, sacs, rouleaux…). Si c'est un
+  conditionnement (sac de 25 kg, rouleau de 75 m², boîte de 1000), c'est le prix du conditionnement entier ; sinon
+  ramène le prix web à l'unité (prix d'un rouleau ÷ m² du rouleau pour une ligne en m², etc.).
+- Ouvrages préfabriqués ou sans prix de détail (charpente fermette, escalier sur mesure, menuiserie sur mesure…) :
+  applique un ratio professionnel du marché français dans l'unité demandée (ex. fourniture de fermettes au m² de
+  toiture) — jamais le prix d'un kit, d'un abri de jardin ou d'un produit hors sujet trouvé en ligne.
+- Écarte les résultats aberrants (lot, palette, produit d'une autre catégorie) plutôt que de les moyenner.
 - Reprends exactement le même "name" que dans la liste utilisateur.
-- Sans référence, propose un prix médian marché réaliste (jamais 0).`,
+- 0 € est INTERDIT : sans référence exploitable, donne une estimation basse réaliste issue des prix moyens du
+  bâtiment en France.`,
         },
         {
           role: "user",

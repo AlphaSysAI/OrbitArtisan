@@ -12,11 +12,11 @@ import {
 } from "./types";
 
 /** Retard minimal avant de proposer la mise en demeure. */
-export const FORMAL_NOTICE_MIN_DAYS_OVERDUE = 30;
+const FORMAL_NOTICE_MIN_DAYS_OVERDUE = 30;
 /** Retard minimal pour ouvrir le contentieux sans mise en demeure préalable. */
-export const COLLECTION_MIN_DAYS_OVERDUE = 40;
+const COLLECTION_MIN_DAYS_OVERDUE = 40;
 
-export type RecoveryPanelData = {
+type RecoveryPanelData = {
   invoiceId: string;
   recoveryStatus: RecoveryStatus;
   amountDueCents: number;
@@ -64,7 +64,7 @@ type DebtCollectionCaseRow = {
   created_at: string;
 };
 
-export type RecoveryPanelInvoice = {
+type RecoveryPanelInvoice = {
   id: string;
   status: string;
   due_date: string | null;

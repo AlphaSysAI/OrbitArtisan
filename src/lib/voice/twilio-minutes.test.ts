@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { computeTwilioMinutesBilled, normalizePhoneE164 } from "@/lib/voice/twilio-minutes";
+import { normalizePhoneE164 } from "@/lib/phone";
+import { computeTwilioMinutesBilled } from "@/lib/voice/twilio-minutes";
 import { detectVoiceQuotaThreshold } from "@/lib/voice/voice-quota-alerts";
 
 describe("computeTwilioMinutesBilled", () => {

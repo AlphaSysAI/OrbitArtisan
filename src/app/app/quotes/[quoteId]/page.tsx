@@ -28,6 +28,8 @@ import { loadInvoicesForQuote } from "@/lib/billing/load-invoice-for-page";
 import { createInvoiceFromQuoteForm } from "../../invoices/actions";
 import { frozenInvoicingMessageFor, isDraftInvoicingFrozenForCustomer } from "@/lib/billing/invoicing-freeze";
 import { resolveCustomerClassification } from "@/lib/billing/invoicing/resolve-customer-classification";
+import { formatDateTimeFr } from "@/lib/format/date";
+import { formatCents } from "@/lib/format/money";
 
 async function loadCustomerProfileDisplayName(
   supabase: SupabaseClient,
@@ -104,7 +106,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
   const services = serviceLines ?? [];
   const materials = materialLines ?? [];
   const eur = (cents: number) =>
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+    formatCents(cents);
   const quoteVatRate = normalizeVatRate(quote.reduced_vat_rate ?? 20);
   // Mêmes fonctions que le PDF : les montants affichés ici = ceux du document client.
   const documentVat = computeVatBreakdown(
@@ -217,7 +219,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                         </div>
                         {s.unit_price != null ? (
                           <p className="text-sm font-medium">
-                            {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((s.unit_price ?? 0) / 100)}
+                            {formatCents(s.unit_price)}
                           </p>
                         ) : (
                           <p className="text-sm text-muted-foreground">sur devis</p>
@@ -336,8 +338,8 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
               ) : null}
 
               <div className="text-xs text-muted-foreground">
-                Créé le {new Date(quote.created_at).toLocaleString("fr-FR")} · Mis à jour le{" "}
-                {new Date(quote.updated_at).toLocaleString("fr-FR")}
+                Créé le {formatDateTimeFr(quote.created_at)} · Mis à jour le{" "}
+                {formatDateTimeFr(quote.updated_at)}
               </div>
 
               {quote.status !== "draft" ? (
@@ -366,14 +368,14 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                   <p className="mt-1 text-muted-foreground">
                     Signature : <span className="font-medium text-foreground">{q.signed_by_name}</span>
                     {" · "}
-                    {new Date(q.signed_at).toLocaleString("fr-FR")}
+                    {formatDateTimeFr(q.signed_at)}
                   </p>
                 </div>
               )}
 
               {q.status === "rejected" && q.rejected_at && (
                 <div className="rounded-xl border border-red-600/30 bg-red-500/5 p-3 text-sm text-muted-foreground">
-                  Refusé le {new Date(q.rejected_at).toLocaleString("fr-FR")}
+                  Refusé le {formatDateTimeFr(q.rejected_at)}
                 </div>
               )}
 
@@ -390,9 +392,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ qu
                               {inv.progress_percentage != null ? ` (${inv.progress_percentage} %)` : ""}
                             </Link>
                             <span className="tabular-nums">
-                              {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(
-                                (inv.grand_total ?? 0) / 100,
-                              )}
+                              {formatCents(inv.grand_total)}
                             </span>
                           </li>
                         ))}

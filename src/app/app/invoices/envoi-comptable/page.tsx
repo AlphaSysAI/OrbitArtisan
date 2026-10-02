@@ -11,6 +11,7 @@ import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 
 import { AccountingPiecesUploader } from "./accounting-pieces-uploader";
 import { AccountingSettingsForm } from "./accounting-settings-form";
+import { formatDateFr } from "@/lib/format/date";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ type ExportRow = {
 function statusLabel(row: ExportRow): string {
   switch (row.status) {
     case "sent":
-      return `Envoyé${row.sent_at ? ` le ${new Date(row.sent_at).toLocaleDateString("fr-FR")}` : ""} — ${row.invoice_count} facture${row.invoice_count > 1 ? "s" : ""}${row.attachment_count ? `, ${row.attachment_count} pièce${row.attachment_count > 1 ? "s" : ""}` : ""}${row.email_parts > 1 ? ` (${row.email_parts} e-mails)` : ""}`;
+      return `Envoyé${row.sent_at ? ` le ${formatDateFr(row.sent_at)}` : ""} — ${row.invoice_count} facture${row.invoice_count > 1 ? "s" : ""}${row.attachment_count ? `, ${row.attachment_count} pièce${row.attachment_count > 1 ? "s" : ""}` : ""}${row.email_parts > 1 ? ` (${row.email_parts} e-mails)` : ""}`;
     case "skipped":
       return "Rien à envoyer";
     case "failed":

@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { MISTRAL_EXTRACTION_MODEL, mistralChat, parseJsonFromLlm } from "@/lib/ai/mistral";
+import { MISTRAL_EXTRACTION_MODEL, mistralChatParse } from "@/lib/ai/mistral";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
 
@@ -25,35 +25,21 @@ ${lines || "(aucune)"}
 CONSIGNE DICTÉE :
 « ${instruction.slice(0, 1500)} »`;
 
-  const messages = [
-    { role: "system" as const, content: QUOTE_PATCH_SYSTEM_PROMPT },
-    { role: "user" as const, content: context },
-  ];
-  const formats = [
-    { type: "json_schema" as const, name: "quote_patch", schema: QUOTE_PATCH_JSON_SCHEMA as unknown as Record<string, unknown>, strict: true },
-    "json_object" as const,
-  ];
-  let last: unknown = null;
-  for (const responseFormat of formats) {
-    try {
-      const raw = await mistralChat({
-        model: MISTRAL_EXTRACTION_MODEL,
-        messages:
-          responseFormat === "json_object"
-            ? [...messages, { role: "system", content: `JSON conforme à : ${JSON.stringify(QUOTE_PATCH_JSON_SCHEMA)}` }]
-            : messages,
-        temperature: 0,
-        maxTokens: 1500,
-        responseFormat,
-      });
-      const parsed = quotePatchSchema.safeParse(parseJsonFromLlm(raw));
-      if (parsed.success) return parsed.data;
-      last = parsed.error;
-    } catch (error) {
-      last = error;
-    }
-  }
-  throw last instanceof Error ? last : new Error("patch_failed");
+  return mistralChatParse(
+    quotePatchSchema,
+    [
+      { role: "system", content: QUOTE_PATCH_SYSTEM_PROMPT },
+      { role: "user", content: context },
+    ],
+    "quote_patch",
+    {
+      jsonSchema: QUOTE_PATCH_JSON_SCHEMA as unknown as Record<string, unknown>,
+      strictSchema: true,
+      model: MISTRAL_EXTRACTION_MODEL,
+      temperature: 0,
+      maxTokens: 1500,
+    },
+  );
 }
 
 /**

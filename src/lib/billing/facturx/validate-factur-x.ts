@@ -3,7 +3,7 @@ import { Profile, validateXsd } from "@stackforge-eu/factur-x";
 import { FacturXValidationError } from "./types";
 import type { FacturXProfile } from "./types";
 
-export type FacturXValidationOptions = {
+type FacturXValidationOptions = {
   /** Validation XSD via @stackforge-eu/factur-x (défaut: true). */
   stackforgeXsd?: boolean;
 };

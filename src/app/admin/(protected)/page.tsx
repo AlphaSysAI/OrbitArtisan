@@ -5,10 +5,7 @@ import Link from "next/link";
 import { AdminSetupAlert } from "@/components/admin/admin-setup-alert";
 import { getAdminDb } from "@/lib/admin/db";
 import { fetchAdminPlatformMetrics } from "@/lib/admin/tenants";
-
-function formatEur(cents: number) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatCents } from "@/lib/format/money";
 
 function MetricCard({
   label,
@@ -69,7 +66,7 @@ export default async function AdminOverviewPage() {
         <MetricCard label="Artisans inscrits" value={metrics.artisansTotal} hint={`${metrics.artisansActive} actifs`} icon={Building2} />
         <MetricCard
           label="MRR estimé"
-          value={formatEur(metrics.estimatedMrrCents)}
+          value={formatCents(metrics.estimatedMrrCents)}
           hint="Plans actifs (grille tarifaire)"
           icon={TrendingUp}
         />

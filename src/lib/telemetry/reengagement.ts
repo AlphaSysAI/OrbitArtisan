@@ -7,16 +7,17 @@ import { sendPushToUser } from "@/lib/notifications/send-push";
 import { sendTransactionalSms } from "@/lib/sms/send-sms";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { assessChurnRisk, reengagementMessage, reengagementPath, type RiskAssessment } from "@/lib/telemetry/churn-risk";
+import { parisDayKey } from "@/lib/format/date";
 
 const DAY = 86_400_000;
 /** Plafonds anti-harcèlement : 1 relance / 72 h, 2 SMS / 30 jours. */
 const MIN_GAP_MS = 72 * 3_600_000;
 const MAX_SMS_PER_30D = 2;
 
-export type ReengagementRunResult = { scanned: number; atRisk: number; sent: { push: number; sms: number }; skipped: number };
+type ReengagementRunResult = { scanned: number; atRisk: number; sent: { push: number; sms: number }; skipped: number };
 
 function parisDay(d: Date) {
-  return new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(d);
+  return parisDayKey(d);
 }
 
 async function assess(db: SupabaseClient, artisan: { id: string; created_at: string; trial_ends_at: string | null; subscription_status: string | null }, now: Date) {

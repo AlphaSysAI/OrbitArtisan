@@ -16,7 +16,6 @@ import {
   looksLikeExplicitNewQuoteRequest,
   looksLikeQuoteForPageContext,
   looksLikeRejectPageContextCustomer,
-  looksLikeVagueQuoteRequest,
   shouldStartQuoteIntake,
   type QuoteIntakeState,
 } from "@/lib/ai/assistant-quote-intake";
@@ -49,6 +48,7 @@ import { buildAssistantPageContextBlock } from "@/lib/ai/assistant-page-enrichme
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { listArtisanContacts } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatDateFr, formatTimeFr } from "@/lib/format/date";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -159,11 +159,8 @@ async function answerRdvQuestion(
       return answerResponse("Tu n’as aucun rendez-vous en attente de validation.", "/app/rdv", "Mes RDV");
     }
     const lines = pending.slice(0, 8).map((r) => {
-      const day = formatIsoDateFr(r.start_time.slice(0, 10));
-      const time = new Date(r.start_time).toLocaleTimeString("fr-FR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const day = formatDateFr(r.start_time, { weekday: "long", day: "numeric", month: "long" });
+      const time = formatTimeFr(r.start_time);
       return `• ${day} ${time} · ${r.customer_name}`;
     });
     return answerResponse(

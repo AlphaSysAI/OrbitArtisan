@@ -23,9 +23,9 @@ const numberField = z.object({
   confidence,
 });
 
-export const EXTRACTED_UNITS = ["m²", "ml", "m³", "U", "forfait", "h", "jour"] as const;
+const EXTRACTED_UNITS = ["m²", "ml", "m³", "U", "forfait", "h", "jour"] as const;
 
-export const extractedLineSchema = z.object({
+const extractedLineSchema = z.object({
   label: z.string(),
   unit: z.enum(EXTRACTED_UNITS).nullable(),
   unit_price_ht: z.number().nullable(),
@@ -66,8 +66,6 @@ export const quoteExtractionSchema = z.object({
 
 export type QuoteExtraction = z.infer<typeof quoteExtractionSchema>;
 export type ExtractedTextField = z.infer<typeof textField>;
-export type ExtractedLine = z.infer<typeof extractedLineSchema>;
-
 const jsonTextField = {
   type: "object",
   additionalProperties: false,

@@ -7,6 +7,7 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { claimLeadByToken } from "@/lib/leads/client-signup";
 import { listConversationsForCustomer } from "@/lib/messages/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatDateTimeFr } from "@/lib/format/date";
 
 export default async function ClientMessagesPage({
   searchParams,
@@ -102,10 +103,7 @@ export default async function ClientMessagesPage({
                     ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(item.updated_at).toLocaleString("fr-FR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
+                    {formatDateTimeFr(item.updated_at)}
                   </p>
                   </div>
                 </div>

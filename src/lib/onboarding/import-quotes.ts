@@ -1,6 +1,6 @@
 import "server-only";
 
-import { MISTRAL_EXTRACTION_MODEL, mistralChat, mistralOcr, parseJsonFromLlm } from "@/lib/ai/mistral";
+import { MISTRAL_EXTRACTION_MODEL, mistralChatParse, mistralOcr } from "@/lib/ai/mistral";
 import { frenchVatFromSiren } from "@/lib/onboarding/identifiers";
 import { lookupCompanyBySiret, type RegistryCompany } from "@/lib/onboarding/company-registry";
 import {
@@ -22,7 +22,7 @@ import {
 
 export const IMPORT_MAX_BYTES = 4 * 1024 * 1024; // < limite de corps Vercel (4,5 Mo)
 
-export function detectDocumentMime(bytes: Uint8Array): "application/pdf" | "image/jpeg" | "image/png" | null {
+function detectDocumentMime(bytes: Uint8Array): "application/pdf" | "image/jpeg" | "image/png" | null {
   if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return "application/pdf";
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return "image/png";
@@ -30,37 +30,22 @@ export function detectDocumentMime(bytes: Uint8Array): "application/pdf" | "imag
 }
 
 async function extract(ocrText: string): Promise<QuoteExtraction> {
-  const messages = [
-    { role: "system" as const, content: QUOTE_EXTRACTION_SYSTEM_PROMPT },
-    { role: "user" as const, content: `TEXTE OCR DU DOCUMENT :\n<<<\n${ocrText}\n>>>` },
-  ];
-  // Schéma strict d'abord ; repli JSON libre + validation Zod si le fournisseur refuse le schéma.
-  const attempts = [
-    { type: "json_schema" as const, name: "quote_extraction", schema: QUOTE_EXTRACTION_JSON_SCHEMA as unknown as Record<string, unknown>, strict: true },
-    "json_object" as const,
-  ];
-  let last: unknown = null;
-  for (const responseFormat of attempts) {
-    try {
-      const raw = await mistralChat({
-        model: MISTRAL_EXTRACTION_MODEL,
-        messages:
-          responseFormat === "json_object"
-            ? [...messages, { role: "system", content: `Réponds UNIQUEMENT par un objet JSON conforme à ce schéma :\n${JSON.stringify(QUOTE_EXTRACTION_JSON_SCHEMA)}` }]
-            : messages,
-        temperature: 0,
-        maxTokens: 6000,
-        responseFormat,
-        timeoutMs: 45_000,
-      });
-      const parsed = quoteExtractionSchema.safeParse(parseJsonFromLlm(raw));
-      if (parsed.success) return parsed.data;
-      last = parsed.error;
-    } catch (error) {
-      last = error;
-    }
-  }
-  throw last instanceof Error ? last : new Error("extraction_failed");
+  return mistralChatParse(
+    quoteExtractionSchema,
+    [
+      { role: "system", content: QUOTE_EXTRACTION_SYSTEM_PROMPT },
+      { role: "user", content: `TEXTE OCR DU DOCUMENT :\n<<<\n${ocrText}\n>>>` },
+    ],
+    "quote_extraction",
+    {
+      jsonSchema: QUOTE_EXTRACTION_JSON_SCHEMA as unknown as Record<string, unknown>,
+      strictSchema: true,
+      model: MISTRAL_EXTRACTION_MODEL,
+      temperature: 0,
+      maxTokens: 6000,
+      timeoutMs: 45_000,
+    },
+  );
 }
 
 /**

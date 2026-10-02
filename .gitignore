@@ -49,3 +49,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Supports marketing (hors dépôt applicatif)
+/_marketing/
+# Sorties de sessions Claude
+/Claude outputs/
+# Artefact TypeScript
+tsconfig.tsbuildinfo

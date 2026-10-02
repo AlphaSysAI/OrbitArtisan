@@ -16,12 +16,9 @@ const MISTRAL_API_BASE = "https://api.mistral.ai/v1";
  * toujours à jour, adapté à de l'extraction/classification, coût le plus bas.
  * Positionner MISTRAL_CHAT_MODEL=mistral-large-latest pour plus de qualité.
  */
-export const MISTRAL_CHAT_MODEL = process.env.MISTRAL_CHAT_MODEL?.trim() || "mistral-small-latest";
+const MISTRAL_CHAT_MODEL = process.env.MISTRAL_CHAT_MODEL?.trim() || "mistral-small-latest";
 
-export const MISTRAL_EMBED_MODEL = "mistral-embed";
-
-/** Dimension des embeddings `mistral-embed` (pgvector). */
-export const MISTRAL_EMBED_DIMENSIONS = 1024;
+const MISTRAL_EMBED_MODEL = "mistral-embed";
 
 /**
  * Timeouts réseau (Point 14 audit pré-pilote — fiabilité appel vocal en direct).
@@ -32,7 +29,7 @@ export const MISTRAL_EMBED_DIMENSIONS = 1024;
 const MISTRAL_CHAT_TIMEOUT_MS = 20_000;
 const MISTRAL_EMBED_TIMEOUT_MS = 10_000;
 
-export type MistralChatMessage = {
+type MistralChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
 };
@@ -125,6 +122,11 @@ export async function mistralChatParse<T extends z.ZodType>(
     temperature?: number;
     jsonSchema?: Record<string, unknown>;
     jsonExample?: string;
+    model?: string;
+    maxTokens?: number;
+    timeoutMs?: number;
+    /** Schéma strict tenté en premier (extraction, patchs) ; repli JSON libre + Zod. */
+    strictSchema?: boolean;
   },
 ): Promise<z.infer<T>> {
   const temperature = options?.temperature ?? 0.2;
@@ -139,12 +141,12 @@ Structure attendue (forme uniquement — valeurs tirées du contexte, ne recopie
 ${jsonExample ?? JSON.stringify(jsonSchema ?? {}, null, 2)}`,
   };
 
-  const attempts: ResponseFormat[] = [
-    "json_object",
-    ...(jsonSchema
-      ? [{ type: "json_schema" as const, name: schemaName, schema: jsonSchema, strict: false }]
-      : []),
-  ];
+  const schemaFormat: ResponseFormat[] = jsonSchema
+    ? [{ type: "json_schema" as const, name: schemaName, schema: jsonSchema, strict: options?.strictSchema ?? false }]
+    : [];
+  const attempts: ResponseFormat[] = options?.strictSchema
+    ? [...schemaFormat, "json_object"]
+    : ["json_object", ...schemaFormat];
 
   let lastError: Error | null = null;
 
@@ -154,6 +156,9 @@ ${jsonExample ?? JSON.stringify(jsonSchema ?? {}, null, 2)}`,
         messages: [jsonInstruction, ...messages],
         temperature,
         responseFormat,
+        model: options?.model,
+        maxTokens: options?.maxTokens,
+        timeoutMs: options?.timeoutMs,
       });
 
       const parsed = parseJsonFromLlm(raw);
@@ -203,8 +208,8 @@ export async function mistralEmbed(text: string): Promise<number[]> {
 
 /** Modèle d'extraction documentaire (précision > coût : onboarding et correction de devis). */
 export const MISTRAL_EXTRACTION_MODEL = process.env.MISTRAL_EXTRACTION_MODEL?.trim() || "mistral-medium-latest";
-export const MISTRAL_OCR_MODEL = process.env.MISTRAL_OCR_MODEL?.trim() || "mistral-ocr-latest";
-export const MISTRAL_TRANSCRIPTION_MODEL = process.env.MISTRAL_TRANSCRIPTION_MODEL?.trim() || "voxtral-mini-latest";
+const MISTRAL_OCR_MODEL = process.env.MISTRAL_OCR_MODEL?.trim() || "mistral-ocr-latest";
+const MISTRAL_TRANSCRIPTION_MODEL = process.env.MISTRAL_TRANSCRIPTION_MODEL?.trim() || "voxtral-mini-latest";
 
 /**
  * OCR Mistral (PDF ou image) → Markdown page par page. Texte « source de vérité »

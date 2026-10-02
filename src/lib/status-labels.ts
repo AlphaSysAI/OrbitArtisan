@@ -45,17 +45,6 @@ export function eInvoicingStatusBadgeVariant(
   }
 }
 
-const INVOICE_OPERATION_TYPE_LABELS: Record<string, string> = {
-  livraison_biens: "Livraison de biens",
-  prestation_services: "Prestation de services",
-  mixte: "Mixte (biens + services)",
-};
-
-const VAT_COLLECTION_NATURE_LABELS: Record<string, string> = {
-  on_delivery: "TVA à la livraison",
-  on_payment: "TVA à l'encaissement",
-};
-
 const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
   pending: "En attente",
   confirmed: "Confirmé",
@@ -95,12 +84,3 @@ export function eInvoicingStatusLabel(status: string | null | undefined): string
   return E_INVOICING_STATUS_LABELS[status] ?? UNKNOWN_STATUS;
 }
 
-export function invoiceOperationTypeLabel(type: string | null | undefined): string {
-  if (!type) return "—";
-  return INVOICE_OPERATION_TYPE_LABELS[type] ?? type;
-}
-
-export function vatCollectionNatureLabel(nature: string | null | undefined): string {
-  if (!nature) return "—";
-  return VAT_COLLECTION_NATURE_LABELS[nature] ?? nature;
-}

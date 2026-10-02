@@ -24,7 +24,7 @@ export function saveAssistantPosition(pos: AssistantPosition): void {
 }
 
 /** Marges pour garder le bouton dans la zone utile (barre mobile incluse). */
-export function getAssistantViewportInsets() {
+function getAssistantViewportInsets() {
   const isMobile = window.innerWidth < 1024;
   return {
     top: 8,

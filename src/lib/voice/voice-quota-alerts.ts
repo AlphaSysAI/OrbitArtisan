@@ -1,6 +1,6 @@
 /** Alertes de seuil du quota d'appels Soline (sans dépendance server-only). */
 
-export type VoiceQuotaThreshold = "80" | "100";
+type VoiceQuotaThreshold = "80" | "100";
 
 /**
  * Détecte le franchissement d'un seuil (80 % ou 100 % des appels inclus) entre

@@ -8,14 +8,11 @@ import { lookupVoiceNumberAt, type VoiceAssignmentHistoryRow } from "@/app/admin
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatDateTimeFr } from "@/lib/format/date";
 
 function formatInstant(iso: string): string {
   try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      dateStyle: "short",
-      timeStyle: "medium",
-      timeZone: "Europe/Paris",
-    }).format(new Date(iso));
+    return formatDateTimeFr(iso, { dateStyle: "short", timeStyle: "medium" });
   } catch {
     return iso;
   }

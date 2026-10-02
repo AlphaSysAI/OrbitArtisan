@@ -46,11 +46,11 @@ export type AiQuoteDraft = {
 
 const STORAGE_PREFIX = "alphasys-ai-quote-draft:";
 
-export function resolveDraftKey(draft: Pick<AiQuoteDraft, "draftKey" | "conversationId">): string {
+function resolveDraftKey(draft: Pick<AiQuoteDraft, "draftKey" | "conversationId">): string {
   return draft.draftKey || draft.conversationId || "";
 }
 
-export function aiQuoteDraftKey(draftKey: string): string {
+function aiQuoteDraftKey(draftKey: string): string {
   return `${STORAGE_PREFIX}${draftKey}`;
 }
 

@@ -1,6 +1,6 @@
 /** Positionne un panneau flottant dans le viewport, ancré à un trigger. */
 
-export type AnchorSide = "below" | "above";
+type AnchorSide = "below" | "above";
 
 export type AnchorRect = {
   top: number;

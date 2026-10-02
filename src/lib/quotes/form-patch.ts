@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatEuros } from "@/lib/format/money";
 
 /**
  * Modification d'un devis en cours d'édition par consigne (écrite ou dictée).
@@ -26,7 +27,7 @@ export type QuoteFormSnapshot = {
   notes: string;
 };
 
-export const FORM_PATCH_OPS = [
+const FORM_PATCH_OPS = [
   "add_line",
   "update_line",
   "remove_line",
@@ -110,11 +111,11 @@ Règles :
 6. Ligne visée ambiguë (plusieurs candidates) ou consigne incomprise → aucune opération, recopie la phrase dans "unresolved".
 7. Tous les champs non utilisés d'une opération valent null.`;
 
-export function lineRef(index: number): string {
+function lineRef(index: number): string {
   return `F${index + 1}`;
 }
 
-export function laborRef(index: number): string {
+function laborRef(index: number): string {
   return `M${index + 1}`;
 }
 
@@ -132,13 +133,12 @@ export function describeSnapshot(s: QuoteFormSnapshot): string {
   ].join("\n");
 }
 
-export type FormPatchResult = {
+type FormPatchResult = {
   snapshot: QuoteFormSnapshot;
   changes: string[];
   warnings: string[];
 };
 
-const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const validQty = (q: number | null): q is number => q !== null && Number.isFinite(q) && q > 0 && q <= 100_000;
 const validPrice = (p: number | null): p is number => p !== null && Number.isFinite(p) && p >= 0 && p <= 1_000_000;
@@ -178,7 +178,7 @@ export function applyFormPatch(
         const price = validPrice(op.unit_price_eur) ? round2(op.unit_price_eur) : null;
         if (price === null) warnings.push(`« ${label} » : prix à compléter.`);
         lines.push({ id: newId(), source: "manual", label, quantity, unitPriceEur: price });
-        changes.push(`+ ${quantity} × ${label}${price !== null ? ` à ${eur(price)} HT` : " (prix à compléter)"}`);
+        changes.push(`+ ${quantity} × ${label}${price !== null ? ` à ${formatEuros(price)} HT` : " (prix à compléter)"}`);
         break;
       }
       case "update_line": {
@@ -201,7 +201,7 @@ export function applyFormPatch(
           next.quantity = op.quantity;
         }
         if (validPrice(op.unit_price_eur) && round2(op.unit_price_eur) !== before.unitPriceEur) {
-          parts.push(`prix ${before.unitPriceEur !== null ? eur(before.unitPriceEur) : "—"} → ${eur(round2(op.unit_price_eur))} HT`);
+          parts.push(`prix ${before.unitPriceEur !== null ? formatEuros(before.unitPriceEur) : "—"} → ${formatEuros(round2(op.unit_price_eur))} HT`);
           next.unitPriceEur = round2(op.unit_price_eur);
         }
         if (!parts.length) {
@@ -277,7 +277,7 @@ export function applyFormPatch(
           break;
         }
         const rate = round2(op.unit_price_eur);
-        changes.push(`Taux horaire : ${laborRateEur !== null ? `${eur(laborRateEur)} → ` : ""}${eur(rate)}/h HT`);
+        changes.push(`Taux horaire : ${laborRateEur !== null ? `${formatEuros(laborRateEur)} → ` : ""}${formatEuros(rate)}/h HT`);
         laborRateEur = rate;
         break;
       }

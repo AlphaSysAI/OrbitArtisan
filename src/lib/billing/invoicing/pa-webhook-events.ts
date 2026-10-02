@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Événements remontés par la Plateforme Agréée (PA). */
-export const PA_WEBHOOK_EVENT_TYPES = [
+const PA_WEBHOOK_EVENT_TYPES = [
   "RECEIVED_BY_PLATFORM",
   "TRANSMITTED",
   "APPROVED",
@@ -11,7 +11,7 @@ export const PA_WEBHOOK_EVENT_TYPES = [
   "PAYMENT_RECEIVED",
 ] as const;
 
-export type PaWebhookEventType = (typeof PA_WEBHOOK_EVENT_TYPES)[number];
+type PaWebhookEventType = (typeof PA_WEBHOOK_EVENT_TYPES)[number];
 
 export const PaWebhookPayloadSchema = z
   .object({

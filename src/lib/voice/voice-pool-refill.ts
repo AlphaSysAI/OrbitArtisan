@@ -3,7 +3,7 @@
  * Numéros achetés à la demande (1 abonnement = 1 numéro) ; chaque numéro Twilio
  * est facturé tous les mois, d'où un plafond coupe-circuit.
  */
-export type RefillPolicy = {
+type RefillPolicy = {
   /** Coupe-circuit : plafond de numéros détenus (attribués + quarantaine + libres). */
   maxTotal: number;
 };
@@ -24,7 +24,7 @@ export function readRefillPolicy(env: Record<string, string | undefined> = proce
 }
 
 /** Alerte plafond : à partir de 80 % des numéros autorisés (VOICE_POOL_MAX_TOTAL). */
-export const POOL_CAP_ALERT_RATIO = 0.8;
+const POOL_CAP_ALERT_RATIO = 0.8;
 
 export function shouldAlertPoolCapacity(totalActive: number, maxTotal: number): boolean {
   if (maxTotal <= 0) return totalActive > 0;

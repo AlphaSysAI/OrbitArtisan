@@ -8,10 +8,7 @@ import { sendEmail } from "@/lib/email/send-email";
 import { loadQuotePdfDocument } from "@/lib/billing/load-quote-pdf";
 import { renderQuotePdf } from "@/lib/billing/render-quote-pdf";
 import { validateQuoteBeforeSend } from "@/lib/quotes/validate-quote-before-send";
-
-function formatEur(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
+import { formatCents } from "@/lib/format/money";
 
 // Vague 8 : expéditeur dédié aux emails de devis, demandé par Florian —
 // scope volontairement limité à cet envoi (les relances de facture dans
@@ -21,7 +18,7 @@ function formatEur(cents: number): string {
 // sinon Resend rejettera l'envoi ou le fera atterrir en spam.
 const QUOTE_EMAIL_FROM = "Soline <support@solinebtp.fr>";
 
-export type SendQuoteEmailParams = {
+type SendQuoteEmailParams = {
   supabase: SupabaseClient;
   quoteId: string;
   artisanId: string;
@@ -48,7 +45,7 @@ export async function sendQuoteByEmail(params: SendQuoteEmailParams) {
   const quoteRef = doc?.quoteNumber ?? params.quoteId.slice(0, 8).toUpperCase();
   // Montant = celui du PDF joint (TTC, TVA par ligne). grand_total est HT :
   // l'annoncer « TTC » était faux et ne correspondait pas au PDF.
-  const total = doc ? formatEur(doc.totalTtcCents) : `${formatEur(params.grandTotalCents)} HT`;
+  const total = doc ? formatCents(doc.totalTtcCents) : `${formatCents(params.grandTotalCents)} HT`;
   // Franchise 293 B : montant net (aucune TVA) — ne pas écrire « TTC ».
   const totalSuffix = doc ? (doc.vatFranchise ? " (TVA non applicable, art. 293 B du CGI)" : " TTC") : "";
 

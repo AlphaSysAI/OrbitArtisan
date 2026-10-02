@@ -10,13 +10,14 @@ import {
   importWorkItemsCsv,
   listWorkItems,
 } from "@/lib/work-library/actions";
-import { computeDebourseSec, formatEur } from "@/lib/work-library/pricing";
+import { computeDebourseSec } from "@/lib/work-library/pricing";
 import type { WorkCategory, WorkItemWithCategory } from "@/lib/work-library/types";
 import { WorkItemFormDialog } from "@/components/work-library/work-item-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { formatEuros } from "@/lib/format/money";
 
 export function WorkLibraryManager({
   initialItems,
@@ -194,9 +195,9 @@ export function WorkLibraryManager({
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{item.category_name ?? "—"}</td>
                     <td className="px-4 py-3">{item.unit}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{formatEur(item.unit_price_ht)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{formatEuros(item.unit_price_ht)}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{item.default_vat_rate} %</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{formatEur(debourse)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{formatEuros(debourse)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <Button
