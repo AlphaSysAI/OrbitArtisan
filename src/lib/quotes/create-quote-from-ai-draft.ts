@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AiQuoteDraft, AiSupplierMaterialDraft } from "@/lib/ai/quote-draft-storage";
+import { exactCatalogService, scaleLaborItems } from "@/lib/quotes/ai-labor-items";
 
 function parseEurToCents(raw: string): number {
   const cleaned = raw.trim().replace(",", ".").replace(/[^0-9.]/g, "");
@@ -150,9 +151,21 @@ export async function createQuoteFromAiDraft(
     return { ok: false, error: "create_failed" };
   }
 
-  // Lignes de main-d'œuvre : prestations reconnues par l'IA, ou une ligne libre
-  // quand l'IA a estimé une durée sans prestation correspondante.
-  const quoteServiceRows = servicesFound.length
+  // Lignes de main-d'œuvre : phases proposées par l'IA (même règle que le formulaire),
+  // sinon prestations reconnues, sinon une ligne libre pour la durée estimée.
+  const aiLaborItems = params.draft.laborItems ?? [];
+  const quoteServiceRows = aiLaborItems.length && labor.durationMinutes > 0
+    ? scaleLaborItems(aiLaborItems, labor.durationMinutes).map((item) => {
+        const service = exactCatalogService(servicesFound, item.title);
+        return {
+          quote_id: createdQuote.id,
+          service_id: service?.id ?? null,
+          service_title: service?.title ?? item.title,
+          duration_minutes: item.minutes,
+          unit_price: service?.price ?? null,
+        };
+      })
+    : servicesFound.length
     ? servicesFound.map((s) => ({
         quote_id: createdQuote.id,
         service_id: s.id,

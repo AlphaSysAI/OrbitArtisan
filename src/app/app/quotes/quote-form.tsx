@@ -11,6 +11,7 @@ import { WorkItemCombobox } from "@/components/work-library/work-item-combobox";
 import { saveQuoteLineToLibrary } from "@/lib/work-library/actions";
 import { WORK_UNITS } from "@/lib/work-library/units";
 import { loadAiQuoteDraft, clearAiQuoteDraft, type AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
+import { exactCatalogService, scaleLaborItems, type AiLaborItem } from "@/lib/quotes/ai-labor-items";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -92,7 +93,22 @@ function emptyLaborLine(): LaborLine {
 function laborLinesFromDraft(
   matched: { id: string; title: string; duration: number }[],
   estimatedMinutes: number,
+  aiItems: AiLaborItem[] = [],
+  catalog: { id: string; title: string }[] = [],
 ): LaborLine[] {
+  // Phases proposées par l'IA : une ligne chacune, libellé IA conservé ; rattachée au
+  // catalogue seulement si une prestation porte exactement ce libellé.
+  if (aiItems.length) {
+    return scaleLaborItems(aiItems, estimatedMinutes).map((item) => {
+      const service = exactCatalogService(catalog, item.title);
+      return {
+        id: uuid(),
+        title: service?.title ?? item.title,
+        hours: formatHoursFromMinutes(item.minutes),
+        serviceId: service?.id ?? null,
+      };
+    });
+  }
   const sum = matched.reduce((acc, s) => acc + Math.max(0, s.duration), 0);
   if (matched.length && sum > 0) {
     const target = estimatedMinutes > 0 ? estimatedMinutes : sum;
@@ -219,11 +235,12 @@ export function QuoteForm({
     setFromVoiceDraft(draft.source === "voice" || Boolean(voiceIntakeId));
     setPendingSaveMode("draft");
     setAiDraftWarnings(draft.warnings ?? []);
-    if (draft.matchedServiceIds.length || draft.laborDurationMinutes > 0) {
+    const aiLaborItems = draft.laborItems ?? [];
+    if (aiLaborItems.length || draft.matchedServiceIds.length || draft.laborDurationMinutes > 0) {
       const matched = draft.matchedServiceIds
         .map((id) => services.find((s) => s.id === id))
         .filter((s): s is Service => !!s);
-      setLaborLines(laborLinesFromDraft(matched, draft.laborDurationMinutes));
+      setLaborLines(laborLinesFromDraft(matched, draft.laborDurationMinutes, aiLaborItems, services));
     }
     if (draft.notes?.trim()) setNotes(draft.notes);
     if (draft.customerName?.trim() && !conversationPrefill?.customerName) {

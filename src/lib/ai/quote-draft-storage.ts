@@ -1,3 +1,5 @@
+import type { AiLaborItem } from "@/lib/quotes/ai-labor-items";
+
 /** Brouillon de devis généré par IA — stocké côté client (sessionStorage) avant validation. */
 
 export type AiSupplierMaterialDraft = {
@@ -23,6 +25,11 @@ export type AiQuoteDraft = {
   generatedAt: string;
   matchedServiceIds: string[];
   laborDurationMinutes: number;
+  /**
+   * Phases de main-d'œuvre proposées par l'IA (une ligne par étape). Absent sur les
+   * anciens brouillons : repli sur laborDurationMinutes en une ligne.
+   */
+  laborItems?: AiLaborItem[];
   notes: string;
   supplierMaterials: AiSupplierMaterialDraft[];
   warnings: string[];

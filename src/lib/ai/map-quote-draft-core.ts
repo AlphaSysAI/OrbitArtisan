@@ -1,6 +1,7 @@
 import { mapSupplierMaterialRowToDraft } from "@/lib/ai/map-supplier-material-draft";
 import type { GenerateQuoteFromChatResponse } from "@/lib/ai/quote-from-chat-schema";
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
+import { laborItemsFromAi } from "@/lib/quotes/ai-labor-items";
 
 function draftRowId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -27,6 +28,7 @@ export function mapApiResponseToDraft(
     generatedAt: new Date().toISOString(),
     matchedServiceIds: data.matched_service_ids,
     laborDurationMinutes: data.labor_duration_minutes,
+    laborItems: laborItemsFromAi(data.labor_items),
     notes: data.notes,
     supplierMaterials,
     warnings: data.warnings,

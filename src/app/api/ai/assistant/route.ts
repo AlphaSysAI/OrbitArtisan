@@ -49,6 +49,7 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { listArtisanContacts } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDateFr, formatTimeFr } from "@/lib/format/date";
+import { laborItemsFromAi } from "@/lib/quotes/ai-labor-items";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -328,6 +329,7 @@ async function buildQuoteDraftResponse(
     generatedAt: new Date().toISOString(),
     matchedServiceIds: quoteData.matched_service_ids,
     laborDurationMinutes: quoteData.labor_duration_minutes,
+    laborItems: laborItemsFromAi(quoteData.labor_items),
     notes: quoteData.notes,
     supplierMaterials: mapMaterialsToDraftRows(quoteData),
     warnings,

@@ -141,11 +141,14 @@ Prestations :
 - Si aucune prestation catalogue ne correspond, laisse catalog_service_titles vide et décris le travail dans labor_items + notes.
 
 Main-d'œuvre :
-- labor_items : une ligne par phase d'exécution, dans l'ordre du chantier — jamais un forfait global
-  (pas « Travaux toiture 40 h » mais « Pose charpente fermette », « Pose écran sous-toiture, contre-lattage et litelage »,
-  « Pose tuiles, faîtage et rives »).
-- quantity = heures estimées, unit_price = taux horaire en euros (utilise ${laborRateEur} €/h si cohérent).
-- Si le métré indique des heures MO, répartis-les entre les phases : la somme des heures doit rester égale au total du métré.
+- labor_items DOIT contenir AU MOINS 2 à 4 lignes, une par sous-tâche distincte, dans l'ordre du chantier, dès que
+  l'ouvrage comporte plusieurs étapes — jamais un forfait global (pas « Travaux toiture 200 h » mais
+  « Pose charpente fermette », « Pose écran HPV, contre-lattage et litelage », « Pose tuiles, faîtage et rives »).
+  Une seule ligne uniquement pour une intervention réellement unitaire.
+- description = intitulé de la phase tel qu'il apparaîtra sur le devis (verbe + ouvrage, sans heures ni prix).
+- quantity = heures de la phase, unit_price = taux horaire en euros (utilise ${laborRateEur} €/h si cohérent).
+- Si le métré indique des heures MO (« Main-d'œuvre estimée »), répartis-les entre les phases au prorata de leur
+  poids réel : la somme des quantity DOIT égaler exactement ce total.
 
 notes : réserves techniques en français, 500 caractères maximum : métré indicatif à valider sur place, hypothèses
 structurantes (pente, état et planéité des supports, accès chantier, évacuation des gravats) — pas de répétition des lignes.`;

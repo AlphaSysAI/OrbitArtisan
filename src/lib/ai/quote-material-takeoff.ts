@@ -286,7 +286,31 @@ Autres règles :
 - Ne cumule pas plusieurs lots en multipliant plusieurs fois la même surface au sol.
 - "assumptions" : TOUTES les déductions (pente, surfaces développées, entraxes, épaisseurs, formats, taux de chute,
   supports supposés sains, ouvertures non déduites…).
-- "labor_hours_estimate" : total d'heures réaliste d'un artisan qualifié pour l'ensemble des tâches décrites.
+- "labor_hours_estimate" : total d'heures/homme réaliste d'un artisan qualifié pour l'ensemble des tâches décrites,
+  calé sur les ratios ci-dessous (surface × ratio, borne basse pour un ouvrage simple et accessible, borne haute si
+  complexité : pente forte, hauteur, accès difficile, nombreuses découpes). Écris le ratio retenu dans "assumptions".
+  Ne cumule pas un ratio global et ses sous-tâches (ex. ratio toiture complète + bandes à joint = double compte).
+
+RATIOS DE MAIN-D'ŒUVRE INDICATIFS (heures/homme) :
+- Toiture / Couverture :
+  * Neuf : charpente fermette industrielle + écran/liteaux + tuiles = 0,8 à 1,0 h/m² (ex. ~110-135 h pour 135 m²).
+  * Neuf : charpente traditionnelle + couverture = 1,1 à 1,5 h/m².
+  * Rénovation complète (dépose ancienne toiture + pose) = 1,4 à 1,9 h/m².
+- Plâtrerie / Isolation :
+  * Doublage / cloison standard (ossature + isolant + BA13) = 0,5 à 0,7 h/m².
+  * Faux plafond sur suspentes = 0,6 à 0,8 h/m².
+  * Bandes à joint (3 passes) = 0,15 à 0,25 h/m² de plaque.
+- Revêtements de sol :
+  * Carrelage sol standard (pose collée + joints) = 0,6 à 0,9 h/m².
+  * Faïence murale = 0,8 à 1,2 h/m².
+  * Parquet flottant / stratifié = 0,25 à 0,4 h/m².
+- Peinture :
+  * Préparation + impression + 2 couches finition murs/plafonds = 0,35 à 0,55 h/m² de surface développée.
+- Plomberie / Chauffage / Électricité :
+  * Rénovation complète salle de bain = 35 à 60 h selon complexité.
+  * Réfection tableau électrique = 7 à 12 h.
+  * Réseau hydrocâblé complet maison = 30 à 50 h.
+- Ouvrage absent de la grille : raisonne par analogie avec la ligne la plus proche, sans dépasser l'ordre de grandeur.
 - "calculation_notes" : rappel court que le métré est indicatif et doit être validé sur site.
 - Si des références web sont fournies, croise-les avec ton expertise ; ne copie pas aveuglément.
 - Pas d'outillage (seaux, truelles, disques) sauf quantités significatives.`;
