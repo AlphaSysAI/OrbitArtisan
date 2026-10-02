@@ -23,6 +23,27 @@ import {
   type MatchedSupplierMaterial,
 } from "@/lib/ai/quote-from-chat-schema";
 
+/** Similarité minimale (embeddings mistral-embed) pour proposer un produit catalogue. */
+const CATALOG_MIN_SIMILARITY = 0.6;
+
+const STOP_WORDS = new Set(["pour", "avec", "sans", "sous", "type", "standard", "blanc", "noir", "gris", "sac", "sacs", "lot", "kit"]);
+
+function keywords(text: string): string[] {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 4 && !STOP_WORDS.has(w))
+    .map((w) => w.replace(/s$/, ""));
+}
+
+/** Le produit catalogue partage au moins un mot significatif avec le matériau demandé. */
+export function sharesKeyword(requested: string, productTitle: string): boolean {
+  const wanted = new Set(keywords(requested));
+  return keywords(productTitle).some((w) => wanted.has(w));
+}
+
 type SupplierMatchRow = {
   id: string;
   title: string;
@@ -86,13 +107,14 @@ export async function buildQuoteFromText(params: {
   const warnings: string[] = [];
   let takeoffBlock = "";
   let takeoff: MaterialTakeoff | null = null;
-  const webSearchEnabled = Boolean(process.env.TAVILY_API_KEY?.trim());
 
   try {
-    takeoff = await runMaterialTakeoff(instruction);
-    if (takeoff) {
-      takeoffBlock = formatTakeoffForQuotePrompt(takeoff, webSearchEnabled);
-      warnings.push(...takeoffWarnings(takeoff, webSearchEnabled));
+    const result = await runMaterialTakeoff(instruction);
+    takeoff = result;
+    if (result) {
+      // Mention « sources web » uniquement si Tavily a réellement répondu.
+      takeoffBlock = formatTakeoffForQuotePrompt(result, result.webUsed);
+      warnings.push(...takeoffWarnings(result, result.webUsed));
     }
   } catch (err) {
     console.error("[build-quote-from-text] takeoff error", err);
@@ -198,15 +220,20 @@ ${instruction}`;
       if (embedding.length) {
         const { data: matches, error: rpcErr } = await supabase.rpc("match_supplier_products", {
           query_embedding: embedding,
-          match_count: 1,
-          match_threshold: 0.35,
+          match_count: 3,
+          match_threshold: CATALOG_MIN_SIMILARITY,
         });
 
         if (rpcErr) {
           console.error("[build-quote-from-text] rpc error", rpcErr);
           localWarnings.push(`Recherche fournisseur indisponible pour « ${material.name_generic} ».`);
         } else {
-          const best = (matches as SupplierMatchRow[] | null)?.[0];
+          // Un produit catalogue n'est retenu que s'il partage un mot significatif avec le
+          // matériau demandé : la seule proximité d'embedding associait n'importe quoi
+          // (seuil 0,35) et empêchait toute estimation de prix web.
+          const best = ((matches as SupplierMatchRow[] | null) ?? []).find((m) =>
+            sharesKeyword(material.name_generic, m.title),
+          );
           if (best) {
             const priceNum = typeof best.price === "string" ? Number(best.price) : best.price;
             match = {
@@ -251,15 +278,17 @@ ${instruction}`;
       })),
       instruction,
     );
-    if (estimates.size) {
+    if (estimates.prices.size) {
       supplierMaterials = supplierMaterials.map((row) => {
         if (row.match) return row;
-        const est = lookupEstimatedUnitPrice(estimates, row.requested_name);
+        const est = lookupEstimatedUnitPrice(estimates.prices, row.requested_name);
         if (est == null) return row;
         return { ...row, estimated_unit_price_eur: est };
       });
       warnings.push(
-        "Prix matériaux estimés (web / marché) pour les lignes sans correspondance catalogue — à valider.",
+        estimates.webUsed
+          ? `Prix matériaux estimés d'après les prix publics (${estimates.sources.slice(0, 4).join(", ")}) — à valider.`
+          : "Prix matériaux estimés (marché, sans recherche web) — à valider.",
       );
     } else if (withoutCatalogPrice.length) {
       warnings.push(

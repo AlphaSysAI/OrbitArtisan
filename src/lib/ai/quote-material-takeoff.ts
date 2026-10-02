@@ -164,7 +164,9 @@ function buildWebSearchQuery(instruction: string): string {
  * Estime matériaux + MO à partir d'une description dimensionnée.
  * Enrichi par Tavily si `TAVILY_API_KEY` est configurée.
  */
-export async function runMaterialTakeoff(instruction: string): Promise<MaterialTakeoff | null> {
+export async function runMaterialTakeoff(
+  instruction: string,
+): Promise<(MaterialTakeoff & { webUsed: boolean }) | null> {
   if (!needsMaterialTakeoff(instruction)) return null;
 
   const web = await searchWebForQuoteContext(buildWebSearchQuery(instruction));
@@ -259,7 +261,7 @@ Règles :
   }
 
   if (!materials.length) return null;
-  return { ...takeoff, materials, assumptions };
+  return { ...takeoff, materials, assumptions, webUsed: web !== null };
 }
 
 export function formatTakeoffForQuotePrompt(takeoff: MaterialTakeoff, webUsed: boolean): string {

@@ -66,7 +66,7 @@ export function extractContactQueryFromMessage(message: string): string | null {
   for (const re of patterns) {
     const m = message.match(re);
     if (!m?.[1]) continue;
-    let name = m[1]
+    const name = m[1]
       .replace(/\s+(le|les|la|un|une|du|de|des|en|sur|pour)\s+.*$/i, "")
       .trim();
     if (

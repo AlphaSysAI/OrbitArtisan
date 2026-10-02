@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import type { AssistantApiResponse, AssistantQuoteIntakeState } from "@/lib/ai/assistant-schema";
 import { aiErrorMessage } from "@/lib/ai/error-messages";
 import { persistAiQuoteDraft } from "@/lib/ai/map-quote-draft";
+import { getQuoteEditor, wantsNewQuote } from "@/lib/ai/quote-editor-bridge";
 import { formatIsoDateFr } from "@/lib/ai/resolve-date";
 import { Button } from "@/components/ui/button";
 import { computeAnchoredPanelRect, type AnchorRect } from "@/lib/ui/anchor-panel";
@@ -385,6 +386,26 @@ export function ArtisanAssistant() {
       { id: `${Date.now()}-u`, role: "user", content: message },
     ]);
     setLoading(true);
+
+    // Devis rempli à l'écran : la consigne le MODIFIE (lignes visées uniquement),
+    // sans régénérer le devis ni relancer les recherches de prix.
+    const quoteEditor = getQuoteEditor();
+    if (quoteEditor && !wantsNewQuote(message)) {
+      try {
+        const out = await quoteEditor(message);
+        const reply = !out.ok
+          ? out.message
+          : out.changes.length
+            ? ["C'est modifié sur le devis :", ...out.changes.map((c) => `• ${c}`), ...out.warnings.map((w) => `⚠ ${w}`)].join("\n")
+            : ["Je n'ai rien modifié.", ...out.warnings.map((w) => `⚠ ${w}`), "Précise la ligne à changer (ex. « passe les tuiles à 450 »)."].join("\n");
+        setMessages((prev) => [...prev, { id: `${Date.now()}-a`, role: "assistant", content: reply }]);
+      } catch {
+        setMessages((prev) => [...prev, { id: `${Date.now()}-e`, role: "assistant", content: "La modification n'a pas abouti. Réessaie." }]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     try {
       const history = messages

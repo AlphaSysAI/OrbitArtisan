@@ -17,6 +17,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { QuoteAiPrompt } from "@/components/quotes/quote-ai-prompt";
+import { QuoteAiEditBar } from "@/components/quotes/quote-ai-edit-bar";
+import { aiEditQuoteForm } from "./ai-edit-actions";
+import { registerQuoteEditor, type QuoteEditorOutcome } from "@/lib/ai/quote-editor-bridge";
+import { applyFormPatch, type QuoteFormSnapshot } from "@/lib/quotes/form-patch";
 import { QuoteMarginBanner } from "@/components/quotes/quote-margin-banner";
 import {
   buildLaborLinesPayload,
@@ -385,6 +389,121 @@ export function QuoteForm({
     setMaterials((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
+  // ── Modification par consigne (barre « Modifier avec l'IA » + assistant flottant) ──
+  type EditableState = {
+    laborLines: LaborLine[];
+    materials: MaterialRow[];
+    supplierMaterials: SupplierMaterialRow[];
+    laborRateEur: string;
+    notes: string;
+  };
+  const liveStateRef = React.useRef<EditableState>({ laborLines, materials, supplierMaterials, laborRateEur, notes });
+  liveStateRef.current = { laborLines, materials, supplierMaterials, laborRateEur, notes };
+  const [undoState, setUndoState] = React.useState<EditableState | null>(null);
+
+  const hasQuoteContent =
+    supplierMaterials.length > 0 ||
+    materials.some((m) => m.label.trim()) ||
+    laborLines.some((l) => l.title.trim() || hoursToMinutes(l.hours) > 0);
+
+  const editWithAi = React.useCallback(async (instruction: string): Promise<QuoteEditorOutcome> => {
+    const state = liveStateRef.current;
+    const eurNum = (raw: string) => {
+      const cents = parseEurToCents(raw);
+      return cents === null ? null : cents / 100;
+    };
+    const snapshot: QuoteFormSnapshot = {
+      lines: [
+        ...state.supplierMaterials.map((m) => ({
+          id: m.id,
+          source: "supplier" as const,
+          label: m.label,
+          quantity: m.quantity,
+          unitPriceEur: eurNum(m.unitPriceEur),
+        })),
+        ...state.materials
+          .filter((m) => m.label.trim())
+          .map((m) => ({ id: m.id, source: "manual" as const, label: m.label, quantity: m.quantity, unitPriceEur: eurNum(m.unitPriceEur) })),
+      ],
+      labor: state.laborLines
+        .filter((l) => l.title.trim() || hoursToMinutes(l.hours) > 0)
+        .map((l) => ({ id: l.id, title: l.title, hours: Math.round((hoursToMinutes(l.hours) / 60) * 100) / 100 })),
+      laborRateEur: eurNum(state.laborRateEur),
+      notes: state.notes,
+    };
+
+    const res = await aiEditQuoteForm({ snapshot, instruction });
+    if (!res.ok) {
+      return {
+        ok: false,
+        message:
+          res.error === "rate_limited"
+            ? "Trop de modifications en peu de temps : réessaie dans quelques minutes."
+            : res.error === "invalid"
+              ? "Consigne trop courte ou devis illisible."
+              : "La modification n’a pas abouti. Reformule ou modifie la ligne à la main.",
+      };
+    }
+
+    const applied = applyFormPatch(snapshot, res.patch, uuid);
+    if (!applied.changes.length) return { ok: true, changes: [], warnings: applied.warnings };
+
+    const next = applied.snapshot;
+    const byId = new Map(next.lines.map((l) => [l.id, l]));
+    const commaEur = (n: number | null) => (n === null ? "" : n.toFixed(2).replace(".", ","));
+
+    setUndoState(state);
+    setSupplierMaterials(
+      state.supplierMaterials
+        .filter((m) => byId.has(m.id))
+        .map((m) => {
+          const l = byId.get(m.id)!;
+          return { ...m, label: l.label, quantity: l.quantity, unitPriceEur: l.unitPriceEur === null ? m.unitPriceEur : l.unitPriceEur.toFixed(2) };
+        }),
+    );
+    const knownManual = new Set(state.materials.map((m) => m.id));
+    setMaterials([
+      ...state.materials
+        .filter((m) => !m.label.trim() ? false : byId.has(m.id))
+        .map((m) => {
+          const l = byId.get(m.id)!;
+          return { ...m, label: l.label, quantity: l.quantity, unitPriceEur: commaEur(l.unitPriceEur) };
+        }),
+      ...next.lines
+        .filter((l) => l.source === "manual" && !knownManual.has(l.id))
+        .map((l) => ({ ...emptyMaterialRow(), id: l.id, label: l.label, quantity: l.quantity, unitPriceEur: commaEur(l.unitPriceEur) })),
+    ]);
+    const laborById = new Map(state.laborLines.map((l) => [l.id, l]));
+    const nextLabor = next.labor.map((l) => ({
+      ...(laborById.get(l.id) ?? { serviceId: null }),
+      id: l.id,
+      title: l.title,
+      hours: formatHoursFromMinutes(Math.round(l.hours * 60)),
+    }));
+    setLaborLines(nextLabor.length ? nextLabor : [emptyLaborLine()]);
+    if (next.laborRateEur !== snapshot.laborRateEur && next.laborRateEur !== null) setLaborRateEur(commaEur(next.laborRateEur));
+    if (next.notes !== state.notes) setNotes(next.notes);
+
+    return { ok: true, changes: applied.changes, warnings: [...res.pricingNotes, ...applied.warnings] };
+  }, []);
+
+  const undoAiEdit = React.useCallback(() => {
+    if (!undoState) return;
+    setLaborLines(undoState.laborLines);
+    setMaterials(undoState.materials);
+    setSupplierMaterials(undoState.supplierMaterials);
+    setLaborRateEur(undoState.laborRateEur);
+    setNotes(undoState.notes);
+    setUndoState(null);
+    toast.success("Modification annulée.");
+  }, [undoState]);
+
+  // L'assistant flottant modifie ce devis au lieu d'en générer un nouveau.
+  React.useEffect(() => {
+    if (!hasQuoteContent) return;
+    return registerQuoteEditor(editWithAi);
+  }, [hasQuoteContent, editWithAi]);
+
   // Main-d'œuvre facultative : un devis peut ne contenir que des fournitures.
   const laborRateMissing = effectiveLaborMinutes > 0 && (laborRateCents == null || laborRateCents <= 0);
   const canCreate = !laborLinesInvalid && !laborRateMissing && grandTotalCents > 0;
@@ -552,6 +671,10 @@ export function QuoteForm({
               </ul>
             ) : null}
           </div>
+        ) : null}
+
+        {hasQuoteContent ? (
+          <QuoteAiEditBar onEdit={editWithAi} canUndo={undoState !== null} onUndo={undoAiEdit} />
         ) : null}
 
         {/* JSON côté serveur */}

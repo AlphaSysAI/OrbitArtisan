@@ -16,7 +16,22 @@ export type WebSearchResult = {
  * Recherche web optionnelle (Tavily) pour enrichir les métrés devis.
  * Sans `TAVILY_API_KEY`, retourne null — le métré repose alors sur le LLM seul.
  */
-export async function searchWebForQuoteContext(query: string): Promise<WebSearchResult | null> {
+/** Négoces et enseignes FR affichant des prix publics : base des prix matériaux. */
+export const FR_BUILDING_PRICE_DOMAINS = [
+  "leroymerlin.fr",
+  "castorama.fr",
+  "bricodepot.fr",
+  "pointp.fr",
+  "gedimat.fr",
+  "cedeo.fr",
+  "bigmat.fr",
+  "manomano.fr",
+];
+
+export async function searchWebForQuoteContext(
+  query: string,
+  opts: { includeDomains?: string[]; maxResults?: number } = {},
+): Promise<WebSearchResult | null> {
   const apiKey = process.env.TAVILY_API_KEY?.trim();
   if (!apiKey) return null;
 
@@ -33,7 +48,8 @@ export async function searchWebForQuoteContext(query: string): Promise<WebSearch
       body: JSON.stringify({
         query: trimmed,
         search_depth: "basic",
-        max_results: 4,
+        max_results: opts.maxResults ?? 4,
+        ...(opts.includeDomains?.length ? { include_domains: opts.includeDomains } : {}),
         include_answer: true,
         topic: "general",
       }),

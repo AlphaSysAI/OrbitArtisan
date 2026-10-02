@@ -81,7 +81,7 @@ export function extractCustomerHintFromMessage(message: string): string | null {
   for (const re of patterns) {
     const hit = m.match(re);
     if (!hit?.[1]) continue;
-    let rest = hit[1].trim().split(/[:—-]/)[0]?.trim() ?? "";
+    const rest = hit[1].trim().split(/[:—-]/)[0]?.trim() ?? "";
     if (/^autre\s+(client|contact)/.test(rest)) continue;
     const tokens = rest.split(/\s+/).filter(Boolean);
     while (tokens.length && CUSTOMER_HINT_STOPWORDS.has(tokens[0]!)) tokens.shift();
