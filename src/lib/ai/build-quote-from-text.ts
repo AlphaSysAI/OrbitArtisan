@@ -22,6 +22,7 @@ import {
   type GenerateQuoteFromChatResponse,
   type MatchedSupplierMaterial,
 } from "@/lib/ai/quote-from-chat-schema";
+import { formatTradeLabel } from "@/lib/trades/taxonomy";
 
 /** Similarité minimale (embeddings mistral-embed) pour proposer un produit catalogue. */
 const CATALOG_MIN_SIMILARITY = 0.6;
@@ -90,6 +91,9 @@ export async function buildQuoteFromText(params: {
     business_name: string | null;
     description: string | null;
     labor_rate_per_hour: number | null;
+    /** Métier déclaré (nomenclature) : borne le périmètre du devis. */
+    trade_category?: string | null;
+    trade?: string | null;
   };
   services: ServiceRow[];
   customerLabel?: string | null;
@@ -106,12 +110,14 @@ export async function buildQuoteFromText(params: {
       ? (profile.labor_rate_per_hour / 100).toFixed(2)
       : "non renseigné";
 
+  const tradeLabel = formatTradeLabel(profile.trade_category, profile.trade);
+
   const warnings: string[] = [];
   let takeoffBlock = "";
-  let takeoff: MaterialTakeoff | null = null;
+  let takeoff: (MaterialTakeoff & { laborPhases?: { title: string; hours: number }[] }) | null = null;
 
   try {
-    const result = await runMaterialTakeoff(instruction);
+    const result = await runMaterialTakeoff(instruction, { audience: "artisan", tradeLabel });
     takeoff = result;
     if (result) {
       // Mention « sources web » uniquement si Tavily a réellement répondu.
@@ -126,6 +132,14 @@ export async function buildQuoteFromText(params: {
   const systemPrompt = `Tu es un expert en chiffrage pour artisans du bâtiment en France (TCE).
 L'artisan dicte ou écrit une instruction pour préparer un devis.
 Extrais un brouillon structuré.
+
+Périmètre — NE JAMAIS EXTRAPOLER :
+- Métier de l'artisan : ${tradeLabel ?? "non renseigné"}.
+- Ne chiffre que ce qui est explicitement demandé. Pour une demande globale (« maison neuve de 125 m² »,
+  « rénovation complète »), uniquement les travaux du métier de l'artisan : aucun lot d'un autre corps d'état
+  (charpente, couverture, plomberie, électricité, plâtrerie…) sauf s'il est nommé dans l'instruction.
+- Ce périmètre vaut pour needed_materials ET labor_items. Les lots écartés peuvent être cités dans notes
+  (« Non compris : … »), jamais chiffrés.
 
 Matériaux :
 - Si un bloc « Métré automatique » est fourni, reprends CHAQUE matériau de ce bloc dans needed_materials, un par un,
@@ -202,12 +216,24 @@ ${instruction}`;
 
   neededMaterials = applyMaterialSanity(neededMaterials, warnings);
 
-  const laborDurationMinutes = laborMinutesFromItems(extraction.labor_items);
+  // Recette de la matrice : phases et heures déterministes, prioritaires sur la ventilation du modèle.
+  const laborItems = takeoff?.laborPhases?.length
+    ? takeoff.laborPhases.map((p) => ({
+        description: p.title,
+        quantity: p.hours,
+        unit_price:
+          profile.labor_rate_per_hour != null
+            ? profile.labor_rate_per_hour / 100
+            : (extraction.labor_items[0]?.unit_price ?? 0),
+      }))
+    : extraction.labor_items;
+
+  const laborDurationMinutes = laborMinutesFromItems(laborItems);
 
   const matchedServiceIds = matchServiceIdsByTitles(
     services,
     extraction.catalog_service_titles,
-    extraction.labor_items.map((l) => l.description),
+    laborItems.map((l) => l.description),
   );
 
   if (!matchedServiceIds.length && services.length > 0) {
@@ -216,7 +242,7 @@ ${instruction}`;
     );
   }
 
-  if (laborDurationMinutes <= 0 && extraction.labor_items.length > 0) {
+  if (laborDurationMinutes <= 0 && laborItems.length > 0) {
     warnings.push("Durée de main d'œuvre non calculée — vérifie les heures dans le formulaire.");
   }
 
@@ -317,7 +343,7 @@ ${instruction}`;
   }
 
   return {
-    labor_items: extraction.labor_items,
+    labor_items: laborItems,
     catalog_service_titles: extraction.catalog_service_titles,
     matched_service_ids: matchedServiceIds,
     labor_duration_minutes: laborDurationMinutes,

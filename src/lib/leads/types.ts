@@ -12,6 +12,9 @@ export type MatchedArtisan = {
   slug: string;
   distanceKm: number | null;
   rank: number;
+  /** Lot (corps d'état) pour lequel l'artisan est retenu ; null = demande mono-métier historique. */
+  lotIndex: number;
+  lotLabel: string | null;
   city: string | null;
   logoUrl: string | null;
   phone: string | null;

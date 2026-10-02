@@ -42,12 +42,15 @@ export function communeFromAddress(label: string | null | undefined): string | n
 export function buildAnonymizedSummary(lead: {
   trade: string | null;
   trade_category: string | null;
+  /** Demande multi-corps d'état : métiers des lots validés. */
+  lotLabels?: string[];
   address_label: string | null;
   estimate_min: number | null;
   estimate_max: number | null;
   need_summary: string | null;
 }): AnonymizedLeadSummary {
   const trade =
+    (lead.lotLabels?.length ? lead.lotLabels.join(", ") : null) ??
     formatTradeLabel(lead.trade_category, lead.trade)?.split(" · ").pop() ??
     findTradeCategory(lead.trade_category)?.label ??
     "Travaux";

@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AnonymizedLeadSummary } from "@/lib/concierge/summary";
+import { parseLeadLots } from "@/lib/leads/lots";
 
 type InviteView = {
   id: string;
@@ -83,20 +84,40 @@ export async function claimInvite(
   if (!invite.leadId || !invite.leadToken) return { ok: true, conversationId: null };
   if (!invite.leadOpen) return { ok: false, error: "lead_closed" };
 
-  const { data: existing } = await db.from("lead_matches").select("artisan_id, rank, conversation_id").eq("lead_id", invite.leadId);
+  const { data: existing } = await db
+    .from("lead_matches")
+    .select("artisan_id, rank, conversation_id, lot_index")
+    .eq("lead_id", invite.leadId);
   const mine = existing?.find((m) => m.artisan_id === profile.id);
   if (!mine) {
-    const used = new Set((existing ?? []).map((m) => m.rank as number));
+    const [{ data: lead }, { data: me }] = await Promise.all([
+      db.from("leads").select("latitude, longitude, lots").eq("id", invite.leadId).maybeSingle(),
+      db.from("profiles").select("trade_category, trade").eq("id", profile.id).maybeSingle(),
+    ]);
+    // Demande multi-corps d'état : le lot de son métier (à défaut de sa catégorie, puis le premier).
+    const lots = parseLeadLots(lead?.lots);
+    const exact = lots.findIndex((l) => l.trade && l.trade === me?.trade);
+    const byCategory = lots.findIndex((l) => l.trade_category === me?.trade_category);
+    const lotIndex = Math.max(exact >= 0 ? exact : byCategory, 0);
+    const lot = lots[lotIndex];
+    const used = new Set((existing ?? []).filter((m) => (m.lot_index ?? 0) === lotIndex).map((m) => m.rank as number));
     const rank = [1, 2, 3].find((r) => !used.has(r));
     if (!rank) return { ok: false, error: "full" };
-    const { data: lead } = await db.from("leads").select("latitude, longitude").eq("id", invite.leadId).maybeSingle();
     const distance =
       lead?.latitude != null && profile.latitude != null && profile.longitude != null
         ? haversineKm(lead.latitude as number, lead.longitude as number, profile.latitude, profile.longitude)
         : null;
     const { error } = await db
       .from("lead_matches")
-      .insert({ lead_id: invite.leadId, artisan_id: profile.id, rank, distance_km: distance !== null ? Math.round(distance * 100) / 100 : null });
+      .insert({
+        lead_id: invite.leadId,
+        artisan_id: profile.id,
+        rank,
+        lot_index: lotIndex,
+        trade_category: lot?.trade_category ?? null,
+        trade: lot?.trade ?? null,
+        distance_km: distance !== null ? Math.round(distance * 100) / 100 : null,
+      });
     if (error) return { ok: false, error: "full" };
   }
 

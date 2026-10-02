@@ -27,6 +27,8 @@ export type LeadEstimateInput = {
   mediaCount: number;
   messages?: LeadChatMessage[];
   artisanIds: string[];
+  /** Demande multi-corps d'état : métiers validés par le client (estimation du projet entier). */
+  lotLabels?: string[];
 };
 
 const QUALIFICATION_POLL_MS = 500;
@@ -70,11 +72,22 @@ async function persistLeadEstimate(
 }
 
 function tradeLabelFor(input: LeadEstimateInput): string | null {
+  if (input.lotLabels && input.lotLabels.length > 1) return input.lotLabels.join(", ");
   return (
     [findTradeCategory(input.categoryId)?.label, findTrade(input.categoryId, input.tradeId)?.label]
       .filter(Boolean)
       .join(" · ") || null
   );
+}
+
+function qualifyTradeLabels(input: LeadEstimateInput): { categoryLabel: string | null; tradeLabel: string | null } {
+  if (input.lotLabels && input.lotLabels.length > 1) {
+    return { categoryLabel: null, tradeLabel: `Projet multi-corps d'état : ${input.lotLabels.join(", ")}` };
+  }
+  return {
+    categoryLabel: findTradeCategory(input.categoryId)?.label ?? null,
+    tradeLabel: findTrade(input.categoryId, input.tradeId)?.label ?? null,
+  };
 }
 
 /** Attend le prefetch puis lance qualifyLead si besoin — pas de repli heuristique immédiat. */
@@ -91,8 +104,7 @@ async function ensureQualification(input: LeadEstimateInput): Promise<LeadQualif
   try {
     return await qualifyLead({
       description: input.description,
-      categoryLabel: findTradeCategory(input.categoryId)?.label ?? null,
-      tradeLabel: findTrade(input.categoryId, input.tradeId)?.label ?? null,
+      ...qualifyTradeLabels(input),
       messages: input.messages,
       mediaCount: input.mediaCount,
     });
@@ -107,14 +119,15 @@ async function ensureQualification(input: LeadEstimateInput): Promise<LeadQualif
  * Idempotent : ignore si une qualification est déjà persistée.
  */
 export async function prefetchLeadQualification(input: LeadEstimateInput): Promise<void> {
+  // Multi-corps d'état : recalcul imposé (la qualification préchauffée ne couvrait que le 1er métier).
+  const multi = (input.lotLabels?.length ?? 0) > 1;
   const existing = await readLeadEstimateRow(input.token);
-  if (existing?.ai_qualification) return;
+  if (existing?.ai_qualification && !multi) return;
 
   try {
     const qualification = await qualifyLead({
       description: input.description,
-      categoryLabel: findTradeCategory(input.categoryId)?.label ?? null,
-      tradeLabel: findTrade(input.categoryId, input.tradeId)?.label ?? null,
+      ...qualifyTradeLabels(input),
       messages: input.messages,
       mediaCount: input.mediaCount,
     });
@@ -130,11 +143,14 @@ export async function prefetchLeadQualification(input: LeadEstimateInput): Promi
 
     const { data: leadStatus } = await admin
       .from("leads")
-      .select("status")
+      .select("status, lots")
       .eq("public_token", input.token)
       .maybeSingle();
 
-    const { error } = await admin
+    // Préchauffage mono-métier devenu obsolète : le client a validé plusieurs lots entre-temps.
+    if (!multi && Array.isArray(leadStatus?.lots) && leadStatus.lots.length > 1) return;
+
+    let update = admin
       .from("leads")
       .update({
         estimate_min: estimate.min,
@@ -142,8 +158,9 @@ export async function prefetchLeadQualification(input: LeadEstimateInput): Promi
         ai_qualification: qualification,
         ...(leadStatus?.status === "new" ? { status: "estimated" as const } : {}),
       })
-      .eq("public_token", input.token)
-      .is("ai_qualification", null);
+      .eq("public_token", input.token);
+    if (!multi) update = update.is("ai_qualification", null);
+    const { error } = await update;
 
     if (error) console.error("[lead-estimate] prefetch", error.message);
   } catch (err) {

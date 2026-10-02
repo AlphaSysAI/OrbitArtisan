@@ -5,6 +5,13 @@ import { z } from "zod";
 import { mistralChatParse } from "@/lib/ai/mistral";
 import { isMasonryUnitMaterial } from "@/lib/ai/quote-material-sanity";
 import { formatWebSearchForPrompt, searchWebForQuoteContext } from "@/lib/ai/web-search";
+import {
+  calculateTakeoffFromRecipe,
+  findWorkRecipe,
+  formatRecipesForPrompt,
+  MAX_RECIPE_QUANTITY,
+  type RecipeLaborPhaseHours,
+} from "@/lib/ai/work-recipes";
 
 function coerceString(v: unknown): string {
   return String(v ?? "").trim();
@@ -66,6 +73,18 @@ export const MaterialTakeoffSchema = z.object({
     z.number().positive().nullable(),
   ),
   calculation_notes: z.preprocess(coerceString, z.string()),
+  /** Recette de la matrice d'ouvrages reconnue par le modèle (null = métré génératif). */
+  matched_recipe_id: z
+    .preprocess((v) => (typeof v === "string" && v.trim() ? v.trim() : null), z.string().nullable())
+    .optional(),
+  /** Quantité de base dans l'unité de la recette (m² de toiture, de mur, de surface développée…). */
+  recipe_quantity: z
+    .preprocess((v) => {
+      if (v == null || v === "") return null;
+      const n = coerceNumber(v);
+      return n > 0 ? n : null;
+    }, z.number().positive().nullable())
+    .optional(),
 });
 
 export type MaterialTakeoff = z.infer<typeof MaterialTakeoffSchema>;
@@ -98,6 +117,14 @@ const MATERIAL_TAKEOFF_JSON_SCHEMA: Record<string, unknown> = {
     },
     labor_hours_estimate: { type: "number", description: "Heures MO estimées" },
     calculation_notes: { type: "string" },
+    matched_recipe_id: {
+      type: ["string", "null"],
+      description: "Identifiant exact d'une recette de la matrice si la demande correspond à UN seul ouvrage couvert, sinon null.",
+    },
+    recipe_quantity: {
+      type: ["number", "null"],
+      description: "Quantité de base dans l'unité de la recette (ex. m² de toiture), sinon null.",
+    },
   },
   required: ["work_summary", "assumptions", "materials", "calculation_notes"],
 };
@@ -206,12 +233,43 @@ function buildWebSearchQuery(instruction: string): string {
 }
 
 /**
+ * Périmètre du métré :
+ * - artisan : uniquement ce qui est demandé, et pour une demande globale uniquement son corps d'état ;
+ * - client (widget public) : tous les corps d'état nécessaires à l'ouvrage décrit.
+ */
+export type TakeoffScope = { audience: "artisan"; tradeLabel: string | null } | { audience: "client" };
+
+/** Préfixe des hypothèses listant les lots écartés (remonté tel quel en avertissement à l'artisan). */
+export const OUT_OF_SCOPE_PREFIX = "Hors lot (autre corps d'état) :";
+
+function scopeRules(scope: TakeoffScope): string {
+  if (scope.audience === "client") {
+    return `PÉRIMÈTRE — DEMANDE D'UN PARTICULIER :
+Chiffre l'ouvrage complet demandé, tous corps d'état nécessaires confondus (ex. « maison neuve » : gros œuvre,
+charpente-couverture, menuiseries, plâtrerie, plomberie, électricité…), sans ajouter de travaux non demandés.`;
+  }
+  const who = scope.tradeLabel ? `un artisan « ${scope.tradeLabel} »` : "un artisan (métier non renseigné)";
+  return `PÉRIMÈTRE — NE JAMAIS EXTRAPOLER (devis établi par ${who}) :
+- Chiffre UNIQUEMENT les ouvrages explicitement demandés. Pour une demande globale ou formulée simplement
+  (« maison neuve de 125 m² », « rénovation complète », « extension »), ne retiens QUE les lots du métier de l'artisan.
+  Ex. maçon + maison neuve → terrassement en rigole, fondations, soubassement, dallage / plancher bas, élévation des murs,
+  chaînages, linteaux, appuis ; JAMAIS charpente, couverture, menuiseries, plâtrerie, isolation, plomberie,
+  électricité, carrelage, peinture.
+- Un lot d'un autre corps d'état n'est chiffré que s'il est NOMMÉ dans la demande (« avec la charpente »).
+- Métier non renseigné : uniquement les ouvrages explicitement nommés, aucun lot déduit.
+- Liste les lots écartés dans "assumptions", en une seule ligne commençant par « ${OUT_OF_SCOPE_PREFIX} ».
+- La règle d'or ci-dessous (zéro oubli DTU) s'applique à l'intérieur de ce périmètre uniquement.`;
+}
+
+/**
  * Estime matériaux + MO à partir d'une description dimensionnée.
  * Enrichi par Tavily si `TAVILY_API_KEY` est configurée.
+ * Sans `scope` : périmètre client (estimation publique, comportement historique).
  */
 export async function runMaterialTakeoff(
   instruction: string,
-): Promise<(MaterialTakeoff & { webUsed: boolean }) | null> {
+  scope: TakeoffScope = { audience: "client" },
+): Promise<(MaterialTakeoff & { webUsed: boolean; laborPhases?: RecipeLaborPhaseHours[] }) | null> {
   if (!needsMaterialTakeoff(instruction)) return null;
 
   const web = await searchWebForQuoteContext(buildWebSearchQuery(instruction));
@@ -233,10 +291,12 @@ L'instruction peut émaner soit d'un artisan pressé, soit d'un particulier non 
 - Traduis systématiquement l'intention brute selon les règles de l'art (DTU), en nomenclature marchande professionnelle,
   et note l'interprétation retenue dans "assumptions".
 
+${scopeRules(scope)}
+
 RÈGLE D'OR — zéro oubli DTU :
 Tout ouvrage demandé est décomposé en son complexe technique complet (support, structure, étanchéité/protection,
-finition, fixations, accessoires). N'inclus QUE les lots demandés ou indissociables de l'ouvrage décrit
-(« réfection de couverture » n'inclut pas la charpente ; « toiture neuve » l'inclut).
+finition, fixations, accessoires) — dans le périmètre ci-dessus. N'inclus QUE les lots demandés ou indissociables de
+l'ouvrage décrit (« réfection de couverture » n'inclut pas la charpente ; « toiture neuve » l'inclut).
 
 Matrice par corps d'état (désignations à reprendre telles quelles) :
 - Charpente / Couverture : « ossature bois » est INTERDIT pour un toit (réservé aux murs MOB). Charpente =
@@ -313,7 +373,16 @@ RATIOS DE MAIN-D'ŒUVRE INDICATIFS (heures/homme) :
 - Ouvrage absent de la grille : raisonne par analogie avec la ligne la plus proche, sans dépasser l'ordre de grandeur.
 - "calculation_notes" : rappel court que le métré est indicatif et doit être validé sur site.
 - Si des références web sont fournies, croise-les avec ton expertise ; ne copie pas aveuglément.
-- Pas d'outillage (seaux, truelles, disques) sauf quantités significatives.`;
+- Pas d'outillage (seaux, truelles, disques) sauf quantités significatives.
+
+MATRICE D'OUVRAGES (recettes calculées automatiquement par ratios) :
+${formatRecipesForPrompt()}
+- Si la demande porte sur UN SEUL ouvrage entièrement couvert par une recette : "matched_recipe_id" = son identifiant
+  exact, "recipe_quantity" = quantité de base dans l'unité de la recette (mur : longueur × hauteur ; peinture : surface
+  développée murs + plafonds ; électricité / plomberie : surface habitable), "materials" = [], "masonry_wall_area_m2" = null,
+  et note dans "assumptions" comment la quantité a été obtenue. Les fournitures et heures sont alors calculées par le code.
+- Plusieurs lots (ex. toiture + doublage), ouvrage partiellement couvert ou quantité impossible à établir :
+  "matched_recipe_id" = null, "recipe_quantity" = null, et établis le métré complet comme décrit ci-dessus.`;
 
   const assumptionHint = takeoffAssumptionHint(instruction);
 
@@ -348,12 +417,29 @@ RATIOS DE MAIN-D'ŒUVRE INDICATIFS (heures/homme) :
   ],
   "masonry_wall_area_m2": 20,
   "labor_hours_estimate": 16,
-  "calculation_notes": "Métré indicatif — confirmer métrés et accès sur chantier."
+  "calculation_notes": "Métré indicatif — confirmer métrés et accès sur chantier.",
+  "matched_recipe_id": null,
+  "recipe_quantity": null
 }`,
     },
   );
 
   if (!takeoff) return null;
+
+  // Recette reconnue + quantité plausible : métré 100 % déterministe (Q × ratios),
+  // les fournitures éventuellement proposées par le modèle sont ignorées.
+  const recipe = findWorkRecipe(takeoff.matched_recipe_id);
+  const recipeQuantity = takeoff.recipe_quantity ?? null;
+  if (recipe && recipeQuantity && recipeQuantity <= MAX_RECIPE_QUANTITY) {
+    const { labor_phases, ...fromRecipe } = calculateTakeoffFromRecipe(recipe.id, recipeQuantity);
+    return {
+      ...fromRecipe,
+      assumptions: [...fromRecipe.assumptions, ...takeoff.assumptions],
+      // Les fournitures viennent des ratios, pas du web : pas de mention « sources web ».
+      webUsed: false,
+      laborPhases: labor_phases,
+    };
+  }
 
   // Calcul déterministe des parpaings/agglos à partir de la surface estimée par le
   // LLM (jamais l'inverse) — voir computeMasonryBlockCount(). Défensif : si le modèle
@@ -419,8 +505,13 @@ export function takeoffWarnings(takeoff: MaterialTakeoff, webUsed: boolean): str
   const warnings = [
     "Métré automatique — vérifie les quantités et hypothèses sur chantier avant envoi au client.",
   ];
-  if (takeoff.assumptions.length) {
-    warnings.push(`Hypothèses métré : ${takeoff.assumptions.slice(0, 3).join(" · ")}`);
+  const outOfScope = takeoff.assumptions.find((a) => a.startsWith(OUT_OF_SCOPE_PREFIX));
+  if (outOfScope) {
+    warnings.push(`Non chiffré, hors de ton métier : ${outOfScope.slice(OUT_OF_SCOPE_PREFIX.length).trim()}`);
+  }
+  const others = takeoff.assumptions.filter((a) => a !== outOfScope);
+  if (others.length) {
+    warnings.push(`Hypothèses métré : ${others.slice(0, 3).join(" · ")}`);
   }
   if (webUsed) {
     warnings.push("Références web utilisées pour estimer les quantités.");

@@ -17,6 +17,7 @@ export function LeadSentPanel({
   directToOwner = false,
   ownerName = null,
   artisans = [],
+  multiLot = false,
 }: {
   leadToken: string;
   signup?: LeadSignupOffer | null;
@@ -25,6 +26,8 @@ export function LeadSentPanel({
   directToOwner?: boolean;
   ownerName?: string | null;
   artisans?: MatchedArtisan[];
+  /** Plusieurs corps d'état : chaque artisan ne reçoit que la partie de son métier. */
+  multiLot?: boolean;
 }) {
   const canTrackOnline = signup?.canSignup && signup.email;
   const signupHref = signup?.canSignup
@@ -58,7 +61,9 @@ export function LeadSentPanel({
                 : "Ta demande est bien enregistrée. Les artisans la recevront dans quelques minutes."
               : directToOwner && ownerName
                 ? `${ownerName} a reçu ta demande dans sa messagerie, avec tes photos et l’estimation indicative. Il te recontactera par téléphone.`
-                : "Les artisans sélectionnés (2 à 3 maximum) reçoivent ta demande avec tes photos et ton estimation indicative, non engageante."}
+                : multiLot
+                  ? "Jusqu’à 3 artisans par métier reçoivent la partie de ta demande qui les concerne, avec tes photos."
+                  : "Les artisans sélectionnés (2 à 3 maximum) reçoivent ta demande avec tes photos et ton estimation indicative, non engageante."}
         </p>
         <p className="mx-auto max-w-md text-xs text-muted-foreground">
           Estimation indicative uniquement — ce n’est pas un devis. Seule la proposition validée par

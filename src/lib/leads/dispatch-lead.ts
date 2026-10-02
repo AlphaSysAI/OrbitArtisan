@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
 import { buildLeadRecapMessage } from "@/lib/leads/lead-recap-message";
+import { leadViewForLot } from "@/lib/leads/lots";
 import { notifyLeadToArtisan } from "@/lib/notifications/notify-events";
 import { LEAD_MEDIA_BUCKET } from "@/lib/leads/types";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
@@ -21,6 +22,7 @@ type LeadRow = {
   estimate_min: number | null;
   estimate_max: number | null;
   ai_qualification: LeadQualification | null;
+  lots: unknown;
 };
 
 type MatchRow = {
@@ -28,6 +30,7 @@ type MatchRow = {
   artisan_id: string;
   conversation_id: string | null;
   rank: number;
+  lot_index: number;
 };
 
 type MediaRow = {
@@ -53,7 +56,7 @@ export async function dispatchLeadToArtisans(token: string): Promise<DispatchLea
   const { data: lead, error: leadError } = await admin
     .from("leads")
     .select(
-      "id, status, description, contact_name, contact_email, contact_phone, address_label, trade_category, trade, estimate_min, estimate_max, ai_qualification",
+      "id, status, description, contact_name, contact_email, contact_phone, address_label, trade_category, trade, estimate_min, estimate_max, ai_qualification, lots",
     )
     .eq("public_token", token)
     .maybeSingle();
@@ -69,8 +72,9 @@ export async function dispatchLeadToArtisans(token: string): Promise<DispatchLea
 
   const { data: matches, error: matchError } = await admin
     .from("lead_matches")
-    .select("id, artisan_id, conversation_id, rank")
+    .select("id, artisan_id, conversation_id, rank, lot_index")
     .eq("lead_id", leadRow.id)
+    .order("lot_index", { ascending: true })
     .order("rank", { ascending: true });
 
   if (matchError || !matches?.length) return { ok: false, error: "no_matches" };
@@ -148,18 +152,21 @@ async function dispatchToArtisan(
   });
   if (!conversationId) return false;
 
+  // Multi-corps d'état : l'artisan ne reçoit que son lot (pas d'estimation ni de synthèse globales).
+  const view = leadViewForLot(lead, match.lot_index);
   const recapBody = buildLeadRecapMessage({
     contactName: lead.contact_name!.trim(),
     contactEmail: lead.contact_email,
     contactPhone: lead.contact_phone,
-    description: lead.description,
+    description: view.description,
     addressLabel: lead.address_label,
-    tradeCategory: lead.trade_category,
-    trade: lead.trade,
-    estimateMin: lead.estimate_min,
-    estimateMax: lead.estimate_max,
-    qualification: lead.ai_qualification,
+    tradeCategory: view.tradeCategory,
+    trade: view.trade,
+    estimateMin: view.estimateMin,
+    estimateMax: view.estimateMax,
+    qualification: view.qualification,
     mediaCount: media.length,
+    otherLotLabels: view.otherLotLabels,
   });
 
   const { data: message, error: messageError } = await admin

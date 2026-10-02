@@ -31,6 +31,7 @@ function ArtisanRow({
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{artisan.businessName}</p>
+        {artisan.lotLabel ? <p className="truncate text-xs text-muted-foreground">{artisan.lotLabel}</p> : null}
         {artisan.city || artisan.distanceKm != null ? (
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             <MapPin className="size-3.5 shrink-0" />

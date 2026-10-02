@@ -10,6 +10,7 @@ import { sendEmail } from "@/lib/email/send-email";
 import { signToken, verifyToken } from "@/lib/security/signed-token";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { formatPhoneFr } from "@/lib/phone";
+import { lotLabel, parseLeadLots, type LeadLot } from "@/lib/leads/lots";
 
 type Db = SupabaseClient;
 
@@ -25,6 +26,8 @@ type ConciergeProspect = {
   postal_code: string | null;
   trade: string;
   distance_km: number;
+  /** Lot concerné (demande multi-corps d'état), sinon null. */
+  lot?: string | null;
 };
 
 
@@ -36,35 +39,52 @@ type ConciergeProspect = {
 export async function runConciergeForLead(db: Db, leadToken: string): Promise<{ alertId: string | null }> {
   const { data: lead } = await db
     .from("leads")
-    .select("id, trade, trade_category, address_label, estimate_min, estimate_max, ai_qualification, latitude, longitude")
+    .select("id, trade, trade_category, address_label, estimate_min, estimate_max, ai_qualification, latitude, longitude, lots")
     .eq("public_token", leadToken)
     .maybeSingle();
   if (!lead?.id || lead.latitude === null) return { alertId: null };
 
-  const [{ count: registered }, { data: existing }] = await Promise.all([
-    db.from("lead_matches").select("id", { count: "exact", head: true }).eq("lead_id", lead.id),
+  const [{ data: matchRows }, { data: existing }] = await Promise.all([
+    db.from("lead_matches").select("lot_index").eq("lead_id", lead.id),
     db.from("concierge_alerts").select("id").eq("lead_id", lead.id).maybeSingle(),
   ]);
   if (existing?.id) return { alertId: existing.id as string };
-  const registeredCount = registered ?? 0;
-  if (registeredCount >= MAX_ARTISANS) return { alertId: null };
+  const registeredCount = matchRows?.length ?? 0;
 
-  const { data: candidates, error } = await db.rpc("concierge_prospect_candidates", {
-    p_lead_id: lead.id,
-    p_radius_km: CONCIERGE_RADIUS_KM,
-    p_limit: MAX_ARTISANS - registeredCount,
-  });
-  if (error) {
-    console.error("[concierge] candidats", error.message);
-    return { alertId: null };
-  }
-  const prospects = (candidates ?? []) as ConciergeProspect[];
+  // Un lot = un métier : on complète chaque lot à 3 artisans (lots validés, sinon le métier du lead).
+  const parsedLots = parseLeadLots(lead.lots);
+  const lots = parsedLots.length
+    ? parsedLots
+    : [{ trade_category: lead.trade_category as string | null, trade: lead.trade as string | null, summary: "" }];
+  const perLot = await Promise.all(
+    lots.map(async (lot, index) => {
+      const registeredInLot = (matchRows ?? []).filter((m) => (m.lot_index ?? 0) === index).length;
+      if (registeredInLot >= MAX_ARTISANS) return { registeredInLot, prospects: [] as ConciergeProspect[] };
+      const { data: candidates, error } = await db.rpc("concierge_prospect_candidates", {
+        p_lead_id: lead.id,
+        p_radius_km: CONCIERGE_RADIUS_KM,
+        p_limit: MAX_ARTISANS - registeredInLot,
+        ...(parsedLots.length ? { p_trade_category: lot.trade_category, p_trade: lot.trade } : {}),
+      });
+      if (error) console.error("[concierge] candidats", error.message);
+      const lotName = parsedLots.length > 1 ? lotLabel(lot as LeadLot) : null;
+      return {
+        registeredInLot,
+        prospects: ((candidates ?? []) as ConciergeProspect[]).map((p) => ({ ...p, lot: lotName })),
+      };
+    }),
+  );
+  if (perLot.every((l) => l.registeredInLot >= MAX_ARTISANS)) return { alertId: null };
+  // Un même prospect peut correspondre à deux lots : une seule ligne.
+  const seen = new Set<string>();
+  const prospects = perLot.flatMap((l) => l.prospects).filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
   // Chantier couvert partiellement mais aucun prospect : rien à faire pour l'admin.
   if (!prospects.length && registeredCount > 0) return { alertId: null };
 
   const summary = buildAnonymizedSummary({
     trade: lead.trade as string | null,
     trade_category: lead.trade_category as string | null,
+    lotLabels: parsedLots.length > 1 ? parsedLots.map(lotLabel) : undefined,
     address_label: lead.address_label as string | null,
     estimate_min: lead.estimate_min as number | null,
     estimate_max: lead.estimate_max as number | null,
@@ -103,7 +123,7 @@ async function notifyAdmin(input: {
     const rows = prospects
       .map(
         (p) =>
-          `<li><strong>${escapeHtml(p.business_name)}</strong> — <a href="tel:${escapeHtml(p.phone)}">${escapeHtml(formatPhoneFr(p.phone))}</a> · ${escapeHtml(p.city ?? "")} (${p.distance_km} km)</li>`,
+          `<li>${p.lot ? `[${escapeHtml(p.lot)}] ` : ""}<strong>${escapeHtml(p.business_name)}</strong> — <a href="tel:${escapeHtml(p.phone)}">${escapeHtml(formatPhoneFr(p.phone))}</a> · ${escapeHtml(p.city ?? "")} (${p.distance_km} km)</li>`,
       )
       .join("");
     await Promise.all(

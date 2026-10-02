@@ -29,12 +29,14 @@ import {
   finalizeWidgetLead,
   saveLeadBrief,
   startLead,
+  type ProposedLot,
   submitLeadContact,
   warmupLeadQualification,
 } from "./actions";
 import { ChatStep } from "./chat-step";
 import { EstimationLoadingPanel } from "./estimation-loading";
 import { LocationStep, type LeadLocation } from "./location-step";
+import { LotsStep } from "./lots-step";
 import { MediaStep } from "./media-step";
 
 const STEP_LABELS_GENERAL = ["Métier", "Besoin", "Photos", "Adresse", "Estimation"];
@@ -50,6 +52,8 @@ type WizardState = {
   messages: LeadChatMessage[];
   mediaCount: number;
   location: LeadLocation | null;
+  /** Corps d'état validés par le client (vide = métier choisi au départ). */
+  lots: ProposedLot[];
   matchedArtisans: MatchedArtisan[];
 };
 
@@ -59,6 +63,7 @@ type Screen =
   | { name: "chat" }
   | { name: "media" }
   | { name: "location" }
+  | { name: "lots" }
   | { name: "result" }
   | { name: "sent"; leadToken: string; signup?: LeadSignupOffer; warning?: "no_artisans" | "dispatch_pending" | "concierge" };
 
@@ -91,6 +96,7 @@ export function EstimationWizard({
     messages: [],
     mediaCount: 0,
     location: null,
+    lots: [],
     matchedArtisans: [],
   });
 
@@ -167,7 +173,7 @@ export function EstimationWizard({
       toast.error("L’adresse n’a pas pu être enregistrée.");
       return;
     }
-    setScreen({ name: "result" });
+    setScreen({ name: "lots" });
   }
 
   const labels = directToOwner
@@ -267,6 +273,20 @@ export function EstimationWizard({
         />
       )}
 
+      {!directToOwner && screen.name === "lots" && state.session && (
+        <LotsStep
+          token={state.session.token}
+          description={state.description}
+          messages={state.messages}
+          mediaCount={state.mediaCount}
+          onBack={() => setScreen({ name: "location" })}
+          onDone={(lots) => {
+            setState((s) => ({ ...s, lots }));
+            setScreen({ name: "result" });
+          }}
+        />
+      )}
+
       {screen.name === "result" && state.session && state.trade && directToOwner && owner && (
         <WidgetResultStep
           token={state.session.token}
@@ -295,13 +315,15 @@ export function EstimationWizard({
           token={state.session.token}
           categoryId={state.trade.categoryId}
           tradeId={state.trade.tradeId}
-          tradeLabel={state.trade.tradeLabel}
+          tradeLabel={
+            state.lots.length ? state.lots.map((l) => l.label).join(", ") : state.trade.tradeLabel
+          }
           description={state.description}
           messages={state.messages}
           mediaCount={state.mediaCount}
           location={state.location}
           ownerSlug={originArtisanSlug}
-          onBack={() => setScreen({ name: "location" })}
+          onBack={() => setScreen({ name: "lots" })}
           onSent={(artisans, payload) => {
             setState((s) => ({ ...s, matchedArtisans: artisans }));
             setScreen({
@@ -324,6 +346,7 @@ export function EstimationWizard({
             directToOwner={directToOwner}
             ownerName={owner?.businessName ?? null}
             artisans={state.matchedArtisans}
+            multiLot={state.lots.length > 1}
           />
           {screen.signup?.canSignup ? (
             <p className="text-center text-xs text-muted-foreground">
@@ -517,7 +540,13 @@ function ResultStep({
   const [state, setState] = React.useState<
     | { status: "loading" }
     | { status: "error" }
-    | { status: "done"; estimate: LeadEstimate; artisans: MatchedArtisan[]; prospectsNearby: boolean }
+    | {
+        status: "done";
+        estimate: LeadEstimate;
+        artisans: MatchedArtisan[];
+        prospectsNearby: boolean;
+        lots: ProposedLot[];
+      }
   >({ status: "loading" });
 
   const load = React.useCallback(async () => {
@@ -537,7 +566,13 @@ function ResultStep({
       setState({ status: "error" });
       return;
     }
-    setState({ status: "done", estimate: res.estimate, artisans: res.artisans, prospectsNearby: res.prospectsNearby });
+    setState({
+      status: "done",
+      estimate: res.estimate,
+      artisans: res.artisans,
+      prospectsNearby: res.prospectsNearby,
+      lots: res.lots,
+    });
   }, [token, categoryId, tradeId, description, messages, mediaCount, location]);
 
   React.useEffect(() => {
@@ -590,7 +625,7 @@ function ResultStep({
               : "Artisans à proximité"}
         </h3>
 
-        {state.artisans.length === 0 && (
+        {state.artisans.length === 0 && state.lots.length <= 1 && (
           <p className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
             {state.prospectsNearby
               ? "Aucun artisan de ce métier n’est encore inscrit sur Soline près de chez toi, mais nous connaissons des professionnels de ton secteur. Laisse tes coordonnées : nous leur transmettons ta demande et te recontactons au plus vite."
@@ -598,43 +633,35 @@ function ResultStep({
           </p>
         )}
 
-        <ul className="space-y-3">
-          {state.artisans.map((a) => (
-            <li key={a.id} className="flex items-center gap-3 rounded-xl border bg-card p-4">
-              <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-base font-semibold">
-                {a.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- logos hébergés hors domaines configurés
-                  <img src={a.logoUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  a.businessName.charAt(0).toUpperCase()
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-2">
-                  <span className="truncate font-medium">{a.businessName}</span>
-                  {a.slug === ownerSlug && (
-                    <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                      Ton artisan
+        {state.lots.length > 1 ? (
+          <div className="space-y-5">
+            {state.lots.map((lot, index) => {
+              const lotArtisans = state.artisans.filter((a) => a.lotIndex === index);
+              return (
+                <section key={`${lot.trade_category}-${lot.trade ?? ""}`} className="space-y-2">
+                  <h4 className="text-sm font-medium">
+                    {lot.label}
+                    <span className="ml-1.5 font-normal text-muted-foreground">
+                      · {lotArtisans.length
+                        ? `${lotArtisans.length} artisan${lotArtisans.length > 1 ? "s" : ""}`
+                        : "recherche en cours"}
                     </span>
+                  </h4>
+                  {lotArtisans.length ? (
+                    <ArtisanCards artisans={lotArtisans} ownerSlug={ownerSlug} />
+                  ) : (
+                    <p className="rounded-xl border border-dashed bg-card p-3 text-sm text-muted-foreground">
+                      Aucun {lot.label.toLowerCase()} inscrit près de chez toi : nous cherchons un professionnel et te
+                      recontactons.
+                    </p>
                   )}
-                </p>
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5 shrink-0" />
-                  {a.city ?? "—"}
-                  {a.distanceKm != null && <span className="text-foreground">· à {a.distanceKm} km</span>}
-                </p>
-              </div>
-              <Link
-                href={`/site/${a.slug}`}
-                target="_blank"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0 gap-1.5")}
-              >
-                <Store className="h-4 w-4" />
-                Vitrine
-              </Link>
-            </li>
-          ))}
-        </ul>
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <ArtisanCards artisans={state.artisans} ownerSlug={ownerSlug} />
+        )}
       </div>
 
       <LeadContactForm
@@ -644,6 +671,48 @@ function ResultStep({
         onSent={(payload) => onSent(state.artisans, payload)}
       />
     </StepShell>
+  );
+}
+
+function ArtisanCards({ artisans, ownerSlug }: { artisans: MatchedArtisan[]; ownerSlug: string | null }) {
+  return (
+    <ul className="space-y-3">
+      {artisans.map((a) => (
+        <li key={a.id} className="flex items-center gap-3 rounded-xl border bg-card p-4">
+          <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-base font-semibold">
+            {a.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- logos hébergés hors domaines configurés
+              <img src={a.logoUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              a.businessName.charAt(0).toUpperCase()
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2">
+              <span className="truncate font-medium">{a.businessName}</span>
+              {a.slug === ownerSlug && (
+                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  Ton artisan
+                </span>
+              )}
+            </p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              {a.city ?? "—"}
+              {a.distanceKm != null && <span className="text-foreground">· à {a.distanceKm} km</span>}
+            </p>
+          </div>
+          <Link
+            href={`/site/${a.slug}`}
+            target="_blank"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0 gap-1.5")}
+          >
+            <Store className="h-4 w-4" />
+            Vitrine
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

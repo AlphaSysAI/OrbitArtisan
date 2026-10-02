@@ -9,7 +9,9 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { artisanCanViewLead } from "@/lib/contacts/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
-import { formatCents } from "@/lib/format/money";
+import { formatEuros } from "@/lib/format/money";
+import { leadViewForLot } from "@/lib/leads/lots";
+import { formatTradeLabel } from "@/lib/trades/taxonomy";
 
 export default async function ArtisanLeadContactPage({
   params,
@@ -32,11 +34,11 @@ export default async function ArtisanLeadContactPage({
   const allowed = await artisanCanViewLead(leadId);
   if (!allowed) notFound();
 
-  const [{ data: lead }, { data: conversation }] = await Promise.all([
+  const [{ data: lead }, { data: conversation }, { data: match }] = await Promise.all([
     supabase
       .from("leads")
       .select(
-        "id, contact_name, contact_email, contact_phone, address_label, trade, trade_category, description, estimate_min, estimate_max, status, claimed_by_user_id",
+        "id, contact_name, contact_email, contact_phone, address_label, trade, trade_category, description, estimate_min, estimate_max, status, claimed_by_user_id, lots",
       )
       .eq("id", leadId)
       .maybeSingle(),
@@ -48,9 +50,14 @@ export default async function ArtisanLeadContactPage({
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase.from("lead_matches").select("lot_index").eq("lead_id", leadId).eq("artisan_id", profile.id).maybeSingle(),
   ]);
 
   if (!lead) notFound();
+
+  // Multi-corps d'état : l'artisan ne voit que son lot.
+  const view = leadViewForLot({ ...lead, ai_qualification: null }, match?.lot_index ?? 0);
+  const tradeLabel = formatTradeLabel(view.tradeCategory, view.trade);
 
   const label = formatContactDisplayName({
     name: lead.contact_name,
@@ -58,12 +65,10 @@ export default async function ArtisanLeadContactPage({
     fallback: "Prospect Soline",
   });
 
-  const formatEur = (cents: number) =>
-    formatCents(cents);
-
+  // Fourchette stockée en euros (pas en centimes).
   const estimate =
-    lead.estimate_min != null && lead.estimate_max != null
-      ? `${formatEur(lead.estimate_min)} – ${formatEur(lead.estimate_max)}`
+    view.estimateMin != null && view.estimateMax != null
+      ? `${formatEuros(view.estimateMin)} – ${formatEuros(view.estimateMax)}`
       : null;
 
   return (
@@ -109,10 +114,10 @@ export default async function ArtisanLeadContactPage({
             <CardDescription>Détails transmis via Soline.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {lead.trade || lead.trade_category ? (
+            {tradeLabel ? (
               <p>
-                <span className="text-muted-foreground">Corps de métier : </span>
-                {[lead.trade_category, lead.trade].filter(Boolean).join(" · ")}
+                <span className="text-muted-foreground">{view.multiLot ? "Ton lot : " : "Corps de métier : "}</span>
+                {tradeLabel}
               </p>
             ) : null}
             {lead.address_label ? (
@@ -127,11 +132,17 @@ export default async function ArtisanLeadContactPage({
                 {estimate}
               </p>
             ) : null}
-            {lead.description ? (
-              <p className="whitespace-pre-wrap leading-relaxed">{lead.description}</p>
+            {view.description ? (
+              <p className="whitespace-pre-wrap leading-relaxed">{view.description}</p>
             ) : (
               <p className="text-muted-foreground">Aucune description.</p>
             )}
+            {view.otherLotLabels.length ? (
+              <p className="text-xs text-muted-foreground">
+                Projet multi-corps d&apos;état : d&apos;autres artisans sont consultés pour{" "}
+                {view.otherLotLabels.join(", ")}.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 

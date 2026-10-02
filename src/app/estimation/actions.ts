@@ -20,6 +20,8 @@ import {
 } from "@/lib/leads/types";
 import { allowRequest, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { isValidTradeSelection } from "@/lib/trades/taxonomy";
+import { proposeLeadLots } from "@/lib/ai/propose-lead-lots";
+import { lotLabel, parseLeadLots, type LeadLot } from "@/lib/leads/lots";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 
@@ -179,6 +181,9 @@ type MatchRpcRow = {
   slug: string;
   distance_km: number | null;
   rank: number;
+  lot_index?: number | null;
+  trade_category?: string | null;
+  trade?: string | null;
 };
 
 type MatchRpcPayload = {
@@ -210,11 +215,113 @@ async function loadMatchedArtisans(
       slug: m.slug,
       distanceKm: m.distance_km,
       rank: m.rank,
+      lotIndex: m.lot_index ?? 0,
+      lotLabel: m.trade_category ? lotLabel({ trade_category: m.trade_category, trade: m.trade ?? null }) : null,
       city: (extraById.get(m.artisan_id)?.city as string | null) ?? null,
       logoUrl: (extraById.get(m.artisan_id)?.logo_url as string | null) ?? null,
       phone: (extraById.get(m.artisan_id)?.phone as string | null) ?? null,
     }))
-    .sort((a, b) => a.rank - b.rank);
+    .sort((a, b) => a.lotIndex - b.lotIndex || a.rank - b.rank);
+}
+
+export type ProposedLot = LeadLot & { label: string };
+
+/**
+ * Corps d'état nécessaires à la demande (widget public) : proposés par l'IA,
+ * le client valide ensuite (confirmLeadLots) avant la mise en relation.
+ */
+export async function proposeLots(input: {
+  token: string;
+  description: string;
+  messages?: LeadChatMessage[];
+}): Promise<{ ok: true; lots: ProposedLot[] } | Fail> {
+  const supabase = leadDb();
+  if (!(await allowRequest(RATE_LIMITS.leadAi, supabase))) return fail("rate_limited");
+  const lead = await openLeadByToken(supabase, input.token);
+  if (!lead) return fail("lead_not_found");
+  if (!lead.trade_category) return fail("invalid_trade");
+
+  const lots = await proposeLeadLots({
+    description: input.description,
+    messages: input.messages,
+    primary: { trade_category: lead.trade_category, trade: lead.trade },
+  });
+  return { ok: true, lots: lots.map((l) => ({ ...l, label: lotLabel(l) })) };
+}
+
+/**
+ * Enregistre les lots validés par le client. Figé dès la mise en relation.
+ * Plusieurs lots : la qualification (préchauffée sur le seul premier métier) est
+ * recalculée pour l'ensemble du projet.
+ */
+export async function confirmLeadLots(input: {
+  token: string;
+  lots: LeadLot[];
+  description: string;
+  messages?: LeadChatMessage[];
+  mediaCount: number;
+}): Promise<{ ok: true } | Fail> {
+  const lots = parseLeadLots(input.lots);
+  if (!lots.length) return fail("invalid_lots");
+  const supabase = leadDb();
+  if (!(await allowRequest(RATE_LIMITS.leadAi, supabase))) return fail("rate_limited");
+  const lead = await openLeadByToken(supabase, input.token);
+  if (!lead) return fail("lead_not_found");
+
+  const { count } = await supabase
+    .from("lead_matches")
+    .select("id", { count: "exact", head: true })
+    .eq("lead_id", lead.id);
+  if ((count ?? 0) > 0) return fail("already_matched");
+
+  const multi = lots.length > 1;
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      lots,
+      trade_category: lots[0]!.trade_category,
+      trade: lots[0]!.trade,
+      ...(multi ? { ai_qualification: null, estimate_min: null, estimate_max: null } : {}),
+    })
+    .eq("id", lead.id);
+  if (error) {
+    console.error("[estimation] confirmLeadLots", error.message);
+    return fail("save_failed");
+  }
+
+  if (multi) {
+    after(async () => {
+      try {
+        await prefetchLeadQualification({
+          token: input.token,
+          categoryId: lots[0]!.trade_category,
+          tradeId: lots[0]!.trade,
+          lotLabels: lots.map(lotLabel),
+          description: input.description,
+          mediaCount: input.mediaCount,
+          messages: input.messages,
+          artisanIds: [],
+        });
+      } catch (err) {
+        console.error("[estimation] confirmLeadLots prefetch", err instanceof Error ? err.message : err);
+      }
+    });
+  }
+  return { ok: true };
+}
+
+async function openLeadByToken(
+  supabase: SupabaseClient,
+  token: string,
+): Promise<{ id: string; trade_category: string | null; trade: string | null; lots: unknown } | null> {
+  const { data } = await supabase
+    .from("leads")
+    .select("id, trade_category, trade, lots, status, expires_at")
+    .eq("public_token", token)
+    .maybeSingle();
+  if (!data || data.status === "expired" || data.status === "converted") return null;
+  if (new Date(data.expires_at as string).getTime() <= Date.now()) return null;
+  return data as { id: string; trade_category: string | null; trade: string | null; lots: unknown };
 }
 
 /** Parcours général : géolocalisation + 2 à 3 artisans proches. */
@@ -229,7 +336,10 @@ export async function finalizeLead(input: {
   lat?: number | null;
   lng?: number | null;
   addressLabel?: string | null;
-}): Promise<{ ok: true; estimate: LeadEstimate; artisans: MatchedArtisan[]; prospectsNearby: boolean } | Fail> {
+}): Promise<
+  | { ok: true; estimate: LeadEstimate; artisans: MatchedArtisan[]; prospectsNearby: boolean; lots: ProposedLot[] }
+  | Fail
+> {
   const supabase = leadDb();
   if (!(await allowRequest(RATE_LIMITS.leadAi, supabase))) return fail("rate_limited");
 
@@ -272,12 +382,20 @@ export async function finalizeLead(input: {
 
   const matches = noArtisan ? [] : (payload?.matches ?? []);
 
-  const estimate = await resolveLeadEstimate(supabase, leadEstimateInput(input, matches));
+  const lead = await openLeadByToken(supabase, input.token);
+  const lots = parseLeadLots(lead?.lots).map((l) => ({ ...l, label: lotLabel(l) }));
+
+  // Lots validés : le premier porte la catégorie de référence (tarifs), tous l'étendue du chiffrage.
+  const estimate = await resolveLeadEstimate(supabase, {
+    ...leadEstimateInput(input, matches),
+    ...(lots[0] ? { categoryId: lots[0].trade_category, tradeId: lots[0].trade } : {}),
+    lotLabels: lots.length > 1 ? lots.map((l) => l.label) : undefined,
+  });
 
   const artisans = await loadMatchedArtisans(supabase, matches);
   // Aucun inscrit : des artisans de la zone (conciergerie) pourront être sollicités.
   const prospectsNearby = artisans.length === 0 ? await hasConciergeProspects(supabase, input.token).catch(() => false) : false;
-  return { ok: true, estimate, artisans, prospectsNearby };
+  return { ok: true, estimate, artisans, prospectsNearby, lots };
 }
 
 /** Widget artisan : fourchette basée sur l'artisan hôte, sans géolocalisation. */

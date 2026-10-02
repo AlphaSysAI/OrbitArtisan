@@ -74,20 +74,48 @@ function hasWorkDetailInMessage(message: string): boolean {
   );
 }
 
-/** Nom de client cité dans le message (pas « pour un autre client »). */
+/** Mots qui terminent un nom de client (« devis pour Loïc concernant… », « pour Loïc qui… »). */
+const CUSTOMER_HINT_TERMINATORS = new Set([
+  "qui",
+  "avec",
+  "concernant",
+  "devis",
+  "construction",
+  "pour",
+  "travaux",
+  "chantier",
+  "renovation",
+]);
+
+/** Civilités tolérées devant le nom (le point de « M. » ne coupe pas le nom). */
+const CIVILITY_RE = /^(?:m|mr|mme|mlle|monsieur|madame|mademoiselle)\.?\s+/i;
+
+/**
+ * Nom de client cité dans le message (pas « pour un autre client »), casse et accents
+ * d'origine conservés. Le nom s'arrête à la première ponctuation (, ; . : ! ? ( ou tiret
+ * isolé — « Jean-Pierre » reste entier) ou au premier mot de liaison, 3 mots maximum.
+ */
 export function extractCustomerHintFromMessage(message: string): string | null {
-  const m = normalize(message);
-  const patterns = [/\bpour\s+(.+)/, /\bclient\s+(.+)/, /\bchez\s+(.+)/];
+  const patterns = [/\bpour\s+(.+)/i, /\bclient\s+(.+)/i, /\bchez\s+(.+)/i];
   for (const re of patterns) {
-    const hit = m.match(re);
+    const hit = message.match(re);
     if (!hit?.[1]) continue;
-    const rest = hit[1].trim().split(/[:—-]/)[0]?.trim() ?? "";
-    if (/^autre\s+(client|contact)/.test(rest)) continue;
-    const tokens = rest.split(/\s+/).filter(Boolean);
-    while (tokens.length && CUSTOMER_HINT_STOPWORDS.has(tokens[0]!)) tokens.shift();
-    if (!tokens.length) continue;
-    const name = tokens.slice(0, 3).join(" ");
-    if (name.length >= 2 && !/^autre\s+(client|contact)/.test(name)) return name;
+    let rest = hit[1].trim();
+    const civility = rest.match(CIVILITY_RE)?.[0] ?? "";
+    rest = rest.slice(civility.length);
+    const head = rest.split(/[,;.:!?()\n—–]|\s-\s|\s-$/)[0]?.trim() ?? "";
+    const tokens = head.split(/\s+/).filter(Boolean);
+    while (tokens.length && CUSTOMER_HINT_STOPWORDS.has(normalize(tokens[0]!))) tokens.shift();
+    // « pour un (autre) client… » : pas un nom.
+    if (tokens.length && /^(client|contact)s?$/.test(normalize(tokens[0]!))) continue;
+    const nameTokens: string[] = [];
+    for (const t of tokens) {
+      if (CUSTOMER_HINT_TERMINATORS.has(normalize(t)) || nameTokens.length === 3) break;
+      nameTokens.push(t);
+    }
+    if (!nameTokens.length) continue;
+    const name = `${civility.trim() ? `${civility.trim()} ` : ""}${nameTokens.join(" ")}`;
+    if (name.length >= 2) return name;
   }
   return null;
 }

@@ -82,7 +82,7 @@ export async function processVoiceCallQuoteIntake(params: {
 
   const { data: profile } = await params.db
     .from("profiles")
-    .select("id, business_name, description, labor_rate_per_hour")
+    .select("id, business_name, description, labor_rate_per_hour, trade_category, trade")
     .eq("id", params.artisanId)
     .maybeSingle();
 
@@ -126,6 +126,8 @@ export async function processVoiceCallQuoteIntake(params: {
         business_name: profile.business_name,
         description: profile.description,
         labor_rate_per_hour: profile.labor_rate_per_hour,
+        trade_category: profile.trade_category,
+        trade: profile.trade,
       },
       services: serviceList,
       customerLabel: customerName,

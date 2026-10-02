@@ -13,6 +13,8 @@ type LeadRecapInput = {
   estimateMax: number | null;
   qualification: LeadQualification | null;
   mediaCount: number;
+  /** Demande multi-corps d'état : métiers des AUTRES lots (consultés séparément). */
+  otherLotLabels?: string[];
 };
 
 /** Premier message dans la messagerie artisan : récapitulatif structuré du lead. */
@@ -29,7 +31,7 @@ export function buildLeadRecapMessage(input: LeadRecapInput): string {
   const category = findTradeCategory(input.tradeCategory);
   const trade = findTrade(input.tradeCategory, input.trade);
   const tradeLabel = [category?.label, trade?.label].filter(Boolean).join(" · ");
-  if (tradeLabel) lines.push(`Métier : ${tradeLabel}`);
+  if (tradeLabel) lines.push(`${input.otherLotLabels?.length ? "Ton lot" : "Métier"} : ${tradeLabel}`);
   if (input.addressLabel) lines.push(`Lieu : ${input.addressLabel}`);
 
   if (input.estimateMin != null && input.estimateMax != null) {
@@ -39,7 +41,13 @@ export function buildLeadRecapMessage(input: LeadRecapInput): string {
     );
   }
 
-  lines.push("", "— Besoin —", input.description.trim());
+  lines.push("", input.otherLotLabels?.length ? "— Travaux de ton lot —" : "— Besoin —", input.description.trim());
+  if (input.otherLotLabels?.length) {
+    lines.push(
+      "",
+      `Projet multi-corps d'état : d'autres artisans sont consultés pour ${input.otherLotLabels.join(", ")}. Ne chiffre que ton lot.`,
+    );
+  }
 
   const q = input.qualification;
   if (q?.need_summary && q.need_summary !== input.description.trim()) {

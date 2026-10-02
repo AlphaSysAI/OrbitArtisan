@@ -11,6 +11,7 @@ import {
 import type { AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
 import { buildLeadQuoteDraft } from "@/lib/leads/build-lead-quote-draft";
 import type { LeadQualification } from "@/lib/ai/qualify-lead-schema";
+import { leadViewForLot } from "@/lib/leads/lots";
 
 /**
  * Devis prérempli à partir de la conversation ouverte (lead qualifié Soline).
@@ -23,6 +24,8 @@ export async function tryConversationContextQuote(params: {
     business_name: string | null;
     description: string | null;
     labor_rate_per_hour: number | null;
+    trade_category?: string | null;
+    trade?: string | null;
   };
   pageContext: AssistantPageContextPayload | null;
   message: string;
@@ -39,7 +42,7 @@ export async function tryConversationContextQuote(params: {
 
   const { data: match } = await supabase
     .from("lead_matches")
-    .select("id, conversation_id, quote_draft, quote_draft_created")
+    .select("id, conversation_id, quote_draft, quote_draft_created, lot_index")
     .eq("conversation_id", conversationId)
     .eq("artisan_id", profile.id)
     .maybeSingle();
@@ -69,7 +72,7 @@ export async function tryConversationContextQuote(params: {
     const { data: lead } = await supabase
       .from("leads")
       .select(
-        "description, contact_name, contact_email, estimate_min, estimate_max, trade_category, trade, ai_qualification",
+        "description, contact_name, contact_email, estimate_min, estimate_max, trade_category, trade, ai_qualification, lots",
       )
       .eq("id", conv.lead_id)
       .maybeSingle();
@@ -81,16 +84,23 @@ export async function tryConversationContextQuote(params: {
       leadMatchId: match.id,
       artisanId: profile.id,
       profile,
-      lead: {
-        description: lead.description,
-        contact_name: lead.contact_name,
-        contact_email: lead.contact_email,
-        estimate_min: lead.estimate_min,
-        estimate_max: lead.estimate_max,
-        trade_category: lead.trade_category,
-        trade: lead.trade,
-        ai_qualification: lead.ai_qualification as LeadQualification | null,
-      },
+      lead: (() => {
+        // Multi-corps d'état : brouillon limité au lot de l'artisan.
+        const view = leadViewForLot(
+          { ...lead, ai_qualification: lead.ai_qualification as LeadQualification | null },
+          match.lot_index as number | null,
+        );
+        return {
+          description: view.description,
+          contact_name: lead.contact_name,
+          contact_email: lead.contact_email,
+          estimate_min: view.estimateMin,
+          estimate_max: view.estimateMax,
+          trade_category: view.tradeCategory,
+          trade: view.trade,
+          ai_qualification: view.qualification,
+        };
+      })(),
     });
   }
 
