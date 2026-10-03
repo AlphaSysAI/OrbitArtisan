@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 
 import { type CatalogFamily, PlatformCatalogPanel } from "@/components/work-library/platform-catalog-panel";
 import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types";
 import type { WorkCategory, WorkItemWithCategory } from "@/lib/work-library/types";
+import { listWorkCategories, listWorkItems } from "@/lib/work-library/actions";
 
 import { WorkLibraryManager } from "./work-library-manager";
 
@@ -26,13 +26,21 @@ export function OuvragesClientShell({
   categories: WorkCategory[];
   defaultHourlyRateHt: number;
 }) {
-  const router = useRouter();
-  const [libraryKey, setLibraryKey] = React.useState(0);
+  // Bibliothèque détenue ici : un import depuis le catalogue l'alimente sans rechargement
+  // ni remontage, l'artisan garde sa position dans le catalogue Soline.
+  const [items, setItems] = React.useState(initialItems);
+  const [libraryCategories, setLibraryCategories] = React.useState(categories);
 
-  function handleImported() {
-    router.refresh();
-    setLibraryKey((k) => k + 1);
-  }
+  const refreshLibrary = React.useCallback(async () => {
+    const [itemsRes, categoriesRes] = await Promise.all([listWorkItems(), listWorkCategories()]);
+    if (itemsRes.ok) setItems(itemsRes.items);
+    if (categoriesRes.ok) setLibraryCategories(categoriesRes.items);
+  }, []);
+
+  const libraryRefs = React.useMemo(
+    () => new Set(items.map((i) => i.reference?.trim().toLowerCase()).filter((r): r is string => !!r)),
+    [items],
+  );
 
   return (
     <>
@@ -41,7 +49,8 @@ export function OuvragesClientShell({
         tradeLabel={platformTradeLabel}
         tradeConfigured={tradeConfigured}
         families={catalogFamilies}
-        onImported={handleImported}
+        libraryRefs={libraryRefs}
+        onImported={refreshLibrary}
       />
 
       <div className="space-y-2">
@@ -52,9 +61,10 @@ export function OuvragesClientShell({
       </div>
 
       <WorkLibraryManager
-        key={libraryKey}
-        initialItems={initialItems}
-        categories={categories}
+        items={items}
+        setItems={setItems}
+        categories={libraryCategories}
+        onRefresh={refreshLibrary}
         defaultHourlyRateHt={defaultHourlyRateHt}
       />
     </>

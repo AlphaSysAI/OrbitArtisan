@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { BookOpen, Download, Loader2 } from "lucide-react";
+import { BookOpen, Check, Download, Loader2 } from "lucide-react";
 
 import {
   browsePlatformCatalog,
@@ -28,6 +28,7 @@ export function PlatformCatalogPanel({
   tradeLabel,
   tradeConfigured,
   families,
+  libraryRefs,
   onImported,
 }: {
   items: PlatformWorkItem[];
@@ -35,7 +36,9 @@ export function PlatformCatalogPanel({
   tradeConfigured: boolean;
   /** Familles du catalogue complet, pour les artisans polyvalents. */
   families: CatalogFamily[];
-  onImported?: () => void;
+  /** Références déjà en bibliothèque (minuscules) : bouton « Ajouté » sur la ligne. */
+  libraryRefs: Set<string>;
+  onImported?: () => Promise<void>;
 }) {
   const [scope, setScope] = React.useState<string>(tradeConfigured ? MINE : "");
   const [browsed, setBrowsed] = React.useState<PlatformWorkItem[]>([]);
@@ -69,35 +72,42 @@ export function PlatformCatalogPanel({
     return terms.length ? items.filter((item) => matchesPlatformItem(item, terms)) : items;
   }, [items, query]);
 
+  const isInLibrary = React.useCallback(
+    (item: PlatformWorkItem) => libraryRefs.has(item.reference.trim().toLowerCase()),
+    [libraryRefs],
+  );
+  const toImport = React.useMemo(() => filtered.filter((i) => !isInLibrary(i)), [filtered, isInLibrary]);
+
+  // Le spinner reste jusqu'à la resynchro de la bibliothèque : la ligne passe directement à « Ajouté ».
   async function handleCopyOne(id: string) {
     setImportingId(id);
-    const res = await copyPlatformItemToLibrary(id);
-    setImportingId(null);
-    if (!res.ok) {
-      if (res.error === "already_imported") {
-        toast.message("Déjà dans ta bibliothèque", {
-          description: "Cet ouvrage a déjà été importé (même référence).",
-        });
-      } else {
+    try {
+      const res = await copyPlatformItemToLibrary(id);
+      if (!res.ok && res.error !== "already_imported") {
         toast.error("Import impossible.");
+        return;
       }
-      return;
+      await onImported?.();
+      if (res.ok) toast.success("Ouvrage ajouté à ta bibliothèque.");
+    } finally {
+      setImportingId(null);
     }
-    toast.success("Ouvrage ajouté à ta bibliothèque.");
-    onImported?.();
   }
 
   async function handleCopyAll() {
-    if (!window.confirm(`Importer les ${filtered.length} ouvrage(s) affiché(s) dans ta bibliothèque ?`)) return;
+    if (!window.confirm(`Importer ${toImport.length} ouvrage(s) dans ta bibliothèque ?`)) return;
     setImportingAll(true);
-    const res = await copyPlatformItemsToLibrary(filtered.map((i) => i.id));
-    setImportingAll(false);
-    if (!res.ok) {
-      toast.error("Import impossible.");
-      return;
+    try {
+      const res = await copyPlatformItemsToLibrary(toImport.map((i) => i.id));
+      if (!res.ok) {
+        toast.error("Import impossible.");
+        return;
+      }
+      await onImported?.();
+      toast.success(`${res.imported} ouvrage(s) importé(s)${res.skipped ? `, ${res.skipped} déjà présent(s)` : ""}.`);
+    } finally {
+      setImportingAll(false);
     }
-    toast.success(`${res.imported} ouvrage(s) importé(s)${res.skipped ? `, ${res.skipped} déjà présent(s)` : ""}.`);
-    onImported?.();
   }
 
   return (
@@ -121,7 +131,7 @@ export function PlatformCatalogPanel({
             </p>
           ) : null}
         </div>
-        {filtered.length > 0 ? (
+        {toImport.length > 0 ? (
           <Button
             type="button"
             variant="outline"
@@ -134,7 +144,7 @@ export function PlatformCatalogPanel({
             ) : (
               <Download className="mr-2 size-4" />
             )}
-            Importer les {filtered.length} affichés
+            Importer les {toImport.length} affichés
           </Button>
         ) : null}
       </div>
@@ -229,19 +239,21 @@ export function PlatformCatalogPanel({
                           {formatEuros(debourse)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            disabled={importingId === item.id}
-                            onClick={() => void handleCopyOne(item.id)}
-                          >
-                            {importingId === item.id ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              "Importer"
-                            )}
-                          </Button>
+                          {isInLibrary(item) ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
+                              <Check className="size-4" /> Ajouté
+                            </span>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={importingId === item.id || importingAll}
+                              onClick={() => void handleCopyOne(item.id)}
+                            >
+                              {importingId === item.id ? <Loader2 className="size-4 animate-spin" /> : "Importer"}
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );

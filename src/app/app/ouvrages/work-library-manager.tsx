@@ -7,7 +7,6 @@ import { Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import {
   deleteWorkItem,
   exportWorkItemsCsv,
-  listWorkItems,
 } from "@/lib/work-library/actions";
 import { computeDebourseSec } from "@/lib/work-library/pricing";
 import type { WorkCategory, WorkItemWithCategory } from "@/lib/work-library/types";
@@ -19,16 +18,21 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatEuros } from "@/lib/format/money";
 
+/** Bibliothèque de l'artisan : état détenu par le parent pour rester synchro avec le catalogue Soline. */
 export function WorkLibraryManager({
-  initialItems,
+  items,
+  setItems,
   categories,
+  onRefresh,
   defaultHourlyRateHt,
 }: {
-  initialItems: WorkItemWithCategory[];
+  items: WorkItemWithCategory[];
+  setItems: React.Dispatch<React.SetStateAction<WorkItemWithCategory[]>>;
   categories: WorkCategory[];
+  /** Recharge bibliothèque + catégories (après import, création, modification). */
+  onRefresh: () => Promise<void>;
   defaultHourlyRateHt: number;
 }) {
-  const [items, setItems] = React.useState(initialItems);
   const [query, setQuery] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -50,10 +54,7 @@ export function WorkLibraryManager({
     });
   }, [items, query, categoryFilter]);
 
-  async function refresh() {
-    const res = await listWorkItems({ q: query, categoryId: categoryFilter || null });
-    if (res.ok) setItems(res.items);
-  }
+  const refresh = onRefresh;
 
   async function handleDelete(id: string) {
     if (!window.confirm("Supprimer cet ouvrage ?")) return;
