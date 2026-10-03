@@ -25,6 +25,7 @@ export function WorkLibraryManager({
   categories,
   onRefresh,
   freshIds,
+  dropEpoch,
   defaultHourlyRateHt,
 }: {
   items: WorkItemWithCategory[];
@@ -34,6 +35,8 @@ export function WorkLibraryManager({
   onRefresh: () => Promise<void>;
   /** Ouvrages tout juste ajoutés : animation « feuille déposée ». */
   freshIds: ReadonlySet<string>;
+  /** Change à chaque dépôt : remonte les lignes fraîches pour rejouer l'animation. */
+  dropEpoch: number;
   defaultHourlyRateHt: number;
 }) {
   const [query, setQuery] = React.useState("");
@@ -184,7 +187,8 @@ export function WorkLibraryManager({
                 const debourse = computeDebourseSec(item.material_cost, item.labor_cost);
                 return (
                   <tr
-                    key={item.id}
+                    key={freshRank >= 0 ? `${item.id}-${dropEpoch}` : item.id}
+                    data-fresh-sheet={freshRank === 0 ? "true" : undefined}
                     className={cn("border-b last:border-0 hover:bg-muted/20", freshRank >= 0 && "animate-sheet-drop")}
                     style={freshRank >= 0 ? { animationDelay: `${Math.min(freshRank * 60, 900)}ms, ${Math.min(freshRank * 60, 900) + 400}ms` } : undefined}
                   >

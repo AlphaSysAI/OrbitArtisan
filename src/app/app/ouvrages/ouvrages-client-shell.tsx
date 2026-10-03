@@ -34,13 +34,45 @@ export function OuvragesClientShell({
   const [items, setItems] = React.useState(initialItems);
   const [libraryCategories, setLibraryCategories] = React.useState(categories);
 
-  // Ouvrages apparus au dernier rafraîchissement : animés « feuille déposée » dans la bibliothèque.
+  // « Feuille déposée » : ouvrages animés dans la bibliothèque. `dropEpoch` change à chaque
+  // dépôt pour remonter les lignes et rejouer l'animation (cas du rejeu à la fermeture).
   const [freshIds, setFreshIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  const [dropEpoch, setDropEpoch] = React.useState(0);
+  const [catalogOpen, setCatalogOpen] = React.useState(false);
   const itemsRef = React.useRef(items);
+  const catalogOpenRef = React.useRef(false);
+  /** Ajouts faits catalogue ouvert : rejoués quand l'artisan referme la fenêtre. */
+  const addedWhileOpen = React.useRef(new Set<string>());
+  const timers = React.useRef<ReturnType<typeof setTimeout>[]>([]);
+
   React.useEffect(() => {
     itemsRef.current = items;
   }, [items]);
-  const freshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach(clearTimeout);
+  }, []);
+
+  const later = React.useCallback((fn: () => void, ms: number) => {
+    timers.current.push(setTimeout(fn, ms));
+  }, []);
+
+  const dropSheets = React.useCallback(
+    (ids: Iterable<string>, opts?: { scroll?: boolean }) => {
+      const set = new Set(ids);
+      if (set.size === 0) return;
+      setFreshIds(set);
+      setDropEpoch((e) => e + 1);
+      if (opts?.scroll) {
+        later(() => {
+          document.querySelector('[data-fresh-sheet="true"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 30);
+      }
+      later(() => setFreshIds((current) => (current === set ? new Set() : current)), 2600 + Math.min(set.size * 60, 900));
+    },
+    [later],
+  );
 
   const refreshLibrary = React.useCallback(async () => {
     const [itemsRes, categoriesRes] = await Promise.all([listWorkItems(), listWorkCategories()]);
@@ -48,25 +80,32 @@ export function OuvragesClientShell({
       const known = new Set(itemsRef.current.map((i) => i.id));
       const added = itemsRes.items.filter((i) => !known.has(i.id)).map((i) => i.id);
       setItems(itemsRes.items);
-      if (added.length > 0) {
-        setFreshIds(new Set(added));
-        if (freshTimer.current) clearTimeout(freshTimer.current);
-        freshTimer.current = setTimeout(() => setFreshIds(new Set()), 2600);
-      }
+      if (catalogOpenRef.current) added.forEach((id) => addedWhileOpen.current.add(id));
+      dropSheets(added);
     }
     if (categoriesRes.ok) setLibraryCategories(categoriesRes.items);
-  }, []);
+  }, [dropSheets]);
 
-  React.useEffect(() => () => {
-    if (freshTimer.current) clearTimeout(freshTimer.current);
-  }, []);
+  const handleCatalogOpenChange = React.useCallback(
+    (open: boolean) => {
+      setCatalogOpen(open);
+      catalogOpenRef.current = open;
+      if (open) {
+        addedWhileOpen.current = new Set();
+        return;
+      }
+      const added = [...addedWhileOpen.current];
+      addedWhileOpen.current = new Set();
+      // Après le fondu de fermeture, on repose les fiches sous les yeux de l'artisan.
+      if (added.length > 0) later(() => dropSheets(added, { scroll: true }), 160);
+    },
+    [dropSheets, later],
+  );
 
   const libraryRefs = React.useMemo(
     () => new Set(items.map((i) => i.reference?.trim().toLowerCase()).filter((r): r is string => !!r)),
     [items],
   );
-
-  const [catalogOpen, setCatalogOpen] = React.useState(false);
 
   return (
     <>
@@ -74,7 +113,7 @@ export function OuvragesClientShell({
         type="button"
         size="lg"
         className="h-auto w-full justify-start gap-3 rounded-2xl px-5 py-4 text-left sm:w-auto"
-        onClick={() => setCatalogOpen(true)}
+        onClick={() => handleCatalogOpenChange(true)}
       >
         <BookOpen className="size-6 shrink-0" />
         <span className="flex flex-col">
@@ -87,7 +126,7 @@ export function OuvragesClientShell({
 
       <PlatformCatalogDialog
         open={catalogOpen}
-        onOpenChange={setCatalogOpen}
+        onOpenChange={handleCatalogOpenChange}
         items={platformItems}
         tradeLabel={platformTradeLabel}
         tradeConfigured={tradeConfigured}
@@ -102,6 +141,7 @@ export function OuvragesClientShell({
         categories={libraryCategories}
         onRefresh={refreshLibrary}
         freshIds={freshIds}
+        dropEpoch={dropEpoch}
         defaultHourlyRateHt={defaultHourlyRateHt}
       />
     </>
