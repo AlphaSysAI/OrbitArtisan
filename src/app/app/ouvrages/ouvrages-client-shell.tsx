@@ -2,7 +2,10 @@
 
 import * as React from "react";
 
-import { type CatalogFamily, PlatformCatalogPanel } from "@/components/work-library/platform-catalog-panel";
+import { BookOpen } from "lucide-react";
+
+import { type CatalogFamily, PlatformCatalogDialog } from "@/components/work-library/platform-catalog-dialog";
+import { Button } from "@/components/ui/button";
 import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types";
 import type { WorkCategory, WorkItemWithCategory } from "@/lib/work-library/types";
 import { listWorkCategories, listWorkItems } from "@/lib/work-library/actions";
@@ -42,9 +45,28 @@ export function OuvragesClientShell({
     [items],
   );
 
+  const [catalogOpen, setCatalogOpen] = React.useState(false);
+
   return (
     <>
-      <PlatformCatalogPanel
+      <Button
+        type="button"
+        size="lg"
+        className="h-auto w-full justify-start gap-3 rounded-2xl px-5 py-4 text-left sm:w-auto"
+        onClick={() => setCatalogOpen(true)}
+      >
+        <BookOpen className="size-6 shrink-0" />
+        <span className="flex flex-col">
+          <span className="text-base font-semibold">Piocher dans notre catalogue</span>
+          <span className="text-xs font-normal opacity-80">
+            Près de 1 900 ouvrages chiffrés, tous métiers — ajoute ceux qui te servent.
+          </span>
+        </span>
+      </Button>
+
+      <PlatformCatalogDialog
+        open={catalogOpen}
+        onOpenChange={setCatalogOpen}
         items={platformItems}
         tradeLabel={platformTradeLabel}
         tradeConfigured={tradeConfigured}
@@ -52,13 +74,6 @@ export function OuvragesClientShell({
         libraryRefs={libraryRefs}
         onImported={refreshLibrary}
       />
-
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold tracking-tight">Ma bibliothèque</h2>
-        <p className="text-sm text-muted-foreground">
-          Ouvrages que tu as créés, importés depuis le catalogue Soline ou ajoutés depuis tes devis.
-        </p>
-      </div>
 
       <WorkLibraryManager
         items={items}

@@ -31,7 +31,7 @@ export default async function OuvragesPage() {
     return (
       <div className="space-y-6">
         <AppPageHeader
-          title="Bibliothèque d'ouvrages"
+          title="Mes ouvrages"
           description="Catalogue de prix et prestations pré-chiffrées pour vos devis."
         />
         <div className="rounded-2xl border border-warning/40 bg-warning/5 p-5 text-sm">
@@ -64,8 +64,8 @@ export default async function OuvragesPage() {
   return (
     <div className="space-y-8">
       <AppPageHeader
-        title="Bibliothèque d'ouvrages"
-        description="Catalogue Soline filtré par métier, plus ta bibliothèque personnelle (import Excel / CSV, marges)."
+        title="Mes ouvrages"
+        description="Tes ouvrages et tes prix, prêts à être ajoutés à tes devis."
       />
 
       <OuvragesClientShell

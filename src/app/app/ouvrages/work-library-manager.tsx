@@ -165,7 +165,7 @@ export function WorkLibraryManager({
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                  Aucun ouvrage. Ajoute-en un ou importe un fichier Excel / CSV.
+                  Aucun ouvrage pour l&apos;instant. Pioche dans notre catalogue, crée le tien ou importe ton fichier Excel / CSV.
                 </td>
               </tr>
             ) : (
