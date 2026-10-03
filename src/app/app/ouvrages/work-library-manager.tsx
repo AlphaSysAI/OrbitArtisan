@@ -24,6 +24,7 @@ export function WorkLibraryManager({
   setItems,
   categories,
   onRefresh,
+  freshIds,
   defaultHourlyRateHt,
 }: {
   items: WorkItemWithCategory[];
@@ -31,6 +32,8 @@ export function WorkLibraryManager({
   categories: WorkCategory[];
   /** Recharge bibliothèque + catégories (après import, création, modification). */
   onRefresh: () => Promise<void>;
+  /** Ouvrages tout juste ajoutés : animation « feuille déposée ». */
+  freshIds: ReadonlySet<string>;
   defaultHourlyRateHt: number;
 }) {
   const [query, setQuery] = React.useState("");
@@ -55,6 +58,12 @@ export function WorkLibraryManager({
   }, [items, query, categoryFilter]);
 
   const refresh = onRefresh;
+
+  const freshOrder = React.useMemo(() => {
+    const order = new Map<string, number>();
+    for (const item of filtered) if (freshIds.has(item.id)) order.set(item.id, order.size);
+    return order;
+  }, [filtered, freshIds]);
 
   async function handleDelete(id: string) {
     if (!window.confirm("Supprimer cet ouvrage ?")) return;
@@ -170,9 +179,15 @@ export function WorkLibraryManager({
               </tr>
             ) : (
               filtered.map((item) => {
+                // Ajout en lot : dépôt en cascade, plafonné pour ne pas faire attendre.
+                const freshRank = freshIds.has(item.id) ? freshOrder.get(item.id) ?? 0 : -1;
                 const debourse = computeDebourseSec(item.material_cost, item.labor_cost);
                 return (
-                  <tr key={item.id} className="border-b last:border-0 hover:bg-muted/20">
+                  <tr
+                    key={item.id}
+                    className={cn("border-b last:border-0 hover:bg-muted/20", freshRank >= 0 && "animate-sheet-drop")}
+                    style={freshRank >= 0 ? { animationDelay: `${Math.min(freshRank * 60, 900)}ms, ${Math.min(freshRank * 60, 900) + 400}ms` } : undefined}
+                  >
                     <td className="px-4 py-3">
                       <div className="font-medium">{item.title}</div>
                       {item.reference ? (

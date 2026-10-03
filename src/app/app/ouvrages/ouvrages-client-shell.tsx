@@ -34,10 +34,31 @@ export function OuvragesClientShell({
   const [items, setItems] = React.useState(initialItems);
   const [libraryCategories, setLibraryCategories] = React.useState(categories);
 
+  // Ouvrages apparus au dernier rafraîchissement : animés « feuille déposée » dans la bibliothèque.
+  const [freshIds, setFreshIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  const itemsRef = React.useRef(items);
+  React.useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+  const freshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const refreshLibrary = React.useCallback(async () => {
     const [itemsRes, categoriesRes] = await Promise.all([listWorkItems(), listWorkCategories()]);
-    if (itemsRes.ok) setItems(itemsRes.items);
+    if (itemsRes.ok) {
+      const known = new Set(itemsRef.current.map((i) => i.id));
+      const added = itemsRes.items.filter((i) => !known.has(i.id)).map((i) => i.id);
+      setItems(itemsRes.items);
+      if (added.length > 0) {
+        setFreshIds(new Set(added));
+        if (freshTimer.current) clearTimeout(freshTimer.current);
+        freshTimer.current = setTimeout(() => setFreshIds(new Set()), 2600);
+      }
+    }
     if (categoriesRes.ok) setLibraryCategories(categoriesRes.items);
+  }, []);
+
+  React.useEffect(() => () => {
+    if (freshTimer.current) clearTimeout(freshTimer.current);
   }, []);
 
   const libraryRefs = React.useMemo(
@@ -80,6 +101,7 @@ export function OuvragesClientShell({
         setItems={setItems}
         categories={libraryCategories}
         onRefresh={refreshLibrary}
+        freshIds={freshIds}
         defaultHourlyRateHt={defaultHourlyRateHt}
       />
     </>
