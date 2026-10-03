@@ -4,7 +4,8 @@ import { inflateRawSync } from "node:zlib";
  * Lecteur XLSX minimal, sans dépendance (les bibliothèques courantes tirent des
  * dépendances vulnérables). Lit la PREMIÈRE feuille en lignes { en-tête: valeur }.
  * Garde-fous « zip bomb » : taille décompressée bornée par entrée et au total.
- * Usage : import admin de prospects (fichier de confiance moyenne, taille ≤ 4 Mo).
+ * Usages : import admin de prospects, import de la bibliothèque d'ouvrages (taille ≤ 4 Mo).
+ * Les cellules numériques sont rendues brutes (« 12.5 », « 0.2 » pour 20 %).
  */
 
 const MAX_ENTRY_BYTES = 40 * 1024 * 1024;
@@ -80,7 +81,8 @@ function colIndex(ref: string): number {
   return n - 1;
 }
 
-export function readXlsxRows(file: Buffer, maxRows = 5000): Record<string, string>[] {
+/** Première feuille → matrice de cellules texte (lignes vides incluses). */
+export function readXlsxMatrix(file: Buffer, maxRows = 5000): string[][] {
   const entries = listEntries(file);
   const byName = new Map(entries.map((e) => [e.name, e]));
   const budget = { left: MAX_TOTAL_BYTES };
@@ -125,9 +127,13 @@ export function readXlsxRows(file: Buffer, maxRows = 5000): Record<string, strin
       }
       cells[idx] = value;
     }
-    matrix.push(cells);
+    matrix.push(Array.from(cells, (v) => v ?? ""));
   }
+  return matrix;
+}
 
+export function readXlsxRows(file: Buffer, maxRows = 5000): Record<string, string>[] {
+  const matrix = readXlsxMatrix(file, maxRows + 1);
   const [headers, ...data] = matrix;
   if (!headers) return [];
   return data

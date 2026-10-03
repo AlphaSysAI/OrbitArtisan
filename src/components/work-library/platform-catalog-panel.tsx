@@ -3,46 +3,70 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { BookOpen, Download, Loader2, Sparkles } from "lucide-react";
+import { BookOpen, Download, Loader2 } from "lucide-react";
 
 import {
-  copyAllPlatformCatalogToLibrary,
+  browsePlatformCatalog,
   copyPlatformItemToLibrary,
+  copyPlatformItemsToLibrary,
 } from "@/lib/work-library/platform-catalog-actions";
 import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types";
+import { foldSearchText, matchesPlatformItem } from "@/lib/work-library/platform-catalog-search";
 import { computeDebourseSec } from "@/lib/work-library/pricing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { formatEuros } from "@/lib/format/money";
 
+export type CatalogFamily = { id: string; label: string; count: number };
+
+const MINE = "mine";
+
 export function PlatformCatalogPanel({
-  items,
+  items: tradeItems,
   tradeLabel,
   tradeConfigured,
+  families,
   onImported,
 }: {
   items: PlatformWorkItem[];
   tradeLabel: string | null;
   tradeConfigured: boolean;
+  /** Familles du catalogue complet, pour les artisans polyvalents. */
+  families: CatalogFamily[];
   onImported?: () => void;
 }) {
+  const [scope, setScope] = React.useState<string>(tradeConfigured ? MINE : "");
+  const [browsed, setBrowsed] = React.useState<PlatformWorkItem[]>([]);
+  const [browsing, setBrowsing] = React.useState(false);
   const [query, setQuery] = React.useState("");
+
+  React.useEffect(() => {
+    if (!scope || scope === MINE) return;
+    let cancelled = false;
+    setBrowsing(true);
+    void browsePlatformCatalog(scope).then((res) => {
+      if (cancelled) return;
+      setBrowsing(false);
+      setBrowsed(res.ok ? res.items : []);
+      if (!res.ok) toast.error("Catalogue indisponible.");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [scope]);
+
+  const items = React.useMemo(
+    () => (scope === MINE ? tradeItems : scope ? browsed : []),
+    [scope, tradeItems, browsed],
+  );
   const [importingId, setImportingId] = React.useState<string | null>(null);
   const [importingAll, setImportingAll] = React.useState(false);
 
   const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        item.reference.toLowerCase().includes(q) ||
-        item.workCategory.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q),
-    );
+    const terms = foldSearchText(query).split(" ").filter(Boolean);
+    return terms.length ? items.filter((item) => matchesPlatformItem(item, terms)) : items;
   }, [items, query]);
 
   async function handleCopyOne(id: string) {
@@ -54,8 +78,6 @@ export function PlatformCatalogPanel({
         toast.message("Déjà dans ta bibliothèque", {
           description: "Cet ouvrage a déjà été importé (même référence).",
         });
-      } else if (res.error === "forbidden_trade") {
-        toast.error("Ouvrage non disponible pour ton métier.");
       } else {
         toast.error("Import impossible.");
       }
@@ -66,36 +88,16 @@ export function PlatformCatalogPanel({
   }
 
   async function handleCopyAll() {
-    if (!window.confirm(`Importer les ${items.length} ouvrages Soline dans ta bibliothèque ?`)) return;
+    if (!window.confirm(`Importer les ${filtered.length} ouvrage(s) affiché(s) dans ta bibliothèque ?`)) return;
     setImportingAll(true);
-    const res = await copyAllPlatformCatalogToLibrary();
+    const res = await copyPlatformItemsToLibrary(filtered.map((i) => i.id));
     setImportingAll(false);
     if (!res.ok) {
       toast.error("Import impossible.");
       return;
     }
-    toast.success(`${res.imported} ouvrage(s) importé(s)${res.skipped ? `, ${res.skipped} ignoré(s)` : ""}.`);
+    toast.success(`${res.imported} ouvrage(s) importé(s)${res.skipped ? `, ${res.skipped} déjà présent(s)` : ""}.`);
     onImported?.();
-  }
-
-  if (!tradeConfigured) {
-    return (
-      <section className="rounded-2xl border border-dashed border-brand/40 bg-brand/5 p-6">
-        <div className="flex items-start gap-3">
-          <Sparkles className="mt-0.5 size-5 shrink-0 text-brand" />
-          <div className="space-y-2">
-            <h2 className="font-display text-lg font-semibold">Catalogue Soline par métier</h2>
-            <p className="text-sm text-muted-foreground">
-              Renseigne ton métier dans les réglages pour afficher les ouvrages génériques adaptés à
-              ton activité.
-            </p>
-            <Link href="/app/reglages?tab=activite" className={buttonVariants({ size: "sm" })}>
-              Configurer mon métier
-            </Link>
-          </div>
-        </div>
-      </section>
-    );
   }
 
   return (
@@ -106,15 +108,20 @@ export function PlatformCatalogPanel({
             <BookOpen className="size-5 text-brand" />
             <h2 className="font-display text-lg font-semibold">Catalogue Soline</h2>
           </div>
-          {tradeLabel ? (
-            <p className="text-sm font-medium text-brand">{tradeLabel}</p>
-          ) : null}
           <p className="max-w-2xl text-sm text-muted-foreground">
-            {items.length} ouvrage(s) générique(s) pour ton métier — prix indicatifs marché France
-            2025-2026. Importe-les dans ta bibliothèque pour les ajuster.
+            Ouvrages génériques — prix indicatifs marché France 2025-2026. Importe-les dans ta
+            bibliothèque pour les ajuster.
           </p>
+          {!tradeConfigured ? (
+            <p className="text-sm">
+              <Link href="/app/reglages?tab=activite" className="font-medium text-brand underline">
+                Renseigne ton métier
+              </Link>{" "}
+              pour afficher directement les ouvrages de ton activité.
+            </p>
+          ) : null}
         </div>
-        {items.length > 0 ? (
+        {filtered.length > 0 ? (
           <Button
             type="button"
             variant="outline"
@@ -127,27 +134,62 @@ export function PlatformCatalogPanel({
             ) : (
               <Download className="mr-2 size-4" />
             )}
-            Tout importer
+            Importer les {filtered.length} affichés
           </Button>
         ) : null}
       </div>
 
-      {items.length === 0 ? (
+      <div className="grid gap-4 sm:grid-cols-2 lg:max-w-2xl">
+        <div className="space-y-2">
+          <Label htmlFor="platform-catalog-scope">Afficher</Label>
+          <select
+            id="platform-catalog-scope"
+            className="flex h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none"
+            value={scope}
+            onChange={(e) => {
+              setQuery("");
+              setScope(e.target.value);
+            }}
+          >
+            {tradeConfigured ? (
+              <option value={MINE}>
+                Mon métier{tradeLabel ? ` — ${tradeLabel}` : ""} ({tradeItems.length})
+              </option>
+            ) : (
+              <option value="">Choisir une famille de métiers…</option>
+            )}
+            <optgroup label="Tout le catalogue">
+              {families.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.label} ({f.count})
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="platform-catalog-search">Filtrer</Label>
+          <Input
+            id="platform-catalog-search"
+            placeholder="Rechercher un ouvrage…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {browsing ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Chargement…
+        </p>
+      ) : items.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Aucun ouvrage catalogue pour ce métier pour l&apos;instant. Tu peux créer les tiens ou
-          importer un CSV.
+          {scope
+            ? "Aucun ouvrage catalogue ici pour l'instant. Tu peux créer les tiens ou importer un fichier Excel / CSV."
+            : "Choisis une famille de métiers pour parcourir le catalogue."}
         </p>
       ) : (
         <>
-          <div className="max-w-md space-y-2">
-            <Label htmlFor="platform-catalog-search">Filtrer le catalogue</Label>
-            <Input
-              id="platform-catalog-search"
-              placeholder="Rechercher un ouvrage…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
 
           <div className="overflow-x-auto rounded-xl border bg-card/80">
             <table className="w-full min-w-[720px] text-sm">

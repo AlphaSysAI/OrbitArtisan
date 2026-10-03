@@ -4,6 +4,7 @@
  */
 import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types";
 import { PLATFORM_WORK_CATALOG_EXTRA } from "@/lib/work-library/platform-catalog-data-extra";
+import { PLATFORM_WORK_CATALOG_V2 } from "@/lib/work-library/catalog";
 
 function item(
   partial: Omit<PlatformWorkItem, "tradeIds"> & { tradeIds?: string[] },
@@ -137,7 +138,7 @@ export const PLATFORM_WORK_CATALOG: PlatformWorkItem[] = [
   item({
     id: "cov-etancheite-toit",
     tradeCategoryId: "couverture",
-    tradeIds: ["couvreur", "etancheur"],
+    tradeIds: ["couvreur"],
     workCategory: "Étanchéité",
     reference: "COV-003",
     title: "Réfection étanchéité toiture terrasse",
@@ -321,7 +322,7 @@ export const PLATFORM_WORK_CATALOG: PlatformWorkItem[] = [
   item({
     id: "pc-pac-air-eau",
     tradeCategoryId: "plomberie-chauffage",
-    tradeIds: ["chauffagiste", "climaticien", "installateur-pompe-a-chaleur"],
+    tradeIds: ["chauffagiste", "climaticien"],
     workCategory: "Chauffage",
     reference: "PC-PAC-001",
     title: "Installation PAC air/eau (mono-split)",
@@ -494,7 +495,7 @@ export const PLATFORM_WORK_CATALOG: PlatformWorkItem[] = [
   item({
     id: "ext-cloture",
     tradeCategoryId: "amenagement-exterieur",
-    tradeIds: ["cloturiste", "poseur-portails-clotures"],
+    tradeIds: ["cloturiste"],
     workCategory: "Clôture",
     reference: "EXT-CLO-001",
     title: "Clôture panneaux rigides",
@@ -572,4 +573,5 @@ export const PLATFORM_WORK_CATALOG: PlatformWorkItem[] = [
   }),
 
   ...PLATFORM_WORK_CATALOG_EXTRA,
+  ...PLATFORM_WORK_CATALOG_V2,
 ];

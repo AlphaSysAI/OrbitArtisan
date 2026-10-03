@@ -106,11 +106,7 @@ export function WorkItemCombobox({
       return;
     }
 
-    if (res.error === "forbidden_trade") {
-      toast.error("Ouvrage non disponible pour ton métier.");
-    } else {
-      toast.error("Impossible d'ajouter cet ouvrage.");
-    }
+    toast.error("Impossible d'ajouter cet ouvrage.");
   }
 
   return (

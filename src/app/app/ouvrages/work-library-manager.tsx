@@ -7,12 +7,12 @@ import { Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import {
   deleteWorkItem,
   exportWorkItemsCsv,
-  importWorkItemsCsv,
   listWorkItems,
 } from "@/lib/work-library/actions";
 import { computeDebourseSec } from "@/lib/work-library/pricing";
 import type { WorkCategory, WorkItemWithCategory } from "@/lib/work-library/types";
 import { WorkItemFormDialog } from "@/components/work-library/work-item-form-dialog";
+import { WorkItemsImportDialog } from "@/components/work-library/work-items-import-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +33,8 @@ export function WorkLibraryManager({
   const [categoryFilter, setCategoryFilter] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<WorkItemWithCategory | null>(null);
-  const [importing, setImporting] = React.useState(false);
+  const [importFile, setImportFile] = React.useState<File | null>(null);
+  const closeImport = React.useCallback(() => setImportFile(null), []);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const filtered = React.useMemo(() => {
@@ -80,22 +81,6 @@ export function WorkLibraryManager({
     URL.revokeObjectURL(url);
   }
 
-  async function handleImportFile(file: File) {
-    setImporting(true);
-    const text = await file.text();
-    const res = await importWorkItemsCsv(text);
-    setImporting(false);
-    if (!res.ok) {
-      toast.error("Import impossible — vérifie le format CSV.");
-      return;
-    }
-    toast.success(`${res.imported} ouvrage(s) importé(s).`);
-    if (res.parseErrors.length) {
-      toast.warning(res.parseErrors.slice(0, 3).join(" · "));
-    }
-    await refresh();
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -140,18 +125,18 @@ export function WorkLibraryManager({
             <Plus className="mr-2 size-4" />
             Ajouter
           </Button>
-          <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
+          <Button type="button" variant="outline" onClick={() => fileRef.current?.click()}>
             <Upload className="mr-2 size-4" />
-            {importing ? "Import…" : "Importer CSV"}
+            Importer Excel / CSV
           </Button>
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) void handleImportFile(file);
+              if (file) setImportFile(file);
               e.target.value = "";
             }}
           />
@@ -179,7 +164,7 @@ export function WorkLibraryManager({
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                  Aucun ouvrage. Ajoute-en un ou importe un CSV.
+                  Aucun ouvrage. Ajoute-en un ou importe un fichier Excel / CSV.
                 </td>
               </tr>
             ) : (
@@ -230,6 +215,8 @@ export function WorkLibraryManager({
           </tbody>
         </table>
       </div>
+
+      <WorkItemsImportDialog file={importFile} onClose={closeImport} onImported={() => void refresh()} />
 
       <WorkItemFormDialog
         open={dialogOpen}

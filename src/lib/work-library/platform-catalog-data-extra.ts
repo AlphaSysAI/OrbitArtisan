@@ -734,7 +734,7 @@ export const PLATFORM_WORK_CATALOG_EXTRA: PlatformWorkItem[] = [
   item({
     id: "pis-plage-margelles",
     tradeCategoryId: "piscine-spa",
-    tradeIds: ["poseur-plages-margelles", "macon-paysagiste"],
+    tradeIds: ["poseur-plages-margelles"],
     workCategory: "Aménagement",
     reference: "PIS-009",
     title: "Plage piscine dalles pierre reconstituée",

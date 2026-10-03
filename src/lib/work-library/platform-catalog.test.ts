@@ -7,6 +7,7 @@ import {
 } from "@/lib/work-library/platform-catalog";
 import { PLATFORM_WORK_CATALOG } from "@/lib/work-library/platform-catalog-data";
 import { TRADE_CATEGORIES } from "@/lib/trades/taxonomy";
+import { isVatRate, isWorkUnit } from "@/lib/work-library/units";
 
 describe("filterPlatformCatalog", () => {
   it("retourne une liste vide sans catégorie métier", () => {
@@ -34,6 +35,12 @@ describe("filterPlatformCatalog", () => {
 });
 
 describe("searchPlatformCatalog", () => {
+  it("ignore les accents et combine les mots", () => {
+    const hits = searchPlatformCatalog("gros-oeuvre", "macon", "dalle beton 15");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((h) => /b[ée]ton/i.test(`${h.title} ${h.description}`))).toBe(true);
+  });
+
   it("recherche dans le périmètre métier", () => {
     const hits = searchPlatformCatalog("second-oeuvre", "peintre-batiment", "peinture");
     expect(hits.length).toBeGreaterThan(0);
@@ -69,5 +76,32 @@ describe("PLATFORM_WORK_CATALOG", () => {
         ).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("ids uniques", () => {
+    const ids = PLATFORM_WORK_CATALOG.map((i) => i.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("chaque métier (hors « autre ») voit au moins 15 ouvrages", () => {
+    for (const category of TRADE_CATEGORIES.filter((c) => c.id !== "autre")) {
+      for (const trade of category.trades) {
+        expect(filterPlatformCatalog(category.id, trade.id).length, `${category.id} / ${trade.id}`).toBeGreaterThanOrEqual(15);
+      }
+    }
+  });
+
+  it("métiers, unités, TVA et prix cohérents", () => {
+    const tradeIds = new Map(TRADE_CATEGORIES.map((c) => [c.id, new Set(c.trades.map((t) => t.id))]));
+    const problems: string[] = [];
+    for (const i of PLATFORM_WORK_CATALOG) {
+      const tag = `${i.reference} ${i.title}`;
+      for (const t of i.tradeIds) if (!tradeIds.get(i.tradeCategoryId)?.has(t)) problems.push(`${tag} : métier ${t}`);
+      if (!isWorkUnit(i.unit)) problems.push(`${tag} : unité ${i.unit}`);
+      if (!isVatRate(i.defaultVatRate)) problems.push(`${tag} : TVA ${i.defaultVatRate}`);
+      if (!(i.unitPriceHt > 0)) problems.push(`${tag} : prix`);
+      if (i.laborCost + i.materialCost > i.unitPriceHt + 0.01) problems.push(`${tag} : déboursé > prix`);
+    }
+    expect(problems).toEqual([]);
   });
 });

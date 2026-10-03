@@ -3,7 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { parseWorkItemsCsv, serializeWorkItemsCsv } from "@/lib/work-library/csv";
+import {
+  decodeTextBytes,
+  mapWorkItemMatrix,
+  MAX_IMPORT_ROWS,
+  parseDelimitedText,
+  serializeWorkItemsCsv,
+  type WorkItemsImportResult,
+} from "@/lib/work-library/csv";
+import { readXlsxMatrix } from "@/lib/files/read-xlsx";
 import type { WorkItemInput, WorkItemWithCategory } from "@/lib/work-library/types";
 import { isVatRate, isWorkUnit, VAT_RATES } from "@/lib/work-library/units";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -168,38 +176,103 @@ export async function deleteWorkItem(id: string) {
   return { ok: true as const };
 }
 
-export async function importWorkItemsCsv(csvText: string) {
-  const { rows, errors } = parseWorkItemsCsv(csvText);
-  if (rows.length === 0) {
-    return { ok: false as const, error: "empty_csv" as const, parseErrors: errors, imported: 0 };
+const MAX_IMPORT_FILE_BYTES = 4 * 1024 * 1024;
+
+type ImportFileError = "no_file" | "too_large" | "xls_unsupported" | "unreadable" | "empty";
+
+/** Fichier CSV ou XLSX → lignes d'ouvrages (même analyse pour l'aperçu et l'import). */
+async function readWorkItemsFile(
+  formData: FormData,
+): Promise<{ ok: true; result: WorkItemsImportResult } | { ok: false; error: ImportFileError }> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "no_file" };
+  if (file.size > MAX_IMPORT_FILE_BYTES) return { ok: false, error: "too_large" };
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const name = file.name.toLowerCase();
+  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
+  const isOle = bytes[0] === 0xd0 && bytes[1] === 0xcf;
+  if (isOle || name.endsWith(".xls")) return { ok: false, error: "xls_unsupported" };
+
+  let matrix: string[][];
+  try {
+    matrix = isZip ? readXlsxMatrix(Buffer.from(bytes), MAX_IMPORT_ROWS + 20) : parseDelimitedText(decodeTextBytes(bytes));
+  } catch {
+    return { ok: false, error: "unreadable" };
+  }
+  const result = mapWorkItemMatrix(matrix.filter((r) => r.some((c) => c.trim() !== "")));
+  if (result.rows.length === 0) return { ok: false, error: "empty" };
+  return { ok: true, result };
+}
+
+/** Aperçu avant import : colonnes reconnues, 5 premières lignes, alertes. Aucune écriture. */
+export async function analyzeWorkItemsFile(formData: FormData) {
+  await requireUserId();
+  const read = await readWorkItemsFile(formData);
+  if (!read.ok) return read;
+  const { rows, errors, detectedColumns, headerFound, truncated } = read.result;
+  return {
+    ok: true as const,
+    total: rows.length,
+    preview: rows.slice(0, 5),
+    errors: errors.slice(0, 20),
+    errorCount: errors.length,
+    detectedColumns,
+    headerFound,
+    truncated,
+  };
+}
+
+const dedupeKey = (title: string, unit: string) => `${title.trim().toLowerCase()}|${unit}`;
+
+/**
+ * Import confirmé : le fichier est ré-analysé côté serveur (rien n'est repris du client).
+ * Doublons ignorés : même référence, ou même désignation + unité, déjà en bibliothèque ou dans le fichier.
+ */
+export async function importWorkItemsFile(formData: FormData) {
+  const { supabase, userId } = await requireUserId();
+  const read = await readWorkItemsFile(formData);
+  if (!read.ok) return { ok: false as const, error: read.error, imported: 0, skipped: 0 };
+  const { rows } = read.result;
+
+  const [{ data: categories }, { data: existing }] = await Promise.all([
+    supabase.from("work_categories").select("id, name").eq("user_id", userId),
+    supabase.from("work_items").select("reference, title, unit").eq("user_id", userId),
+  ]);
+
+  const seenRefs = new Set((existing ?? []).map((e) => (e.reference as string | null)?.trim().toLowerCase()).filter(Boolean));
+  const seenTitles = new Set((existing ?? []).map((e) => dedupeKey(e.title as string, e.unit as string)));
+  const fresh = rows.filter((row) => {
+    const ref = row.reference.trim().toLowerCase();
+    const key = dedupeKey(row.title, row.unit);
+    if ((ref && seenRefs.has(ref)) || seenTitles.has(key)) return false;
+    if (ref) seenRefs.add(ref);
+    seenTitles.add(key);
+    return true;
+  });
+
+  const categoryByName = new Map((categories ?? []).map((c) => [String(c.name).toLowerCase(), c.id as string]));
+  const missing = [
+    ...new Map(
+      fresh
+        .map((r) => r.category.trim())
+        .filter((name) => name && !categoryByName.has(name.toLowerCase()))
+        .map((name) => [name.toLowerCase(), name]),
+    ).values(),
+  ];
+  if (missing.length > 0) {
+    const { data: created } = await supabase
+      .from("work_categories")
+      .insert(missing.map((name) => ({ user_id: userId, name })))
+      .select("id, name");
+    for (const c of created ?? []) categoryByName.set(String(c.name).toLowerCase(), c.id as string);
   }
 
-  const { supabase, userId } = await requireUserId();
-  const { data: categories } = await supabase.from("work_categories").select("id, name").eq("user_id", userId);
-  const categoryByName = new Map((categories ?? []).map((c) => [c.name.toLowerCase(), c.id as string]));
-
   let imported = 0;
-  for (const row of rows) {
-    let categoryId: string | null = null;
-    if (row.category.trim()) {
-      const key = row.category.trim().toLowerCase();
-      categoryId = categoryByName.get(key) ?? null;
-      if (!categoryId) {
-        const { data: created } = await supabase
-          .from("work_categories")
-          .insert({ user_id: userId, name: row.category.trim() })
-          .select("id")
-          .single();
-        if (created?.id) {
-          categoryId = created.id;
-          categoryByName.set(key, created.id);
-        }
-      }
-    }
-
-    const { error } = await supabase.from("work_items").insert({
+  for (let i = 0; i < fresh.length; i += 500) {
+    const chunk = fresh.slice(i, i + 500).map((row) => ({
       user_id: userId,
-      category_id: categoryId,
+      category_id: categoryByName.get(row.category.trim().toLowerCase()) ?? null,
       reference: row.reference || null,
       title: row.title,
       description: row.description || null,
@@ -209,13 +282,19 @@ export async function importWorkItemsCsv(csvText: string) {
       labor_cost: row.labor_cost,
       material_cost: row.material_cost,
       estimated_hours: row.estimated_hours,
-    });
-
-    if (!error) imported++;
+    }));
+    const { error } = await supabase.from("work_items").insert(chunk);
+    if (error) {
+      console.error("[work-library import]", error.message);
+      break;
+    }
+    imported += chunk.length;
   }
 
   revalidatePath("/app/ouvrages");
-  return { ok: true as const, imported, parseErrors: errors };
+  const skipped = rows.length - fresh.length;
+  if (imported === 0 && fresh.length > 0) return { ok: false as const, error: "insert_failed" as const, imported, skipped };
+  return { ok: true as const, imported, skipped };
 }
 
 export async function exportWorkItemsCsv() {

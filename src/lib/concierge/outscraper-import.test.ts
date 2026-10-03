@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseProspectRecords } from "./parse-prospects";
-import { readXlsxRows } from "./read-xlsx";
+import { readXlsxRows } from "@/lib/files/read-xlsx";
 import { resolveProspectTrade } from "./trade-mapping";
 import { isFrenchMobile } from "@/lib/phone";
 

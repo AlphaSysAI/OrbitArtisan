@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { parseProspectFile, parseProspectRecords, type ParseReport, type ProspectInput } from "@/lib/concierge/parse-prospects";
-import { readXlsxRows } from "@/lib/concierge/read-xlsx";
+import { readXlsxRows } from "@/lib/files/read-xlsx";
 import { searchBanAddresses } from "@/lib/geo/ban";
 
 export const PROSPECT_IMPORT_MAX_BYTES = 4 * 1024 * 1024;

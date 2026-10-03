@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import { PlatformCatalogPanel } from "@/components/work-library/platform-catalog-panel";
+import { type CatalogFamily, PlatformCatalogPanel } from "@/components/work-library/platform-catalog-panel";
 import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types";
 import type { WorkCategory, WorkItemWithCategory } from "@/lib/work-library/types";
 
@@ -13,6 +13,7 @@ export function OuvragesClientShell({
   platformItems,
   platformTradeLabel,
   tradeConfigured,
+  catalogFamilies,
   initialItems,
   categories,
   defaultHourlyRateHt,
@@ -20,6 +21,7 @@ export function OuvragesClientShell({
   platformItems: PlatformWorkItem[];
   platformTradeLabel: string | null;
   tradeConfigured: boolean;
+  catalogFamilies: CatalogFamily[];
   initialItems: WorkItemWithCategory[];
   categories: WorkCategory[];
   defaultHourlyRateHt: number;
@@ -38,6 +40,7 @@ export function OuvragesClientShell({
         items={platformItems}
         tradeLabel={platformTradeLabel}
         tradeConfigured={tradeConfigured}
+        families={catalogFamilies}
         onImported={handleImported}
       />
 

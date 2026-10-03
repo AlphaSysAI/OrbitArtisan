@@ -5,7 +5,8 @@ import { SupabaseMissing } from "@/components/supabase-missing";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { listWorkCategories, listWorkItems } from "@/lib/work-library/actions";
 import { listPlatformCatalogForProfile } from "@/lib/work-library/platform-catalog-actions";
-import { isTradeConfigured } from "@/lib/work-library/platform-catalog";
+import { isTradeConfigured, platformCatalogCountsByCategory } from "@/lib/work-library/platform-catalog";
+import { TRADE_CATEGORIES } from "@/lib/trades/taxonomy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { OuvragesClientShell } from "./ouvrages-client-shell";
@@ -53,18 +54,25 @@ export default async function OuvragesPage() {
   const tradeConfigured = isTradeConfigured(profile.trade_category, profile.trade);
   const platformItems = platformRes.ok ? platformRes.items : [];
   const platformTradeLabel = platformRes.ok ? platformRes.tradeLabel : null;
+  const counts = platformCatalogCountsByCategory();
+  const catalogFamilies = TRADE_CATEGORIES.filter((c) => (counts[c.id] ?? 0) > 0).map((c) => ({
+    id: c.id,
+    label: c.label,
+    count: counts[c.id] ?? 0,
+  }));
 
   return (
     <div className="space-y-8">
       <AppPageHeader
         title="Bibliothèque d'ouvrages"
-        description="Catalogue Soline filtré par métier, plus ta bibliothèque personnelle (import CSV, marges)."
+        description="Catalogue Soline filtré par métier, plus ta bibliothèque personnelle (import Excel / CSV, marges)."
       />
 
       <OuvragesClientShell
         platformItems={platformItems}
         platformTradeLabel={platformTradeLabel}
         tradeConfigured={tradeConfigured}
+        catalogFamilies={catalogFamilies}
         initialItems={itemsRes.ok ? itemsRes.items : []}
         categories={categoriesRes.ok ? categoriesRes.items : []}
         defaultHourlyRateHt={hourlyRate}

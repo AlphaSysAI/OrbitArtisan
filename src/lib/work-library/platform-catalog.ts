@@ -2,6 +2,7 @@ import "server-only";
 
 import { PLATFORM_WORK_CATALOG } from "@/lib/work-library/platform-catalog-data";
 import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types";
+import { foldSearchText, matchesPlatformItem } from "@/lib/work-library/platform-catalog-search";
 import { findTrade, formatTradeLabel } from "@/lib/trades/taxonomy";
 
 /** Ouvrages visibles pour la catégorie + métier enregistrés sur le profil. */
@@ -26,18 +27,22 @@ export function searchPlatformCatalog(
   limit = 24,
 ): PlatformWorkItem[] {
   const base = filterPlatformCatalog(tradeCategoryId, tradeId);
-  const q = query.trim().toLowerCase();
-  if (!q) return base.slice(0, limit);
+  const terms = foldSearchText(query).split(" ").filter(Boolean);
+  if (terms.length === 0) return base.slice(0, limit);
 
-  return base
-    .filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        item.reference.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q) ||
-        item.workCategory.toLowerCase().includes(q),
-    )
-    .slice(0, limit);
+  return base.filter((item) => matchesPlatformItem(item, terms)).slice(0, limit);
+}
+
+/** Toute une famille de métiers, sans filtre de métier précis (parcours libre du catalogue). */
+export function listPlatformCatalogByCategory(tradeCategoryId: string): PlatformWorkItem[] {
+  return PLATFORM_WORK_CATALOG.filter((item) => item.tradeCategoryId === tradeCategoryId);
+}
+
+/** Nombre d'ouvrages par famille (pour le sélecteur « Tout le catalogue »). */
+export function platformCatalogCountsByCategory(): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of PLATFORM_WORK_CATALOG) counts[item.tradeCategoryId] = (counts[item.tradeCategoryId] ?? 0) + 1;
+  return counts;
 }
 
 export function getPlatformCatalogItem(id: string): PlatformWorkItem | null {
