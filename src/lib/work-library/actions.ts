@@ -176,6 +176,27 @@ export async function deleteWorkItem(id: string) {
   return { ok: true as const };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_BULK_DELETE = 1000;
+
+/** Suppression groupée, bornée à la bibliothèque de l'utilisateur (les devis gardent leurs copies de lignes). */
+export async function deleteWorkItems(ids: string[]) {
+  const { supabase, userId } = await requireUserId();
+  const clean = [...new Set(Array.isArray(ids) ? ids : [])].filter((id) => typeof id === "string" && UUID_RE.test(id));
+  if (clean.length === 0 || clean.length > MAX_BULK_DELETE) {
+    return { ok: false as const, error: "invalid_selection" as const, deleted: 0 };
+  }
+  const { data, error } = await supabase
+    .from("work_items")
+    .delete()
+    .eq("user_id", userId)
+    .in("id", clean)
+    .select("id");
+  if (error) return { ok: false as const, error: "delete_failed" as const, deleted: 0 };
+  revalidatePath("/app/ouvrages");
+  return { ok: true as const, deleted: data?.length ?? 0, deletedIds: (data ?? []).map((r) => r.id as string) };
+}
+
 const MAX_IMPORT_FILE_BYTES = 4 * 1024 * 1024;
 
 type ImportFileError = "no_file" | "too_large" | "xls_unsupported" | "unreadable" | "empty";
