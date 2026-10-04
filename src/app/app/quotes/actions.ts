@@ -1,5 +1,6 @@
 "use server";
 
+import { materialLineTotalCents, round2 } from "@/lib/quotes/material-quantity";
 import { revalidatePath } from "next/cache";
 import { safeHttpUrl } from "@/lib/security/safe-url";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -157,7 +158,8 @@ async function resolveQuoteInput(
   const materials: ParsedMaterial[] = (materialsParsed ?? [])
     .map((m) => {
       const label = String(m?.label ?? "").trim();
-      const quantity = Number(m?.quantity ?? 0);
+      // Quantité décimale autorisée (m³, m², ml…), 2 décimales max (quote_materials numeric(10,2)).
+      const quantity = round2(Number(m?.quantity ?? 0));
       const excludeFromInvoice = Boolean(m?.exclude_from_invoice);
       const parsedPrice = parseEurToCents(String(m?.unit_price_eur ?? ""));
       const vatRateRaw = Number(String(m?.vat_rate ?? "20").replace(",", "."));
@@ -214,7 +216,7 @@ async function resolveQuoteInput(
 
   const materialsTotalCents = materials.reduce((acc, m) => {
     if (m.excludeFromInvoice) return acc;
-    return acc + m.quantity * m.unitPriceCents;
+    return acc + materialLineTotalCents(m.quantity, m.unitPriceCents);
   }, 0);
 
   const grandTotalCents = laborTotalCents + materialsTotalCents;
@@ -351,7 +353,7 @@ async function writeQuoteLines(supabase: SupabaseClient, quoteId: string, d: Res
       label: m.label,
       quantity: m.quantity,
       unit_price: m.unitPriceCents,
-      line_total: m.quantity * m.unitPriceCents,
+      line_total: materialLineTotalCents(m.quantity, m.unitPriceCents),
       supplier_product_id: m.supplierProductId ?? null,
       supplier_url: m.supplierUrl ?? null,
       supplier_sku: m.supplierSku ?? null,

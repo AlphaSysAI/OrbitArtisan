@@ -36,6 +36,7 @@ import {
 } from "@/lib/ai/assistant-message-query";
 import { buildQuoteFromText } from "@/lib/ai/build-quote-from-text";
 import { mapSupplierMaterialRowToDraft } from "@/lib/ai/map-supplier-material-draft";
+import { mapOuvrageLinesToDraft } from "@/lib/ai/map-quote-draft-core";
 import { extractFrenchDates } from "@/lib/ai/extract-dates";
 import { extractFrenchTime } from "@/lib/ai/extract-time";
 import { matchContactByQuery, type ContactCandidate } from "@/lib/ai/match-contact";
@@ -267,6 +268,7 @@ async function buildQuoteDraftResponse(
     trade_category?: string | null;
     trade?: string | null;
     materials_margin_rate?: number | null;
+    user_id?: string | null;
   },
   params: {
     instruction: string;
@@ -335,6 +337,7 @@ async function buildQuoteDraftResponse(
     laborItems: laborItemsFromAi(quoteData.labor_items),
     notes: quoteData.notes,
     supplierMaterials: mapMaterialsToDraftRows(quoteData),
+    ouvrageLines: mapOuvrageLinesToDraft(quoteData),
     warnings,
     customerName: resolvedName,
     customerEmail: resolvedEmail,
@@ -424,7 +427,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
+    .select("id, user_id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
     .eq("user_id", user.id)
     .maybeSingle();
 

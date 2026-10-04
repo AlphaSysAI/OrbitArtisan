@@ -1,3 +1,4 @@
+import { materialLineTotalCents, round2 } from "@/lib/quotes/material-quantity";
 import { buildQuotePdfTableLines, computeVatBreakdown, sumQuoteTotals } from "@/lib/billing/build-quote-pdf-lines";
 
 /**
@@ -68,7 +69,7 @@ export function hoursToMinutes(raw: string): number {
 export function lineTotalCents(quantity: number, unitPriceEur: string): number | null {
   const unit = parseEurToCents(unitPriceEur);
   if (unit == null || !Number.isFinite(quantity) || quantity <= 0) return null;
-  return Math.round(unit * quantity);
+  return materialLineTotalCents(quantity, unit);
 }
 
 /** Total HT d'une ligne de main-d'œuvre, null si heures ou taux manquants. */
@@ -106,7 +107,7 @@ export function buildMaterialsPayload(
     .filter((m) => m.label.trim())
     .map((m) => ({
       label: m.label.trim(),
-      quantity: m.quantity,
+      quantity: round2(m.quantity),
       unit_price_eur: m.unitPriceEur,
       vat_rate: m.vatRate || reducedVatRate,
       supplier_url: m.supplierUrl.trim() || null,
@@ -119,7 +120,7 @@ export function buildMaterialsPayload(
     .filter((m) => m.label.trim())
     .map((m) => ({
       label: m.label.trim(),
-      quantity: m.quantity,
+      quantity: round2(m.quantity),
       unit_price_eur: m.unitPriceEur,
       supplier_product_id: m.supplierProductId,
       supplier_url: m.supplierUrl,
@@ -141,13 +142,13 @@ export function computeMaterialsTotalCents(
     if (m.excludeFromInvoice) return acc;
     const unit = parseEurToCents(m.unitPriceEur);
     if (!m.label.trim() || unit == null || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
-    return acc + unit * m.quantity;
+    return acc + materialLineTotalCents(m.quantity, unit);
   }, 0);
   const supplierBillable = supplierMaterials.reduce((acc, m) => {
     if (m.excludeFromInvoice) return acc;
     const unit = parseEurToCents(m.unitPriceEur);
     if (!m.label.trim() || unit == null || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
-    return acc + unit * m.quantity;
+    return acc + materialLineTotalCents(m.quantity, unit);
   }, 0);
   return custom + supplierBillable;
 }
@@ -162,7 +163,7 @@ export function computeSupplierDirectTotalCents(
       if (!m.excludeFromInvoice) return acc;
       const unit = parseEurToCents(m.unitPriceEur) ?? 0;
       if (!m.label.trim() || !Number.isFinite(m.quantity) || m.quantity <= 0) return acc;
-      return acc + unit * m.quantity;
+      return acc + materialLineTotalCents(m.quantity, unit);
     }, 0);
   return sum(supplierMaterials) + sum(materials);
 }

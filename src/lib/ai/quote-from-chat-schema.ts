@@ -45,6 +45,16 @@ export const QuoteExtractionSchema = z.object({
     ),
   ),
   notes: z.preprocess(coerceString, z.string()),
+  /** Postes couverts par un ouvrage chiffré de la liste fournie (clé + quantité dans l'unité de l'ouvrage). */
+  ouvrage_lines: z.preprocess(
+    (v) => (Array.isArray(v) ? v : []),
+    z.array(
+      z.object({
+        key: z.preprocess(coerceString, z.string()),
+        quantity: z.preprocess(coerceNumber, z.number()),
+      }),
+    ),
+  ),
 });
 
 export type QuoteExtraction = z.infer<typeof QuoteExtractionSchema>;
@@ -82,6 +92,17 @@ export const QUOTE_EXTRACTION_JSON_SCHEMA: Record<string, unknown> = {
       },
     },
     notes: { type: "string" },
+    ouvrage_lines: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "Clé de l'ouvrage chiffré (B1, S3…)" },
+          quantity: { type: "number", description: "Quantité dans l'unité de l'ouvrage" },
+        },
+        required: ["key", "quantity"],
+      },
+    },
   },
   required: ["labor_items", "catalog_service_titles", "needed_materials", "notes"],
 };
@@ -104,6 +125,19 @@ export type MatchedSupplierMaterial = {
   unit?: string | null;
 };
 
+/** Ouvrage « fourni posé » chiffré depuis la bibliothèque de l'artisan ou le catalogue Soline. */
+export type QuoteOuvrageLine = {
+  source: "library" | "soline";
+  reference: string | null;
+  title: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  unit_price_eur: number;
+  /** TVA par défaut de l'ouvrage (le devis applique sa propre règle, cf. ouvrageLineVatRate). */
+  vat_rate: number;
+};
+
 export type GenerateQuoteFromChatResponse = {
   labor_items: QuoteExtraction["labor_items"];
   catalog_service_titles: string[];
@@ -111,5 +145,7 @@ export type GenerateQuoteFromChatResponse = {
   labor_duration_minutes: number;
   notes: string;
   supplier_materials: MatchedSupplierMaterial[];
+  /** Absent sur les anciens brouillons. */
+  ouvrage_lines?: QuoteOuvrageLine[];
   warnings: string[];
 };

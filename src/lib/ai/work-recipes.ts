@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import recipesJson from "@/lib/data/work-recipes.json";
 import type { MaterialTakeoff } from "@/lib/ai/quote-material-takeoff";
+import { ceilTo, isDiscreteUnit } from "@/lib/quotes/material-quantity";
 
 /**
  * Matrice d'ouvrages déterministe : l'IA choisit la recette et extrait la quantité,
@@ -59,23 +60,6 @@ const RECIPES: Record<string, WorkRecipe> = z
 /** Garde-fou : au-delà, la quantité extraite est jugée aberrante → repli génératif. */
 export const MAX_RECIPE_QUANTITY = 5000;
 
-/** Unités vendues à la pièce ou au conditionnement : arrondi à l'entier supérieur (on n'achète pas 0,4 sac). */
-const DISCRETE_UNITS =
-  /^(u|unites?|pieces?|sacs?|rouleaux?|boites?|seaux?|pots?|palettes?|bottes?|cartouches?|ens)$/i;
-
-function foldUnit(unit: string): string {
-  return unit
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .trim();
-}
-
-/** Arrondi supérieur sans artefact flottant (135 × 1,12 = 151,20000000000002 → 151,2, pas 151,21). */
-function ceilTo(value: number, decimals: number): number {
-  const f = 10 ** decimals;
-  return Math.ceil(Number((value * f).toFixed(6))) / f;
-}
-
 export function listWorkRecipes(): WorkRecipe[] {
   return Object.values(RECIPES);
 }
@@ -117,9 +101,7 @@ export function calculateTakeoffFromRecipe(
     const raw = m.fixed_quantity ?? quantity * m.ratio!;
     return {
       name_generic: m.name_generic,
-      quantity: DISCRETE_UNITS.test(foldUnit(m.unit))
-        ? Math.ceil(ceilTo(raw, 2))
-        : ceilTo(raw, 2),
+      quantity: isDiscreteUnit(m.unit) ? Math.ceil(ceilTo(raw, 2)) : ceilTo(raw, 2),
       unit: m.unit,
       specifications: m.specifications,
     };

@@ -7,6 +7,7 @@ import {
   resolvePdfTheme,
   type TotalsRow,
 } from "@/lib/billing/pdf-document";
+import { lineUnitNetCents } from "@/lib/billing/facturx/build-cii-invoice";
 import { formatDateForPdf } from "@/lib/billing/pdf-text";
 import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 
@@ -110,7 +111,7 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
   out.sectionTitle(isCreditNote ? "Détail de l'avoir" : "Détail des prestations");
   out.drawTable(
     doc.lines.map((line) => {
-      const unitCents = line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents;
+      const unitCents = lineUnitNetCents(line);
       return {
         designation: line.label,
         quantity: line.unit ? `${formatQtyForPdf(line.quantity)} ${materialUnitLabel(line.unit)}` : formatQtyForPdf(line.quantity),

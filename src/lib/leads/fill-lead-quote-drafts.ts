@@ -84,7 +84,7 @@ async function fillLotDrafts(
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
+    .select("id, user_id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
     .eq("id", first.artisan_id)
     .maybeSingle();
 
@@ -103,6 +103,7 @@ async function fillLotDrafts(
         trade_category: profile.trade_category,
         trade: profile.trade,
         materials_margin_rate: profile.materials_margin_rate,
+        user_id: profile.user_id,
       },
       lead: {
         description: view.description,

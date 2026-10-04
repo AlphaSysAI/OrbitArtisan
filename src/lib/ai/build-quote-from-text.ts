@@ -25,6 +25,15 @@ import {
 import { formatTradeLabel } from "@/lib/trades/taxonomy";
 import { applyMaterialsMargin } from "@/lib/billing/materials-margin";
 import { findReferencePrice } from "@/lib/ai/recipe-reference-prices";
+import { roundMaterialQuantity } from "@/lib/quotes/material-quantity";
+import {
+  formatOuvragesForPrompt,
+  resolveOuvrageLines,
+  shortlistOuvrages,
+  type LibraryWorkItemRow,
+  type OuvrageCandidate,
+} from "@/lib/ai/ouvrage-candidates";
+import { filterPlatformCatalog } from "@/lib/work-library/platform-catalog";
 
 /** Similarité minimale (embeddings mistral-embed) pour proposer un produit catalogue. */
 const CATALOG_MIN_SIMILARITY = 0.6;
@@ -69,7 +78,8 @@ type NeededMaterial = {
 function materialsFromTakeoff(takeoff: MaterialTakeoff): NeededMaterial[] {
   return takeoff.materials.map((m) => ({
     name_generic: m.name_generic,
-    quantity: Math.ceil(m.quantity),
+    // Entier pour u / sacs / rouleaux…, 2 décimales pour m³, m², ml, kg, t, L.
+    quantity: roundMaterialQuantity(m.quantity, m.unit),
     unit: m.unit,
     // L'unité d'achat reste visible même quand un conditionnement est précisé : sans elle,
     // « 2 » + « Rouleau de 75 m² » ou « 1800 » + « Palette de 300 » est ambigu pour le chiffrage.
@@ -100,6 +110,8 @@ export async function buildQuoteFromText(params: {
     trade_category?: string | null;
     trade?: string | null;
     materials_margin_rate?: number | null;
+    /** Compte auth de l'artisan : clé de sa bibliothèque d'ouvrages (work_items.user_id). */
+    user_id?: string | null;
   };
   services: ServiceRow[];
   customerLabel?: string | null;
@@ -136,6 +148,29 @@ export async function buildQuoteFromText(params: {
     warnings.push("Le métré automatique n'a pas pu être calculé — complète les matériaux à la main.");
   }
 
+  // Ouvrages chiffrés : bibliothèque de l'artisan d'abord, puis catalogue Soline borné à son métier.
+  let ouvrageCandidates: OuvrageCandidate[] = [];
+  try {
+    let library: LibraryWorkItemRow[] = [];
+    if (profile.user_id) {
+      const { data, error } = await supabase
+        .from("work_items")
+        .select("reference, title, description, unit, unit_price_ht, default_vat_rate")
+        .eq("user_id", profile.user_id)
+        .limit(2000);
+      if (error) console.error("[build-quote-from-text] bibliothèque", error.message);
+      library = (data ?? []) as LibraryWorkItemRow[];
+    }
+    ouvrageCandidates = shortlistOuvrages(
+      instruction,
+      library,
+      filterPlatformCatalog(profile.trade_category, profile.trade),
+    );
+  } catch (err) {
+    console.error("[build-quote-from-text] ouvrages", err);
+  }
+  const ouvragesBlock = formatOuvragesForPrompt(ouvrageCandidates);
+
   const systemPrompt = `Tu es un expert en chiffrage pour artisans du bâtiment en France (TCE).
 L'artisan dicte ou écrit une instruction pour préparer un devis.
 Extrais un brouillon structuré.
@@ -156,6 +191,15 @@ Matériaux :
 - Ne multiplie pas les quantités : plancher et toiture ne se chiffrent pas en parpaings.
 - Si un matériau est mentionné sans prix, mets-le quand même dans needed_materials (specifications = unité et
   conditionnement : sacs de 25 kg, m², ml, u…).
+
+Ouvrages chiffrés (ouvrage_lines) :
+- Si un bloc « Ouvrages chiffrés disponibles » est fourni et qu'un poste demandé correspond EXACTEMENT à l'un
+  d'eux (même nature de travail, même matériau), ajoute { key, quantity } dans ouvrage_lines, quantité dans
+  l'unité de l'ouvrage (m², ml, U…). Préfère toujours la bibliothèque de l'artisan au catalogue Soline.
+- Un poste couvert par un ouvrage est déjà chiffré fourni posé : ne le remets PAS dans labor_items ni dans
+  needed_materials (sinon il est compté deux fois).
+- Jamais pour un poste déjà présent dans le « Métré automatique ». En cas de doute, n'utilise pas d'ouvrage.
+- Sans bloc ou sans correspondance : ouvrage_lines = [].
 
 Prestations :
 - catalog_service_titles : uniquement parmi le catalogue (orthographe proche OK).
@@ -182,7 +226,7 @@ Taux horaire artisan: ${laborRateEur} €/h
 Catalogue prestations disponibles:
 ${catalogList}
 
-${takeoffBlock ? `${takeoffBlock}\n\n` : ""}Instruction de l'artisan:
+${takeoffBlock ? `${takeoffBlock}\n\n` : ""}${ouvragesBlock ? `${ouvragesBlock}\n\n` : ""}Instruction de l'artisan:
 ${instruction}`;
 
   const extraction = await mistralChatParse(
@@ -205,7 +249,8 @@ ${instruction}`;
     { "name_generic": "Parpaing creux 20×20×50", "quantity": 1000, "specifications": "u" },
     { "name_generic": "Mortier bâtard prêt à l'emploi", "quantity": 5, "specifications": "sacs · Sac de 35 kg" }
   ],
-  "notes": "Mur 50 m — vérifier métrés et accès chantier."
+  "notes": "Mur 50 m — vérifier métrés et accès chantier.",
+  "ouvrage_lines": []
 }`,
     },
   );
@@ -236,6 +281,45 @@ ${instruction}`;
     : extraction.labor_items;
 
   const laborDurationMinutes = laborMinutesFromItems(laborItems);
+
+  // Ouvrages choisis par le modèle : prix, unité et TVA repris de la source, jamais du modèle.
+  // Les postes du métré déterministe restent prioritaires (pas de double comptage).
+  const blockedTitles = takeoff?.materials.length
+    ? [...takeoff.materials.map((m) => m.name_generic), ...(takeoff.laborPhases ?? []).map((p) => p.title)]
+    : [];
+  const resolvedOuvrages = resolveOuvrageLines(extraction.ouvrage_lines, ouvrageCandidates, blockedTitles);
+  const ouvrageLines = resolvedOuvrages.map((o) => ({
+    source: o.source,
+    reference: o.reference,
+    title: o.title,
+    description: o.description,
+    unit: o.unit,
+    quantity: o.quantity,
+    unit_price_eur: o.unitPriceEur,
+    vat_rate: o.vatRate,
+  }));
+  const fromLibrary = resolvedOuvrages.filter((o) => o.source === "library").length;
+  const fromSoline = resolvedOuvrages.length - fromLibrary;
+  if (fromLibrary) {
+    warnings.push(`${fromLibrary} ouvrage${fromLibrary > 1 ? "s" : ""} au prix de ta bibliothèque.`);
+  }
+  if (fromSoline) {
+    warnings.push(
+      `${fromSoline} ouvrage${fromSoline > 1 ? "s" : ""} au prix indicatif du catalogue Soline (fourni posé, marge incluse) — à valider.`,
+    );
+  }
+  for (const o of resolvedOuvrages) {
+    if (o.vatRate === 5.5) {
+      warnings.push(
+        `« ${o.title} » à TVA 5,5 % : rénovation énergétique d'un logement de plus de 2 ans uniquement (performances et attestation à vérifier).`,
+      );
+    }
+    if (o.quantity !== o.requestedQuantity) {
+      warnings.push(
+        `« ${o.title} » : ${String(o.requestedQuantity).replace(".", ",")} ${o.unit} arrondi à ${String(o.quantity).replace(".", ",")}.`,
+      );
+    }
+  }
 
   const matchedServiceIds = matchServiceIdsByTitles(
     services,
@@ -369,7 +453,7 @@ ${instruction}`;
     }
   }
 
-  if (!neededMaterials.length) {
+  if (!neededMaterials.length && !ouvrageLines.length) {
     warnings.push("Aucun matériau détecté dans l'instruction.");
   }
 
@@ -380,6 +464,7 @@ ${instruction}`;
     labor_duration_minutes: laborDurationMinutes,
     notes: extraction.notes,
     supplier_materials: supplierMaterials,
+    ouvrage_lines: ouvrageLines,
     warnings,
   };
 }

@@ -8,6 +8,7 @@ import { Loader2, Plus, Trash2, BookMarked } from "lucide-react";
 import { createQuote, updateQuote } from "./actions";
 import { aiErrorMessage } from "@/lib/ai/error-messages";
 import { WorkItemCombobox } from "@/components/work-library/work-item-combobox";
+import { ouvrageLineVatRate } from "@/lib/ai/ouvrage-candidates";
 import { saveQuoteLineToLibrary } from "@/lib/work-library/actions";
 import { WORK_UNITS } from "@/lib/work-library/units";
 import { loadAiQuoteDraft, clearAiQuoteDraft, type AiQuoteDraft } from "@/lib/ai/quote-draft-storage";
@@ -274,6 +275,21 @@ export function QuoteForm({
           unit: m.unit ?? null,
         })),
       );
+    }
+    // Ouvrages chiffrés (bibliothèque / catalogue Soline) : lignes « Fournitures / ouvrages ».
+    const ouvrages = draft.ouvrageLines ?? [];
+    if (ouvrages.length) {
+      const rows: MaterialRow[] = ouvrages.map((o) => ({
+        ...emptyMaterialRow(),
+        id: o.id,
+        label: o.label,
+        description: o.description,
+        unit: o.unit,
+        quantity: o.quantity,
+        unitPriceEur: o.unitPriceEur,
+        vatRate: ouvrageLineVatRate(o.vatRate, reducedVatRate),
+      }));
+      setMaterials((prev) => [...prev.filter((m) => m.label.trim()), ...rows]);
     }
     toast.success("Brouillon IA chargé — vérifie puis enregistre. Rien n’est envoyé au client.");
   }
@@ -1309,9 +1325,12 @@ const SupplierMaterialRowEditor = React.memo(function SupplierMaterialRowEditor(
           <Label>Qté</Label>
           <Input
             type="number"
-            min={1}
+            inputMode="decimal"
+            min={0.01}
+            step={0.01}
             value={m.quantity}
             onChange={(e) => {
+              // Décimales autorisées (m³, m², ml…) ; arrondi à 2 décimales à l'enregistrement.
               const v = Number(e.target.value);
               onChange(m.id, { quantity: Number.isFinite(v) ? v : 1 });
             }}
@@ -1411,10 +1430,12 @@ const MaterialRowEditor = React.memo(function MaterialRowEditor({
           <Label>Qté</Label>
           <Input
             type="number"
-            min={1}
-            step={1}
+            inputMode="decimal"
+            min={0.01}
+            step={0.01}
             value={m.quantity}
             onChange={(e) => {
+              // Décimales autorisées (m³, m², ml…) ; arrondi à 2 décimales à l'enregistrement.
               const v = Number(e.target.value);
               onChange(m.id, { quantity: Number.isFinite(v) ? v : 1 });
             }}

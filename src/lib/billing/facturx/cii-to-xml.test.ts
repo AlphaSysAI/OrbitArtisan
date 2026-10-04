@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Profile, validateXsd } from "@stackforge-eu/factur-x";
 
-import { buildCrossIndustryInvoice } from "./build-cii-invoice";
+import { buildCrossIndustryInvoice, lineUnitNetCents } from "./build-cii-invoice";
 import { crossIndustryInvoiceToXml } from "./cii-to-xml";
 import type { FacturXInvoiceDocument } from "./types";
 
@@ -94,6 +94,26 @@ describe("crossIndustryInvoiceToXml", () => {
     );
     const validation = await validateXsd(crossIndustryInvoiceToXml(cii), Profile.EN16931);
     expect(validation.valid).toBe(true);
+  });
+
+  it("quantité décimale (7,89 m³) : prix unitaire enregistré, unité MTQ, XML valide EN16931", async () => {
+    const line = {
+      lineNumber: 1,
+      label: "Béton prêt à l'emploi C25/30 en toupie",
+      quantity: 7.89,
+      unitPriceCents: 16250,
+      lineTotalCents: 128213,
+      vatRate: 20,
+      vatCategoryCode: "S",
+      unit: "m³",
+    };
+    expect(lineUnitNetCents(line)).toBe(16250);
+    // Prix enregistré incohérent avec le montant : repli montant ÷ quantité.
+    expect(lineUnitNetCents({ ...line, unitPriceCents: 10000 })).toBe(16250);
+    const xml = crossIndustryInvoiceToXml(buildCrossIndustryInvoice({ ...sample, lines: [line] }, "en16931"));
+    expect(xml).toContain('unitCode="MTQ">7.89<');
+    const validation = await validateXsd(xml, Profile.EN16931);
+    expect(validation.valid, validation.errors?.map((e) => e.message).join("\n")).toBe(true);
   });
 
   it("valide une facture multi-TVA EN16931", async () => {

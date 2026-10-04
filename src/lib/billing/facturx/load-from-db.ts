@@ -71,6 +71,7 @@ type CustomerProfileRow = {
 type InvoiceLineRow = {
   label: string;
   quantity: number | null;
+  unit_price?: number | null;
   line_total: number;
   sort_order: number;
   vat_rate: number | null;
@@ -135,7 +136,8 @@ export async function loadFacturXDocumentFromDb(
   const mappedLines: FacturXLineInput[] = ((lines ?? []) as InvoiceLineRow[]).map((line, index) => ({
     lineNumber: index + 1,
     label: line.label,
-    quantity: line.quantity ?? 1,
+    quantity: Number(line.quantity ?? 1),
+    unitPriceCents: line.unit_price ?? null,
     lineTotalCents: line.line_total,
     vatRate: line.vat_rate ?? 20,
     vatCategoryCode: line.vat_category_code ?? "S",

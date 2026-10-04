@@ -361,9 +361,19 @@ export function computeHouseStructuralShell(ctx: GeometryContext): {
     const part = calculateTakeoffFromRecipe(recipeId, quantity);
     for (const m of part.materials) {
       // Même article, même unité (ex. béton de deux recettes) : quantités cumulées.
+      // Les libellés communs sont normalisés dans work-recipes.json (béton : « C25/30 en toupie »).
       const key = `${m.name_generic}|${m.unit}`;
       const prev = merged.get(key);
-      merged.set(key, prev ? { ...prev, quantity: Math.round((prev.quantity + m.quantity) * 100) / 100 } : m);
+      merged.set(
+        key,
+        prev
+          ? {
+              ...prev,
+              quantity: Math.round(Number(((prev.quantity + m.quantity) * 100).toFixed(6))) / 100,
+              specifications: mergeSpecifications(prev.specifications, m.specifications),
+            }
+          : m,
+      );
     }
     laborPhases.push(...part.labor_phases);
     laborHours += part.labor_hours_estimate ?? 0;
@@ -371,6 +381,13 @@ export function computeHouseStructuralShell(ctx: GeometryContext): {
   }
   if (!laborPhases.length) return null;
   return { materials: [...merged.values()], laborPhases, laborHours: Math.round(laborHours * 10) / 10, assumptions };
+}
+
+/** Usages distincts d'une fourniture fusionnée (« Semelles… · Dallage… · Chaînages… »). */
+function mergeSpecifications(a: string | null, b: string | null): string | null {
+  const parts = [a, b].filter((s): s is string => !!s?.trim());
+  if (parts.length === 0) return null;
+  return [...new Set(parts.join(" · ").split(" · "))].join(" · ");
 }
 
 function geometryPromptBlock(ctx: GeometryContext): string | null {

@@ -27,6 +27,7 @@ export async function tryConversationContextQuote(params: {
     trade_category?: string | null;
     trade?: string | null;
     materials_margin_rate?: number | null;
+    user_id?: string | null;
   };
   pageContext: AssistantPageContextPayload | null;
   message: string;

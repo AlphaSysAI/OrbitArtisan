@@ -9,7 +9,7 @@
       "materials_per_unit": [
         {"name_generic": "Poutrelles béton précontraint et entrevous béton/bois", "ratio": 1.0, "unit": "m²", "specifications": "Système plancher standard 12+4 ou 16+4", "reference_price_ht_eur": 32.0},
         {"name_generic": "Treillis soudé anti-fissuration pour table de compression (type PAF)", "ratio": 1.15, "unit": "m²", "specifications": "Panneau de treillis soudé de surface", "reference_price_ht_eur": 3.8},
-        {"name_generic": "Béton prêt à l'emploi C25/30 pour table de compression", "ratio": 0.06, "unit": "m³", "specifications": "Épaisseur 4-5 cm (+8% pertes)", "reference_price_ht_eur": 125.0},
+        {"name_generic": "Béton prêt à l'emploi C25/30 en toupie", "ratio": 0.06, "unit": "m³", "specifications": "Table de compression ép. 4-5 cm (+8% pertes)", "reference_price_ht_eur": 125.0},
         {"name_generic": "Planelles de rive béton 20x5x50", "ratio": 0.45, "unit": "ml", "specifications": "Coffrage isolant de rive de plancher", "reference_price_ht_eur": 2.1}
       ],
       "labor_phases": [
@@ -31,7 +31,7 @@
         {"name_generic": "Mortier de montage prêt à l'emploi", "ratio": 0.6, "unit": "sacs", "specifications": "Sac de 35 kg (~22 kg/m²)", "reference_price_ht_eur": 5.8},
         {"name_generic": "Bande d'arase étanche bitumineuse", "ratio": 0.4, "unit": "ml", "specifications": "Rouleau sous DTU 20.1", "reference_price_ht_eur": 1.35},
         {"name_generic": "Armature chaînage 4 filants HA8/10", "ratio": 0.4, "unit": "ml", "specifications": "Chaînages verticaux et horizontaux", "reference_price_ht_eur": 6.2},
-        {"name_generic": "Béton prêt à l'emploi pour chaînages", "ratio": 0.025, "unit": "m³", "specifications": "Remplissage des poteaux et linteaux", "reference_price_ht_eur": 125.0}
+        {"name_generic": "Béton prêt à l'emploi C25/30 en toupie", "ratio": 0.025, "unit": "m³", "specifications": "Chaînages : remplissage des poteaux et linteaux", "reference_price_ht_eur": 125.0}
       ],
       "labor_phases": [
         {"title": "Implantation, arase étanche et réglage du premier rang", "share": 0.15},
@@ -52,7 +52,7 @@
         {"name_generic": "Mortier-colle pour briques joint mince", "ratio": 0.12, "unit": "sacs", "specifications": "Sac de 25 kg (~3 kg/m²)", "reference_price_ht_eur": 18.5},
         {"name_generic": "Bande d'arase étanche bitumineuse", "ratio": 0.4, "unit": "ml", "specifications": "Coupure de capillarité DTU 20.1", "reference_price_ht_eur": 1.35},
         {"name_generic": "Armature chaînage 4 filants HA8/10", "ratio": 0.4, "unit": "ml", "specifications": "Poutre chaînage 4 filants", "reference_price_ht_eur": 6.2},
-        {"name_generic": "Béton prêt à l'emploi pour chaînages", "ratio": 0.025, "unit": "m³", "specifications": "Coulage dans poteaux et blocs U", "reference_price_ht_eur": 125.0}
+        {"name_generic": "Béton prêt à l'emploi C25/30 en toupie", "ratio": 0.025, "unit": "m³", "specifications": "Chaînages : coulage dans poteaux et blocs U", "reference_price_ht_eur": 125.0}
       ],
       "labor_phases": [
         {"title": "Implantation, arase étanche et réglage du 1er rang au mortier", "share": 0.2},
@@ -249,7 +249,7 @@
       "unit": "ml",
       "labor_hours_per_unit": 0.55,
       "materials_per_unit": [
-        {"name_generic": "Béton prêt à l'emploi C25/30 XC2 en toupie", "ratio": 0.16, "unit": "m³", "specifications": "Béton de centrale avec fluidifiant (0.15 m³ + 7% pertes)", "reference_price_ht_eur": 125.0},
+        {"name_generic": "Béton prêt à l'emploi C25/30 en toupie", "ratio": 0.16, "unit": "m³", "specifications": "Semelles filantes, classe XC2 — 0.15 m³ + 7% pertes", "reference_price_ht_eur": 125.0},
         {"name_generic": "Armature semelle filante 35x15 cm 6 filants HA8/HA10", "ratio": 1.05, "unit": "ml", "specifications": "Barre de 6m ou 3m avec recouvrements", "reference_price_ht_eur": 8.5},
         {"name_generic": "Équerres de liaison d'angles HA10", "ratio": 0.4, "unit": "u", "specifications": "Armatures d'angle façonnées", "reference_price_ht_eur": 2.2},
         {"name_generic": "Cales d'armature plastique pour enrobage", "ratio": 2.0, "unit": "u", "specifications": "Enrobage 30 à 40 mm", "reference_price_ht_eur": 0.35}
@@ -267,7 +267,7 @@
       "unit": "m²",
       "labor_hours_per_unit": 0.5,
       "materials_per_unit": [
-        {"name_generic": "Béton prêt à l'emploi C25/30 en toupie", "ratio": 0.13, "unit": "m³", "specifications": "Épaisseur 12 cm (+8% pertes et tassement)", "reference_price_ht_eur": 125.0},
+        {"name_generic": "Béton prêt à l'emploi C25/30 en toupie", "ratio": 0.13, "unit": "m³", "specifications": "Dallage ép. 12 cm (+8% pertes et tassement)", "reference_price_ht_eur": 125.0},
         {"name_generic": "Treillis soudé ST25C (panneau 2.40x6m)", "ratio": 1.15, "unit": "m²", "specifications": "Maillage anti-fissuration avec recouvrements", "reference_price_ht_eur": 4.8},
         {"name_generic": "Film polyane sous dalle 150 microns", "ratio": 1.15, "unit": "m²", "specifications": "Rouleau barrière anti-humidité", "reference_price_ht_eur": 0.85},
         {"name_generic": "Bande résiliente de rive périphérique 100 mm", "ratio": 0.4, "unit": "ml", "specifications": "Désolidarisation périphérique des murs", "reference_price_ht_eur": 1.1},

@@ -248,7 +248,7 @@ describe("computeQuoteFormTotals", () => {
     expect(t.documentTotals.totalTtcCents).toBe(3360);
   });
 
-  it("quantité décimale : « Fournitures HT » non arrondi, PDF arrondi (comportement existant)", () => {
+  it("quantité décimale : ligne arrondie au centime, aperçu = PDF", () => {
     const t = computeQuoteFormTotals({
       laborLines: [],
       materials: [],
@@ -256,7 +256,21 @@ describe("computeQuoteFormTotals", () => {
       laborRateEur: "45",
       reducedVatRate: "20",
     });
-    expect(t.materialsTotalCents).toBe(2502.5);
+    expect(t.materialsTotalCents).toBe(2503);
     expect(t.documentTotals.totalHtCents).toBe(2503);
+  });
+
+  it("quantité saisie à plus de 2 décimales : ramenée à 2 décimales (comme en base)", () => {
+    const t = computeQuoteFormTotals({
+      laborLines: [],
+      materials: [],
+      supplierMaterials: [supplier({ label: "Béton", quantity: 7.888, unitPriceEur: "162,50" })],
+      laborRateEur: "45",
+      reducedVatRate: "20",
+    });
+    expect(t.materialsPayload[0]?.quantity).toBe(7.89);
+    // 7,89 × 162,50 € = 1 282,125 € → 128 213 centimes
+    expect(t.materialsTotalCents).toBe(128213);
+    expect(t.documentTotals.totalHtCents).toBe(128213);
   });
 });

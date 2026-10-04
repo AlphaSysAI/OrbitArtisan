@@ -16,6 +16,8 @@ import {
 import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
 import { applyMaterialsMargin } from "@/lib/billing/materials-margin";
+import { matchOuvrageByLabel } from "@/lib/ai/ouvrage-candidates";
+import { filterPlatformCatalog } from "@/lib/work-library/platform-catalog";
 import { findReferencePrice } from "@/lib/ai/recipe-reference-prices";
 
 const snapshotSchema = z.object({
@@ -103,13 +105,26 @@ export async function aiEditQuoteForm(input: { snapshot: QuoteFormSnapshot; inst
 
   const { data: profile } = await auth.supabase
     .from("profiles")
-    .select("materials_margin_rate")
+    .select("materials_margin_rate, trade_category, trade")
     .eq("id", auth.profileId)
     .maybeSingle();
   const marginRate = Number(profile?.materials_margin_rate ?? 0) || 0;
   const marginNote = marginRate > 0 ? `, ta marge de ${String(marginRate).replace(".", ",")} % incluse` : "";
 
-  // 2. Barème de la bibliothèque d'ouvrages (même article, même unité), marge appliquée.
+  // 2. Catalogue Soline borné au métier : prix fourni posé indicatif (marge déjà incluse, pas de marge ajoutée).
+  const solineItems = filterPlatformCatalog(
+    (profile?.trade_category as string | null) ?? null,
+    (profile?.trade as string | null) ?? null,
+  );
+  for (const op of unpriced) {
+    if (op.unit_price_eur !== null) continue;
+    const ouvrage = matchOuvrageByLabel(op.label!.trim(), op.unit, solineItems);
+    if (!ouvrage) continue;
+    op.unit_price_eur = ouvrage.unitPriceHt;
+    pricingNotes.push(`« ${op.label} » : prix indicatif du catalogue Soline (${ouvrage.title}, fourni posé) — à valider.`);
+  }
+
+  // 3. Barème des recettes (même article, même unité), marge appliquée.
   for (const op of unpriced) {
     if (op.unit_price_eur !== null) continue;
     const reference = findReferencePrice(op.label!.trim(), op.unit);
@@ -118,7 +133,7 @@ export async function aiEditQuoteForm(input: { snapshot: QuoteFormSnapshot; inst
     pricingNotes.push(`« ${op.label} » : prix du barème Soline (${reference.referenceName})${marginNote} — à valider.`);
   }
 
-  // 3. Prix publics web, uniquement pour les nouvelles lignes encore sans prix.
+  // 4. Prix publics web, uniquement pour les nouvelles lignes encore sans prix.
   const stillUnpriced = unpriced.filter((op) => op.unit_price_eur === null);
   if (stillUnpriced.length) {
     const estimate = await estimateMaterialUnitPricesEur(

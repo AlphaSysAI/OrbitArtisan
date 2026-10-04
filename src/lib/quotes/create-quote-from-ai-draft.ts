@@ -1,8 +1,10 @@
 import "server-only";
 
+import { materialLineTotalCents } from "@/lib/quotes/material-quantity";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { AiQuoteDraft, AiSupplierMaterialDraft } from "@/lib/ai/quote-draft-storage";
+import type { AiOuvrageDraft, AiQuoteDraft, AiSupplierMaterialDraft } from "@/lib/ai/quote-draft-storage";
+import { ouvrageLineVatRate } from "@/lib/ai/ouvrage-candidates";
 import { exactCatalogService, scaleLaborItems } from "@/lib/quotes/ai-labor-items";
 import { normalizeMaterialUnit } from "@/lib/quotes/material-unit";
 
@@ -112,14 +114,17 @@ export async function createQuoteFromAiDraft(
   const laborRateCents = labor.rateCents;
   const laborTotalCents = labor.totalCents;
 
-  const materials = mapDraftMaterials(params.draft.supplierMaterials);
+  const materials = [
+    ...mapDraftMaterials(params.draft.supplierMaterials),
+    ...mapDraftOuvrages(params.draft.ouvrageLines ?? [], vatRate),
+  ];
   if (materials.some((m) => !Number.isFinite(m.quantity) || m.quantity <= 0)) {
     return { ok: false, error: "invalid_materials" };
   }
 
   const materialsTotalCents = materials.reduce((acc, m) => {
     if (m.excludeFromInvoice) return acc;
-    return acc + m.quantity * m.unitPriceCents;
+    return acc + materialLineTotalCents(m.quantity, m.unitPriceCents);
   }, 0);
 
   const grandTotalCents = laborTotalCents + materialsTotalCents;
@@ -200,13 +205,13 @@ export async function createQuoteFromAiDraft(
       label: m.label,
       quantity: m.quantity,
       unit_price: m.unitPriceCents,
-      line_total: m.quantity * m.unitPriceCents,
+      line_total: materialLineTotalCents(m.quantity, m.unitPriceCents),
       supplier_product_id: m.supplierProductId,
       supplier_url: m.supplierUrl,
       supplier_sku: m.supplierSku,
       is_supplier_catalog: m.isSupplierCatalog,
       exclude_from_invoice: m.excludeFromInvoice,
-      vat_rate: vatRate,
+      vat_rate: m.vatRate ?? vatRate,
       unit: m.unit,
     }));
 
@@ -235,7 +240,28 @@ function mapDraftMaterials(rows: AiSupplierMaterialDraft[]) {
     isSupplierCatalog: Boolean(m.supplierProductId),
     excludeFromInvoice: m.excludeFromInvoice,
     unit: normalizeMaterialUnit(m.unit),
+    /** Fournitures : TVA du devis. */
+    vatRate: undefined as number | undefined,
   }));
+}
+
+/** Ouvrages chiffrés : lignes facturées par l'artisan, TVA du devis sauf 5,5 % rénovation énergétique. */
+function mapDraftOuvrages(rows: AiOuvrageDraft[], quoteVatRate: number | string) {
+  return rows.map((o) => {
+    const lineVat = ouvrageLineVatRate(o.vatRate, quoteVatRate);
+    return {
+      label: o.label.trim(),
+      quantity: o.quantity,
+      unitPriceCents: parseEurToCents(o.unitPriceEur) ?? 0,
+      supplierProductId: null,
+      supplierUrl: null,
+      supplierSku: null,
+      isSupplierCatalog: false,
+      excludeFromInvoice: false,
+      unit: normalizeMaterialUnit(o.unit),
+      vatRate: lineVat ? Number(lineVat) : undefined,
+    };
+  });
 }
 
 type DraftMaterialLine = {
@@ -303,11 +329,14 @@ export function computeDraftTotals(
   const laborDurationMinutes = labor.durationMinutes;
   const laborTotalCents = labor.totalCents;
 
-  const materialLines: DraftMaterialLine[] = mapDraftMaterials(draft.supplierMaterials ?? []).map((m) => ({
+  const materialLines: DraftMaterialLine[] = [
+    ...mapDraftMaterials(draft.supplierMaterials ?? []),
+    ...mapDraftOuvrages(draft.ouvrageLines ?? [], 20),
+  ].map((m) => ({
     label: m.label,
     quantity: m.quantity,
     unitPriceCents: m.unitPriceCents,
-    lineTotalCents: m.excludeFromInvoice ? 0 : m.quantity * m.unitPriceCents,
+    lineTotalCents: m.excludeFromInvoice ? 0 : materialLineTotalCents(m.quantity, m.unitPriceCents),
     excludeFromInvoice: m.excludeFromInvoice,
   }));
   const materialsTotalCents = materialLines.reduce((acc, l) => acc + l.lineTotalCents, 0);

@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
+    .select("id, user_id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
     .eq("user_id", user.id)
     .maybeSingle();
 

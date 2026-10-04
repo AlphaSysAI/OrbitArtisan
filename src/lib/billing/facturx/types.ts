@@ -24,7 +24,10 @@ export type FacturXParty = {
 export type FacturXLineInput = {
   lineNumber: number;
   label: string;
+  /** Quantité facturée, décimale possible (m³, m², ml…). */
   quantity: number;
+  /** Prix unitaire HT enregistré (centimes) : prioritaire sur montant ÷ quantité. */
+  unitPriceCents?: number | null;
   /** Montant ligne HT en centimes */
   lineTotalCents: number;
   vatRate: number;

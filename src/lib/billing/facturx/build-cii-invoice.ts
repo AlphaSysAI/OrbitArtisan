@@ -85,9 +85,21 @@ function buildLineTax(line: FacturXLineInput): TradeTax {
   };
 }
 
+/**
+ * Prix net unitaire (BT-146) : prix enregistré si cohérent avec le montant de ligne
+ * (quantité × prix arrondi au centime = montant), sinon montant ÷ quantité.
+ */
+export function lineUnitNetCents(line: FacturXLineInput): number {
+  if (!(line.quantity > 0)) return line.lineTotalCents;
+  const stored = line.unitPriceCents;
+  if (stored != null && stored >= 0 && Math.round(Number((line.quantity * stored).toFixed(6))) === line.lineTotalCents) {
+    return stored;
+  }
+  return Math.round(line.lineTotalCents / line.quantity);
+}
+
 function buildLineItem(line: FacturXLineInput, currency: string): SupplyChainTradeLineItem {
-  const unitNetCents =
-    line.quantity > 0 ? Math.round(line.lineTotalCents / line.quantity) : line.lineTotalCents;
+  const unitNetCents = lineUnitNetCents(line);
 
   return {
     associatedDocumentLineDocument: { lineID: { value: String(line.lineNumber) } },

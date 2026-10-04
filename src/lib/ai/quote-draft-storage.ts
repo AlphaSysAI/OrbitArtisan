@@ -18,6 +18,19 @@ export type AiSupplierMaterialDraft = {
   unit?: string | null;
 };
 
+/** Ouvrage « fourni posé » (bibliothèque de l'artisan ou catalogue Soline), ligne libre du devis. */
+export type AiOuvrageDraft = {
+  id: string;
+  label: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPriceEur: string;
+  /** TVA par défaut de l'ouvrage ; le devis applique `ouvrageLineVatRate`. */
+  vatRate: number;
+  source: "library" | "soline";
+};
+
 export type AiQuoteDraft = {
   version: 1;
   /** Clé sessionStorage (id conversation ou draftKey assistant). */
@@ -34,6 +47,8 @@ export type AiQuoteDraft = {
   laborItems?: AiLaborItem[];
   notes: string;
   supplierMaterials: AiSupplierMaterialDraft[];
+  /** Ouvrages chiffrés (absent sur les anciens brouillons). */
+  ouvrageLines?: AiOuvrageDraft[];
   warnings: string[];
   customerName?: string | null;
   customerEmail?: string | null;

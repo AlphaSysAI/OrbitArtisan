@@ -1,5 +1,6 @@
 "use server";
 
+import { materialLineTotalCents } from "@/lib/quotes/material-quantity";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 import { revalidatePath } from "next/cache";
@@ -165,7 +166,7 @@ async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     // Importants facturation (Vague 2) : un matériau marqué "hors facture" au
     // devis ne doit jamais être reproratisé et facturé.
     if (m.exclude_from_invoice) continue;
-    const lt = m.line_total ?? m.unit_price * m.quantity;
+    const lt = m.line_total ?? materialLineTotalCents(m.quantity, m.unit_price);
     const scaled = quote.grand_total > 0 ? Math.round((lt * billableRemaining) / quote.grand_total) : 0;
     if (scaled <= 0) continue;
     lines.push({

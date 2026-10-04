@@ -162,6 +162,17 @@ describe("gros œuvre maison neuve chaîné", () => {
   });
 });
 
+describe("béton fusionné, plain-pied", () => {
+  it("130 m² plain-pied : 27,32 m³ en une ligne (et non 8 + 17 + 3 = 28 m³ arrondis séparément)", () => {
+    const macon = { audience: "artisan" as const, tradeLabel: "Gros œuvre & structure · Maçon" };
+    const shell = computeHouseStructuralShell(buildGeometryContext("maison neuve 130 m2 en parpaing", macon))!;
+    const beton = shell.materials.filter((m) => /^b[ée]ton/i.test(m.name_generic));
+    expect(beton).toHaveLength(1);
+    // 49,3 × 0,16 = 7,89 + 130 × 0,13 = 16,9 + 101,1 × 0,025 = 2,53
+    expect(beton[0]!.quantity).toBe(27.32);
+  });
+});
+
 describe("maison à étage (R+1)", () => {
   const macon = { audience: "artisan" as const, tradeLabel: "Gros œuvre & structure · Maçon" };
 
@@ -178,6 +189,15 @@ describe("maison à étage (R+1)", () => {
     expect(qty("Armature semelle filante")).toBe(36.54); // 34,8 ml × 1,05
     expect(shell.laborPhases.some((p) => p.title.startsWith("Étaiement, pose des poutrelles"))).toBe(true);
     expect(shell.laborPhases).toHaveLength(15);
+  });
+
+  it("béton toupie fusionné en une seule ligne (semelles + dallage + table de compression + chaînages)", () => {
+    const shell = computeHouseStructuralShell(buildGeometryContext("construction maison neuve 130 m2 R+1 en parpaing", macon))!;
+    const beton = shell.materials.filter((m) => /^b[ée]ton/i.test(m.name_generic));
+    expect(beton).toHaveLength(1);
+    // 5,57 (semelles) + 8,45 (dallage) + 3,90 (table) + 3,57 (chaînages)
+    expect(beton[0]).toMatchObject({ name_generic: "Béton prêt à l'emploi C25/30 en toupie", unit: "m³", quantity: 21.49 });
+    expect(beton[0]!.specifications).toMatch(/Semelles filantes, classe XC2.*Dallage.*Table de compression.*Chaînages/);
   });
 
   it("détecte étage / 2 niveaux / combles aménagés, et respecte « plain-pied »", () => {
