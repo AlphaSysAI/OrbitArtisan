@@ -58,8 +58,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "base",
     name: "Essentiel",
-    priceMonthlyHtEur: 29,
-    priceAnnualHtEur: 290,
+    priceMonthlyHtEur: 49,
+    priceAnnualHtEur: 490,
     solineCallsIncluded: 0,
     solineOverageCallCents: 0,
     formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,
@@ -69,8 +69,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "pro",
     name: "Pro",
-    priceMonthlyHtEur: 69,
-    priceAnnualHtEur: 690,
+    priceMonthlyHtEur: 99,
+    priceAnnualHtEur: 990,
     solineCallsIncluded: 40,
     solineOverageCallCents: 90,
     formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,
@@ -87,8 +87,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: "premium",
     name: "Premium",
-    priceMonthlyHtEur: 109,
-    priceAnnualHtEur: 1090,
+    priceMonthlyHtEur: 149,
+    priceAnnualHtEur: 1490,
     solineCallsIncluded: 100,
     solineOverageCallCents: 70,
     formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,

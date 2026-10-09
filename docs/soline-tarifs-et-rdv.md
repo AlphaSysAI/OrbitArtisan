@@ -4,9 +4,9 @@
 
 | Formule (id) | Mensuel HT | Annuel HT | Appels inclus | Hors forfait |
 |---|---|---|---|---|
-| Essentiel (`base`) | 29 € | 290 € | — | — |
-| Pro (`pro`) | 69 € | 690 € | 40 | 0,90 € / appel |
-| Premium (`premium`) | 109 € | 1 090 € | 100 | 0,70 € / appel |
+| Essentiel (`base`) | 49 € | 490 € | — | — |
+| Pro (`pro`) | 99 € | 990 € | 40 | 0,90 € / appel |
+| Premium (`premium`) | 149 € | 1 490 € | 100 | 0,70 € / appel |
 
 - Un appel compte s'il est `completed` et dure ≥ 30 s (`voice_call_logs`). Quota calculé en lecture, mois civil.
 - Au-delà du forfait : Soline continue jusqu'au plafond de l'artisan (`profiles.voice_overage_cap_cents`, 30 € par défaut, 0 possible). Plafond atteint → `mode = message_only` : Soline décroche toujours, prend un message, ne propose ni devis ni RDV. La ligne n'est jamais coupée.
