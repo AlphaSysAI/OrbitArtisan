@@ -268,3 +268,30 @@ export function formatSlotForSpeech(slot: Date): string {
     .replace(" h 00", " h");
   return `${date} à ${time}`;
 }
+
+export type PartOfDay = "matin" | "apres-midi";
+
+/** Préférence de l'appelant, déjà convertie par l'agent (date AAAA-MM-JJ dans le fuseau de l'entreprise). */
+export type SlotPreference = { date?: string | null; partOfDay?: PartOfDay | null };
+
+/**
+ * Créneaux libres compatibles avec une préférence (jour et/ou moment de la journée),
+ * dans le fuseau de l'entreprise. Matin = début avant 12 h.
+ */
+export function filterSlotsByPreference(slots: Date[], pref: SlotPreference, timeZone: string = VISIT_TIMEZONE): Date[] {
+  if (!pref.date && !pref.partOfDay) return slots;
+  return slots.filter((slot) => {
+    if (pref.date) {
+      const d = zonedCalendarDay(slot, timeZone);
+      const iso = `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+      if (iso !== pref.date) return false;
+    }
+    if (pref.partOfDay) {
+      const hour = Number(
+        new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", hourCycle: "h23" }).format(slot),
+      );
+      if ((pref.partOfDay === "matin") !== hour < 12) return false;
+    }
+    return true;
+  });
+}

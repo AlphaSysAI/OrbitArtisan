@@ -1,3 +1,5 @@
+import { CallReportPanel, readCallReport } from "@/components/voice/call-report-panel";
+import { isMissingSchemaObject } from "@/lib/supabase/schema-compat";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Archive, Phone, Search } from "lucide-react";
@@ -58,6 +60,27 @@ function statusBadge(status: string) {
 
 type AppelsSearchParams = { tab?: string | string[]; q?: string | string[]; limit?: string | string[] };
 
+const INTAKE_COLUMNS =
+  "id, from_number, customer_name, customer_email, summary, quote_draft, quote_id, status, created_at, is_urgent, urgency_reason, read_at, archived_at";
+
+type IntakeRow = {
+  id: string;
+  from_number: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  summary: string | null;
+  quote_draft: unknown;
+  quote_id: string | null;
+  status: string;
+  created_at: string;
+  is_urgent: boolean | null;
+  urgency_reason: string | null;
+  read_at: string | null;
+  archived_at: string | null;
+  /** Absent avant la migration 62. */
+  call_report?: unknown;
+};
+
 export default async function AppelsSolinePage({ searchParams }: { searchParams: Promise<AppelsSearchParams> }) {
   const sp = await searchParams;
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -107,27 +130,30 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
   const searching = Boolean(search.text || search.phoneDigits);
   const rawQuery = (Array.isArray(sp.q) ? sp.q[0] : sp.q)?.trim() ?? "";
 
-  let listQuery = supabase
-    .from("voice_call_intakes")
-    .select(
-      "id, from_number, customer_name, customer_email, summary, quote_draft, quote_id, status, created_at, is_urgent, urgency_reason, read_at, archived_at",
-    )
-    .eq("artisan_id", profile.id);
+  // call_report n'existe qu'après la migration 62 : sans elle, la liste est rechargée sans
+  // cette colonne (comptes rendus non affichés) au lieu de paraître vide.
+  const buildListQuery = (withReport: boolean) => {
+    let listQuery = supabase
+      .from("voice_call_intakes")
+      .select(withReport ? `${INTAKE_COLUMNS}, call_report` : INTAKE_COLUMNS)
+      .eq("artisan_id", profile.id);
 
-  if (searching) {
-    // La recherche couvre tous les onglets (« c'est moi qui ai appelé mardi »).
-    if (search.phoneDigits) listQuery = listQuery.ilike("from_number", `%${search.phoneDigits}%`);
-    if (search.text) {
-      const p = `%${search.text}%`;
-      listQuery = listQuery.or(`customer_name.ilike.${p},customer_email.ilike.${p},summary.ilike.${p}`);
+    if (searching) {
+      // La recherche couvre tous les onglets (« c'est moi qui ai appelé mardi »).
+      if (search.phoneDigits) listQuery = listQuery.ilike("from_number", `%${search.phoneDigits}%`);
+      if (search.text) {
+        const p = `%${search.text}%`;
+        listQuery = listQuery.or(`customer_name.ilike.${p},customer_email.ilike.${p},summary.ilike.${p}`);
+      }
+    } else if (tab === "a_traiter") {
+      listQuery = listQuery.eq("status", "pending_review").order("is_urgent", { ascending: false });
+    } else if (tab === "devis") {
+      listQuery = listQuery.eq("status", "validated").is("archived_at", null);
+    } else {
+      listQuery = listQuery.not("archived_at", "is", null);
     }
-  } else if (tab === "a_traiter") {
-    listQuery = listQuery.eq("status", "pending_review").order("is_urgent", { ascending: false });
-  } else if (tab === "devis") {
-    listQuery = listQuery.eq("status", "validated").is("archived_at", null);
-  } else {
-    listQuery = listQuery.not("archived_at", "is", null);
-  }
+    return listQuery.order("created_at", { ascending: false }).limit(limit);
+  };
 
   const countQuery = (status: "pending_review" | "validated") => {
     let q = supabase
@@ -139,14 +165,21 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
     return q;
   };
 
-  const [{ data: intakes, error }, { count: pendingCount }, { count: devisCount }, voiceQuota] = await Promise.all([
-    listQuery.order("created_at", { ascending: false }).limit(limit),
+  const [listResult, { count: pendingCount }, { count: devisCount }, voiceQuota] = await Promise.all([
+    buildListQuery(true),
     countQuery("pending_review"),
     countQuery("validated"),
     resolveVoiceQuota(supabase, profile.id),
   ]);
 
-  const items = error ? [] : (intakes ?? []);
+  let { data: intakes, error } = listResult as { data: IntakeRow[] | null; error: typeof listResult.error };
+  if (isMissingSchemaObject(error, "call_report")) {
+    console.warn("[appels] colonne call_report absente (migration 62 à appliquer)");
+    ({ data: intakes, error } = (await buildListQuery(false)) as { data: IntakeRow[] | null; error: typeof listResult.error });
+  }
+  if (error) console.error("[appels] chargement des appels", error.code, error.message);
+  const loadFailed = Boolean(error);
+  const items: IntakeRow[] = error ? [] : (intakes ?? []);
   const hasMore = items.length === limit && limit < VOICE_INBOX_MAX_LIMIT;
 
   // Durées réelles des prestations, chargées une fois pour tout l'artisan : sert à
@@ -283,7 +316,13 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
         )}
       </div>
 
-      {items.length === 0 ? (
+      {loadFailed ? (
+        <AppEmptyState
+          icon={Phone}
+          title="Appels momentanément indisponibles"
+          description="Le chargement a échoué. Recharge la page dans un instant : aucun appel n'est perdu."
+        />
+      ) : items.length === 0 ? (
         searching ? (
           <AppEmptyState icon={Search} title="Aucun appel trouvé" description="Essaie avec un autre nom ou numéro." />
         ) : (
@@ -354,6 +393,10 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
                     "Numéro inconnu"
                   )}
                 </p>
+
+                {readCallReport(item.call_report) ? (
+                  <CallReportPanel report={readCallReport(item.call_report)!} />
+                ) : null}
 
                 {item.summary ? (
                   <div className="rounded-lg border border-border/60 bg-muted/30 px-4 py-3">

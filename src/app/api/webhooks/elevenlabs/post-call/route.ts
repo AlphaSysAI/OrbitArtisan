@@ -4,6 +4,7 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { parsePostCallTranscription, verifyElevenLabsSignature } from "@/lib/voice/elevenlabs-webhook";
 import { processVoiceCallQuoteIntake } from "@/lib/voice/process-voice-call-intake";
 import { resolveArtisanIdByCalledNumber } from "@/lib/voice/voice-quota-service";
+import { endCallSession } from "@/lib/voice/call-session";
 
 /**
  * Webhook post-appel ElevenLabs (« post_call_transcription »).
@@ -64,6 +65,9 @@ export async function POST(request: Request) {
     callerNumber: call.callerNumber,
     calledNumber: call.calledNumber,
     skipQuoteDraft: !call.hasCallerSpeech,
+    conversationId: call.conversationId,
+    agentPromptVersion: call.agentPromptVersion,
+    callDurationSecs: call.callDurationSecs,
     body: {
       transcript: call.hasCallerSpeech
         ? call.transcript
@@ -73,6 +77,19 @@ export async function POST(request: Request) {
       customer_email: call.customerEmail,
     },
   });
+
+  // Appel terminé : la session (identité des outils, horloge) n'a plus d'usage. Idempotent.
+  await endCallSession(db, call.conversationId);
+
+  console.info(
+    JSON.stringify({
+      evt: "voice_call_recorded",
+      conversationId: call.conversationId,
+      promptVersion: call.agentPromptVersion,
+      durationSecs: call.callDurationSecs,
+      ok: !("error" in result),
+    }),
+  );
 
   if ("error" in result) {
     console.error("[elevenlabs post-call] enregistrement de l'appel", {

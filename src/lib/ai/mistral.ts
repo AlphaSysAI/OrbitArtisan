@@ -18,6 +18,28 @@ const MISTRAL_API_BASE = "https://api.mistral.ai/v1";
  */
 const MISTRAL_CHAT_MODEL = process.env.MISTRAL_CHAT_MODEL?.trim() || "mistral-small-latest";
 
+/** Modèle chat effectivement utilisé (journalisé avec les résultats exploités par le code). */
+export function resolveChatModel(model?: string): string {
+  return model ?? MISTRAL_CHAT_MODEL;
+}
+
+/**
+ * Télémétrie d'un appel modèle : une ligne JSON par requête (fonction, modèle, latence,
+ * jetons, statut). Jamais de contenu (prompts, transcriptions, données client) ni de clé.
+ */
+function logAiCall(entry: {
+  feature: string;
+  model: string;
+  ms: number;
+  ok: boolean;
+  status?: number;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  error?: string;
+}) {
+  console.info(JSON.stringify({ evt: "ai_call", provider: "mistral", ...entry }));
+}
+
 const MISTRAL_EMBED_MODEL = "mistral-embed";
 
 /**
@@ -60,9 +82,14 @@ export async function mistralChat(params: {
   /** Modèle spécifique (extraction documentaire, patch de devis…). */
   model?: string;
   timeoutMs?: number;
+  /** Fonction appelante, pour la télémétrie (ex. « voice_call_report »). */
+  feature?: string;
 }): Promise<string> {
+  const model = resolveChatModel(params.model);
+  const feature = params.feature ?? "unspecified";
+  const startedAt = Date.now();
   const body: Record<string, unknown> = {
-    model: params.model ?? MISTRAL_CHAT_MODEL,
+    model,
     messages: params.messages,
     temperature: params.temperature ?? 0.3,
     max_tokens: params.maxTokens ?? 4096,
@@ -82,29 +109,49 @@ export async function mistralChat(params: {
     };
   }
 
-  const res = await fetch(`${MISTRAL_API_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${getApiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(params.timeoutMs ?? MISTRAL_CHAT_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${MISTRAL_API_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getApiKey()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(params.timeoutMs ?? MISTRAL_CHAT_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "error";
+    logAiCall({ feature, model, ms: Date.now() - startedAt, ok: false, error: name === "TimeoutError" ? "timeout" : "network" });
+    throw err;
+  }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
+    logAiCall({ feature, model, ms: Date.now() - startedAt, ok: false, status: res.status, error: "http_error" });
     throw new Error(`Mistral chat ${res.status}: ${errText.slice(0, 800)}`);
   }
 
   const json = (await res.json()) as {
     choices?: { message?: { content?: string | null } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   const content = json.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) {
+  const ok = typeof content === "string" && Boolean(content.trim());
+  logAiCall({
+    feature,
+    model,
+    ms: Date.now() - startedAt,
+    ok,
+    status: res.status,
+    promptTokens: json.usage?.prompt_tokens ?? null,
+    completionTokens: json.usage?.completion_tokens ?? null,
+    ...(ok ? {} : { error: "empty_response" }),
+  });
+  if (!ok) {
     throw new Error("empty_mistral_response");
   }
-  return content;
+  return content as string;
 }
 
 export async function mistralChatText(
@@ -127,6 +174,8 @@ export async function mistralChatParse<T extends z.ZodType>(
     timeoutMs?: number;
     /** Schéma strict tenté en premier (extraction, patchs) ; repli JSON libre + Zod. */
     strictSchema?: boolean;
+    /** Fonction appelante (télémétrie) ; par défaut le nom du schéma. */
+    feature?: string;
   },
 ): Promise<z.infer<T>> {
   const temperature = options?.temperature ?? 0.2;
@@ -159,6 +208,7 @@ ${jsonExample ?? JSON.stringify(jsonSchema ?? {}, null, 2)}`,
         model: options?.model,
         maxTokens: options?.maxTokens,
         timeoutMs: options?.timeoutMs,
+        feature: options?.feature ?? schemaName,
       });
 
       const parsed = parseJsonFromLlm(raw);

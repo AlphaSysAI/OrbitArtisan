@@ -1,10 +1,8 @@
 /**
- * Normalisation des informations extraites d'une transcription d'appel
- * (coordonnées + urgence). Module pur (testable) : l'appel IA est dans
- * extract-call-contact.ts.
+ * Normalisation des coordonnées d'un appelant (nom, e-mail dicté au téléphone).
+ * Module pur, utilisé par le compte rendu d'appel (call-report.ts).
  */
 export type CallContact = { customerName: string | null; customerEmail: string | null };
-export type CallDetails = CallContact & { urgent: boolean; urgencyReason: string | null };
 
 const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 const PLACEHOLDERS = new Set(["", "null", "inconnu", "non communiqué", "non renseigné", "n/a", "client", "appelant"]);
@@ -25,15 +23,4 @@ export function normalizeCallContact(raw: unknown): CallContact {
   const customerEmail = EMAIL_PATTERN.test(email) ? email : null;
 
   return { customerName, customerEmail };
-}
-
-export function normalizeCallDetails(raw: unknown): CallDetails {
-  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const urgent = obj.is_urgent === true || obj.is_urgent === "true";
-  const reason = clean(obj.urgency_reason).replace(/\s+/g, " ").slice(0, 160);
-  return {
-    ...normalizeCallContact(raw),
-    urgent,
-    urgencyReason: urgent ? reason || "Urgence signalée par l'appelant" : null,
-  };
 }

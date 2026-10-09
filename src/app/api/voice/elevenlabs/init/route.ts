@@ -6,6 +6,14 @@ import { findTrade, findTradeCategory } from "@/lib/trades/taxonomy";
 import { verifyVoiceToolSecret } from "@/lib/voice/voice-secret";
 import { hasAnyVisitRange, parseVisitHours } from "@/lib/appointments/visit-hours";
 import { normalizePhoneE164 } from "@/lib/phone";
+import { recordCallSession } from "@/lib/voice/call-session";
+import { VISIT_TIMEZONE } from "@/lib/appointments/visit-hours";
+import {
+  callDateContext,
+  SOLINE_AGENT_PROMPT_VERSION,
+  SOLINE_FIRST_MESSAGE,
+  SOLINE_SYSTEM_PROMPT,
+} from "@/lib/voice/soline-agent-prompt";
 
 /**
  * Webhook d'initiation de conversation ElevenLabs (appels Twilio entrants).
@@ -42,6 +50,10 @@ const FALLBACK = {
   rdv_enabled: "false",
   /** « false » : numéro rendu par un artisan (désabonnement) — annonce « hors service » puis raccroche. */
   number_active: "true",
+  /** Fuseau de l'entreprise : dates relatives (« demain ») et créneaux. */
+  timezone: VISIT_TIMEZONE,
+  /** Version du prompt versionné dans le code (journalisée avec l'appel, cf. post-call). */
+  prompt_version: SOLINE_AGENT_PROMPT_VERSION,
 };
 
 /**
@@ -61,6 +73,17 @@ const INACTIVE = {
 
 type InitPayload = { variables: Record<string, string>; firstMessage?: string };
 
+/** Prompt du code injecté seulement si l'override est autorisé dans l'agent (sinon ElevenLabs refuse). */
+function promptOverrideEnabled(): boolean {
+  return process.env.SOLINE_AGENT_PROMPT_OVERRIDE?.trim() === "1";
+}
+
+/** Date et heure de l'appel : ajoutées à toutes les réponses, repli compris. */
+function withCallContext(variables: Record<string, string>, now = new Date()): Record<string, string> {
+  const ctx = callDateContext(now, VISIT_TIMEZONE);
+  return { ...variables, current_date_label: ctx.current_date_label, current_time_label: ctx.current_time_label };
+}
+
 const MAX_PRESTATIONS_CHARS = 600;
 
 function hasVisitHours(raw: unknown): boolean {
@@ -70,13 +93,17 @@ function hasVisitHours(raw: unknown): boolean {
 }
 
 function initResponse(payload: InitPayload) {
+  const override = promptOverrideEnabled();
+  const agent: Record<string, unknown> = {};
+  // Nécessite « Overrides › First message » (et « System prompt » pour le prompt) autorisés
+  // dans l'onglet Security de l'agent.
+  if (payload.firstMessage) agent.first_message = payload.firstMessage;
+  else if (override) agent.first_message = SOLINE_FIRST_MESSAGE;
+  if (override) agent.prompt = { prompt: SOLINE_SYSTEM_PROMPT };
   return NextResponse.json({
     type: "conversation_initiation_client_data",
-    dynamic_variables: payload.variables,
-    // Nécessite « Overrides › First message » autorisé dans l'onglet Security de l'agent.
-    ...(payload.firstMessage
-      ? { conversation_config_override: { agent: { first_message: payload.firstMessage } } }
-      : {}),
+    dynamic_variables: withCallContext(payload.variables),
+    ...(Object.keys(agent).length ? { conversation_config_override: { agent } } : {}),
   });
 }
 
@@ -128,6 +155,8 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<I
   }
   const artisanId = mapping.artisan_id as string;
 
+  // Session d'appel (conversation_id ↔ artisan) : identité vérifiable pour les outils
+  // et horloge du temps d'appel. Jamais bloquant.
   const [{ data: profile }, { data: services }, quota] = await Promise.all([
     db
       .from("profiles")
@@ -136,6 +165,12 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<I
       .maybeSingle(),
     db.from("services").select("title").eq("artisan_id", artisanId).order("title", { ascending: true }).limit(40),
     resolveVoiceQuota(db, artisanId).catch(() => null),
+    recordCallSession(db, {
+      conversationId: body.conversation_id,
+      artisanId,
+      callSid: body.call_sid,
+      callerNumber: body.caller_id,
+    }).catch(() => false),
   ]);
 
   const businessName = (profile?.business_name as string | null)?.trim() || FALLBACK.business_name;
@@ -170,6 +205,8 @@ async function resolveDynamicVariables(body: Record<string, unknown>): Promise<I
     rdv_enabled:
       quota?.mode === "full" && hasVisitHours(profile?.visit_hours) ? "true" : "false",
     number_active: "true",
+    timezone: VISIT_TIMEZONE,
+    prompt_version: SOLINE_AGENT_PROMPT_VERSION,
   };
   return { variables };
 }

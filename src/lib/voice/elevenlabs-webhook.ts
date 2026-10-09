@@ -51,6 +51,10 @@ type ParsedPostCall = {
   summary: string | null;
   customerName: string | null;
   customerEmail: string | null;
+  /** Version du prompt de l'agent transmise par le webhook d'initiation (observabilité). */
+  agentPromptVersion: string | null;
+  /** Durée réelle de l'appel selon ElevenLabs (secondes). */
+  callDurationSecs: number | null;
 };
 
 function str(value: unknown): string | null {
@@ -101,5 +105,9 @@ export function parsePostCallTranscription(payload: unknown): ParsedPostCall | n
     summary: str(analysis.transcript_summary),
     customerName: dataCollectionValue(analysis, "customer_name"),
     customerEmail: dataCollectionValue(analysis, "customer_email"),
+    agentPromptVersion: str(dynamicVariables.prompt_version),
+    callDurationSecs: Number.isFinite(Number(metadata.call_duration_secs)) && metadata.call_duration_secs != null
+      ? Math.round(Number(metadata.call_duration_secs))
+      : null,
   };
 }

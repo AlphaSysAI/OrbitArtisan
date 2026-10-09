@@ -5,8 +5,10 @@ import { artisanScheduleAppointment } from "@/features/voice/artisan/tools";
 
 /**
  * Tool ElevenLabs « réserver une visite ».
- * Corps : called_number, customer_name, start_time (un des créneaux renvoyés par /availability),
- * customer_phone (défaut : numéro de l'appelant), customer_email (facultatif), address, description.
+ * Corps : called_number, conversation_id (= {{system__conversation_id}}, rempli par la plateforme),
+ * customer_name, start_time (un des créneaux renvoyés par /availability), customer_phone (défaut :
+ * numéro de l'appelant), customer_email (facultatif), address, description,
+ * replaces_appointment_id (déplacer un RDV de cet appel), additional_visit ("true" : seconde visite).
  */
 export async function POST(request: Request) {
   const resolved = await resolveVoiceContext(request);
