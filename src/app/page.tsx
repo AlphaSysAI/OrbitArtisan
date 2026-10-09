@@ -5,13 +5,13 @@ import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
   metadataBase: new URL(getMarketingSiteUrl()),
-  title: "Soline — Secrétariat IA & Gestion pour artisans du BTP",
+  title: "Soline — Le secrétariat téléphonique des artisans du bâtiment",
   description:
-    "Devis en 2 minutes, secrétaire vocale 24/7, paniers matériaux automatiques et recouvrement d'impayés (mise en demeure en recommandé). Soline simplifie la gestion des artisans du bâtiment.",
+    "Quand vous ne pouvez pas décrocher, Soline répond à vos clients, note la demande et propose un créneau que vous validez. Vous gardez votre numéro. Devis, factures et relances dans la même application.",
   openGraph: {
-    title: "Soline — Vos devis pliés en 2 min, 0 appel manqué",
+    title: "Sur le chantier, vous travaillez. Soline répond à vos clients.",
     description:
-      "L'assistante digitale qui décroche au téléphone, prépare vos achats matériaux, gère votre administratif BTP et recouvre vos impayés.",
+      "Secrétariat téléphonique pour artisans : vous gardez votre numéro, vous validez chaque rendez-vous. Devis, factures, suivi de chantier et relances inclus.",
     type: "website",
   },
 };
@@ -19,5 +19,5 @@ export const metadata: Metadata = {
 export default function Home() {
   const appUrl = getPublicSiteUrl();
 
-  return <SolineBtpLanding appLoginUrl={`${appUrl}/login?role=artisan`} />;
+  return <SolineBtpLanding appLoginUrl={`${appUrl}/login?role=artisan`} registerUrl={`${appUrl}/register`} />;
 }

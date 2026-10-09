@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils";
 type SubscriptionPricingGridProps =
   | {
       variant: "landing";
+      /** Destination des boutons de formule (création de compte ; la formule se choisit ensuite). */
+      ctaHref: string;
     }
   | {
       variant: "checkout";
@@ -64,11 +66,11 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
               {plan.popular ? (
                 <span
                   className={cn(
-                    "absolute -top-3 rounded-full bg-orange-500 px-3 py-0.5 text-xs font-semibold text-white",
-                    props.variant === "landing" ? "left-6 py-1" : "left-1/2 -translate-x-1/2",
+                    "absolute -top-3 rounded-full px-3 py-0.5 text-xs font-semibold text-white",
+                    props.variant === "landing" ? "left-6 bg-orange-700 py-1" : "left-1/2 -translate-x-1/2 bg-orange-500",
                   )}
                 >
-                  {props.variant === "landing" ? "Le plus populaire" : "Populaire"}
+                  {props.variant === "landing" ? "Conseillé" : "Populaire"}
                 </span>
               ) : null}
 
@@ -140,18 +142,17 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
 
               <div className="mt-8">
                 {props.variant === "landing" ? (
-                  <span
+                  <a
+                    href={props.ctaHref}
                     className={cn(
-                      buttonVariants({ size: "lg" }),
-                      "inline-flex w-full cursor-not-allowed justify-center opacity-90",
-                      plan.popular
-                        ? "border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100"
-                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-50",
+                      buttonVariants({ size: "lg", variant: plan.popular ? "default" : "outline" }),
+                      "inline-flex w-full justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500",
+                      plan.popular && "bg-orange-700 text-white hover:bg-orange-800",
                     )}
-                    aria-disabled
+                    aria-label={`Commencer l'essai avec la formule ${plan.name}`}
                   >
-                    Bientôt disponible
-                  </span>
+                    Commencer l&apos;essai
+                  </a>
                 ) : (
                   <SubscriptionPlanButton
                     plan={plan}
