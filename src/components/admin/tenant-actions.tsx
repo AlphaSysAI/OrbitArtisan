@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { AdminTenantRow } from "@/lib/admin/tenants";
+import { SUBSCRIPTION_STATUS_LABELS, type SubscriptionStatus } from "@/lib/billing/subscription-access";
 import { findSubscriptionPlan } from "@/lib/billing/subscription-plans";
 
 export function TenantActions({ tenant }: { tenant: AdminTenantRow }) {
@@ -92,15 +93,25 @@ export function TenantActions({ tenant }: { tenant: AdminTenantRow }) {
 
 export function TenantStatusBadges({ tenant }: { tenant: AdminTenantRow }) {
   const plan = findSubscriptionPlan(tenant.subscriptionPlan);
+  // « incomplete » = aucune formule souscrite (jamais passé par Stripe) : subscription_plan
+  // n'est alors qu'une valeur par défaut, à ne pas afficher comme une formule.
+  const noSubscription = tenant.subscriptionStatus === "incomplete";
+  const statusLabel = SUBSCRIPTION_STATUS_LABELS[tenant.subscriptionStatus as SubscriptionStatus] ?? tenant.subscriptionStatus;
   return (
     <div className="flex flex-wrap gap-1.5">
-      <Badge variant={tenant.accountStatus === "active" ? "default" : "destructive"}>
-        {tenant.accountStatus === "active" ? "Actif" : "Suspendu"}
+      <Badge variant={tenant.accountStatus === "active" ? "secondary" : "destructive"}>
+        {tenant.accountStatus === "active" ? "Compte ouvert" : "Compte suspendu"}
       </Badge>
-      <Badge variant="secondary">{plan?.name ?? tenant.subscriptionPlan}</Badge>
-      {tenant.subscriptionStatus !== "active" ? (
-        <Badge variant="outline">{tenant.subscriptionStatus}</Badge>
-      ) : null}
+      {noSubscription ? (
+        <Badge variant="outline">Sans formule</Badge>
+      ) : (
+        <>
+          <Badge variant={tenant.subscriptionStatus === "active" || tenant.subscriptionStatus === "trialing" ? "default" : "outline"}>
+            {plan?.name ?? tenant.subscriptionPlan}
+          </Badge>
+          {tenant.subscriptionStatus !== "active" ? <Badge variant="outline">{statusLabel}</Badge> : null}
+        </>
+      )}
       {tenant.deletedAt ? <Badge variant="outline">Archivé</Badge> : null}
     </div>
   );
