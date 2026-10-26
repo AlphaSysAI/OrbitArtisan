@@ -2,15 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 import { resolveDomainRouting, resolvePwaOrAppRootRedirect } from "@/lib/domain-routing";
-import {
-  evaluateSubscriptionAccess,
-  isSubscriptionDocumentBlockedPath,
-  subscriptionBlockRedirectReason,
-} from "@/lib/billing/subscription-access";
-import {
-  ARTISAN_ONBOARDING_PROFILE_SELECT,
-  artisanNeedsOnboarding,
-} from "@/lib/auth/artisan-onboarding";
+import { ARTISAN_ONBOARDING_PROFILE_SELECT } from "@/lib/auth/artisan-onboarding";
+import { artisanAppRedirect } from "@/lib/auth/artisan-app-redirect";
 import { pathNeedsArtisanProfile, pathUsesSession } from "@/lib/auth/middleware-paths";
 
 export async function middleware(request: NextRequest) {
@@ -186,42 +179,13 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if (isArtisan && pathname.startsWith("/app") && !isSuperAdmin && pathname !== "/app/suspended") {
-      if (
-        artisanProfile &&
-        artisanNeedsOnboarding(artisanProfile) &&
-        !pathname.startsWith("/app/onboarding")
-      ) {
+    if (isArtisan && pathname.startsWith("/app") && !isSuperAdmin) {
+      const target = artisanAppRedirect(pathname, artisanProfile);
+      if (target) {
         const url = request.nextUrl.clone();
-        url.pathname = "/app/onboarding";
-        url.search = "";
+        url.pathname = target.pathname;
+        url.search = target.search;
         return NextResponse.redirect(url);
-      }
-
-      if (artisanProfile?.account_status === "suspended" || artisanProfile?.deleted_at) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/app/suspended";
-        url.search = "";
-        return NextResponse.redirect(url);
-      }
-
-      // Aucun essai sans carte : tant que l'essai Stripe n'est pas démarré, seul le
-      // choix de formule (Réglages → Abonnement) est accessible.
-      if (artisanProfile?.subscription_status === "incomplete" && !pathname.startsWith("/app/reglages")) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/app/reglages";
-        url.search = "?tab=abonnement&reason=no_subscription";
-        return NextResponse.redirect(url);
-      }
-
-      if (isSubscriptionDocumentBlockedPath(pathname)) {
-        const access = evaluateSubscriptionAccess(artisanProfile);
-        if (!access.allowed) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/app/reglages";
-          url.search = `?tab=abonnement&reason=${subscriptionBlockRedirectReason(access.reason ?? "trial_expired")}`;
-          return NextResponse.redirect(url);
-        }
       }
     }
   }

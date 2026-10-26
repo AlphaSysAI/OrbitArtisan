@@ -84,6 +84,16 @@ export default async function RegisterPage({
             </Alert>
           )}
 
+          {error === "rate_limited" && (
+            <Alert variant="destructive">
+              <AlertTitle>Trop de tentatives</AlertTitle>
+              <AlertDescription>
+                Trop d&apos;inscriptions ont été demandées en peu de temps. Réessaie dans une heure, ou connecte-toi si
+                tu as déjà reçu l&apos;e-mail de confirmation.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error === "signup_failed" && (
             <Alert variant="destructive">
               <AlertTitle>Inscription impossible</AlertTitle>

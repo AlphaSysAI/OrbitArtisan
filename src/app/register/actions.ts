@@ -82,7 +82,12 @@ export async function signUpWithPassword(formData: FormData) {
     },
   });
 
-  if (error) registerRedirect({ ...baseParams, error: "signup_failed" });
+  if (error) {
+    // Jamais l'e-mail ni le mot de passe dans les journaux : code et statut seulement.
+    console.error("[register] signUp", { code: error.code ?? null, status: error.status ?? null, message: error.message });
+    const rateLimited = error.status === 429 || /rate.?limit/i.test(`${error.code ?? ""} ${error.message}`);
+    registerRedirect({ ...baseParams, error: rateLimited ? "rate_limited" : "signup_failed" });
+  }
 
   const q = new URLSearchParams({ success: "check_email" });
   if (invite) q.set("invite", invite);
