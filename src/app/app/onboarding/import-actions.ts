@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { finalizeProvisionalSlug } from "@/lib/auth/ensure-artisan-profile";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { validateLegalEntityFields } from "@/lib/billing/legal-entity-validation";
 import { geocodeAddress } from "@/lib/geo/ban";
@@ -162,6 +163,7 @@ export async function saveImportAction(input: z.infer<typeof saveSchema>): Promi
 
   const { error } = await supabase.from("profiles").update(patch).eq("id", profileId);
   if (error) return { ok: false, error: "save_failed" };
+  if (completed) await finalizeProvisionalSlug(supabase, profileId);
 
   // Catalogue → bibliothèque d'ouvrages (unités + TVA), sans doublon de libellé.
   let importedLines = 0;

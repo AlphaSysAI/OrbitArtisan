@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 
 import { validateLegalEntityFields } from "@/lib/billing/legal-entity-validation";
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
+import { finalizeProvisionalSlug } from "@/lib/auth/ensure-artisan-profile";
+import { isValidTradeSelection } from "@/lib/trades/taxonomy";
 import { readPersonName } from "@/lib/profile/person-name";
 import { geocodeAddress } from "@/lib/geo/ban";
 import {
@@ -183,8 +185,35 @@ export async function saveOnboardingLegalStep(formData: FormData) {
 
   if (error) return { ok: false as const, error: "save_failed" as const };
 
+  await finalizeProvisionalSlug(supabase, profileId);
+
   revalidatePath("/app/onboarding");
   revalidatePath("/app/reglages");
   revalidatePath("/app");
   redirect("/app");
+}
+
+/**
+ * Étape « métier » (avant l'import) : borne les devis IA, le prompt de Soline au
+ * téléphone et les demandes de chantier reçues. Sans elle, l'artisan sautait
+ * Réglages › Activité et restait sans métier.
+ */
+export async function saveOnboardingTradeStep(formData: FormData) {
+  const tradeCategory = String(formData.get("trade_category") ?? "").trim();
+  const trade = String(formData.get("trade") ?? "").trim();
+  if (!isValidTradeSelection(tradeCategory, trade)) redirect("/app/onboarding?error=trade");
+
+  const auth = await requireArtisanProfileId();
+  if (!auth.ok) {
+    if (auth.error === "auth") redirect("/login?next=/app/onboarding");
+    redirect("/app/onboarding?error=save");
+  }
+  const { error } = await auth.supabase
+    .from("profiles")
+    .update({ trade_category: tradeCategory, trade })
+    .eq("id", auth.profileId);
+  if (error) redirect("/app/onboarding?error=save");
+
+  revalidatePath("/app/onboarding");
+  redirect("/app/onboarding");
 }

@@ -8,11 +8,15 @@ import {
   isOnboardingContactStepComplete,
   resolveOnboardingStep,
 } from "@/lib/auth/artisan-onboarding";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ensureArtisanProfile } from "@/lib/auth/ensure-artisan-profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isValidTradeSelection } from "@/lib/trades/taxonomy";
 
 import { OnboardingContactStep } from "./onboarding-contact-step";
 import { OnboardingImport } from "./onboarding-import";
 import { OnboardingLegalStep } from "./onboarding-legal-step";
+import { OnboardingTradeStep } from "./onboarding-trade-step";
 
 function parseRequestedStep(raw: string | undefined): 1 | 2 | null {
   if (raw === "1") return 1;
@@ -38,9 +42,25 @@ export default async function ArtisanOnboardingPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/app/onboarding");
 
+  // Nouveau compte : la fiche artisan est créée ici, sinon l'onboarding (qui ne fait que
+  // compléter la fiche) était inaccessible et l'artisan atterrissait sur un tableau vide.
+  const ensured = await ensureArtisanProfile(supabase, user);
+  if (ensured === "client") redirect("/compte");
+  if (ensured === "referrer") redirect("/apporteur");
+  if (ensured === "failed") {
+    return (
+      <div className="mx-auto max-w-2xl pb-12">
+        <Alert variant="destructive">
+          <AlertTitle>Préparation du compte impossible pour le moment</AlertTitle>
+          <AlertDescription>Recharge la page dans quelques instants.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
-    .select(ARTISAN_ONBOARDING_PROFILE_SELECT)
+    .select(`${ARTISAN_ONBOARDING_PROFILE_SELECT}, trade_category, trade`)
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -48,6 +68,27 @@ export default async function ArtisanOnboardingPage({
 
   if (!artisanNeedsOnboarding(profile)) {
     redirect("/app");
+  }
+
+  // Étape 1 : le métier, avant tout le reste (devis IA, Soline au téléphone, demandes reçues).
+  if (!isValidTradeSelection(profile.trade_category ?? "", profile.trade ?? "")) {
+    const error = typeof sp.error === "string" ? sp.error : null;
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 pb-12">
+        <AppPageHeader
+          eyebrow="Bienvenue sur Soline · étape 1 sur 3"
+          title="Quel est ton métier ?"
+          description="Soline prépare tes devis et répond à tes appels dans ton métier uniquement. Ensuite : tes infos depuis un ancien devis, puis ta formule."
+        />
+        <div className="rounded-2xl border bg-card p-5 shadow-sm sm:p-8">
+          <OnboardingTradeStep
+            error={error === "trade" ? "Choisis ton secteur puis ton métier." : error === "save" ? "Enregistrement impossible, réessaie." : null}
+            initialCategoryId={profile.trade_category ?? null}
+            initialTradeId={profile.trade ?? null}
+          />
+        </div>
+      </div>
+    );
   }
 
   // Parcours par défaut : import d'anciens devis (zéro saisie). Saisie manuelle via ?step=1|2.
@@ -85,7 +126,7 @@ export default async function ArtisanOnboardingPage({
     return (
       <div className="mx-auto max-w-2xl space-y-6 pb-12">
         <AppPageHeader
-          eyebrow="Bienvenue sur Soline"
+          eyebrow="Bienvenue sur Soline · étape 2 sur 3"
           title="On prépare ton compte à partir de tes devis"
           description="2 minutes : une photo ou un PDF de tes anciens devis, puis tu complètes uniquement ce qui manque."
         />

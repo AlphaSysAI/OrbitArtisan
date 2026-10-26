@@ -129,7 +129,7 @@ export function SubscriptionSettingsSection({
 
       {status === "incomplete" ? (
         <Alert>
-          <AlertTitle>Démarrez votre essai gratuit de {TRIAL_DURATION_DAYS} jours</AlertTitle>
+          <AlertTitle>Dernière étape : démarrez votre essai gratuit de {TRIAL_DURATION_DAYS} jours</AlertTitle>
           <AlertDescription>
             Choisissez votre formule ci-dessous. Carte bancaire requise : 0 € aujourd&apos;hui, premier prélèvement à
             la fin de l&apos;essai, résiliable à tout moment avant, sans frais. Votre numéro Soline est activé dès

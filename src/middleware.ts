@@ -169,6 +169,14 @@ export async function middleware(request: NextRequest) {
         url.search = "";
         return NextResponse.redirect(url);
       }
+      // Ni artisan, ni client, ni apporteur : nouveau compte artisan. L'onboarding crée la
+      // fiche et guide pas à pas (métier → infos depuis un devis → formule).
+      if (!pathname.startsWith("/app/onboarding")) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/app/onboarding";
+        url.search = "";
+        return NextResponse.redirect(url);
+      }
     }
 
     if (isArtisan && pathname.startsWith("/compte")) {
