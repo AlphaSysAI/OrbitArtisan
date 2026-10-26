@@ -7,6 +7,7 @@ export type VoiceNumberPoolRow = {
   phone_e164: string;
   status: "available" | "assigned" | "quarantine" | "retired";
   quarantine_until?: string | null;
+  quarantined_artisan_id?: string | null;
   twilio_incoming_phone_sid: string | null;
   elevenlabs_ready: boolean;
   assigned_artisan_id: string | null;
@@ -30,7 +31,7 @@ export async function listVoiceNumberPool(
   const { data, error } = await supabase
     .from("voice_number_pool")
     .select(
-      "id, phone_e164, status, twilio_incoming_phone_sid, elevenlabs_ready, assigned_artisan_id, assigned_at, notes, created_at, updated_at",
+      "id, phone_e164, status, quarantine_until, quarantined_artisan_id, twilio_incoming_phone_sid, elevenlabs_ready, assigned_artisan_id, assigned_at, notes, created_at, updated_at",
     )
     .order("status", { ascending: true })
     .order("created_at", { ascending: true });

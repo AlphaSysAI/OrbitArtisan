@@ -32,9 +32,9 @@ export type InviteResult =
 
 const CREATE_ERRORS: Record<string, string> = {
   already_referrer: "Cette adresse a déjà un accès apporteur.",
-  already_invited: "Une invitation est déjà en cours pour cette adresse : utilise « Renvoyer ».",
-  email_has_account: "Cette adresse a déjà un compte Soline (artisan ou client). Utilise une autre adresse.",
-  db: "Enregistrement impossible. Réessaie.",
+  already_invited: "Une invitation est déjà en cours pour cette adresse : utiliser « Renvoyer ».",
+  email_has_account: "Cette adresse a déjà un compte Soline (artisan ou client) : en choisir une autre.",
+  db: "Enregistrement impossible, réessayer.",
 };
 
 export async function inviteReferrerAction(input: Record<string, string>): Promise<InviteResult> {

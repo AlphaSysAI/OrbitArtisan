@@ -10,24 +10,18 @@ import {
   setReferrerStatusAction,
   type InviteResult,
 } from "@/app/admin/(protected)/apporteurs/actions";
+import { ConfirmButton } from "@/components/admin/ui/confirm-button";
+import { copyToClipboard } from "@/components/admin/ui/copy-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-async function copy(url: string) {
-  try {
-    await navigator.clipboard.writeText(url);
-    toast.success("Lien copié");
-  } catch {
-    toast.message(url);
-  }
-}
 
 function notifySent(res: Extract<InviteResult, { ok: true }>) {
   if (res.sent) toast.success("Invitation envoyée par e-mail");
   else {
-    void copy(res.url);
-    toast.warning("E-mail non envoyé : lien copié, transmets-le à la main.");
+    void copyToClipboard(res.url, "Lien copié");
+    toast.warning("E-mail non envoyé : le lien est copié, à transmettre à la main.");
   }
 }
 
@@ -101,41 +95,48 @@ export function InvitationRowActions({ invitationId }: { invitationId: string })
       >
         Renvoyer
       </Button>
-      <Button
+      <ConfirmButton
         size="sm"
         variant="ghost"
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const res = await cancelReferrerInvitationAction(invitationId);
-            if (!res.ok) return void toast.error(res.error ?? "Annulation impossible");
-            toast.success("Invitation annulée");
-          })
-        }
+        destructive
+        title="Annuler cette invitation ?"
+        description="Le lien reçu par e-mail cesse de fonctionner. Une nouvelle invitation reste possible."
+        confirmLabel="Annuler l'invitation"
+        onConfirm={async () => {
+          const res = await cancelReferrerInvitationAction(invitationId);
+          if (!res.ok) {
+            toast.error(res.error ?? "Annulation impossible");
+            return false;
+          }
+          toast.success("Invitation annulée");
+        }}
       >
         Annuler
-      </Button>
+      </ConfirmButton>
     </div>
   );
 }
 
-export function ReferrerStatusButton({ referrerId, status }: { referrerId: string; status: "active" | "suspended" }) {
-  const [pending, start] = useTransition();
+export function ReferrerStatusButton({ referrerId, status, name }: { referrerId: string; status: "active" | "suspended"; name: string }) {
   const next = status === "active" ? "suspended" : "active";
   return (
-    <Button
+    <ConfirmButton
       size="sm"
       variant={status === "active" ? "ghost" : "outline"}
-      disabled={pending}
-      onClick={() =>
-        start(async () => {
-          const res = await setReferrerStatusAction(referrerId, next);
-          if (!res.ok) return void toast.error(res.error ?? "Mise à jour impossible");
-          toast.success(next === "suspended" ? "Accès suspendu" : "Accès réactivé");
-        })
-      }
+      destructive={status === "active"}
+      title={status === "active" ? `Suspendre ${name} ?` : `Réactiver ${name} ?`}
+      description={status === "active" ? "L'apporteur ne pourra plus accéder à son espace." : "L'apporteur retrouve l'accès à son espace."}
+      confirmLabel={status === "active" ? "Suspendre" : "Réactiver"}
+      onConfirm={async () => {
+        const res = await setReferrerStatusAction(referrerId, next);
+        if (!res.ok) {
+          toast.error(res.error ?? "Mise à jour impossible");
+          return false;
+        }
+        toast.success(next === "suspended" ? "Accès suspendu" : "Accès réactivé");
+      }}
     >
       {status === "active" ? "Suspendre" : "Réactiver"}
-    </Button>
+    </ConfirmButton>
   );
 }

@@ -8,6 +8,7 @@ import { lookupVoiceNumberAt, type VoiceAssignmentHistoryRow } from "@/app/admin
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { assignedByLabel, releaseReasonLabel } from "@/lib/admin/labels";
 import { formatDateTimeFr } from "@/lib/format/date";
 
 function formatInstant(iso: string): string {
@@ -73,6 +74,7 @@ export function TelecomLookupForm({
   const [pending, setPending] = React.useState(false);
   const [match, setMatch] = React.useState<VoiceAssignmentHistoryRow | null>(null);
   const [history, setHistory] = React.useState<VoiceAssignmentHistoryRow[]>([]);
+  const [searched, setSearched] = React.useState(false);
 
   React.useEffect(() => {
     if (!initialPhone.trim()) return;
@@ -90,6 +92,7 @@ export function TelecomLookupForm({
     }
     setMatch(res.match);
     setHistory(res.history);
+    setSearched(true);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -105,7 +108,7 @@ export function TelecomLookupForm({
 
   return (
     <div className="space-y-8">
-      <form onSubmit={onSubmit} className="max-w-xl space-y-4 rounded-2xl border bg-card p-6">
+      <form onSubmit={onSubmit} className="max-w-xl space-y-4 rounded-2xl border bg-card p-4 sm:p-6">
         <div className="space-y-2">
           <Label htmlFor="telecom-phone">Numéro (E.164)</Label>
           <Input
@@ -128,7 +131,7 @@ export function TelecomLookupForm({
             onChange={(e) => setInstantLocal(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Laisse vide pour « maintenant ». Fuseau local du navigateur ; stockage en UTC (timestamptz).
+            Vide = maintenant. Heure locale du navigateur. Chaque consultation est inscrite au journal admin.
           </p>
         </div>
         <Button type="submit" disabled={pending}>
@@ -142,13 +145,17 @@ export function TelecomLookupForm({
           <p className="text-sm text-muted-foreground">
             Mise à disposition : {formatInstant(match.assigned_at)}
             {match.released_at
-              ? ` — Fin : ${formatInstant(match.released_at)} (${match.release_reason ?? "—"})`
+              ? ` — Fin : ${formatInstant(match.released_at)} (${releaseReasonLabel(match.release_reason)})`
               : " — Toujours actif à cet instant"}
           </p>
           <SnapshotBlock snapshot={match.artisan_snapshot} />
         </section>
       ) : history.length > 0 ? (
         <p className="text-sm text-amber-800">Aucun rattachement actif à l&apos;instant demandé.</p>
+      ) : searched ? (
+        <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
+          Ce numéro n&apos;a jamais été attribué par Soline.
+        </p>
       ) : null}
 
       {history.length > 0 ? (
@@ -162,8 +169,8 @@ export function TelecomLookupForm({
                   {row.released_at ? ` → ${formatInstant(row.released_at)}` : " → en cours"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {row.assigned_by}
-                  {row.release_reason ? ` · fin : ${row.release_reason}` : ""}
+                  Attribué par : {assignedByLabel(row.assigned_by)}
+                  {row.release_reason ? ` · fin : ${releaseReasonLabel(row.release_reason)}` : ""}
                 </p>
                 <div className="mt-3">
                   <SnapshotBlock snapshot={row.artisan_snapshot} />

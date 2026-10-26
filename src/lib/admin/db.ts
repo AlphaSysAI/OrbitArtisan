@@ -20,15 +20,3 @@ export function isMissingColumnError(error: { code?: string; message?: string } 
     (msg.includes("column") && msg.includes("schema cache"))
   );
 }
-
-export function emptyAdminMetrics() {
-  return {
-    artisansTotal: 0,
-    artisansActive: 0,
-    artisansSuspended: 0,
-    quotesTotal: 0,
-    invoicesTotal: 0,
-    customersTotal: 0,
-    estimatedMrrCents: 0,
-  };
-}

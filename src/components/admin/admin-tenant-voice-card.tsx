@@ -1,102 +1,114 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import { assignTenantVoiceFromPool, updateTenantVoiceNumber } from "@/app/admin/actions";
+import { ConfirmButton } from "@/components/admin/ui/confirm-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-export function AdminTenantVoiceCard({
-  profileId,
-  currentPhoneE164,
-}: {
-  profileId: string;
-  currentPhoneE164: string | null;
-}) {
-  const [pending, startTransition] = useTransition();
-
-  const [message, setMessage] = useState<string | null>(null);
-
-  const assignFromPool = () => {
-    setMessage(null);
-    startTransition(async () => {
-      const result = await assignTenantVoiceFromPool(profileId);
-      if (result.ok) {
-        window.location.reload();
-      } else {
-        setMessage(voiceAssignErrorMessage(result.error));
-      }
-    });
-  };
-
-  const saveManual = (formData: FormData) => {
-    setMessage(null);
-    startTransition(async () => {
-      const result = await updateTenantVoiceNumber(profileId, formData);
-      if (result.ok) {
-        window.location.reload();
-      } else {
-        setMessage(voiceAssignErrorMessage(result.error));
-      }
-    });
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Numéro Soline</CardTitle>
-        <CardDescription>
-          Attribution manuelle ou depuis le pool (réservé Super Admin).
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <form action={saveManual} className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="voice_phone_e164">E.164</Label>
-            <Input
-              id="voice_phone_e164"
-              name="voice_phone_e164"
-              defaultValue={currentPhoneE164 ?? ""}
-              placeholder="+339XXXXXXXX"
-              className="font-mono"
-              disabled={pending}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={pending}>
-              Enregistrer le numéro
-            </Button>
-            <Button type="button" variant="secondary" disabled={pending} onClick={assignFromPool}>
-              Attribuer depuis le pool
-            </Button>
-          </div>
-          {message ? <p className="text-sm text-destructive">{message}</p> : null}
-          <p className="text-xs text-muted-foreground">
-            Laissez le champ vide et enregistrez pour retirer le rattachement vocal.
-          </p>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
+import { formatPhoneFr } from "@/lib/phone";
 
 function voiceAssignErrorMessage(error: string): string {
   switch (error) {
     case "plan_without_voice":
-      return "Ce compte est en formule Essentiel : passez-le en Pro ou Premium (bloc Abonnement) — le numéro sera attribué automatiquement.";
+      return "Formule Essentiel : passer le compte en Pro ou Premium pour lui attribuer un numéro.";
     case "subscription_inactive":
-      return "Abonnement résilié : réactivez-le (statut actif ou essai) avant d'attribuer un numéro.";
+      return "Abonnement inactif : un numéro ne s'attribue qu'en essai ou abonné.";
     case "provisioning_started":
-      return "Aucun numéro libre : achat lancé (Twilio → ElevenLabs). Actualisez dans quelques secondes ; en cas d'échec, e-mail d'alerte.";
+      return "Aucun numéro libre : achat Twilio lancé. Actualiser dans quelques secondes (e-mail d'alerte en cas d'échec).";
     case "pool_empty":
-      return "Aucun numéro disponible ET marqué « ElevenLabs prêt » dans Télécom → Pool.";
+      return "Aucun numéro prêt dans le stock (disponible et importé dans ElevenLabs).";
     case "invalid_phone":
-      return "Numéro invalide : format E.164, ex. +339XXXXXXXX.";
-    case "not_found":
-      return "Compte introuvable.";
+      return "Numéro invalide : format +339XXXXXXXX.";
     default:
       return error;
   }
+}
+
+export function AdminTenantVoiceCard({ profileId, currentPhoneE164 }: { profileId: string; currentPhoneE164: string | null }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [value, setValue] = useState(currentPhoneE164 ?? "");
+
+  const save = async (phone: string) => {
+    const fd = new FormData();
+    fd.set("voice_phone_e164", phone);
+    const res = await updateTenantVoiceNumber(profileId, fd);
+    if (!res.ok) {
+      toast.error(voiceAssignErrorMessage(res.error));
+      return false;
+    }
+    toast.success(phone ? "Numéro enregistré" : "Numéro retiré");
+    router.refresh();
+    return true;
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm">
+        {currentPhoneE164 ? (
+          <>
+            Numéro actuel : <span className="font-mono font-medium">{formatPhoneFr(currentPhoneE164)}</span>
+          </>
+        ) : (
+          <span className="text-muted-foreground">Aucun numéro Soline rattaché.</span>
+        )}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const res = await assignTenantVoiceFromPool(profileId);
+              if (!res.ok) return void toast.error(voiceAssignErrorMessage(res.error));
+              toast.success("Numéro attribué depuis le stock");
+              router.refresh();
+            })
+          }
+        >
+          Attribuer depuis le stock
+        </Button>
+        {currentPhoneE164 ? (
+          <ConfirmButton
+            destructive
+            variant="ghost"
+            title="Retirer le numéro Soline ?"
+            description="Les appels vers ce numéro ne seront plus rattachés à cet artisan. Le numéro passe en quarantaine."
+            confirmLabel="Retirer"
+            onConfirm={() => save("")}
+          >
+            Retirer le numéro
+          </ConfirmButton>
+        ) : null}
+      </div>
+      <form
+        className="space-y-1.5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!value.trim()) return;
+          start(async () => void (await save(value.trim())));
+        }}
+      >
+        <Label htmlFor="voice_phone_e164">Rattacher un numéro précis</Label>
+        <div className="flex gap-2">
+          <Input
+            id="voice_phone_e164"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="+339XXXXXXXX"
+            className="font-mono"
+            disabled={pending}
+          />
+          <Button type="submit" size="sm" variant="outline" className="h-10" disabled={pending || !value.trim() || value.trim() === currentPhoneE164}>
+            Rattacher
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
 }

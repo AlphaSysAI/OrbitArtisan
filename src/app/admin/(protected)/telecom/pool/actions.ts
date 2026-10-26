@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { writeAdminAuditLog } from "@/lib/admin/audit-log";
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import {
@@ -21,11 +22,11 @@ async function guardAdminPool() {
   }
   const sb = createSupabaseServiceRoleClient();
   if (!sb) throw new Error("Service role indisponible.");
-  return sb;
+  return { sb, adminUserId: adminRes.user.id };
 }
 
 export async function adminAddVoiceNumberToPool(formData: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
-  const sb = await guardAdminPool();
+  const { sb, adminUserId } = await guardAdminPool();
   const phone = String(formData.get("phone_e164") ?? "");
   const sid = String(formData.get("twilio_sid") ?? "");
   const notes = String(formData.get("notes") ?? "");
@@ -39,6 +40,7 @@ export async function adminAddVoiceNumberToPool(formData: FormData): Promise<{ o
   });
 
   if (!result.ok) return result;
+  await writeAdminAuditLog({ adminUserId, action: "voice_pool.add", details: { phone_e164: phone, elevenlabs_ready: elevenlabsReady } });
 
   // Le pool servait vide : on sert tout de suite les comptes Pro/Premium en
   // attente, sinon ils restent bloqués sur « Attribution en cours… ».
@@ -52,9 +54,10 @@ export async function adminAddVoiceNumberToPool(formData: FormData): Promise<{ o
 }
 
 export async function adminRetirePoolNumber(poolId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const sb = await guardAdminPool();
+  const { sb, adminUserId } = await guardAdminPool();
   const result = await retireVoiceNumberFromPool(sb, poolId);
   if (!result.ok) return result;
+  await writeAdminAuditLog({ adminUserId, action: "voice_pool.retire", details: { pool_id: poolId } });
   revalidatePath("/admin/telecom/pool");
   return { ok: true };
 }
@@ -62,16 +65,24 @@ export async function adminRetirePoolNumber(poolId: string): Promise<{ ok: true 
 export async function adminProvisionVoiceNumbers(
   count: number,
 ): Promise<{ ok: true; results: ProvisionResult[]; served: number; capped: boolean } | { ok: false; error: string }> {
-  const sb = await guardAdminPool();
+  const { sb, adminUserId } = await guardAdminPool();
   const result = await provisionVoiceNumbersForAdmin(sb, count);
+  await writeAdminAuditLog({
+    adminUserId,
+    action: "voice_pool.provision",
+    details: result.ok
+      ? { requested: count, bought: result.results.filter((r) => r.ok).map((r) => (r.ok ? r.phoneE164 : null)), served: result.served, capped: result.capped }
+      : { requested: count, error: result.error },
+  });
   revalidatePath("/admin/telecom/pool");
   revalidatePath("/app/reglages");
   return result;
 }
 
 export async function adminRetryElevenLabsImport(poolId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const sb = await guardAdminPool();
+  const { sb, adminUserId } = await guardAdminPool();
   const result = await retryElevenLabsImport(sb, poolId);
+  await writeAdminAuditLog({ adminUserId, action: "voice_pool.retry_elevenlabs", details: { pool_id: poolId, ok: result.ok } });
   revalidatePath("/admin/telecom/pool");
   return result;
 }

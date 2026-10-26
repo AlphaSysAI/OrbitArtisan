@@ -12,17 +12,12 @@ import {
   setAlertStatusAction,
   updateProspectNotesAction,
 } from "@/app/admin/(protected)/conciergerie/actions";
+import { ConfirmButton } from "@/components/admin/ui/confirm-button";
+import { copyToClipboard } from "@/components/admin/ui/copy-button";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
-async function copy(url: string) {
-  try {
-    await navigator.clipboard.writeText(url);
-    toast.success("Lien copié");
-  } catch {
-    toast.message(url);
-  }
-}
+const copy = (url: string) => copyToClipboard(url, "Lien copié");
 
 /** Les 3 actions « au téléphone » + lien d'invitation. Gros boutons : utilisables sur mobile pendant l'appel. */
 export function ProspectQuickActions({ prospectId, alertId = null }: { prospectId: string; alertId?: string | null }) {
@@ -68,20 +63,23 @@ export function ProspectQuickActions({ prospectId, alertId = null }: { prospectI
         >
           Pas dispo
         </Button>
-        <Button
+        <ConfirmButton
+          destructive
           size="sm"
-          variant="destructive"
-          disabled={pending}
-          onClick={() =>
-            start(async () => {
-              const res = await markOptOutAction(prospectId);
-              if (!res.ok) return void toast.error(res.error);
-              toast.success("Désinscrit : ne sera plus jamais suggéré");
-            })
-          }
+          title="Ne plus jamais contacter ce prospect ?"
+          description="Définitif : il ne sera plus jamais proposé, et ses notes, e-mail et coordonnées complémentaires sont effacés (opposition RGPD)."
+          confirmLabel="Ne plus contacter"
+          onConfirm={async () => {
+            const res = await markOptOutAction(prospectId);
+            if (!res.ok) {
+              toast.error(res.error);
+              return false;
+            }
+            toast.success("Désinscrit : ne sera plus jamais suggéré");
+          }}
         >
           Ne plus contacter
-        </Button>
+        </ConfirmButton>
         <Button
           size="sm"
           variant="ghost"

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { writeAdminAuditLog } from "@/lib/admin/audit-log";
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import {
@@ -65,6 +66,14 @@ export async function lookupVoiceNumberAt(params: {
         artisan_snapshot: matchRaw.artisan_snapshot,
       }
     : null;
+
+  // Consultation de données personnelles (identité, IP d'inscription) : toujours tracée.
+  await writeAdminAuditLog({
+    adminUserId: adminRes.user.id,
+    action: "telecom.lookup",
+    targetProfileId: matchRaw?.artisan_snapshot?.profile_id ?? null,
+    details: { phone, instant, found: Boolean(matchRaw), history_count: history.length },
+  });
 
   return { ok: true, match, history };
 }

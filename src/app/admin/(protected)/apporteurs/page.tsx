@@ -4,6 +4,7 @@ import {
   InviteReferrerForm,
   ReferrerStatusButton,
 } from "@/components/admin/referrers/referrer-admin-actions";
+import { AdminSetupAlert } from "@/components/admin/admin-setup-alert";
 import { Badge } from "@/components/ui/badge";
 import { getAdminDb } from "@/lib/admin/db";
 import { formatDateFr, formatDateTimeFr } from "@/lib/format/date";
@@ -50,59 +51,72 @@ export default async function AdminReferrersPage() {
       ])
     : [{ data: [] }, { data: [] }];
 
-  const pending = (invitations ?? []) as InvitationRow[];
-  const active = (referrers ?? []) as ReferrerRow[];
+  const allInvitations = (invitations ?? []) as InvitationRow[];
+  const pending = allInvitations.filter((i) => invitationState(i) === "open");
+  const expired = allInvitations.filter((i) => invitationState(i) === "expired");
+  const people = (referrers ?? []) as ReferrerRow[];
+
+  const invitationList = (list: InvitationRow[]) => (
+    <ul className="divide-y rounded-2xl border bg-card shadow-sm">
+      {list.map((inv) => {
+        const state = STATE_LABEL[invitationState(inv)];
+        return (
+          <li key={inv.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="min-w-0">
+              <p className="font-medium">
+                {inv.first_name} {inv.last_name} <span className="text-muted-foreground">· SIREN {inv.siren}</span>
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {inv.email} · {inv.sent_at ? `envoyée le ${formatDateTimeFr(inv.sent_at)}` : "e-mail non envoyé"} ·{" "}
+                {invitationState(inv) === "expired" ? "expirée le" : "expire le"} {formatDateFr(inv.expires_at)}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={state.variant}>{state.label}</Badge>
+              <InvitationRowActions invitationId={inv.id} />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   return (
     <div className="space-y-6">
+      {!db ? <AdminSetupAlert issue="missing_service_role" /> : null}
       <AppPageHeader
-        eyebrow="Apport d’affaires"
+        eyebrow="Apport d'affaires"
         title="Apporteurs"
-        description="Seul l’admin crée un accès apporteur : e-mail, nom, prénom et SIREN. L’apporteur reçoit un lien personnel (14 jours) pour compléter son entreprise et choisir son mot de passe."
+        description="L'admin crée l'accès (e-mail, nom, prénom, SIREN) ; l'apporteur reçoit un lien personnel valable 14 jours pour compléter son entreprise et choisir son mot de passe."
       />
 
       <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
-        <h2 className="mb-3 font-display text-base font-semibold">Nouvel apporteur</h2>
+        <h2 className="mb-3 font-display text-base font-semibold">Inviter un apporteur</h2>
         <InviteReferrerForm />
       </section>
 
-      <section className="space-y-3">
-        <h2 className="font-display text-base font-semibold">Invitations en cours ({pending.length})</h2>
-        {pending.length === 0 ? (
-          <p className="rounded-2xl border bg-card p-6 text-center text-sm text-muted-foreground">Aucune invitation en cours.</p>
-        ) : (
-          <ul className="divide-y rounded-2xl border bg-card">
-            {pending.map((inv) => {
-              const state = STATE_LABEL[invitationState(inv)];
-              return (
-                <li key={inv.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div className="min-w-0">
-                    <p className="font-medium">
-                      {inv.first_name} {inv.last_name} <span className="text-muted-foreground">· SIREN {inv.siren}</span>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {inv.email} · {inv.sent_at ? `envoyée le ${formatDateTimeFr(inv.sent_at)}` : "e-mail non envoyé"} · expire le{" "}
-                      {formatDateFr(inv.expires_at)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={state.variant}>{state.label}</Badge>
-                    <InvitationRowActions invitationId={inv.id} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      {pending.length ? (
+        <section className="space-y-3">
+          <h2 className="font-display text-base font-semibold">Invitations en attente ({pending.length})</h2>
+          {invitationList(pending)}
+        </section>
+      ) : null}
+
+      {expired.length ? (
+        <section className="space-y-3">
+          <h2 className="font-display text-base font-semibold">Invitations expirées ({expired.length})</h2>
+          <p className="text-sm text-muted-foreground">« Renvoyer » génère un nouveau lien valable 14 jours.</p>
+          {invitationList(expired)}
+        </section>
+      ) : null}
 
       <section className="space-y-3">
-        <h2 className="font-display text-base font-semibold">Apporteurs actifs ({active.length})</h2>
-        {active.length === 0 ? (
-          <p className="rounded-2xl border bg-card p-6 text-center text-sm text-muted-foreground">Aucun apporteur pour l’instant.</p>
+        <h2 className="font-display text-base font-semibold">Apporteurs ({people.length})</h2>
+        {people.length === 0 ? (
+          <p className="rounded-2xl border bg-card p-6 text-center text-sm text-muted-foreground">Aucun apporteur pour l&apos;instant.</p>
         ) : (
-          <ul className="divide-y rounded-2xl border bg-card">
-            {active.map((r) => (
+          <ul className="divide-y rounded-2xl border bg-card shadow-sm">
+            {people.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="font-medium">
@@ -115,7 +129,7 @@ export default async function AdminReferrersPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {r.status === "suspended" ? <Badge variant="destructive">Suspendu</Badge> : null}
-                  <ReferrerStatusButton referrerId={r.id} status={r.status} />
+                  <ReferrerStatusButton referrerId={r.id} status={r.status} name={r.business_name} />
                 </div>
               </li>
             ))}
