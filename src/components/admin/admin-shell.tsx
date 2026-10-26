@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Briefcase,
   Building2,
   ClipboardList,
   Handshake,
@@ -20,6 +21,7 @@ const NAV = [
   { href: "/admin", label: "Vue d'ensemble", icon: LayoutDashboard, exact: true },
   { href: "/admin/tenants", label: "Artisans", icon: Building2 },
   { href: "/admin/conciergerie", label: "Conciergerie", icon: Handshake },
+  { href: "/admin/apporteurs", label: "Apporteurs", icon: Briefcase },
   { href: "/admin/telecom", label: "Registre télécom", icon: Phone },
   { href: "/admin/logs", label: "Logs / Audit", icon: ClipboardList },
 ];

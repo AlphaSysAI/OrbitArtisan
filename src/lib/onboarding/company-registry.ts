@@ -1,6 +1,6 @@
 import "server-only";
 
-import { isValidSiret, onlyDigits } from "@/lib/onboarding/identifiers";
+import { isValidSiren, isValidSiret, onlyDigits } from "@/lib/onboarding/identifiers";
 
 /**
  * Données officielles (API Recherche d'entreprises, data.gouv — gratuite, sans clé).
@@ -46,43 +46,65 @@ function titleCase(s: string): string {
   return s.toLowerCase().replace(/(^|[\s'-])\p{L}/gu, (m) => m.toUpperCase());
 }
 
+async function searchRegistry(digits: string): Promise<ApiResult | null> {
+  const res = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${digits}&page=1&per_page=1`, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(6000),
+    next: { revalidate: 86_400 },
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as { results?: ApiResult[] };
+  const r = json.results?.[0];
+  return r && r.siren === digits.slice(0, 9) ? r : null;
+}
+
+/** `siret` null : établissement siège. */
+function toRegistryCompany(r: ApiResult, siret: string | null): RegistryCompany | null {
+  const s = r.siege ?? {};
+  const wanted = siret ?? s.siret ?? null;
+  if (!wanted || !isValidSiret(wanted)) return null;
+  const isHeadOffice = s.siret === wanted;
+  const etab = isHeadOffice ? null : r.matching_etablissements?.find((e) => e.siret === wanted);
+  const street = isHeadOffice
+    ? [s.numero_voie, s.indice_repetition, s.type_voie ? (TYPE_VOIE[s.type_voie] ?? s.type_voie.toLowerCase()) : null, s.libelle_voie ? titleCase(s.libelle_voie) : null]
+        .filter(Boolean)
+        .join(" ")
+    : null;
+  const person = r.dirigeants?.find((d) => d.type_dirigeant === "personne physique");
+
+  return {
+    siren: wanted.slice(0, 9),
+    siret: wanted,
+    name: r.nom_complet ?? r.nom_raison_sociale ?? "",
+    addressLine1: street || null,
+    postalCode: (isHeadOffice ? s.code_postal : etab?.code_postal) ?? null,
+    city: (isHeadOffice ? s.libelle_commune : etab?.libelle_commune) ? titleCase((isHeadOffice ? s.libelle_commune : etab?.libelle_commune)!) : null,
+    nafCode: s.activite_principale ?? null,
+    firstName: person?.prenoms ? titleCase(person.prenoms.split(" ")[0]!) : null,
+    lastName: person?.nom ? titleCase(person.nom) : null,
+    active: (r.etat_administratif ?? "A") === "A",
+  };
+}
+
 export async function lookupCompanyBySiret(siret: string): Promise<RegistryCompany | null> {
   const digits = onlyDigits(siret);
   if (!isValidSiret(digits)) return null;
   try {
-    const res = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${digits}&page=1&per_page=1`, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(6000),
-      next: { revalidate: 86_400 },
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { results?: ApiResult[] };
-    const r = json.results?.[0];
-    if (!r || r.siren !== digits.slice(0, 9)) return null;
-
-    const s = r.siege ?? {};
-    const isHeadOffice = s.siret === digits;
-    const etab = isHeadOffice ? null : r.matching_etablissements?.find((e) => e.siret === digits);
-    const street = isHeadOffice
-      ? [s.numero_voie, s.indice_repetition, s.type_voie ? (TYPE_VOIE[s.type_voie] ?? s.type_voie.toLowerCase()) : null, s.libelle_voie ? titleCase(s.libelle_voie) : null]
-          .filter(Boolean)
-          .join(" ")
-      : null;
-    const person = r.dirigeants?.find((d) => d.type_dirigeant === "personne physique");
-
-    return {
-      siren: digits.slice(0, 9),
-      siret: digits,
-      name: r.nom_complet ?? r.nom_raison_sociale ?? "",
-      addressLine1: street || null,
-      postalCode: (isHeadOffice ? s.code_postal : etab?.code_postal) ?? null,
-      city: (isHeadOffice ? s.libelle_commune : etab?.libelle_commune) ? titleCase((isHeadOffice ? s.libelle_commune : etab?.libelle_commune)!) : null,
-      nafCode: s.activite_principale ?? null,
-      firstName: person?.prenoms ? titleCase(person.prenoms.split(" ")[0]!) : null,
-      lastName: person?.nom ? titleCase(person.nom) : null,
-      active: (r.etat_administratif ?? "A") === "A",
-    };
+    const r = await searchRegistry(digits);
+    return r ? toRegistryCompany(r, digits) : null;
   } catch {
     return null; // API indisponible : on n'invente rien, les champs restent à confirmer.
+  }
+}
+
+/** Entreprise par SIREN, adresse du siège. Sert au pré-remplissage uniquement (à confirmer par la personne). */
+export async function lookupCompanyBySiren(siren: string): Promise<RegistryCompany | null> {
+  const digits = onlyDigits(siren);
+  if (!isValidSiren(digits)) return null;
+  try {
+    const r = await searchRegistry(digits);
+    return r ? toRegistryCompany(r, null) : null;
+  } catch {
+    return null;
   }
 }

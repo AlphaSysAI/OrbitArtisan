@@ -119,6 +119,18 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // Espace apporteur d'affaires : session requise (le lien d'invitation reste public).
+  if ((pathname === "/apporteur" || pathname.startsWith("/apporteur/")) && !pathname.startsWith("/apporteur/invitation/")) {
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "";
+      url.searchParams.set("next", pathname + request.nextUrl.search);
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
+
   const needsAuth =
     pathname.startsWith("/app") || pathname.startsWith("/mes-devis") || pathname.startsWith("/compte");
 
@@ -128,6 +140,21 @@ export async function middleware(request: NextRequest) {
       url.pathname = "/login";
       url.searchParams.set("next", pathname + request.nextUrl.search);
       return NextResponse.redirect(url);
+    }
+
+    // Apporteur d'affaires (pas de profil artisan) : son espace dédié, jamais /app ni /compte.
+    if (!isArtisan && (pathname.startsWith("/app") || pathname.startsWith("/compte"))) {
+      const { data: referrer } = await supabase
+        .from("business_referrers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (referrer) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/apporteur";
+        url.search = "";
+        return NextResponse.redirect(url);
+      }
     }
 
     if (!isArtisan && pathname.startsWith("/app")) {

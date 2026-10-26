@@ -18,6 +18,8 @@ describe("pathUsesSession", () => {
     "/site/plombier-dupont",
     "/site/plombier-dupont/cgv",
     "/auth/callback",
+    "/apporteur",
+    "/apporteur/invitation/abc",
   ])("garde la session sur %s", (path) => {
     expect(pathUsesSession(path)).toBe(true);
   });

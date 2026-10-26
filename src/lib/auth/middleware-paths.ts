@@ -22,6 +22,7 @@ const SESSION_PATH_PREFIXES = [
   "/rdv",
   "/devis",
   "/rejoindre",
+  "/apporteur",
 ] as const;
 
 export function pathUsesSession(pathname: string): boolean {
