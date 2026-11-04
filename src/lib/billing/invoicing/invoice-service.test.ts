@@ -6,6 +6,7 @@ import { InvoiceService } from "./invoice-service";
 import type { IPayloadSubmitter, PaSubmissionPayload, PaSubmissionResult } from "./payload-submitter";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -118,6 +119,10 @@ function createMockSupabase(config: MockConfig) {
       if (fnName === "reserve_invoice_number") {
         return { data: config.invoiceNumber || "INV-2026-0001", error: null };
       }
+      if (fnName === "issue_pdf_invoice") {
+        updates.push({ status: "sent", emission_flow: "pdf_transition", finalizing_at: null });
+        return { data: _args.p_invoice_id, error: null };
+      }
       if (fnName === "issue_b2c_invoice") {
         queueInserts.push({ status: "pending", invoice_id: _args.p_invoice_id });
         updates.push({ status: "sent", emission_flow: "e_reporting", finalizing_at: null });
@@ -214,6 +219,7 @@ describe("InvoiceService.finalize", () => {
       // réel du gel B2B (couvert par invoicing-freeze.test.ts et par le test
       // dédié ci-dessous).
       vi.spyOn(invoicingFreeze, "isDraftInvoicingFrozenForCustomer").mockReturnValue(false);
+      vi.spyOn(invoicingFreeze, "isB2BPdfTransitionActive").mockReturnValue(false);
       const submitter = new StubSubmitter();
       const { supabase, updates } = createMockSupabase({
         invoiceId: "inv-b2b",
@@ -260,8 +266,10 @@ describe("InvoiceService.finalize", () => {
   );
 
   it(
-    "bloque le finalize() d'un client B2B tant que B2B_INVOICING_FROZEN est vrai (garde-fou Vague 7)",
+    "bloque le finalize() d'un client B2B sans PA après la période transitoire (garde-fou Vague 7)",
     async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2027-09-02T10:00:00+02:00"));
       // Aucun mock de invoicingFreeze ici : on vérifie le comportement réel
       // de production (B2B toujours gelé). Ce garde-fou protège contre tout
       // futur point d'entrée qui créerait un brouillon B2B sans repasser par
@@ -303,6 +311,54 @@ describe("InvoiceService.finalize", () => {
       // updates[0] = claim anti double-submit, updates[1] = libération du claim.
       expect(updates).toHaveLength(2);
       expect(updates[1]).toMatchObject({ finalizing_at: null });
+      vi.useRealTimers();
+    },
+    30_000,
+  );
+
+  it(
+    "émet un client B2B en PDF classique pendant la période transitoire, sans PA ni e-reporting",
+    async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-11-04T10:00:00+01:00"));
+      const submitter = new StubSubmitter();
+      const { supabase, updates, queueInserts } = createMockSupabase({
+        invoiceId: "inv-b2b-pdf",
+        artisanId: "art-1",
+        invoiceNumber: "FAC-B2B-PDF",
+        customerUserId: "user-b2b",
+        customerProfile: {
+          display_name: "EI Martin",
+          email: "martin@ei.fr",
+          phone: null,
+          address_line1: "3 rue des Artisans",
+          postal_code: "69002",
+          city: "Lyon",
+          country_code: "FR",
+          // Entreprise individuelle en franchise : SIREN sans numéro de TVA.
+          siren: "987654321",
+          siret: null,
+          vat_number: null,
+          naf_code: null,
+          trade_register_number: null,
+        },
+      });
+      const rpcSpy = vi.spyOn(supabase as { rpc: (...args: unknown[]) => unknown }, "rpc");
+
+      const service = new InvoiceService(supabase, submitter);
+      const result = await service.finalize("inv-b2b-pdf", "art-1");
+      vi.useRealTimers();
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.flow).toBe("pdf_transition");
+      expect(result.pdf.byteLength).toBeGreaterThan(0);
+      expect(result.facturXXml).toBeUndefined();
+      expect(result.eReportingQueueId).toBeUndefined();
+      expect(submitter.submitEInvoice).not.toHaveBeenCalled();
+      expect(queueInserts).toHaveLength(0);
+      expect(rpcSpy).toHaveBeenCalledWith("issue_pdf_invoice", expect.objectContaining({ p_invoice_id: "inv-b2b-pdf" }));
+      expect(updates.at(-1)).toMatchObject({ emission_flow: "pdf_transition" });
     },
     30_000,
   );

@@ -12,6 +12,7 @@ import type { IPayloadSubmitter, PaSubmissionPayload } from "./payload-submitter
 import {
   frozenInvoicingMessageFor,
   INVOICING_FROZEN_ERROR,
+  isB2BPdfTransitionActive,
   isDraftInvoicingFrozenForCustomer,
 } from "../invoicing-freeze";
 
@@ -25,7 +26,7 @@ const VALID_VAT_RATES = [0, 5.5, 10, 20];
  */
 const FINALIZE_CLAIM_STALE_MS = 2 * 60 * 1000;
 
-type InvoiceEmissionFlow = "e_invoicing" | "e_reporting";
+type InvoiceEmissionFlow = "e_invoicing" | "e_reporting" | "pdf_transition";
 
 type FinalizeInvoiceSuccess = {
   ok: true;
@@ -141,7 +142,8 @@ export class InvoiceService {
       siret: document.buyer.siret,
       vatNumber: document.buyer.vatNumber,
     });
-    if (isDraftInvoicingFrozenForCustomer(customerClass)) {
+    const issuedAt = new Date(claim);
+    if (isDraftInvoicingFrozenForCustomer(customerClass, issuedAt)) {
       await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return {
         ok: false,
@@ -216,9 +218,14 @@ export class InvoiceService {
       };
     }
     document.invoiceNumber = allocatedNumber;
-    document.issueDate = new Date(claim);
+    document.issueDate = issuedAt;
     const dueDate = await this.computeDueDate(artisanId, document.issueDate);
     document.dueDate = new Date(dueDate);
+
+    // Période transitoire : sans PA raccordée, le B2B est émis en PDF classique.
+    if (customerClass === "b2b" && isB2BPdfTransitionActive(issuedAt)) {
+      return this.finalizePdfOnly(invoiceId, artisanId, document, claim, dueDate);
+    }
 
     if (customerClass === "b2b") {
       return this.finalizeB2B(invoiceId, artisanId, document, claim, dueDate);
@@ -348,6 +355,52 @@ export class InvoiceService {
       facturXXml: facturX.xml,
       paSubmissionId: paResult.submissionId,
       paSubmissionStatus: paResult.status,
+    };
+  }
+
+  /**
+   * B2B pendant la période transitoire (avant le 01/09/2027) : PDF figé et
+   * archivé, sans transmission PA ni e-reporting.
+   */
+  private async finalizePdfOnly(
+    invoiceId: string,
+    artisanId: string,
+    document: FacturXInvoiceDocument,
+    claim: string,
+    dueDate: string,
+  ): Promise<FinalizeInvoiceResult> {
+    let pdf: Uint8Array;
+    try {
+      pdf = await renderInvoicePdf(document);
+    } catch (error) {
+      console.error("[InvoiceService] PDF generation failed", error);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "generation_failed", message: "Échec de la génération du PDF." };
+    }
+
+    if (!this.issuer) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "persist_failed", message: "Service de finalisation indisponible." };
+    }
+    const { data: issuedId, error } = await this.issuer.rpc("issue_pdf_invoice", {
+      p_invoice_id: invoiceId,
+      p_claim: claim,
+      p_number: document.invoiceNumber,
+      p_issued_at: document.issueDate.toISOString(),
+      p_due_date: dueDate,
+      p_pdf: Buffer.from(pdf).toString("base64"),
+    });
+    if (error || issuedId !== invoiceId) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "persist_failed", message: "Impossible d'enregistrer la finalisation." };
+    }
+
+    return {
+      ok: true,
+      invoiceId,
+      flow: "pdf_transition",
+      pdf,
+      pdfFilename: pdfFilename(document.invoiceNumber, "pdf", document.invoiceType),
     };
   }
 

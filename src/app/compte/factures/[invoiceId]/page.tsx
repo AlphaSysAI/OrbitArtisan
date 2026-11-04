@@ -141,7 +141,7 @@ export default async function ClientInvoiceDetailPage({
         <div className="flex flex-wrap gap-2">
           <ClientInvoicePdfButton
             invoiceId={invoice.id}
-            emissionFlow={invoice.emission_flow as "e_invoicing" | "e_reporting" | null}
+            emissionFlow={invoice.emission_flow as "e_invoicing" | "e_reporting" | "pdf_transition" | null}
           />
           <Link href={`/mes-devis/${invoice.quote_id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
             Voir le devis d’origine

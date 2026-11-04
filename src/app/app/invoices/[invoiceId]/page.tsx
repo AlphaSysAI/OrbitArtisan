@@ -57,6 +57,7 @@ const ACTION_ERROR_LABELS: Record<string, string> = {
 const FLOW_LABELS: Record<string, string> = {
   e_invoicing: "E-invoicing (B2B — Factur-X + PA)",
   e_reporting: "E-reporting (B2C — PDF + file d'attente)",
+  pdf_transition: "PDF classique (B2B — période transitoire, sans plateforme agréée)",
 };
 
 function queryParam(value: string | string[] | undefined): string | undefined {
@@ -116,7 +117,7 @@ function InvoiceDetailView({
   download,
 }: InvoiceDetailViewProps) {
   const isDraft = invoice.status === "draft" && !invoice.finalized_at;
-  const emissionFlow = invoice.emission_flow as "e_invoicing" | "e_reporting" | null;
+  const emissionFlow = invoice.emission_flow as "e_invoicing" | "e_reporting" | "pdf_transition" | null;
   const invoiceTitle = displayText(invoice.invoice_number, "Brouillon");
 
   return (
