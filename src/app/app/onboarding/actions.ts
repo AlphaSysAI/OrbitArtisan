@@ -1,5 +1,6 @@
 "use server";
 
+import { normalizeWebUrl } from "@/lib/format/web-url";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -119,7 +120,7 @@ export async function saveOnboardingLegalStep(formData: FormData) {
   const rcProInsurer = String(formData.get("rc_pro_insurer") ?? "").trim();
   const rcProNumber = String(formData.get("rc_pro_number") ?? "").trim();
   const mediatorName = String(formData.get("mediator_name") ?? "").trim();
-  const mediatorUrl = String(formData.get("mediator_url") ?? "").trim();
+  const mediatorUrl = normalizeWebUrl(String(formData.get("mediator_url") ?? ""));
   const paymentTermsRaw = Number(formData.get("default_payment_terms_days"));
 
   if (!decennaleInsurer || !decennalePolicyNumber || !decennaleCoverageArea) {
@@ -129,7 +130,7 @@ export async function saveOnboardingLegalStep(formData: FormData) {
     return { ok: false as const, error: "missing_rc_pro" as const };
   }
   if (!mediatorName) return { ok: false as const, error: "missing_mediator" as const };
-  if (!mediatorUrl || !/^https?:\/\/.+/i.test(mediatorUrl)) {
+  if (!mediatorUrl) {
     return { ok: false as const, error: "invalid_mediator_url" as const };
   }
 

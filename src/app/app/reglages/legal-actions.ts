@@ -1,5 +1,6 @@
 "use server";
 
+import { normalizeWebUrl } from "@/lib/format/web-url";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -18,7 +19,9 @@ export async function updateLegalSettings(formData: FormData) {
   const rcProInsurer = String(formData.get("rc_pro_insurer") ?? "").trim() || null;
   const rcProNumber = String(formData.get("rc_pro_number") ?? "").trim() || null;
   const mediatorName = String(formData.get("mediator_name") ?? "").trim() || null;
-  const mediatorUrl = String(formData.get("mediator_url") ?? "").trim() || null;
+  const mediatorUrlRaw = String(formData.get("mediator_url") ?? "").trim();
+  const mediatorUrl = mediatorUrlRaw ? normalizeWebUrl(mediatorUrlRaw) : null;
+  if (mediatorUrlRaw && !mediatorUrl) return { ok: false as const, error: "invalid_mediator_url" as const };
   const paymentTermsRaw = Number(formData.get("default_payment_terms_days"));
   const retentionRaw = Number(String(formData.get("default_retention_rate") ?? "").replace(",", "."));
   const autoReminderEnabled = formData.get("auto_reminder_enabled") === "on";

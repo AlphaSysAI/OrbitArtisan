@@ -50,6 +50,8 @@ export function LegalSettingsForm({
               ? "Régime de TVA non modifiable : une facture a déjà été émise ce mois-ci. Change-le au début du mois prochain."
             : res.error === "invalid_vat"
               ? "Numéro TVA invalide."
+            : res.error === "invalid_mediator_url"
+              ? "Adresse du site du médiateur invalide (ex. www.mediateur.fr)."
               : "Impossible d'enregistrer.",
       );
       return;
@@ -127,7 +129,16 @@ export function LegalSettingsForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="mediator_url">URL médiateur</Label>
-            <Input id="mediator_url" name="mediator_url" defaultValue={initialValues.mediator_url ?? ""} type="url" />
+            <Input
+              id="mediator_url"
+              name="mediator_url"
+              defaultValue={initialValues.mediator_url ?? ""}
+              type="text"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              placeholder="www.mediateur.fr"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="default_payment_terms_days">Délai de paiement (jours)</Label>

@@ -1,5 +1,6 @@
 "use server";
 
+import { normalizeWebUrl } from "@/lib/format/web-url";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -106,7 +107,8 @@ export async function saveImportAction(input: z.infer<typeof saveSchema>): Promi
   const postal = f("postal_code") ? normalizePostalCode(f("postal_code")) : null;
   if (f("postal_code") && !postal) return { ok: false, error: "invalid_postal_code", field: "postal_code" };
   const mediatorUrlRaw = f("mediator_url");
-  const mediatorUrl = mediatorUrlRaw ? (/^https?:\/\//i.test(mediatorUrlRaw) ? mediatorUrlRaw : `https://${mediatorUrlRaw}`) : null;
+  const mediatorUrl = mediatorUrlRaw ? normalizeWebUrl(mediatorUrlRaw) : null;
+  if (mediatorUrlRaw && !mediatorUrl) return { ok: false, error: "invalid_mediator_url", field: "mediator_url" };
   const days = f("payment_terms_days") !== null ? Math.round(Number(f("payment_terms_days"))) : null;
   if (days !== null && (!Number.isFinite(days) || days < 0 || days > 120)) {
     return { ok: false, error: "invalid_payment_terms", field: "payment_terms_days" };

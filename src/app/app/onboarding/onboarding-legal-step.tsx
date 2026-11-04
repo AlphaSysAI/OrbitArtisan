@@ -19,7 +19,7 @@ const ERROR_MESSAGES: Record<OnboardingLegalError, string> = {
   missing_decennale: "Assurance décennale : assureur, n° de contrat et couverture géographique obligatoires.",
   missing_rc_pro: "RC Pro : assureur et n° de contrat obligatoires.",
   missing_mediator: "Nom du médiateur de la consommation obligatoire.",
-  invalid_mediator_url: "URL du médiateur obligatoire (https://…).",
+  invalid_mediator_url: "Adresse du site du médiateur invalide (ex. www.mediateur.fr).",
   invalid_payment_terms: "Délai de paiement obligatoire (1 à 365 jours).",
   save_failed: "Enregistrement impossible. Réessaie.",
 };
@@ -181,9 +181,12 @@ export function OnboardingLegalStep({
             <Input
               id="mediator_url"
               name="mediator_url"
-              type="url"
+              type="text"
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
               defaultValue={initialValues.mediatorUrl}
-              placeholder="https://…"
+              placeholder="www.mediateur.fr"
               required
             />
           </div>
