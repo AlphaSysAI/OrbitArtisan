@@ -3,6 +3,7 @@ import "server-only";
 import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe } from "@/lib/stripe/server";
+import { MANAGED_PAYMENTS, MANAGED_PAYMENTS_REQUEST } from "@/lib/stripe/managed-payments";
 import { resolveSubscriptionPriceId } from "@/lib/stripe/subscription-prices";
 
 /**
@@ -32,6 +33,9 @@ export async function createSubscriptionCheckoutSession(params: {
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      // Stripe marchand officiel (Managed Payments) : TVA calculée et collectée par
+      // Stripe, comme sur les anciens Payment Links. Incompatible avec automatic_tax.
+      ...MANAGED_PAYMENTS,
       line_items: [{ price: priceId, quantity: 1 }],
       ...(params.stripeCustomerId ? { customer: params.stripeCustomerId } : { customer_email: params.email }),
       client_reference_id: params.profileId,
@@ -57,7 +61,7 @@ export async function createSubscriptionCheckoutSession(params: {
       },
       success_url: `${siteUrl}/api/stripe/checkout-return?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/app/reglages?tab=abonnement&canceled=1`,
-    });
+    }, MANAGED_PAYMENTS_REQUEST);
     if (!session.url) return { ok: false, error: "checkout_failed" };
     return { ok: true, url: session.url };
   } catch (e) {

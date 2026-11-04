@@ -7,6 +7,7 @@ import { AMBASSADOR_PROGRAM } from "@/lib/billing/promo-program";
 import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe } from "@/lib/stripe/server";
+import { MANAGED_PAYMENTS, MANAGED_PAYMENTS_REQUEST } from "@/lib/stripe/managed-payments";
 import { resolveSubscriptionPriceId } from "@/lib/stripe/subscription-prices";
 
 type AmbassadorCheckoutError = "promo_not_configured" | "price_not_found" | "checkout_failed";
@@ -59,6 +60,9 @@ export async function createAmbassadorCheckoutSession(params: {
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      // Stripe marchand officiel (Managed Payments) : TVA calculée et collectée par
+      // Stripe, comme sur les anciens Payment Links. Incompatible avec automatic_tax.
+      ...MANAGED_PAYMENTS,
       line_items: [{ price: priceId, quantity: 1 }],
       discounts: [{ coupon: couponId }],
       ...(params.stripeCustomerId
@@ -80,7 +84,7 @@ export async function createAmbassadorCheckoutSession(params: {
       },
       success_url: `${siteUrl}/api/stripe/checkout-return?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/app/reglages?tab=abonnement&canceled=1`,
-    });
+    }, MANAGED_PAYMENTS_REQUEST);
 
     if (!session.url) return { ok: false, error: "checkout_failed" };
     await attachPromoCheckoutSession(params.admin, params.profileId, session.id);
