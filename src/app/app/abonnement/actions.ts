@@ -14,10 +14,9 @@ import {
 import { getPromoEnrollment, reservePromoSlot } from "@/lib/billing/promo-enrollment";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createAmbassadorCheckoutSession } from "@/lib/stripe/ambassador-checkout";
-import { createTrialSubscriptionCheckoutSession } from "@/lib/stripe/subscription-checkout";
+import { createSubscriptionCheckoutSession } from "@/lib/stripe/subscription-checkout";
 import { stripeTrialEndFromProfile } from "@/lib/stripe/subscription-trial";
 import { sirenAlreadyUsedTrial } from "@/lib/billing/trial-eligibility";
-import { buildSubscriptionPaymentLinkUrl } from "@/lib/stripe/subscription-payment-links";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
@@ -106,27 +105,16 @@ export async function startSubscriptionCheckout(
     // already_used / lapsed / not_enrolled → tarif normal.
   }
 
-  if (trialEnd) {
-    return createTrialSubscriptionCheckoutSession({
-      planId,
-      interval: billingInterval,
-      profileId,
-      email: userEmail,
-      stripeCustomerId: String(profile.stripe_customer_id ?? "").trim() || null,
-      trialEnd,
-    });
-  }
-
-  const linkResult = buildSubscriptionPaymentLinkUrl(planId, billingInterval, {
-    email: userEmail,
+  // Session serveur dans tous les cas (avec ou sans essai) : retour garanti sur
+  // SolineBTP après paiement et profil porté par les métadonnées.
+  return createSubscriptionCheckoutSession({
+    planId,
+    interval: billingInterval,
     profileId,
+    email: userEmail,
+    stripeCustomerId: String(profile.stripe_customer_id ?? "").trim() || null,
+    trialEnd: trialEnd ?? null,
   });
-
-  if (!linkResult.ok) {
-    return { ok: false, error: linkResult.error };
-  }
-
-  return { ok: true, url: linkResult.url };
 }
 
 export async function openStripeBillingPortal(): Promise<

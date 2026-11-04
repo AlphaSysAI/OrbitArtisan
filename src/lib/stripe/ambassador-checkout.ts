@@ -78,7 +78,7 @@ export async function createAmbassadorCheckoutSession(params: {
         // Pas de plan_id ici : il deviendrait faux après un changement de formule via le portail.
         metadata: { profile_id: params.profileId, promo_code: AMBASSADOR_PROGRAM.code },
       },
-      success_url: `${siteUrl}/app/reglages?tab=abonnement&success=1`,
+      success_url: `${siteUrl}/api/stripe/checkout-return?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/app/reglages?tab=abonnement&canceled=1`,
     });
 
