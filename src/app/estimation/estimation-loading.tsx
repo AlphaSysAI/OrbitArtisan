@@ -19,11 +19,11 @@ const ESTIMATION_LOADING_MESSAGES = [
 
 export function EstimationLoadingPanel() {
   const [messageIndex, setMessageIndex] = React.useState(0);
-  const startedAtRef = React.useRef(Date.now());
 
   React.useEffect(() => {
+    const startedAt = Date.now();
     const tick = () => {
-      const elapsed = Date.now() - startedAtRef.current;
+      const elapsed = Date.now() - startedAt;
       let idx = 0;
       for (let i = ESTIMATION_LOADING_MESSAGES.length - 1; i >= 0; i -= 1) {
         if (elapsed >= ESTIMATION_LOADING_MESSAGES[i].afterMs) {

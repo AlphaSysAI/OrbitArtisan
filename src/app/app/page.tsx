@@ -61,6 +61,7 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
       { count: pendingPayments },
       { data: revenueAgg },
       voiceNumberRes,
+      inboxItems,
     ] = await Promise.all([
       supabase.from("services").select("id", { count: "exact", head: true }).eq("artisan_id", profile.id),
       supabase.from("clients").select("id", { count: "exact", head: true }).eq("artisan_id", profile.id),
@@ -85,12 +86,13 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
         .eq("artisan_id", profile.id)
         .eq("status", "paid"),
       supabase.from("artisan_voice_numbers").select("phone_e164").eq("artisan_id", profile.id).maybeSingle(),
+      loadArtisanInbox(supabase, profile.id, user!.id),
     ]);
 
     solinePhoneE164 = (voiceNumberRes.data?.phone_e164 as string | undefined) ?? null;
     serviceCount = services;
     contactCount = contactsRes.count ?? 0;
-    inbox = await loadArtisanInbox(supabase, profile.id, user!.id);
+    inbox = inboxItems;
     finalizedInvoiceCount = finalizedCount ?? 0;
     pendingQuoteCount = pendingQuotes ?? 0;
     pendingPaymentCount = pendingPayments ?? 0;

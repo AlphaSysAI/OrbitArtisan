@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
@@ -8,6 +9,7 @@ import {
   CalendarPlus,
   FileText,
   Loader2,
+  Lock,
   Mic,
   MicOff,
   Sparkles,
@@ -21,6 +23,7 @@ import { persistAiQuoteDraft } from "@/lib/ai/map-quote-draft";
 import { getQuoteEditor, wantsNewQuote } from "@/lib/ai/quote-editor-bridge";
 import { formatIsoDateFr } from "@/lib/ai/resolve-date";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { computeAnchoredPanelRect, type AnchorRect } from "@/lib/ui/anchor-panel";
 import { onArtisanAssistantOpen } from "@/lib/ai/assistant-bridge";
 import {
@@ -71,12 +74,16 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export function ArtisanAssistant() {
+const SUBSCRIPTION_PATH = "/app/reglages?tab=abonnement";
+
+export function ArtisanAssistant({ locked = false }: { locked?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const pageContext = resolveAssistantPageContext(pathname);
   const isQuoteNewPage = pathname === "/app/quotes/new";
   const [open, setOpen] = useState(false);
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
   const [mounted, setMounted] = useState(false);
   const [panelRect, setPanelRect] = useState<AnchorRect | null>(null);
   const [input, setInput] = useState("");
@@ -310,6 +317,7 @@ export function ArtisanAssistant() {
   useEffect(() => {
     return onArtisanAssistantOpen(({ message, handsFree: startHandsFree }) => {
       setOpen(true);
+      if (lockedRef.current) return;
       if (message?.trim()) setInput(message.trim());
 
       if (startHandsFree) {
@@ -673,8 +681,9 @@ export function ArtisanAssistant() {
                   </div>
                   <h2 className="font-display text-lg font-semibold tracking-tight">Soline</h2>
                   <p className="text-xs text-muted-foreground">
-                    {pageContext.label}
-                    {isQuoteNewPage ? " · décris le chantier" : " · voix ou texte"}
+                    {locked
+                      ? "Réservé aux abonnés"
+                      : `${pageContext.label}${isQuoteNewPage ? " · décris le chantier" : " · voix ou texte"}`}
                   </p>
                 </div>
                 <Button
@@ -688,6 +697,33 @@ export function ArtisanAssistant() {
                 </Button>
               </header>
 
+              {locked ? (
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-6 py-8 text-center">
+                  <span className="flex size-14 items-center justify-center rounded-2xl bg-brand/12 text-brand">
+                    <Lock className="size-6" />
+                  </span>
+                  <div className="space-y-2">
+                    <h3 className="font-display text-lg font-semibold tracking-tight">
+                      Fonctionnalité réservée aux abonnés
+                    </h3>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      L’assistant Soline (devis dictés, rendez-vous, navigation à la voix) se débloque dès que ta
+                      formule est activée, essai gratuit compris.
+                    </p>
+                  </div>
+                  <Link
+                    href={SUBSCRIPTION_PATH}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      buttonVariants(),
+                      "h-11 rounded-xl bg-brand px-5 text-brand-foreground hover:bg-brand/90",
+                    )}
+                  >
+                    Choisir ma formule
+                  </Link>
+                </div>
+              ) : (
+              <>
               <div
                 ref={listRef}
                 className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4"
@@ -903,6 +939,8 @@ export function ArtisanAssistant() {
                   {loading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
                 </Button>
               </form>
+              </>
+              )}
             </div>,
             document.body,
           )

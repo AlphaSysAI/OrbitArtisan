@@ -48,6 +48,7 @@ import type { AssistantPageContextPayload } from "@/lib/ai/assistant-page-contex
 import { buildAssistantPageContextBlock } from "@/lib/ai/assistant-page-enrichment";
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
 import { listArtisanContacts } from "@/lib/contacts/actions";
+import { evaluateSubscriptionAccess } from "@/lib/billing/subscription-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDateFr, formatTimeFr } from "@/lib/format/date";
 import { laborItemsFromAi } from "@/lib/quotes/ai-labor-items";
@@ -427,11 +428,17 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, user_id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
+    .select(
+      "id, user_id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade, subscription_status, trial_ends_at, account_status, deleted_at",
+    )
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (!profile?.id) return NextResponse.json({ error: "not_artisan" }, { status: 403 });
+  // Assistant réservé aux abonnés (essai en cours inclus), comme le bouton flottant.
+  if (!evaluateSubscriptionAccess(profile).allowed) {
+    return NextResponse.json({ error: "subscription_required" }, { status: 402 });
+  }
 
   // 1) Confirmation d’une navigation déjà proposée (« go », « vas-y »)
   if (pendingAction?.type === "navigate" && pendingAction.href) {

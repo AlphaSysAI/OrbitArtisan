@@ -1,25 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import "./fonts/fonts.css";
 import "./globals.css";
 import { PwaRootClient } from "@/components/pwa/pwa-root-client";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { getPublicSiteUrl } from "@/lib/site-url";
-
-const plusJakarta = Plus_Jakarta_Sans({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const fraunces = Fraunces({
-  variable: "--font-display",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(getPublicSiteUrl()),
@@ -53,11 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="fr"
-      suppressHydrationWarning
-      className={`${plusJakarta.variable} ${fraunces.variable} ${geistMono.variable}`}
-    >
+    <html lang="fr" suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider
           attribute="class"

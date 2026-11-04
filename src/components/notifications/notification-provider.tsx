@@ -52,23 +52,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const [counts, setCounts] = React.useState<NotificationCounts | null>(null);
   const inFlightRef = React.useRef(false);
+  const retryRef = React.useRef({ failures: 0, after: 0 });
   const markingRef = React.useRef(new Set<NotificationCategory>());
 
   // GET dédié plutôt qu'une server action : ne bloque pas la file des
   // server actions (envois de formulaires) — perf, point 4.
   const refresh = React.useCallback(async () => {
-    if (inFlightRef.current) return;
+    if (inFlightRef.current || Date.now() < retryRef.current.after) return;
     inFlightRef.current = true;
     try {
       const res = await fetch("/api/notifications/counts", { cache: "no-store" });
-      if (!res.ok) return;
-      const result = (await res.json()) as NotificationCountsResult;
-      if (result.ok) {
-        setCounts(result);
-        syncAppBadge(result);
+      if (res.status === 401) {
+        setCounts(null);
+        syncAppBadge(null);
+        return;
       }
+      if (!res.ok) throw new Error("notification_counts_unavailable");
+      const result = (await res.json()) as NotificationCountsResult;
+      if (!result.ok) throw new Error("notification_counts_unavailable");
+      retryRef.current = { failures: 0, after: 0 };
+      setCounts(result);
+      syncAppBadge(result);
     } catch {
-      // Réseau instable (chantier) : on garde les derniers compteurs connus.
+      // Garder les derniers compteurs et éviter les rafales au retour sur l’onglet.
+      const failures = Math.min(retryRef.current.failures + 1, 3);
+      retryRef.current = { failures, after: Date.now() + POLL_INTERVAL_MS * 2 ** (failures - 1) };
     } finally {
       inFlightRef.current = false;
     }

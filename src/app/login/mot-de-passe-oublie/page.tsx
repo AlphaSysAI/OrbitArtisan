@@ -19,6 +19,10 @@ const ERROR_MESSAGES: Record<string, { title: string; body: string }> = {
     title: "Patiente un instant",
     body: "Un e-mail vient déjà d'être envoyé. Attends une minute avant d'en redemander un.",
   },
+  auth_unavailable: {
+    title: "Service temporairement indisponible",
+    body: "Réessaie dans quelques instants.",
+  },
   link_expired: {
     title: "Lien expiré",
     body: "Ce lien de réinitialisation n'est plus valable (expiré ou déjà utilisé). Demande-en un nouveau ci-dessous.",

@@ -7,9 +7,12 @@ import { PushNotificationsBanner } from "@/components/notifications/push-notific
 export function AppShell({
   children,
   isPlatformAdmin = false,
+  assistantLocked = false,
 }: {
   children: React.ReactNode;
   isPlatformAdmin?: boolean;
+  /** Pas d'abonnement valide : l'assistant affiche un message au lieu de l'IA. */
+  assistantLocked?: boolean;
 }) {
   return (
     <NotificationProvider>
@@ -22,7 +25,7 @@ export function AppShell({
       </div>
 
       <AppMobileBottomNav isPlatformAdmin={isPlatformAdmin} />
-      <ArtisanAssistantLazy />
+      <ArtisanAssistantLazy locked={assistantLocked} />
     </div>
     </NotificationProvider>
   );

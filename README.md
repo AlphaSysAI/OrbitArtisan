@@ -7,7 +7,7 @@
 | **Éditeur** | AlphaSysAI — Florian LAPERTOT |
 | **Site marketing** | [solinebtp.fr](https://solinebtp.fr) |
 | **Application** | [app.solinebtp.fr](https://app.solinebtp.fr) |
-| **Contact** | contact@alphasys.tech |
+| **Contact** | contact@solinebtp.fr |
 
 Ce document décrit **comment fonctionne le projet** : architecture, flux métier, intégrations et déploiement. Une **partie Résumé** en fin de document présente le produit comme un pitch commercial.
 

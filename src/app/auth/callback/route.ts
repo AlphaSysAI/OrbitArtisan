@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   const toLogin = (error?: string | null) =>
     NextResponse.redirect(new URL(buildAuthLinkFailurePath({ next: rawNext, email, linkError: error }), url.origin));
 
-  if (!code) return toLogin(linkError);
+  if (!code) return toLogin(linkError ?? "link_invalid");
 
   const response = NextResponse.redirect(new URL(next, url.origin));
 
@@ -40,9 +40,11 @@ export async function GET(request: NextRequest) {
 
   const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error || !sessionData.user) {
-    // Cas typique : mail ouvert sur un autre appareil (pas de code verifier PKCE ici).
-    // L'adresse est déjà confirmée par Supabase : on ouvre la connexion, e-mail prérempli.
-    return toLogin(null);
+    if (error?.name === "AuthPKCECodeVerifierMissingError") return toLogin("pkce_missing");
+    if (error?.name === "AuthRetryableFetchError" || (error?.status ?? 0) >= 500) {
+      return toLogin("auth_unavailable");
+    }
+    return toLogin(error?.code ?? "link_invalid");
   }
 
   await persistRegistrationIpOnProfile(supabase, sessionData.user);

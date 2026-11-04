@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -13,12 +13,12 @@ import { cn } from "@/lib/utils";
 
 export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const pathname = usePathname();
+  return <MobileNav key={pathname} pathname={pathname} isPlatformAdmin={isPlatformAdmin} />;
+}
+
+function MobileNav({ pathname, isPlatformAdmin }: { pathname: string; isPlatformAdmin: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { badgeCount } = useNotifications();
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
 
   const [leftA, leftB, rightA, rightB] = APP_NAV_BOTTOM;
 

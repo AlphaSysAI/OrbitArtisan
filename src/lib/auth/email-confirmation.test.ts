@@ -57,6 +57,16 @@ describe("buildCallbackLoginPath", () => {
     expect(sp.has("success")).toBe(false);
   });
 
+  it.each(["pkce_missing", "auth_unavailable", "link_invalid"])(
+    "préserve l’e-mail et affiche %s sans annoncer une confirmation",
+    (linkError) => {
+      const sp = parse(buildCallbackLoginPath({ next: "/app/onboarding", email: "toi@atelier.fr", linkError }));
+      expect(sp.get("error")).toBe(linkError);
+      expect(sp.get("email")).toBe("toi@atelier.fr");
+      expect(sp.has("success")).toBe(false);
+    },
+  );
+
   it("bascule vers l'espace client pour une destination client", () => {
     expect(parse(buildCallbackLoginPath({ next: "/compte/messages", email: null })).get("role")).toBe("particulier");
   });
@@ -67,6 +77,14 @@ describe("buildCallbackLoginPath", () => {
 });
 
 describe("buildAuthLinkFailurePath", () => {
+  it("distingue une panne d’un lien de récupération expiré", () => {
+    expect(buildAuthLinkFailurePath({
+      next: NEW_PASSWORD_PATH,
+      email: null,
+      linkError: "auth_unavailable",
+    })).toBe(`${FORGOT_PASSWORD_PATH}?error=auth_unavailable`);
+  });
+
   it("renvoie vers « mot de passe oublié » pour un lien de réinitialisation", () => {
     const path = buildAuthLinkFailurePath({ next: NEW_PASSWORD_PATH, email: "toi@atelier.fr", linkError: "otp_expired" });
     const url = new URL(path, "https://app.solinebtp.fr");

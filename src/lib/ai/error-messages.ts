@@ -15,6 +15,7 @@ const AI_ERROR_MESSAGES: Record<string, string> = {
   missing_quote_id: "Devis introuvable.",
   quote_not_found: "Devis introuvable.",
   forbidden: "Accès refusé.",
+  subscription_required: "L’assistant Soline est réservé aux abonnés.",
 };
 
 export function aiErrorMessage(code: string | null | undefined, fallback = "Erreur IA — réessaie."): string {

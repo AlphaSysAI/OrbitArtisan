@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-import { buildAuthLinkFailurePath, parseEmailOtpType } from "@/lib/auth/email-confirmation";
+import { buildAuthLinkFailurePath, NEW_PASSWORD_PATH, parseEmailOtpType } from "@/lib/auth/email-confirmation";
 import { safeNextPath } from "@/lib/auth/safe-next";
 
 /**
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const tokenHash = url.searchParams.get("token_hash");
   const type = parseEmailOtpType(url.searchParams.get("type"));
-  const rawNext = url.searchParams.get("next");
+  const rawNext = type === "recovery" ? NEW_PASSWORD_PATH : url.searchParams.get("next");
   const next = safeNextPath(rawNext, "/app");
   const email = url.searchParams.get("email");
 
@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
 
   const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
   if (error) {
-    const expired = error.code === "otp_expired" || /expired|invalid/i.test(error.message);
+    if (error.name === "AuthRetryableFetchError" || (error.status ?? 0) >= 500) {
+      return fail("auth_unavailable");
+    }
+    const expired = error.code === "otp_expired";
     return fail(expired ? "otp_expired" : "link_invalid");
   }
 

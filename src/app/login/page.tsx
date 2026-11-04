@@ -28,6 +28,14 @@ const ERROR_MESSAGES: Record<string, { title: string; body: string }> = {
     title: "Adresse pas encore confirmée",
     body: "Clique sur le lien reçu par e-mail pour activer ton compte. Tu peux en demander un nouveau ci-dessous.",
   },
+  pkce_missing: {
+    title: "Connexion à terminer",
+    body: "Ce lien a été ouvert dans un autre navigateur. Connecte-toi avec ton mot de passe si ton adresse est confirmée.",
+  },
+  auth_unavailable: {
+    title: "Connexion temporairement indisponible",
+    body: "Réessaie d’ouvrir le lien dans quelques instants.",
+  },
   link_expired: {
     title: "Lien expiré",
     body: "Ce lien de confirmation n'est plus valable. Demande un nouvel e-mail ci-dessous.",

@@ -39,7 +39,10 @@ export function buildCallbackLoginPath(params: {
   const email = sanitizeEmailParam(params.email);
   if (email) qs.set("email", email);
   if (params.linkError) {
-    qs.set("error", params.linkError === "otp_expired" ? "link_expired" : "link_invalid");
+    const error = params.linkError === "otp_expired" ? "link_expired"
+      : params.linkError === "pkce_missing" || params.linkError === "auth_unavailable" ? params.linkError
+      : "link_invalid";
+    qs.set("error", error);
   } else {
     qs.set("success", "email_confirmed");
   }
@@ -62,7 +65,9 @@ export function buildAuthLinkFailurePath(params: {
 }): string {
   const next = safeNextPath(params.next, "/app");
   if (next.startsWith(NEW_PASSWORD_PATH)) {
-    const qs = new URLSearchParams({ error: "link_expired" });
+    const qs = new URLSearchParams({
+      error: params.linkError === "auth_unavailable" ? "auth_unavailable" : "link_expired",
+    });
     const email = sanitizeEmailParam(params.email);
     if (email) qs.set("email", email);
     return `${FORGOT_PASSWORD_PATH}?${qs.toString()}`;

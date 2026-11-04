@@ -13,13 +13,13 @@ export const LEGAL_PUBLISHER = {
   siren: "105815633",
   siret: "10581563300018",
   director: "Florian LAPERTOT",
-  email: "contact@alphasys.tech",
+  email: "contact@solinebtp.fr",
   /**
    * Téléphone de l'éditeur : obligatoire (art. 6, III LCEN).
    * TODO(Florian) : renseigner avant mise en production — la ligne est masquée tant que vide.
    */
   phone: "",
-  privacyEmail: "contact@alphasys.tech",
+  privacyEmail: "contact@solinebtp.fr",
   /** Franchise en base de TVA (micro-entreprise). */
   vatMention: "TVA non applicable, art. 293 B du CGI",
   productName: "Soline",

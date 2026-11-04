@@ -53,11 +53,13 @@ export function RdvCalendar({
   appointments,
   services,
   initialDateIso,
+  now,
 }: {
   appointments: ArtisanAppointment[];
   services: ServiceLite[];
   /** Date ISO YYYY-MM-DD (ex. depuis ?date=) */
   initialDateIso?: string | null;
+  now: number;
 }) {
   const router = useRouter();
   const initial = React.useMemo(() => {
@@ -117,7 +119,6 @@ export function RdvCalendar({
   );
 
   const upcoming48h = React.useMemo(() => {
-    const now = Date.now();
     const horizon = now + 48 * 60 * 60 * 1000;
     return appointments
       .filter((a) => {
@@ -126,7 +127,7 @@ export function RdvCalendar({
         return t >= now && t <= horizon;
       })
       .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-  }, [appointments]);
+  }, [appointments, now]);
 
   const weeks = React.useMemo(
     () => getCalendarWeeks(viewDate.getFullYear(), viewDate.getMonth()),

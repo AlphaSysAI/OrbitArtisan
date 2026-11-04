@@ -162,6 +162,7 @@ export default async function ArtisanRdvPage({
             appointments={appointments}
             services={services ?? []}
             initialDateIso={dateParam}
+            now={new Date().getTime()}
           />
         </div>
       )}

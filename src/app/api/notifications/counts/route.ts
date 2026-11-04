@@ -13,8 +13,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const result = await loadNotificationCounts(supabase);
-  return NextResponse.json(result, {
-    status: result.ok ? 200 : result.error === "auth" ? 401 : 500,
+  const unavailable = !result.ok && result.error !== "auth";
+  if (unavailable) console.error("[notifications/counts]", result.error);
+  return NextResponse.json(unavailable ? { ok: false, error: "temporarily_unavailable" } : result, {
+    status: result.ok ? 200 : unavailable ? 503 : 401,
     headers: { "Cache-Control": "private, no-store" },
   });
 }
