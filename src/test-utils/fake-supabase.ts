@@ -76,6 +76,10 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
         filters.push((r) => String(r[col]) > v);
         return builder;
       },
+      lte(col: string, v: string) {
+        filters.push((r) => String(r[col]) <= v);
+        return builder;
+      },
       lt(col: string, v: string) {
         filters.push((r) => String(r[col]) < v);
         return builder;

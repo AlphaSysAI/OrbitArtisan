@@ -196,6 +196,15 @@ export default function CgvPage() {
           remboursement au prorata n&apos;est dû pour la période commencée.
         </p>
         <p>
+          L&apos;Artisan peut aussi supprimer son compte depuis son espace (Réglages → Abonnement). La suppression
+          vaut résiliation immédiate : l&apos;abonnement prend fin le jour même, l&apos;accès à l&apos;espace et
+          le numéro Soline sont désactivés, et la période en cours déjà payée, mensuelle ou annuelle, n&apos;est
+          pas remboursée, même partiellement. Les sommes dues à cette date (notamment les appels Soline hors
+          forfait déjà consommés) restent exigibles. Ces dispositions s&apos;appliquent sans préjudice du droit
+          de rétractation prévu à l&apos;article 11, que l&apos;Artisan qui en bénéficie exerce par e-mail à{" "}
+          <Mail />.
+        </p>
+        <p>
           L&apos;Éditeur peut résilier ou suspendre l&apos;abonnement en cas d&apos;impayé (article 8), de
           manquement grave aux CGV ou CGU ou d&apos;usage frauduleux, après mise en demeure restée sans effet
           pendant huit (8) jours, sauf urgence liée à la sécurité du service ou de ses utilisateurs.
@@ -274,6 +283,17 @@ export default function CgvPage() {
           suivant la fin du contrat, l&apos;Éditeur lui remet une copie de ses données dans un format
           exploitable. Passé ce délai, les données sont supprimées, sous réserve des obligations légales de
           conservation de l&apos;Éditeur.
+        </p>
+        <p>
+          En cas de suppression du compte (article 6), les données de l&apos;Artisan (fiche entreprise, clients,
+          devis, factures, messages, fichiers, compte de connexion) sont effacées définitivement trente (30)
+          jours après la demande. Pendant ce délai, l&apos;Artisan peut, par e-mail à <Mail />, obtenir une
+          copie de ses données ou annuler la suppression ; l&apos;abonnement résilié n&apos;est pas rétabli
+          pour autant et doit être souscrit à nouveau. Après effacement, aucune restitution n&apos;est possible.
+          L&apos;Éditeur conserve uniquement les factures qu&apos;il a lui-même émises à l&apos;Artisan (dix
+          ans), l&apos;historique d&apos;attribution des numéros Soline (identité de l&apos;entreprise et
+          période d&apos;utilisation) et la trace de la demande de suppression, pour ses obligations légales et
+          la gestion d&apos;éventuels litiges.
         </p>
       </section>
 

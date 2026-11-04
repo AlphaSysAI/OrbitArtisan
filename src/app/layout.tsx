@@ -53,8 +53,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" suppressHydrationWarning>
-      <body className={`${plusJakarta.variable} ${fraunces.variable} ${geistMono.variable} antialiased`}>
+    <html
+      lang="fr"
+      suppressHydrationWarning
+      className={`${plusJakarta.variable} ${fraunces.variable} ${geistMono.variable}`}
+    >
+      <body className="antialiased">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

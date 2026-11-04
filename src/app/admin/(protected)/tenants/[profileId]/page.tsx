@@ -6,6 +6,7 @@ import { AdminTenantVoiceCard } from "@/components/admin/admin-tenant-voice-card
 import { TenantAccessActions, TenantPlanForm, TenantProfileForm } from "@/components/admin/tenant-actions";
 import { SubscriptionBadges } from "@/components/admin/ui/subscription-badge";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { pendingAccountDeletion } from "@/lib/account/account-deletion";
 import { getAdminDb } from "@/lib/admin/db";
 import { auditActionLabel, SUBSCRIPTION_HINT, type AdminSubscriptionStatus } from "@/lib/admin/labels";
 import { getAdminTenantDetail } from "@/lib/admin/tenants";
@@ -49,6 +50,7 @@ export default async function AdminTenantDetailPage({ params }: { params: Promis
     ? await db.from("artisan_voice_numbers").select("phone_e164").eq("artisan_id", profileId).maybeSingle()
     : { data: null };
   const voicePhone = (voice?.phone_e164 as string | undefined) ?? null;
+  const deletion = db ? await pendingAccountDeletion(db, profileId) : null;
   const tradeLabel = t.tradeCategory && t.trade ? formatTradeLabel(t.tradeCategory, t.trade) : null;
   const name = t.businessName.trim() || "Inscription en cours";
 
@@ -65,6 +67,13 @@ export default async function AdminTenantDetailPage({ params }: { params: Promis
             {[t.name, t.email, t.phone ? formatPhoneFr(t.phone) : null].filter(Boolean).join(" · ") || "—"}
           </p>
         </div>
+        {deletion ? (
+          <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            Suppression demandée par l&apos;artisan le {formatDateFr(deletion.requestedAt)} : effacement définitif le{" "}
+            <strong>{formatDateFr(deletion.purgeAfter)}</strong>. « Restaurer » annule l&apos;effacement (l&apos;artisan
+            devra reprendre un abonnement).
+          </p>
+        ) : null}
         <SubscriptionBadges status={t.subscriptionStatus} plan={t.subscriptionPlan} trialEndsAt={t.trialEndsAt} accountStatus={t.accountStatus} deletedAt={t.deletedAt} />
         <TenantAccessActions
           profileId={t.id}

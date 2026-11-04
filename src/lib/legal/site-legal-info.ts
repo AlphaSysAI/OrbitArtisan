@@ -44,4 +44,4 @@ export const LEGAL_SUBPROCESSORS = [
   { name: "Stripe", role: "Paiement des abonnements et encaissements en ligne", website: "https://stripe.com" },
 ] as const;
 
-export const LEGAL_LAST_UPDATED = "25 septembre 2026";
+export const LEGAL_LAST_UPDATED = "26 octobre 2026";

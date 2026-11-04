@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { buildEmailConfirmationRedirect } from "@/lib/auth/email-confirmation";
 import { joinPersonName } from "@/lib/contacts/display-name";
 import { finalizePendingVitrineAppointment } from "@/app/site/[slug]/actions";
 import { acceptPlatformInvitation } from "@/lib/invitations/actions";
@@ -116,7 +117,7 @@ export function InscriptionClientForm({
       email,
       password,
       options: {
-        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
+        emailRedirectTo: buildEmailConfirmationRedirect(origin, callbackNext, email),
         data: {
           terms_accepted_at: new Date().toISOString(),
           terms_version: LEGAL_LAST_UPDATED,

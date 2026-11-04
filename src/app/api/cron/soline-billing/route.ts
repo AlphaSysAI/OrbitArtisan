@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 
+import { purgeDueAccountDeletions } from "@/lib/account/account-deletion";
 import { expireAllPendingAppointments } from "@/lib/appointments/voice-booking";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { purgeStaleCallSessions } from "@/lib/voice/call-session";
@@ -15,7 +16,8 @@ export const maxDuration = 60;
  * - annule les RDV pris par Soline non validés sous 24 h (libère le créneau) ;
  * - purge les sessions d'appel orphelines (post-appel jamais reçu) ;
  * - rend les numéros des essais expirés (quarantaine 30 j) ;
- * - facture le dépassement d'appels du mois précédent (idempotent : ne facture qu'une fois).
+ * - facture le dépassement d'appels du mois précédent (idempotent : ne facture qu'une fois) ;
+ * - efface les comptes supprimés depuis 30 jours (CGV art. 12).
  */
 export async function GET(request: Request) {
   if (!isAuthorizedCronRequest(request)) {
@@ -31,6 +33,7 @@ export async function GET(request: Request) {
   await purgeStaleCallSessions(supabase);
   const releasedTrialNumbers = await releaseExpiredTrialVoiceNumbers(supabase);
   const overage = await billPreviousMonthVoiceOverage(supabase);
+  const accountDeletions = await purgeDueAccountDeletions(supabase);
 
-  return NextResponse.json({ ok: true, expiredAppointments, releasedTrialNumbers, overage });
+  return NextResponse.json({ ok: true, expiredAppointments, releasedTrialNumbers, overage, accountDeletions });
 }

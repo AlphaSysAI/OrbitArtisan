@@ -9,6 +9,7 @@ import { ContactSettingsForm } from "@/components/settings/contact-settings-form
 import { EmbedWidgetCard } from "@/components/settings/embed-widget-card";
 import { LeadMatchingReadiness } from "@/components/settings/lead-matching-readiness";
 import { SubscriptionSettingsSection } from "@/components/settings/subscription-settings-section";
+import { DeleteAccountSection } from "@/components/settings/delete-account-section";
 import { getAmbassadorProgramStatus, getPromoEnrollment } from "@/lib/billing/promo-enrollment";
 import { VoiceSolineNumberSection } from "@/components/settings/voice-soline-number-section";
 import { VoiceQuotaRecap } from "@/components/settings/voice-quota-recap";
@@ -421,14 +422,17 @@ export default async function ArtisanSettingsPage({
           !profile ? (
             <SettingsGate />
           ) : (
-            <SubscriptionSettingsSection
-              profile={subscriptionProfile}
-              voiceQuota={voiceQuota}
-              alerts={subscriptionAlerts}
-              billingEvents={billingEvents}
-              promoEnrollment={promoEnrollment}
-              promoProgramStatus={promoProgramStatus}
-            />
+            <div className="space-y-8">
+              <SubscriptionSettingsSection
+                profile={subscriptionProfile}
+                voiceQuota={voiceQuota}
+                alerts={subscriptionAlerts}
+                billingEvents={billingEvents}
+                promoEnrollment={promoEnrollment}
+                promoProgramStatus={promoProgramStatus}
+              />
+              <DeleteAccountSection email={user?.email ?? ""} />
+            </div>
           )
         ) : null}
 

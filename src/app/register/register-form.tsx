@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { authInputClassName } from "@/components/auth/auth-styles";
 import { PasswordInput } from "@/components/auth/password-input";
 import { TermsAcceptanceField } from "@/components/legal/terms-acceptance-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -64,6 +65,8 @@ export function RegisterForm({ next, prefillEmail, inviteToken, promoCode }: Reg
           autoComplete="email"
           required
           defaultValue={prefillEmail}
+          autoFocus={!prefillEmail}
+          className={authInputClassName}
         />
       </div>
 
@@ -75,6 +78,7 @@ export function RegisterForm({ next, prefillEmail, inviteToken, promoCode }: Reg
           autoComplete="new-password"
           minLength={8}
           required
+          className={authInputClassName}
         />
         <p className="text-xs text-muted-foreground">Minimum 8 caractères.</p>
       </div>
@@ -87,32 +91,40 @@ export function RegisterForm({ next, prefillEmail, inviteToken, promoCode }: Reg
           autoComplete="new-password"
           minLength={8}
           required
+          className={authInputClassName}
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="promo_code">Code ambassadeur (facultatif)</Label>
-        <Input
-          id="promo_code"
-          name="promo_code"
-          type="text"
-          placeholder="AMBASSADEUR"
-          autoCapitalize="characters"
-          autoComplete="off"
-          maxLength={32}
-          defaultValue={promoCode}
-        />
-        {promoCode ? (
-          <p className="text-xs text-muted-foreground">
-            −25 % sur Pro et Premium, tant que vous restez abonné, pour les 50 premiers abonnés avant le 30 novembre 2026.
-          </p>
-        ) : null}
-      </div>
+      <details className="group rounded-xl border border-border/70 bg-card/60 px-3.5 py-2.5" open={!!promoCode}>
+        <summary className="cursor-pointer list-none text-sm font-medium text-muted-foreground transition-colors select-none hover:text-foreground [&::-webkit-details-marker]:hidden">
+          <span className="mr-1.5 inline-block transition-transform group-open:rotate-90">›</span>
+          J&apos;ai un code ambassadeur
+        </summary>
+        <div className="mt-3 space-y-2">
+          <Label htmlFor="promo_code" className="sr-only">Code ambassadeur</Label>
+          <Input
+            id="promo_code"
+            name="promo_code"
+            type="text"
+            placeholder="AMBASSADEUR"
+            autoCapitalize="characters"
+            autoComplete="off"
+            maxLength={32}
+            defaultValue={promoCode}
+            className={authInputClassName}
+          />
+          {promoCode ? (
+            <p className="text-xs text-muted-foreground">
+              −25 % sur Pro et Premium, tant que vous restez abonné, pour les 50 premiers abonnés avant le 30 novembre 2026.
+            </p>
+          ) : null}
+        </div>
+      </details>
 
       <TermsAcceptanceField />
 
-      <Button className="w-full" type="submit">
-        Créer mon compte artisan
+      <Button className="h-12 w-full rounded-xl bg-brand text-base text-brand-foreground hover:bg-brand/90" type="submit">
+        Créer mon compte et démarrer l&apos;essai
       </Button>
     </form>
   );

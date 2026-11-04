@@ -137,6 +137,12 @@ export default function ConfidentialitePage() {
         <h2 className="text-lg font-semibold text-slate-900">5. Durées de conservation</h2>
         <ul className="list-disc space-y-2 pl-5">
           <li>Données de compte : pendant la durée de la relation contractuelle, puis 3 ans à des fins de prospection ou de preuve.</li>
+          <li>
+            Suppression du compte par l&apos;artisan depuis son espace : ses données (fiche, clients, devis, factures, messages,
+            fichiers, compte de connexion) sont effacées 30 jours après la demande. Sont seuls conservés les factures émises par{" "}
+            {LEGAL_PUBLISHER.companyName} à l&apos;artisan (10 ans), l&apos;historique d&apos;attribution des numéros Soline et la
+            trace de la demande de suppression.
+          </li>
           <li>Données de facturation émises par l&apos;artisan : selon les obligations comptables (10 ans).</li>
           <li>Leads non convertis : 3 ans maximum à compter du dernier contact, sauf suppression anticipée.</li>
           <li>Données liées au secrétariat vocal : durée strictement nécessaire à la prestation, puis suppression ou anonymisation.</li>

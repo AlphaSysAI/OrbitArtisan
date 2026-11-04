@@ -2,14 +2,22 @@ import { safeNextPath } from "@/lib/auth/safe-next";
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+import { buildAuthLinkFailurePath } from "@/lib/auth/email-confirmation";
 import { persistRegistrationIpOnProfile } from "@/lib/auth/persist-registration-ip";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = safeNextPath(url.searchParams.get("next"), "/app");
+  const rawNext = url.searchParams.get("next");
+  const next = safeNextPath(rawNext, "/app");
+  const email = url.searchParams.get("email");
+  // Lien refusé par Supabase (expiré, déjà utilisé) : renvoyé en query string.
+  const linkError = url.searchParams.get("error_code") ?? url.searchParams.get("error");
 
-  if (!code) return NextResponse.redirect(new URL("/login", url.origin));
+  const toLogin = (error?: string | null) =>
+    NextResponse.redirect(new URL(buildAuthLinkFailurePath({ next: rawNext, email, linkError: error }), url.origin));
+
+  if (!code) return toLogin(linkError);
 
   const response = NextResponse.redirect(new URL(next, url.origin));
 
@@ -30,11 +38,13 @@ export async function GET(request: NextRequest) {
     },
   );
 
-  const { data: sessionData } = await supabase.auth.exchangeCodeForSession(code);
-  if (sessionData.user) {
-    await persistRegistrationIpOnProfile(supabase, sessionData.user);
+  const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error || !sessionData.user) {
+    // Cas typique : mail ouvert sur un autre appareil (pas de code verifier PKCE ici).
+    // L'adresse est déjà confirmée par Supabase : on ouvre la connexion, e-mail prérempli.
+    return toLogin(null);
   }
 
+  await persistRegistrationIpOnProfile(supabase, sessionData.user);
   return response;
 }
-

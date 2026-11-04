@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { cancelAccountDeletion } from "@/lib/account/account-deletion";
 import { writeAdminAuditLog } from "@/lib/admin/audit-log";
 import { getAdminTenant, type ArtisanSubscriptionStatus } from "@/lib/admin/tenants";
+import { NEW_PASSWORD_PATH, buildTokenHashLink } from "@/lib/auth/email-confirmation";
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -198,6 +200,8 @@ export async function restoreTenant(profileId: string): Promise<{ ok: true } | {
     .update({ deleted_at: null, account_status: "active", updated_at: new Date().toISOString() })
     .eq("id", profileId);
   if (error) return { ok: false, error: "Restauration impossible." };
+  // Sans cela, le cron d'effacement (J+30) supprimerait un compte rouvert.
+  await cancelAccountDeletion(sbAdmin, profileId);
   await writeAdminAuditLog({ adminUserId: adminUser.id, action: "tenant.restore", targetUserId: tenant.userId, targetProfileId: profileId });
   revalidatePath("/admin/tenants");
   revalidatePath(`/admin/tenants/${profileId}`);
@@ -248,10 +252,10 @@ export async function resetTenantAccess(profileId: string): Promise<{ ok: true; 
   const { data, error } = await sbAdmin.auth.admin.generateLink({
     type: "recovery",
     email: tenant.email,
-    options: { redirectTo: `${getPublicSiteUrl()}/login` },
   });
 
-  if (error || !data.properties?.action_link) return { ok: false, error: "Lien impossible à générer." };
+  const tokenHash = data?.properties?.hashed_token;
+  if (error || !tokenHash) return { ok: false, error: "Lien impossible à générer." };
 
   await writeAdminAuditLog({
     adminUserId: adminUser.id,
@@ -260,7 +264,8 @@ export async function resetTenantAccess(profileId: string): Promise<{ ok: true; 
     targetProfileId: profileId,
   });
 
-  return { ok: true, url: data.properties.action_link };
+  // Lien direct vers le choix du nouveau mot de passe (valable sur n'importe quel appareil).
+  return { ok: true, url: buildTokenHashLink(getPublicSiteUrl(), tokenHash, "recovery", NEW_PASSWORD_PATH) };
 }
 
 export async function updateTenantVoiceNumber(

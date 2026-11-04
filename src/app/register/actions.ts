@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { buildEmailConfirmationRedirect } from "@/lib/auth/email-confirmation";
 import { safeNextPath } from "@/lib/auth/safe-next";
 
 import { getClientIpFromHeaders } from "@/lib/http/client-ip";
@@ -70,7 +71,7 @@ export async function signUpWithPassword(formData: FormData) {
     email,
     password,
     options: {
-      emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
+      emailRedirectTo: buildEmailConfirmationRedirect(siteUrl, callbackNext, email),
       data: {
         terms_accepted_at: registrationRecordedAt,
         terms_version: LEGAL_LAST_UPDATED,
@@ -89,7 +90,7 @@ export async function signUpWithPassword(formData: FormData) {
     registerRedirect({ ...baseParams, error: rateLimited ? "rate_limited" : "signup_failed" });
   }
 
-  const q = new URLSearchParams({ success: "check_email" });
+  const q = new URLSearchParams({ success: "check_email", role: "artisan", next: callbackNext });
   if (invite) q.set("invite", invite);
   if (email) q.set("email", email);
   redirect(`/login?${q.toString()}`);
