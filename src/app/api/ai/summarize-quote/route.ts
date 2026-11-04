@@ -1,3 +1,4 @@
+import { recentConversationMessages } from "@/lib/ai/recent-conversation-messages";
 import { NextResponse } from "next/server";
 
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
@@ -48,13 +49,8 @@ export async function POST(request: Request) {
   const conversationId = quote.conversation_id;
   let contextText = "";
   if (conversationId) {
-    const { data: messages } = await supabase
-      .from("messages")
-      .select("sender_user_id, body, created_at")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true })
-      .limit(16);
-    contextText = (messages ?? [])
+    const messages = await recentConversationMessages(supabase, conversationId, 16);
+    contextText = messages
       .map((m) => {
         const who = viewerIsClient
           ? m.sender_user_id === user.id

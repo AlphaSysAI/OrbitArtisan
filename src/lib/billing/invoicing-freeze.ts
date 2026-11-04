@@ -39,7 +39,7 @@ export function isDraftInvoicingFrozenForCustomer(customerClass: CustomerClassif
 export const INVOICING_FROZEN_ERROR = "invoicing_frozen" as const;
 
 export const INVOICING_FROZEN_B2B_MESSAGE =
-  "Facturation désactivée pour ce client professionnel (SIREN + TVA renseignés) — en attente du raccordement à une Plateforme Agréée pour la transmission Factur-X, obligatoire pour les clients B2B. La facturation des particuliers reste disponible.";
+  "Facturation désactivée pour ce client professionnel — en attente du raccordement à une Plateforme Agréée pour la transmission Factur-X, obligatoire pour les clients B2B. La facturation des particuliers reste disponible.";
 
 export const INVOICING_FROZEN_B2C_MESSAGE =
   "Facturation temporairement désactivée pendant la phase de test — correctifs de conformité en cours de validation avec un expert-comptable.";

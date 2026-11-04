@@ -30,6 +30,7 @@ class HttpEReportingSubmitter implements IEReportingSubmitter {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20_000),
     });
 
     const rawText = await res.text();
@@ -44,22 +45,20 @@ class HttpEReportingSubmitter implements IEReportingSubmitter {
       throw new Error(`E-reporting HTTP ${res.status}: ${rawText.slice(0, 400)}`);
     }
 
-    const parsed = rawResponse as { submissionId?: string; id?: string; status?: string };
-    const submissionId = String(parsed.submissionId ?? parsed.id ?? `ereporting-${payload.artisanId}-${payload.reportingPeriod}`);
-    const statusRaw = (parsed.status ?? "submitted").toLowerCase();
-    const status = statusRaw === "queued" ? ("queued" as const) : ("submitted" as const);
-
-    return { submissionId, status, rawResponse };
+    const parsed = rawResponse && typeof rawResponse === "object"
+      ? rawResponse as { submissionId?: unknown; id?: unknown; status?: unknown } : {};
+    const id = parsed.submissionId ?? parsed.id;
+    const status = typeof parsed.status === "string" ? parsed.status.toLowerCase() : null;
+    if (typeof id !== "string" || !id.trim() || (status !== "queued" && status !== "submitted")) {
+      throw new Error("e_reporting_unrecognized_ack");
+    }
+    return { submissionId: id.trim(), status, rawResponse };
   }
 }
 
-/** No-op pour dev / tests — marque le lot comme soumis sans appel externe. */
 class NoopEReportingSubmitter implements IEReportingSubmitter {
-  async submitBatch(payload: EReportingBatchPayload): Promise<EReportingSubmissionResult> {
-    return {
-      submissionId: `noop-ereporting-${payload.artisanId}-${Date.now()}`,
-      status: "submitted",
-    };
+  async submitBatch(): Promise<EReportingSubmissionResult> {
+    throw new Error("e_reporting_not_configured");
   }
 }
 

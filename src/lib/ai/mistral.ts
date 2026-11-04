@@ -1,5 +1,7 @@
 import "server-only";
 
+import { aiRequestSignal } from "./request-budget";
+
 import { z } from "zod";
 
 const MISTRAL_API_BASE = "https://api.mistral.ai/v1";
@@ -118,7 +120,7 @@ export async function mistralChat(params: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(params.timeoutMs ?? MISTRAL_CHAT_TIMEOUT_MS),
+      signal: aiRequestSignal(params.timeoutMs ?? MISTRAL_CHAT_TIMEOUT_MS),
     });
   } catch (err) {
     const name = err instanceof Error ? err.name : "error";
@@ -240,7 +242,7 @@ export async function mistralEmbed(text: string): Promise<number[]> {
       model: MISTRAL_EMBED_MODEL,
       input: [input],
     }),
-    signal: AbortSignal.timeout(MISTRAL_EMBED_TIMEOUT_MS),
+    signal: aiRequestSignal(MISTRAL_EMBED_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -275,7 +277,7 @@ export async function mistralOcr(bytes: Uint8Array, mime: "application/pdf" | "i
     method: "POST",
     headers: { Authorization: `Bearer ${getApiKey()}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: MISTRAL_OCR_MODEL, document }),
-    signal: AbortSignal.timeout(45_000),
+    signal: aiRequestSignal(45_000),
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
@@ -299,7 +301,7 @@ export async function mistralTranscribe(audio: Blob, filename: string): Promise<
     method: "POST",
     headers: { Authorization: `Bearer ${getApiKey()}` },
     body: form,
-    signal: AbortSignal.timeout(30_000),
+    signal: aiRequestSignal(30_000),
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => "");

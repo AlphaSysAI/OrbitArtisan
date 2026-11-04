@@ -10,8 +10,8 @@
 
 
 -- =============================================================================
- 01  schema.sql
- =============================================================================
+-- 01  schema.sql
+-- =============================================================================
 
 -- Soline — Schéma de base (Supabase / Postgres)
 -- À exécuter dans l'éditeur SQL Supabase.
@@ -217,8 +217,8 @@ alter table public.profiles
 
 
 -- =============================================================================
- 02  add_accent_color.sql
- =============================================================================
+-- 02  add_accent_color.sql
+-- =============================================================================
 
 -- À exécuter une fois si ta base existait avant l’ajout de accent_color
 alter table public.profiles add column if not exists accent_color text;
@@ -231,8 +231,8 @@ alter table public.profiles
   );
 
 -- =============================================================================
- 03  messages.sql
- =============================================================================
+-- 03  messages.sql
+-- =============================================================================
 
 -- Messagerie client ↔ artisan (exécuter après schema.sql / add_accent_color.sql)
 
@@ -359,8 +359,8 @@ with check (
 );
 
 -- =============================================================================
- 04  quotes.sql
- =============================================================================
+-- 04  quotes.sql
+-- =============================================================================
 
 -- Devis (quotes) — exécuter après supabase/schema.sql
 
@@ -549,8 +549,8 @@ with check (
 
 
 -- =============================================================================
- 05  quotes_customer_link.sql
- =============================================================================
+-- 05  quotes_customer_link.sql
+-- =============================================================================
 
 -- Lien devis ↔ client + email sur le profil client (exécuter après supabase/messages.sql et supabase/quotes.sql)
 
@@ -593,8 +593,8 @@ using (
 );
 
 -- =============================================================================
- 06  appointments_customer_and_pending.sql
- =============================================================================
+-- 06  appointments_customer_and_pending.sql
+-- =============================================================================
 
 -- RDV vitrine : lien compte client + file d’attente inscription (exécuter après schema.sql)
 -- Requiert SUPABASE_SERVICE_ROLE_KEY côté app pour la recherche par email et la file pending.
@@ -670,8 +670,8 @@ create index if not exists pending_vitrine_appointments_expires_idx
 alter table public.pending_vitrine_appointments enable row level security;
 
 -- =============================================================================
- 07  appointments_phone.sql
- =============================================================================
+-- 07  appointments_phone.sql
+-- =============================================================================
 
 -- Téléphone du client sur les rendez-vous, pour le bouton « appeler » côté artisan.
 -- Rejouable. À exécuter dans l'éditeur SQL Supabase.
@@ -685,8 +685,8 @@ alter table public.pending_vitrine_appointments
   add column if not exists customer_phone text;
 
 -- =============================================================================
- 08  appointments_artisan_insert.sql
- =============================================================================
+-- 08  appointments_artisan_insert.sql
+-- =============================================================================
 
 -- Création de RDV par l’artisan lui-même (app /app/rdv + assistant Soline).
 -- Les policies existantes n’autorisent l’insert qu’au client (customer_user_id = auth.uid())
@@ -707,8 +707,8 @@ with check (
 );
 
 -- =============================================================================
- 09  invoices_and_quote_signature.sql
- =============================================================================
+-- 09  invoices_and_quote_signature.sql
+-- =============================================================================
 
 -- Signature client sur devis + factures (exécuter après quotes_customer_link.sql)
 
@@ -884,8 +884,8 @@ grant execute on function public.client_accept_quote(uuid, text) to authenticate
 grant execute on function public.client_reject_quote(uuid) to authenticated;
 
 -- =============================================================================
- 10  platform_invitations.sql
- =============================================================================
+-- 10  platform_invitations.sql
+-- =============================================================================
 
 -- Invitations plateforme (client ou artisan) — exécuter après messages.sql
 -- Si vous aviez déjà `client_invitations`, exécutez aussi migrate_client_invitations.sql
@@ -1159,8 +1159,8 @@ $$;
 grant execute on function public.accept_client_invitation(text) to authenticated;
 
 -- =============================================================================
- 11  profile_contact_fields.sql
- =============================================================================
+-- 11  profile_contact_fields.sql
+-- =============================================================================
 
 -- Coordonnées personnelles (artisan + client) — exécuter dans Supabase SQL Editor
 
@@ -1185,8 +1185,8 @@ before update on public.customer_profiles
 for each row execute procedure public.set_updated_at();
 
 -- =============================================================================
- 12  stripe_connect_express.sql
- =============================================================================
+-- 12  stripe_connect_express.sql
+-- =============================================================================
 
 -- Stripe Connect Express (onboarding + paiement destination + payout)
 -- Exécuter après supabase/schema.sql et après les scripts factures/devis.
@@ -1215,8 +1215,8 @@ alter table public.profiles
 
 
 -- =============================================================================
- 13  supplier_products.sql
- =============================================================================
+-- 13  supplier_products.sql
+-- =============================================================================
 
 -- Catalogue fournisseur (ex. Brico Dépôt) + recherche vectorielle
 -- Exécuter dans l'éditeur SQL Supabase.
@@ -1322,8 +1322,8 @@ values
 on conflict (sku) do nothing;
 
 -- =============================================================================
- 14  profile_trade.sql
- =============================================================================
+-- 14  profile_trade.sql
+-- =============================================================================
 
 -- Métier de l'artisan, en deux niveaux (secteur + métier).
 -- Champs distincts de business_name, qui reste le nom commercial affiché
@@ -1350,8 +1350,8 @@ create index if not exists profiles_trade_idx
   where trade is not null;
 
 -- =============================================================================
- 15  contacts_delete_policies.sql
- =============================================================================
+-- 15  contacts_delete_policies.sql
+-- =============================================================================
 
 -- Suppression d'un contact client par l'artisan.
 -- Sans ces policies, un DELETE depuis le client utilisateur n'affecte AUCUNE ligne
@@ -1417,8 +1417,8 @@ end
 $$;
 
 -- =============================================================================
- 16  profiles_geolocation.sql
- =============================================================================
+-- 16  profiles_geolocation.sql
+-- =============================================================================
 
 -- Géolocalisation des artisans + recherche par proximité.
 -- Rejouable. À exécuter dans l'éditeur SQL Supabase.
@@ -1496,8 +1496,8 @@ $$;
 grant execute on function public.search_artisans_nearby(double precision, double precision, text, double precision, int) to anon, authenticated;
 
 -- =============================================================================
- 17  voice_numbers.sql
- =============================================================================
+-- 17  voice_numbers.sql
+-- =============================================================================
 
 -- Numéros vocaux pour les artisans
 -- Table pour mapper les numéros de téléphone aux artisans
@@ -1590,8 +1590,8 @@ before update on public.artisan_voice_numbers
 for each row execute procedure public.set_updated_at();
 
 -- =============================================================================
- 18  lead_qualification.sql
- =============================================================================
+-- 18  lead_qualification.sql
+-- =============================================================================
 
 -- Soline — Tunnel de pré-qualification par chatbot IA (leads).
 -- À exécuter dans l'éditeur SQL Supabase, après schema.sql, messages.sql et profiles_geolocation.sql.
@@ -2357,8 +2357,8 @@ using (
 );
 
 -- =============================================================================
- 19  lead_dispatch.sql
- =============================================================================
+-- 19  lead_dispatch.sql
+-- =============================================================================
 
 -- Phase 4 — Envoi du lead qualifié aux artisans matchés.
 -- À exécuter après lead_qualification.sql et messages.sql.
@@ -2569,8 +2569,8 @@ $$;
 grant execute on function public.claim_lead(text) to authenticated;
 
 -- =============================================================================
- 20  lead_client_conversion.sql
- =============================================================================
+-- 20  lead_client_conversion.sql
+-- =============================================================================
 
 -- Phase 5 — Conversion du lead en compte client.
 -- À exécuter après lead_qualification.sql, lead_dispatch.sql et platform_invitations.sql.
@@ -2894,8 +2894,8 @@ $$;
 grant execute on function public.claim_lead(text) to authenticated;
 
 -- =============================================================================
- 21  einvoicing_en16931.sql
- =============================================================================
+-- 21  einvoicing_en16931.sql
+-- =============================================================================
 
 -- Facturation électronique 2026 — EN16931 / Factur-X
 -- Champs légaux émetteur & client B2B, factures et lignes TVA.
@@ -3092,8 +3092,8 @@ comment on column public.invoice_lines.vat_exemption_reason is 'Motif exonérati
 comment on column public.invoice_lines.vat_category_code is 'Catégorie TVA UN/ECE 5305 (S, AA, E, Z, …)';
 
 -- =============================================================================
- 22  invoice_finalization_routing.sql
- =============================================================================
+-- 22  invoice_finalization_routing.sql
+-- =============================================================================
 
 -- File d'attente e-reporting (B2C) + champs de finalisation facture
 -- Exécuter après supabase/einvoicing_en16931.sql
@@ -3189,8 +3189,8 @@ with check (
 comment on table public.e_reporting_queue is 'File e-reporting B2C — transmission groupée périodique administration';
 
 -- =============================================================================
- 23  pa_webhook_status.sql
- =============================================================================
+-- 23  pa_webhook_status.sql
+-- =============================================================================
 
 -- Webhook Plateforme Agréée : statuts fiscaux étendus + motif de rejet
 -- Exécuter après supabase/invoice_finalization_routing.sql
@@ -3244,8 +3244,8 @@ alter table public.pa_webhook_events enable row level security;
 comment on table public.pa_webhook_events is 'Audit des callbacks Plateforme Agréée';
 
 -- =============================================================================
- 24  voice_quota.sql
- =============================================================================
+-- 24  voice_quota.sql
+-- =============================================================================
 
 alter table public.profiles
   add column if not exists subscription_plan text not null default 'base',

@@ -21,6 +21,9 @@ export async function createProject(formData: FormData): Promise<void> {
   const { supabase, profileId } = auth;
 
   let budgetTotalCents = 0;
+  let budgetLaborCents = 0;
+  let budgetMaterialsCents = 0;
+  let quoteDefaults: { customer_name: string | null; work_site_address: string | null; work_site_city: string | null; work_site_postal_code: string | null } | null = null;
   if (budgetEur) {
     const n = Number(budgetEur.replace(",", "."));
     if (Number.isFinite(n)) budgetTotalCents = Math.round(n * 100);
@@ -29,13 +32,15 @@ export async function createProject(formData: FormData): Promise<void> {
   if (quoteId) {
     const { data: quote } = await supabase
       .from("quotes")
-      .select("grand_total, labor_total, materials_total")
+      .select("grand_total, labor_total, materials_total, customer_name, work_site_address, work_site_city, work_site_postal_code")
       .eq("id", quoteId)
       .eq("artisan_id", profileId)
       .maybeSingle();
-    if (quote) {
-      budgetTotalCents = quote.grand_total ?? budgetTotalCents;
-    }
+    if (!quote) return;
+    budgetTotalCents = quote.grand_total;
+    budgetLaborCents = quote.labor_total;
+    budgetMaterialsCents = quote.materials_total;
+    quoteDefaults = quote;
   }
 
   const { data: project, error } = await supabase
@@ -44,10 +49,13 @@ export async function createProject(formData: FormData): Promise<void> {
       artisan_id: profileId,
       quote_id: quoteId,
       name,
-      client_name: clientName,
+      client_name: clientName ?? quoteDefaults?.customer_name ?? null,
+      address: quoteDefaults?.work_site_address ?? null,
+      city: quoteDefaults?.work_site_city ?? null,
+      postal_code: quoteDefaults?.work_site_postal_code ?? null,
       budget_total_cents: budgetTotalCents,
-      budget_labor_cents: 0,
-      budget_materials_cents: 0,
+      budget_labor_cents: budgetLaborCents,
+      budget_materials_cents: budgetMaterialsCents,
     })
     .select("id")
     .single();
@@ -73,20 +81,20 @@ export async function addTimeEntry(formData: FormData): Promise<void> {
     return;
   }
 
-  const auth = await requireArtisanProfileId(["labor_rate_per_hour"]);
+  const auth = await requireArtisanProfileId();
   if (!auth.ok) {
     if (auth.error === "auth") redirect("/login");
     return;
   }
-  const { supabase, profileId, profile } = auth;
+  const { supabase, profileId } = auth;
 
-  let hourlyRateCents = (profile.labor_rate_per_hour as number | null) ?? 4500;
+  let hourlyRateCents: number | null = null;
   if (hourlyRateEur) {
     const n = Number(hourlyRateEur.replace(",", "."));
-    if (Number.isFinite(n)) hourlyRateCents = Math.round(n * 100);
+    if (Number.isFinite(n) && n >= 0) hourlyRateCents = Math.round(n * 100);
   }
 
-  const costCents = Math.round((hourlyRateCents * durationMinutes) / 60);
+  const costCents = Math.round(((hourlyRateCents ?? 0) * durationMinutes) / 60);
 
   const { error } = await supabase.from("project_time_entries").insert({
     project_id: projectId,

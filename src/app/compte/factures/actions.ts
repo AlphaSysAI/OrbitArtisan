@@ -1,5 +1,6 @@
 "use server";
 
+import { loadCollectibleAmount } from "@/lib/billing/invoice-collection";
 import { redirect } from "next/navigation";
 
 import { getPublicSiteUrl } from "@/lib/site-url";
@@ -23,19 +24,15 @@ export async function startInvoicePayment(formData: FormData): Promise<void> {
 
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("id, customer_user_id, status, grand_total, invoice_number, artisan_id")
+    .select("id, customer_user_id, status, invoice_type, finalized_at, grand_total, invoice_number, artisan_id")
     .eq("id", invoiceId)
     .maybeSingle();
 
   if (!invoice || invoice.customer_user_id !== user.id) {
     redirect("/compte/factures?payment_error=forbidden");
   }
-  if (invoice.status !== "sent") {
-    redirect(`/compte/factures/${invoiceId}?payment_error=status`);
-  }
-  if ((invoice.grand_total ?? 0) <= 0) {
-    redirect(`/compte/factures/${invoiceId}?payment_error=amount`);
-  }
+  const amount = await loadCollectibleAmount(supabase, invoice).catch(() => null);
+  if (amount === null) redirect(`/compte/factures/${invoiceId}?payment_error=amount`);
 
   // Facture lue ci-dessus sous RLS et rattachée au client : l'identifiant Connect de
   // l'artisan (privé depuis la migration 44) est lu côté serveur.
@@ -67,7 +64,7 @@ export async function startInvoicePayment(formData: FormData): Promise<void> {
         quantity: 1,
         price_data: {
           currency: "eur",
-          unit_amount: invoice.grand_total,
+          unit_amount: amount,
           product_data: {
             name: `Facture ${invoice.invoice_number ?? invoice.id.slice(0, 8)}`,
             description: artisan?.business_name ?? "Prestation",
@@ -92,7 +89,7 @@ export async function startInvoicePayment(formData: FormData): Promise<void> {
     customer_email: user.email ?? undefined,
     success_url: `${origin}/compte/factures/${invoice.id}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/compte/factures/${invoice.id}?payment=canceled`,
-  });
+  }, { idempotencyKey: `invoice-checkout:${invoice.id}:${amount}` });
 
   if (!session.url) {
     redirect(`/compte/factures/${invoiceId}?payment_error=session`);

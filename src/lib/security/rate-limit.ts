@@ -15,14 +15,15 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
  * Disponibilité d'abord : si la base ne répond pas, la requête passe (et c'est loggé).
  */
 
-type RateLimitRule = { bucket: string; max: number; windowSeconds: number };
+type RateLimitRule = { bucket: string; max: number; windowSeconds: number; failClosed?: boolean };
 
 export const RATE_LIMITS = {
   leadCreate: { bucket: "lead_create", max: 8, windowSeconds: 3600 },
   leadUpload: { bucket: "lead_upload", max: 30, windowSeconds: 3600 },
-  leadAi: { bucket: "lead_ai", max: 40, windowSeconds: 3600 },
+  leadAi: { bucket: "lead_ai", max: 40, windowSeconds: 3600, failClosed: true },
   leadContact: { bucket: "lead_contact", max: 8, windowSeconds: 3600 },
-  estimationChat: { bucket: "estimation_chat", max: 80, windowSeconds: 3600 },
+  estimationChat: { bucket: "estimation_chat", max: 80, windowSeconds: 3600, failClosed: true },
+  assistant: { bucket: "artisan_assistant", max: 60, windowSeconds: 3600, failClosed: true },
   vitrineBooking: { bucket: "vitrine_booking", max: 6, windowSeconds: 3600 },
   workOrderSign: { bucket: "work_order_sign", max: 10, windowSeconds: 3600 },
 } satisfies Record<string, RateLimitRule>;
@@ -44,23 +45,18 @@ async function currentRequestIp(): Promise<string> {
 /** true = autorisé (et comptabilisé), false = limite atteinte. */
 export async function consumeRateLimit(rule: RateLimitRule, key: string, db?: SupabaseClient | null): Promise<boolean> {
   const client = db ?? createSupabaseServiceRoleClient();
-  if (!client) return true;
-  const keyHash = hashKey(key);
-  const since = new Date(Date.now() - rule.windowSeconds * 1000).toISOString();
-
-  const { count, error } = await client
-    .from("rate_limit_events")
-    .select("id", { count: "exact", head: true })
-    .eq("bucket", rule.bucket)
-    .eq("key_hash", keyHash)
-    .gte("created_at", since);
-  if (error) {
-    console.error("[rate-limit]", rule.bucket, error.message);
-    return true;
+  if (!client) return !rule.failClosed;
+  const { data, error } = await client.rpc("consume_rate_limit", {
+    p_bucket: rule.bucket,
+    p_key_hash: hashKey(key),
+    p_max: rule.max,
+    p_window_seconds: rule.windowSeconds,
+  });
+  if (error || typeof data !== "boolean") {
+    console.error("[rate-limit]", rule.bucket, error?.message ?? "invalid_response");
+    return !rule.failClosed;
   }
-  if ((count ?? 0) >= rule.max) return false;
-
-  await client.from("rate_limit_events").insert({ bucket: rule.bucket, key_hash: keyHash });
+  if (!data) return false;
   // Purge opportuniste (1 % des appels) : fenêtres ≤ 1 jour.
   if (Math.random() < 0.01) {
     await client.from("rate_limit_events").delete().lt("created_at", new Date(Date.now() - 2 * 86_400_000).toISOString());

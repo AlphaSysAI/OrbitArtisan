@@ -75,7 +75,7 @@ Déclenchée à la **finalisation** d'une facture B2B (`InvoiceService.finalize`
 
 | Provider | Comportement |
 |----------|--------------|
-| `noop` | Aucun appel réseau |
+| `noop` | Aucun appel réseau ni dépôt réussi |
 | `pennylane` | POST PDF vers API Pennylane e-invoices (URL par défaut Pennylane ou `PA_API_URL`) |
 | `http`, `docaposte`, `confactura` | POST `multipart/form-data` : `file`, `pdf`, `xml`, `metadata` JSON (`format: "factur-x"`, `profile: "en16931"`) |
 
@@ -126,7 +126,9 @@ Déclenchée à la **finalisation** d'une facture B2B (`InvoiceService.finalize`
 
 ## 3. E-reporting B2C
 
-Flux distinct de la PA B2B : clients sans SIREN+TVA valides (`classifyCustomer`).
+En mode simulation, le worker laisse les transactions en attente. Le statut soumis exige une réponse de transmission.
+
+Flux distinct de la PA B2B : clients sans SIREN ou SIRET valide selon les identifiants disponibles (`classifyCustomer`).
 
 | Variable | Rôle |
 |----------|------|

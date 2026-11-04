@@ -1,3 +1,5 @@
+import { withAiRequestBudget } from "@/lib/ai/request-budget";
+import { consumeRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 
@@ -386,9 +388,13 @@ async function buildQuoteDraftResponse(
   };
 }
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  return withAiRequestBudget(50_000, 24, () => handleAssistant(request));
+}
+
+async function handleAssistant(request: Request) {
   const body = await request.json().catch(() => null);
-  const message = String(body?.message ?? "").trim();
+  const message = String(body?.message ?? "").trim().slice(0, 4000);
   const pendingAction =
     body?.pendingAction && typeof body.pendingAction === "object"
       ? (body.pendingAction as { type?: string; href?: string; label?: string })
@@ -398,8 +404,8 @@ export async function POST(request: Request) {
     ? (body.history as { role?: string; content?: string }[])
         .slice(-10)
         .map((h) => {
-          const role = h.role === "assistant" ? "Assistant" : "Artisan";
-          const content = String(h.content ?? "").trim();
+          const role = h?.role === "assistant" ? "Assistant" : "Artisan";
+          const content = String(h?.content ?? "").trim().slice(0, 1200);
           return content ? `${role}: ${content}` : "";
         })
         .filter(Boolean)
@@ -451,6 +457,10 @@ export async function POST(request: Request) {
         navigateResponse(confirmed.href, confirmed.label, confirmed.reply),
       );
     }
+  }
+
+  if (!(await consumeRateLimit(RATE_LIMITS.assistant, profile.id))) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
   const contactsRes = await listArtisanContacts();
@@ -623,7 +633,7 @@ export async function POST(request: Request) {
 
   const contactDirectory =
     linked.length > 0
-      ? linked.map((c) => `- ${c.label}${c.email ? ` <${c.email}>` : ""}`).join("\n")
+      ? linked.slice(0, 40).map((c) => `- ${c.label.slice(0, 100)}`).join("\n")
       : "(aucun client lié pour l’instant)";
 
   const pageContextBlock = await buildAssistantPageContextBlock(supabase, profile.id, pageContext);

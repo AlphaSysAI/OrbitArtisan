@@ -2,19 +2,16 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { parsePostCallTranscription, verifyElevenLabsSignature } from "@/lib/voice/elevenlabs-webhook";
-import { processVoiceCallQuoteIntake } from "@/lib/voice/process-voice-call-intake";
+import { enqueueVoicePostCall, processVoicePostCallInbox, recordVoicePostCall } from "@/lib/voice/voice-post-call-inbox";
 import { resolveArtisanIdByCalledNumber } from "@/lib/voice/voice-quota-service";
-import { endCallSession } from "@/lib/voice/call-session";
 
 /**
- * Webhook post-appel ElevenLabs (« post_call_transcription »).
+ * Persiste un événement signé avant de tenter son traitement.
  *
- * Filet de sécurité : chaque appel reçu par Soline finit dans /app/appels, même
- * si l'agent n'a pas appelé l'outil create-quote-draft (oubli, erreur, appelant
- * qui raccroche). Dédoublonné par twilio_call_sid avec l'outil.
- *
- * Répond 200 dès que la signature est valide, y compris en cas d'échec métier
- * (journalisé) : ElevenLabs désactive un webhook qui échoue en boucle.
+ * Répond toujours 200 une fois la signature validée : ElevenLabs désactive un
+ * webhook qui échoue en boucle. Si l'événement ne peut pas être mis en file
+ * (base indisponible, appel sans identifiant), on tente un traitement direct
+ * et on journalise l'échec pour reprise manuelle.
  */
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,45 +56,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ ignored: "unknown_number" });
   }
 
-  const result = await processVoiceCallQuoteIntake({
-    db,
-    artisanId,
-    callerNumber: call.callerNumber,
-    calledNumber: call.calledNumber,
-    skipQuoteDraft: !call.hasCallerSpeech,
-    conversationId: call.conversationId,
-    agentPromptVersion: call.agentPromptVersion,
-    callDurationSecs: call.callDurationSecs,
-    body: {
-      transcript: call.hasCallerSpeech
-        ? call.transcript
-        : "Appel sans message : l'appelant a raccroché ou n'a rien dit. À rappeler si besoin.",
-      twilio_call_sid: call.callSid,
-      customer_name: call.customerName,
-      customer_email: call.customerEmail,
-    },
-  });
-
-  // Appel terminé : la session (identité des outils, horloge) n'a plus d'usage. Idempotent.
-  await endCallSession(db, call.conversationId);
-
-  console.info(
-    JSON.stringify({
-      evt: "voice_call_recorded",
-      conversationId: call.conversationId,
-      promptVersion: call.agentPromptVersion,
-      durationSecs: call.callDurationSecs,
-      ok: !("error" in result),
-    }),
-  );
-
-  if ("error" in result) {
-    console.error("[elevenlabs post-call] enregistrement de l'appel", {
-      conversationId: call.conversationId,
-      error: result.error,
-    });
-    return NextResponse.json({ ok: false, error: result.error });
+  let eventId: string | null = null;
+  try {
+    eventId = await enqueueVoicePostCall(db, artisanId, call);
+  } catch (error) {
+    console.error("[elevenlabs post-call] mise en file impossible", { conversationId: call.conversationId, error });
   }
 
-  return NextResponse.json({ ok: true, intake_id: result.intakeId });
+  if (!eventId) {
+    // Pas de reprise automatique possible : traitement direct, sans renvoyer d'erreur au fournisseur.
+    try {
+      const result = await recordVoicePostCall(db, artisanId, call);
+      return NextResponse.json({ ok: true, processed: true, intakeId: result.intakeId, queued: false });
+    } catch (error) {
+      console.error("[elevenlabs post-call] appel non enregistré — reprise manuelle nécessaire", {
+        conversationId: call.conversationId,
+        callSid: call.callSid,
+        error,
+      });
+      return NextResponse.json({ ok: false, processed: false, queued: false });
+    }
+  }
+
+  const result = await processVoicePostCallInbox(db, eventId).catch(() => ({ processed: false }));
+  return NextResponse.json({ ok: true, ...result });
 }

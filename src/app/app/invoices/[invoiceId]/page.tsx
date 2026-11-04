@@ -274,7 +274,7 @@ function InvoiceDetailView({
             <p className="text-sm text-muted-foreground">Aucune ligne enregistrée pour cette facture.</p>
           )}
           <p className="mt-4 text-sm font-semibold">
-            Total :{" "}
+            Total HT :{" "}
             {formatCents(invoice.grand_total)}
           </p>
         </CardContent>

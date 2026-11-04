@@ -83,10 +83,11 @@ export async function correctInvoiceVatRate(formData: FormData): Promise<void> {
 
 const FINALIZE_ERROR_MESSAGES: Record<string, string> = {
   invoicing_frozen:
-    "Facturation désactivée pour ce client professionnel (SIREN + TVA renseignés) — en attente du raccordement à une Plateforme Agréée pour la transmission Factur-X, obligatoire pour les clients B2B. La facturation des particuliers reste disponible.",
+    "Facturation désactivée pour ce client professionnel — en attente du raccordement à une Plateforme Agréée pour la transmission Factur-X, obligatoire pour les clients B2B. La facturation des particuliers reste disponible.",
   not_found: "Facture introuvable.",
   already_finalized: "Cette facture est déjà finalisée.",
   not_draft: "Seul un brouillon peut être finalisé.",
+  inconsistent_total: "Le total HT ne correspond pas aux lignes de la facture. Recrée le brouillon avant émission.",
   no_lines: "Ajoute des lignes via le devis avant de finaliser.",
   invalid_vat_rate: "Taux de TVA invalide sur une ligne — vérifie/corrige la TVA avant de finaliser.",
   missing_legal_info: "Informations obligatoires manquantes sur ton profil (SIRET / adresse / assurance décennale) — complète-les avant de finaliser.",

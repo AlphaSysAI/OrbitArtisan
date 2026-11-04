@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 
+import { processVoicePostCallInbox } from "@/lib/voice/voice-post-call-inbox";
 import { runVoiceIntakeReminders } from "@/lib/voice/voice-intake-reminders";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
@@ -18,6 +19,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 503 });
   }
 
-  const result = await runVoiceIntakeReminders(supabase);
-  return NextResponse.json({ ok: true, ...result });
+  const [result, replay] = await Promise.all([
+    runVoiceIntakeReminders(supabase),
+    processVoicePostCallInbox(supabase).catch(() => ({ processed: false })),
+  ]);
+  return NextResponse.json({ ok: true, ...result, replayed: replay.processed });
 }

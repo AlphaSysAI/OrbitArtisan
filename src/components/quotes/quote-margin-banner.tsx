@@ -1,53 +1,11 @@
-"use client";
-
-import { materialCostRatioFromMargin } from "@/lib/billing/materials-margin";
-import { computeQuoteMarginPreview } from "@/lib/billing/quote-margin";
-import { cn } from "@/lib/utils";
 import { formatCents } from "@/lib/format/money";
 
-export function QuoteMarginBanner({
-  grandTotalCents,
-  laborTotalCents,
-  materialsTotalCents,
-  materialsMarginRate = 0,
-}: {
-  grandTotalCents: number;
-  laborTotalCents: number;
-  materialsTotalCents: number;
-  materialsMarginRate?: number;
-}) {
-  const margin = computeQuoteMarginPreview({
-    grandTotalCents,
-    laborTotalCents,
-    materialsTotalCents,
-    materialCostRatio: materialCostRatioFromMargin(materialsMarginRate),
-  });
-
-  const positive = margin.grossMarginCents >= 0;
-
+export function QuoteMarginBanner({ grandTotalCents }: { grandTotalCents: number }) {
   return (
-    <div
-      className={cn(
-        "sticky bottom-0 z-20 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6",
-      )}
-    >
-      <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-muted-foreground">
-          Marge brute estimée — hypothèse générique 65 % (matière + MO, y compris si vous
-          travaillez seul) — indicatif, ne remplace pas votre coût réel
-        </p>
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm tabular-nums">
-          <span>
-            HT : <strong>{formatCents(margin.grandTotalCents)}</strong>
-          </span>
-          <span className="text-muted-foreground">
-            Matière : {formatCents(margin.estimatedMaterialCostCents)}
-          </span>
-          <span className="text-muted-foreground">MO : {formatCents(margin.estimatedLaborCostCents)}</span>
-          <span className={cn("font-semibold", positive ? "text-green-700 dark:text-green-400" : "text-destructive")}>
-            Marge : {formatCents(margin.grossMarginCents)} ({margin.grossMarginPercent} %)
-          </span>
-        </div>
+    <div className="sticky bottom-0 z-20 -mx-4 border-t bg-background px-4 py-3">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2">
+        <span className="text-sm tabular-nums">Total HT : <strong>{formatCents(grandTotalCents)}</strong></span>
+        <span className="text-xs text-muted-foreground">La marge dépend de vos coûts réels de fournitures et de main-d’œuvre.</span>
       </div>
     </div>
   );

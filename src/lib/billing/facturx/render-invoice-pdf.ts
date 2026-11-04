@@ -1,3 +1,4 @@
+import { computeInvoiceTotals } from "../invoice-amounts";
 import {
   CommercialPdf,
   embedLogoImage,
@@ -14,42 +15,8 @@ import { invoiceTypeLabel } from "@/lib/billing/invoice-types";
 import type { FacturXInvoiceDocument } from "./types";
 import { materialUnitLabel } from "@/lib/quotes/material-unit";
 
-type InvoicePdfVatGroup = {
-  rate: number;
-  categoryCode: string;
-  baseCents: number;
-  taxCents: number;
-  exemptionReason: string | null;
-};
-
-/**
- * Ventilation TVA IDENTIQUE au XML CII (build-cii-invoice.ts) et à l'e-reporting :
- * TVA arrondie ligne par ligne puis sommée par (catégorie, taux). Le PDF et le XML
- * d'une même facture Factur-X ne doivent jamais diverger d'un centime.
- */
 export function computeInvoicePdfTotals(lines: FacturXInvoiceDocument["lines"]) {
-  const groups = new Map<string, InvoicePdfVatGroup>();
-  for (const line of lines) {
-    const key = `${line.vatCategoryCode}:${line.vatRate}`;
-    const taxCents = Math.round((line.lineTotalCents * line.vatRate) / 100);
-    const g = groups.get(key);
-    if (g) {
-      g.baseCents += line.lineTotalCents;
-      g.taxCents += taxCents;
-    } else {
-      groups.set(key, {
-        rate: line.vatRate,
-        categoryCode: line.vatCategoryCode,
-        baseCents: line.lineTotalCents,
-        taxCents,
-        exemptionReason: line.vatExemptionReason ?? null,
-      });
-    }
-  }
-  const vatGroups = [...groups.values()].sort((a, b) => b.rate - a.rate);
-  const totalHtCents = lines.reduce((s, l) => s + l.lineTotalCents, 0);
-  const totalVatCents = vatGroups.reduce((s, g) => s + g.taxCents, 0);
-  return { vatGroups, totalHtCents, totalVatCents, totalTtcCents: totalHtCents + totalVatCents };
+  return computeInvoiceTotals(lines);
 }
 
 /** Génère le PDF visuel (lisible) avant embarquement Factur-X. */
@@ -123,7 +90,7 @@ export async function renderInvoicePdf(doc: FacturXInvoiceDocument): Promise<Uin
     { hideVat: vatFranchise },
   );
 
-  const t = computeInvoicePdfTotals(doc.lines);
+  const t = computeInvoiceTotals(doc.lines);
   const multiRate = t.vatGroups.length > 1;
   const totals: TotalsRow[] = vatFranchise
     ? [{ label: isCreditNote ? "Total de l'avoir" : "Net à payer", value: eur(t.totalTtcCents), highlight: true }]

@@ -1,3 +1,4 @@
+import { loadCollectibleAmount } from "@/lib/billing/invoice-collection";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -50,7 +51,7 @@ export default async function ClientInvoiceDetailPage({
   const { data: invoice } = await supabase
     .from("invoices")
     .select(
-      "id, artisan_id, quote_id, invoice_number, status, notes, labor_total, materials_total, grand_total, customer_name, customer_email, created_at, updated_at, customer_user_id, emission_flow",
+      "id, artisan_id, quote_id, invoice_number, status, invoice_type, finalized_at, notes, labor_total, materials_total, grand_total, customer_name, customer_email, created_at, updated_at, customer_user_id, emission_flow",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -72,8 +73,9 @@ export default async function ClientInvoiceDetailPage({
   });
 
   const stripeEnabled = isStripeConfigured();
+  const collectibleAmount = await loadCollectibleAmount(supabase, invoice).catch(() => null);
   const showPaidBanner = payment === "success" && invoice.status === "paid";
-  const showPendingBanner = payment === "success" && invoice.status === "sent";
+  const showPendingBanner = payment === "success" && collectibleAmount !== null;
   const showCanceledBanner = payment === "canceled";
 
   if (invoice.status === "draft") {
@@ -133,7 +135,7 @@ export default async function ClientInvoiceDetailPage({
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Émise le{" "}
-            {formatDateTimeFr(invoice.created_at, { dateStyle: "long", timeStyle: "short" })}
+            {formatDateTimeFr(invoice.finalized_at ?? invoice.created_at, { dateStyle: "long", timeStyle: "short" })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -151,7 +153,7 @@ export default async function ClientInvoiceDetailPage({
         </div>
       </div>
 
-      {invoice.status === "sent" ? (
+      {collectibleAmount !== null ? (
         <Card className="border-primary/30 bg-muted/20">
           <CardHeader>
             <CardTitle className="text-lg">Règlement</CardTitle>
@@ -160,7 +162,7 @@ export default async function ClientInvoiceDetailPage({
             <div>
               <p className="text-sm text-muted-foreground">Total à payer</p>
               <p className="text-2xl font-semibold tabular-nums">
-                {formatCents(invoice.grand_total)}
+                {formatCents(collectibleAmount)}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -204,7 +206,7 @@ export default async function ClientInvoiceDetailPage({
             ))}
           </ul>
           <p className="mt-4 text-sm font-semibold">
-            Total :{" "}
+            Total HT :{" "}
             {formatCents(invoice.grand_total)}
           </p>
         </CardContent>

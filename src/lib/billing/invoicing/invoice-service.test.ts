@@ -20,7 +20,7 @@ describe("classifyCustomer", () => {
 
   it("B2C sans identifiants légaux complets", () => {
     expect(classifyCustomer({})).toBe("b2c");
-    expect(classifyCustomer({ siren: "123456789" })).toBe("b2c");
+    expect(classifyCustomer({ siren: "123456789" })).toBe("b2b");
     expect(classifyCustomer({ vatNumber: "FR12123456789" })).toBe("b2c");
   });
 });
@@ -109,13 +109,19 @@ function createMockSupabase(config: MockConfig) {
     vat_on_debits: false,
     vat_collection_nature: "on_delivery",
     status: "draft",
+    grand_total: 10000,
     finalized_at: null,
   };
 
   const supabase = {
     rpc: async (fnName: string, _args: Record<string, unknown>) => {
-      if (fnName === "allocate_invoice_number") {
+      if (fnName === "reserve_invoice_number") {
         return { data: config.invoiceNumber || "INV-2026-0001", error: null };
+      }
+      if (fnName === "issue_b2c_invoice") {
+        queueInserts.push({ status: "pending", invoice_id: _args.p_invoice_id });
+        updates.push({ status: "sent", emission_flow: "e_reporting", finalizing_at: null });
+        return { data: "queue-1", error: null };
       }
       throw new Error(`Unexpected rpc: ${fnName}`);
     },

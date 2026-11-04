@@ -1,3 +1,4 @@
+import { recordInvoiceCheckoutPayment } from "@/lib/billing/invoice-collection";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
@@ -36,40 +37,15 @@ function revalidateInvoicePaths(invoiceId: string) {
 
 async function markInvoicePaidFromSession(session: Stripe.Checkout.Session) {
   const invoiceId = session.metadata?.invoice_id;
-  if (!invoiceId) return;
+  if (!invoiceId || session.currency !== "eur" || session.payment_status !== "paid") return;
 
   const amountTotal = session.amount_total;
   if (amountTotal == null) return;
 
-  let admin;
-  try {
-    admin = createSupabaseAdminClient();
-  } catch (e) {
-    console.error("[stripe webhook] SUPABASE_SERVICE_ROLE_KEY manquante ou invalide", e);
-    return;
-  }
-  const { data: invoice } = await admin.from("invoices").select("id, grand_total, status").eq("id", invoiceId).maybeSingle();
-
-  if (!invoice) return;
-  if (invoice.status === "paid") return;
-
-  if (invoice.grand_total !== amountTotal) {
-    console.error("[stripe webhook] Montant incohérent", { invoiceId, db: invoice.grand_total, stripe: amountTotal });
-    return;
-  }
-
-  const { error } = await admin
-    .from("invoices")
-    .update({ status: "paid" })
-    .eq("id", invoiceId)
-    .eq("status", "sent");
-
-  if (error) {
-    console.error("[stripe webhook] Mise à jour facture", error);
-    return;
-  }
-
-  revalidateInvoicePaths(invoiceId);
+  const updated = await recordInvoiceCheckoutPayment(
+    createSupabaseAdminClient(), invoiceId, amountTotal, new Date().toISOString(),
+  );
+  if (updated) revalidateInvoicePaths(invoiceId);
 }
 
 async function syncStripeConnectAccount(account: Stripe.Account) {

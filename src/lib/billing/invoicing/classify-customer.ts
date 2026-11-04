@@ -1,4 +1,4 @@
-import { validateSiren, validateSiret, validateVatNumber } from "@/lib/billing/legal-entity-validation";
+import { validateSiren, validateSiret } from "@/lib/billing/legal-entity-validation";
 
 /** Identifiants légaux client utilisés pour le routage B2B / B2C. */
 type CustomerLegalIds = {
@@ -10,7 +10,7 @@ type CustomerLegalIds = {
 export type CustomerClassification = "b2b" | "b2c";
 
 /**
- * B2B si le client possède un SIREN (ou SIRET valide) ET un numéro de TVA intracommunautaire valides.
+ * Un SIREN ou SIRET identifie une entreprise, y compris en franchise de TVA.
  * Sinon B2C → flux e-reporting.
  */
 export function classifyCustomer(legal: CustomerLegalIds): CustomerClassification {
@@ -18,9 +18,7 @@ export function classifyCustomer(legal: CustomerLegalIds): CustomerClassificatio
 }
 
 export function isB2BCustomer(legal: CustomerLegalIds): boolean {
-  const siren = resolveValidSiren(legal);
-  const vat = legal.vatNumber ? validateVatNumber(legal.vatNumber) : null;
-  return Boolean(siren && vat);
+  return Boolean(resolveValidSiren(legal));
 }
 
 function resolveValidSiren(legal: CustomerLegalIds): string | null {

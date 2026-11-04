@@ -1,5 +1,6 @@
 import "server-only";
 
+import { requiresQuotePatchVatReview } from "@/lib/quotes/patch-money";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { MISTRAL_EXTRACTION_MODEL, mistralChatParse } from "@/lib/ai/mistral";
@@ -14,6 +15,7 @@ export async function llmQuotePatch(
   instruction: string,
   labor: { hours: number; totalEur: number | null },
 ): Promise<QuotePatch> {
+  if (requiresQuotePatchVatReview(instruction)) return { operations: [], unresolved: [instruction.slice(0, 1500)] };
   const lines = draftLineRefs(draft)
     .map((l) => `${l.ref} | ${l.label} | qté ${l.quantity} | ${l.unitPriceEur} € HT`)
     .join("\n");

@@ -1,3 +1,4 @@
+import { loadCollectibleAmount } from "@/lib/billing/invoice-collection";
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -98,7 +99,7 @@ export async function loadRecoveryContext(
   const { data: invoiceRow, error: invoiceError } = await supabase
     .from("invoices")
     .select(
-      "id, artisan_id, quote_id, invoice_number, status, recovery_status, rubypayeur_case_id, grand_total, created_at, due_date, customer_name, customer_email, customer_user_id",
+      "id, artisan_id, quote_id, invoice_number, status, invoice_type, finalized_at, recovery_status, rubypayeur_case_id, grand_total, created_at, due_date, customer_name, customer_email, customer_user_id",
     )
     .eq("id", invoiceId)
     .eq("artisan_id", artisanId)
@@ -109,6 +110,9 @@ export async function loadRecoveryContext(
     return { ok: false, error: "load_failed" };
   }
   if (!invoiceRow) return { ok: false, error: "not_found" };
+
+  const collectible = await loadCollectibleAmount(supabase, invoiceRow).catch(() => null);
+  if (collectible === null) return { ok: false, error: "load_failed" };
 
   const { data: profileRow, error: profileError } = await supabase
     .from("profiles")
@@ -191,7 +195,7 @@ export async function loadRecoveryContext(
         invoiceNumber: invoiceRow.invoice_number ?? `FACT-${invoiceRow.id.slice(0, 8).toUpperCase()}`,
         status: invoiceRow.status,
         recoveryStatus: normalizeRecoveryStatus(invoiceRow.recovery_status),
-        grandTotalCents: Number(invoiceRow.grand_total ?? 0),
+        grandTotalCents: collectible,
         issueDate,
         dueDate,
         daysOverdue: dueDate ? daysBetween(dueDate, new Date()) : 0,

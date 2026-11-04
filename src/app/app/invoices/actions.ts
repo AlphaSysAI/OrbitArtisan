@@ -1,6 +1,6 @@
 "use server";
 
-import { materialLineTotalCents } from "@/lib/quotes/material-quantity";
+import { allocateInvoiceCents } from "@/lib/billing/invoice-amounts";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 import { revalidatePath } from "next/cache";
@@ -14,6 +14,8 @@ import {
   computeProgressForQuote,
   createTypedInvoiceFromQuote,
   sumInvoicedOnQuote,
+  insertInvoiceDraft,
+  type InvoiceDraftLine,
 } from "@/lib/billing/create-btp-invoice";
 import { computeRemainingBillableCents } from "@/lib/billing/invoice-types";
 import { DEFAULT_INVOICE_EINVOICING, vatFieldsForRate } from "@/lib/billing/einvoicing-types";
@@ -59,144 +61,71 @@ async function createInvoiceFromQuote(quoteId: string): Promise<void> {
     redirect(`/app/quotes/${quoteId}?error=invoicing_frozen`);
   }
 
-  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
+  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId).catch(() => null);
+  if (alreadyInvoiced === null) redirect(`/app/quotes/${quoteId}?error=invoice`);
   const remaining = computeRemainingBillableCents(quote.grand_total, alreadyInvoiced);
   if (remaining <= 0) redirect(`/app/quotes/${quoteId}?error=fully_invoiced`);
 
-  const invoiceType = alreadyInvoiced > 0 ? "final" : "standard";
-  // Point 4 audit pré-pilote : plus de numéro généré ici — attribué à la
-  // finalisation via allocate_invoice_number() (InvoiceService.finalize).
-
-  let laborShare = quote.grand_total > 0 ? Math.round((quote.labor_total * remaining) / quote.grand_total) : 0;
-  let materialsShare = remaining - laborShare;
-
-  const retentionRate = invoiceType === "final" || alreadyInvoiced > 0 ? defaultRetentionRate : 0;
-  const retentionAmount =
-    retentionRate > 0 && remaining === computeRemainingBillableCents(quote.grand_total, alreadyInvoiced)
-      ? Math.round((remaining * retentionRate) / 100)
-      : 0;
-  const billableRemaining = remaining - retentionAmount;
-  if (retentionAmount > 0) {
-    materialsShare = billableRemaining - laborShare;
-    if (materialsShare < 0) {
-      // Importants facturation (Vague 2) : la retenue de garantie dépasse la
-      // part matériaux calculée — le surplus est absorbé par la main-d'œuvre
-      // plutôt que simplement tronqué, sinon labor_total + materials_total
-      // ne correspond plus à grand_total sur la facture enregistrée.
-      laborShare = billableRemaining;
-      materialsShare = 0;
-    }
-  }
-
-  const { data: invoice, error: invErr } = await supabase
-    .from("invoices")
-    .insert({
-      artisan_id: profileId,
-      quote_id: quoteId,
-      customer_user_id: quote.customer_user_id,
-      customer_name: quote.customer_name,
-      customer_email: quote.customer_email,
-      invoice_number: null,
-      status: "draft",
-      invoice_type: invoiceType,
-      quote_reference_total: quote.grand_total,
-      progress_percentage: alreadyInvoiced > 0 ? null : 100,
-      retention_rate: retentionRate > 0 ? retentionRate : 0,
-      retention_amount: retentionAmount,
-      ...DEFAULT_INVOICE_EINVOICING,
-      labor_total: laborShare,
-      materials_total: materialsShare,
-      grand_total: billableRemaining,
-      notes: retentionAmount > 0 ? `${quote.notes ?? ""}\n\nRetenue de garantie ${retentionRate} % : ${(retentionAmount / 100).toFixed(2)} € retenus.`.trim() : quote.notes,
-    })
-    .select("id")
-    .single();
-
-  if (invErr || !invoice?.id) redirect(`/app/quotes/${quoteId}?error=invoice_insert`);
-
-  const lines: {
-    invoice_id: string;
-    line_kind: "labor" | "service" | "material";
-    label: string;
-    quantity: number | null;
-    unit_price: number | null;
-    line_total: number;
-    sort_order: number;
-    vat_rate: number;
-    vat_exemption_reason: string | null;
-    vat_category_code: string;
-    unit?: string | null;
-  }[] = [];
-
-  // Point 2 audit pré-pilote : on n'ajoute plus JAMAIS de ligne par prestation
-  // catalogue (ex quote_services) en plus de la ligne "Main d'œuvre" globale.
-  // Raison : quote_services.unit_price/line_total sont un instantané du champ
-  // "Prix" du catalogue de prestations (services.price) — un champ purement
-  // décoratif qui n'entre JAMAIS dans le calcul de quote.labor_total (voir
-  // Point Vague 4 "champ Prix jamais utilisé dans grand_total"). Facturer les
-  // deux revenait à additionner deux sources de montant indépendantes pour la
-  // même main-d'œuvre : la ligne globale (laborShare, dérivée du vrai taux
-  // horaire artisan) ET une deuxième liste de lignes basée sur des prix
-  // catalogue sans rapport avec le total réellement dû — d'où un total HT
-  // facturé supérieur au montant du devis accepté par le client.
-  // Point 3 audit pré-pilote : le taux de TVA de chaque ligne suit désormais
-  // le devis (reduced_vat_rate pour la main-d'œuvre, vat_rate par matériau
-  // pour les fournitures), au lieu du DEFAULT_INVOICE_LINE_VAT fixe à 20 %.
-  let sort = 0;
-  if (laborShare > 0) {
-    lines.push({
-      invoice_id: invoice.id,
-      line_kind: "labor",
-      label: `Main d'œuvre (${quote.labor_duration_minutes} min)${alreadyInvoiced > 0 ? " — solde" : ""}`,
-      quantity: 1,
-      unit_price: laborShare,
-      line_total: laborShare,
-      sort_order: sort++,
-      ...vatFieldsForRate(quote.reduced_vat_rate),
-    });
-  }
-
-  const { data: qMaterials } = await supabase
+  const { data: materials, error: materialsError } = await supabase
     .from("quote_materials")
-    .select("label, quantity, unit_price, line_total, vat_rate, exclude_from_invoice, unit")
+    .select("label, quantity, unit_price, line_total, vat_rate, unit")
     .eq("quote_id", quoteId)
-    .order("created_at", { ascending: true });
+    .eq("exclude_from_invoice", false)
+    .order("created_at").order("id");
+  if (materialsError) redirect(`/app/quotes/${quoteId}?error=invoice_lines`);
+  const sourceMaterials = materials ?? [];
+  const weights = [quote.labor_total, ...sourceMaterials.map((line) => line.line_total)];
+  if (weights.some((value) => value < 0) || weights.reduce((sum, value) => sum + value, 0) !== quote.grand_total) {
+    redirect(`/app/quotes/${quoteId}?error=invoice_lines`);
+  }
 
-  for (const m of qMaterials ?? []) {
-    // Importants facturation (Vague 2) : un matériau marqué "hors facture" au
-    // devis ne doit jamais être reproratisé et facturé.
-    if (m.exclude_from_invoice) continue;
-    const lt = m.line_total ?? materialLineTotalCents(m.quantity, m.unit_price);
-    const scaled = quote.grand_total > 0 ? Math.round((lt * billableRemaining) / quote.grand_total) : 0;
-    if (scaled <= 0) continue;
+  const invoiceType = alreadyInvoiced > 0 ? "final" : "standard";
+  const retentionRate = invoiceType === "final" ? defaultRetentionRate : 0;
+  const retentionAmount = Math.round((remaining * retentionRate) / 100);
+  const billableRemaining = remaining - retentionAmount;
+  const [laborShare, ...materialShares] = allocateInvoiceCents(billableRemaining, weights);
+  const lines: InvoiceDraftLine[] = [];
+  if (laborShare > 0) lines.push({
+    line_kind: "labor",
+    label: `Main d'œuvre (${quote.labor_duration_minutes} min)${invoiceType === "final" ? " — solde" : ""}`,
+    quantity: 1,
+    unit_price: laborShare,
+    line_total: laborShare,
+    ...vatFieldsForRate(quote.reduced_vat_rate),
+  });
+  sourceMaterials.forEach((material, index) => {
+    const share = materialShares[index];
+    if (share <= 0) return;
     lines.push({
-      invoice_id: invoice.id,
       line_kind: "material",
-      label: m.label,
-      quantity: m.quantity,
-      unit: (m.unit as string | null) ?? null,
-      unit_price: Math.round(scaled / m.quantity),
-      line_total: scaled,
-      sort_order: sort++,
-      ...vatFieldsForRate(m.vat_rate),
+      label: material.label,
+      quantity: material.quantity,
+      unit: material.unit ?? null,
+      unit_price: Math.round(share / material.quantity),
+      line_total: share,
+      ...vatFieldsForRate(material.vat_rate),
     });
-  }
+  });
 
-  if (lines.length === 0) {
-    lines.push({
-      invoice_id: invoice.id,
-      line_kind: "service",
-      label: alreadyInvoiced > 0 ? "Solde sur devis accepté" : "Prestations et fournitures",
-      quantity: 1,
-      unit_price: billableRemaining,
-      line_total: billableRemaining,
-      sort_order: 0,
-      ...vatFieldsForRate(quote.reduced_vat_rate),
-    });
-  }
-
-  const { error: linesErr } = await supabase.from("invoice_lines").insert(lines);
-  if (linesErr) redirect(`/app/quotes/${quoteId}?error=invoice_lines`);
+  const result = await insertInvoiceDraft(supabase, {
+    artisan_id: profileId,
+    quote_id: quoteId,
+    customer_user_id: quote.customer_user_id,
+    customer_name: quote.customer_name,
+    customer_email: quote.customer_email,
+    invoice_type: invoiceType,
+    quote_reference_total: quote.grand_total,
+    progress_percentage: invoiceType === "standard" ? 100 : null,
+    retention_rate: retentionRate,
+    retention_amount: retentionAmount,
+    ...DEFAULT_INVOICE_EINVOICING,
+    labor_total: laborShare,
+    materials_total: billableRemaining - laborShare,
+    grand_total: billableRemaining,
+    notes: retentionAmount > 0 ? `${quote.notes ?? ""}\n\nRetenue de garantie ${retentionRate} % : ${(retentionAmount / 100).toFixed(2)} € retenus.`.trim() : quote.notes,
+  }, lines, alreadyInvoiced);
+  if (!result.ok) redirect(`/app/quotes/${quoteId}?error=invoice_insert`);
+  const invoice = { id: result.invoiceId };
 
   revalidatePath("/app/invoices");
   revalidatePath(`/app/quotes/${quoteId}`);
@@ -302,6 +231,7 @@ export async function createDepositInvoice(
   quoteId: string,
   percent: number,
 ): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return { ok: false, error: "invalid_percent" };
   const userAuth = await requireAuthenticatedUser();
   if (!userAuth.ok) return { ok: false, error: "auth" };
   const { supabase, userId } = userAuth;
@@ -325,13 +255,15 @@ export async function createDepositInvoice(
   const customerClass = await resolveCustomerClassification(supabase, quote.customer_user_id);
   if (isDraftInvoicingFrozenForCustomer(customerClass)) return frozenInvoicingResult();
 
-  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
+  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId).catch(() => null);
+  if (alreadyInvoiced === null) return { ok: false, error: "invoice_total_read_failed" };
   const amount = computeDepositForQuote(quote.grand_total, percent, alreadyInvoiced);
   if (amount <= 0) return { ok: false, error: "zero_amount" };
 
   const result = await createTypedInvoiceFromQuote(supabase, profileId, quote, {
     invoiceType: "deposit",
     amountCents: amount,
+    expectedInvoiced: alreadyInvoiced,
     progressPercentage: percent,
     label: `Acompte ${percent} % sur devis accepté`,
     notes: `Facture d'acompte — ${percent} % du montant total du devis.`,
@@ -348,6 +280,7 @@ export async function createProgressInvoice(
   quoteId: string,
   cumulativePercent: number,
 ): Promise<{ ok: true; invoiceId: string } | { ok: false; error: string }> {
+  if (!Number.isFinite(cumulativePercent) || cumulativePercent <= 0 || cumulativePercent > 100) return { ok: false, error: "invalid_percent" };
   const userAuth = await requireAuthenticatedUser();
   if (!userAuth.ok) return { ok: false, error: "auth" };
   const { supabase, userId } = userAuth;
@@ -371,13 +304,15 @@ export async function createProgressInvoice(
   const customerClass = await resolveCustomerClassification(supabase, quote.customer_user_id);
   if (isDraftInvoicingFrozenForCustomer(customerClass)) return frozenInvoicingResult();
 
-  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId);
+  const alreadyInvoiced = await sumInvoicedOnQuote(supabase, quoteId).catch(() => null);
+  if (alreadyInvoiced === null) return { ok: false, error: "invoice_total_read_failed" };
   const amount = computeProgressForQuote(quote.grand_total, cumulativePercent, alreadyInvoiced);
   if (amount <= 0) return { ok: false, error: "zero_amount" };
 
   const result = await createTypedInvoiceFromQuote(supabase, profileId, quote, {
     invoiceType: "progress",
     amountCents: amount,
+    expectedInvoiced: alreadyInvoiced,
     progressPercentage: cumulativePercent,
     label: `Situation d'avancement — ${cumulativePercent} % cumulé`,
     notes: `Facture de situation — avancement cumulé ${cumulativePercent} % du devis.`,

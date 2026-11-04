@@ -1,3 +1,4 @@
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { HttpPayloadSubmitter } from "./adapters/http-payload-submitter";
@@ -58,5 +59,5 @@ export function createPayloadSubmitter(provider = resolvePayloadSubmitterProvide
 }
 
 export function createInvoiceService(supabase: SupabaseClient): InvoiceService {
-  return new InvoiceService(supabase, createPayloadSubmitter());
+  return new InvoiceService(supabase, createPayloadSubmitter(), createSupabaseServiceRoleClient());
 }

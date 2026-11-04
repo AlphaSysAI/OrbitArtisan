@@ -1,3 +1,4 @@
+import { withAiRequestBudget } from "@/lib/ai/request-budget";
 import { NextResponse } from "next/server";
 
 import { buildQuoteFromText } from "@/lib/ai/build-quote-from-text";
@@ -7,7 +8,11 @@ import { formatContactDisplayName } from "@/lib/contacts/display-name";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  return withAiRequestBudget(50_000, 24, () => generateQuote(request));
+}
+
+async function generateQuote(request: Request) {
   const body = await request.json().catch(() => null);
   const conversationId = body?.conversationId ? String(body.conversationId) : "";
 

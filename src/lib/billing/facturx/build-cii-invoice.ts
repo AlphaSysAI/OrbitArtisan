@@ -1,3 +1,4 @@
+import { computeInvoiceTotals, invoiceLineTaxCents } from "../invoice-amounts";
 import type {
   CrossIndustryInvoice,
   SupplyChainTradeLineItem,
@@ -75,7 +76,7 @@ function buildTradeParty(party: FacturXInvoiceDocument["seller"], profile: Factu
 
 function buildLineTax(line: FacturXLineInput): TradeTax {
   return {
-    calculatedAmount: amount(Math.round((line.lineTotalCents * line.vatRate) / 100)),
+    calculatedAmount: amount(invoiceLineTaxCents(line.lineTotalCents, line.vatRate)),
     basisAmount: amount(line.lineTotalCents),
     typeCode: { value: "VAT" },
     categoryCode: { value: line.vatCategoryCode },
@@ -122,58 +123,23 @@ function buildLineItem(line: FacturXLineInput, currency: string): SupplyChainTra
   };
 }
 
-type TaxGroup = {
-  vatRate: number;
-  vatCategoryCode: string;
-  basisCents: number;
-  taxCents: number;
-  exemptionReason?: string | null;
-};
-
-function groupTaxes(lines: FacturXLineInput[]): TaxGroup[] {
-  const map = new Map<string, TaxGroup>();
-
-  for (const line of lines) {
-    const key = `${line.vatCategoryCode}:${line.vatRate}`;
-    const taxCents = Math.round((line.lineTotalCents * line.vatRate) / 100);
-    const existing = map.get(key);
-
-    if (existing) {
-      existing.basisCents += line.lineTotalCents;
-      existing.taxCents += taxCents;
-    } else {
-      map.set(key, {
-        vatRate: line.vatRate,
-        vatCategoryCode: line.vatCategoryCode,
-        basisCents: line.lineTotalCents,
-        taxCents,
-        exemptionReason: line.vatExemptionReason,
-      });
-    }
-  }
-
-  return [...map.values()];
-}
-
 /** Construit le modèle Cross Industry Invoice (CII D22B) depuis nos données métier. */
 export function buildCrossIndustryInvoice(
   doc: FacturXInvoiceDocument,
   profile: FacturXProfile,
 ): CrossIndustryInvoice {
   const currency = doc.currency ?? "EUR";
-  const taxGroups = groupTaxes(doc.lines);
-  const lineTotalCents = doc.lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  const taxTotalCents = taxGroups.reduce((sum, group) => sum + group.taxCents, 0);
-  const grandTotalCents = lineTotalCents + taxTotalCents;
+  const { vatGroups, totalHtCents: lineTotalCents, totalVatCents: taxTotalCents, totalTtcCents: grandTotalCents } =
+    computeInvoiceTotals(doc.lines);
 
-  const headerTaxes: TradeTax[] = taxGroups.map((group) => ({
+  const headerTaxes: TradeTax[] = vatGroups.map((group) => ({
     calculatedAmount: amount(group.taxCents, currency),
-    basisAmount: amount(group.basisCents, currency),
+    basisAmount: amount(group.baseCents, currency),
     typeCode: { value: "VAT" },
-    categoryCode: { value: group.vatCategoryCode },
-    rateApplicablePercent: { value: group.vatRate },
+    categoryCode: { value: group.categoryCode },
+    rateApplicablePercent: { value: group.rate },
     exemptionReason:
-      group.vatRate === 0 && group.exemptionReason ? { value: group.exemptionReason } : undefined,
+      group.rate === 0 && group.exemptionReason ? { value: group.exemptionReason } : undefined,
   }));
 
   const notes = doc.notes?.trim() ? [{ content: { value: doc.notes.trim() } }] : undefined;
