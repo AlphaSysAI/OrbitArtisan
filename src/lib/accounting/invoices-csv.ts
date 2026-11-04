@@ -1,3 +1,6 @@
+import { computeInvoiceTotals } from "@/lib/billing/invoice-amounts";
+
+type CsvInvoiceLine = { line_total: number; vat_rate: number | null; vat_category_code: string | null };
 /** Récapitulatif CSV des factures émises (export manuel et envoi comptable). */
 
 export type InvoiceCsvRow = {
@@ -11,6 +14,7 @@ export type InvoiceCsvRow = {
   grand_total: number | null;
   labor_total: number | null;
   materials_total: number | null;
+  invoice_lines?: CsvInvoiceLine[];
   payment_received_at?: string | null;
 };
 
@@ -46,8 +50,14 @@ export function buildInvoicesCsv(invoices: InvoiceCsvRow[]): string {
     "Date paiement",
   ].join(",");
 
-  const rows = invoices.map((inv) =>
-    [
+  const rows = invoices.map((inv) => {
+    const lines = inv.invoice_lines ?? [];
+    const totals = lines.length ? computeInvoiceTotals(lines.map((line) => ({
+      lineTotalCents: line.line_total,
+      vatRate: line.vat_rate ?? 20,
+      vatCategoryCode: line.vat_category_code ?? "S",
+    }))) : null;
+    return [
       escapeCsv(inv.invoice_number),
       escapeCsv(inv.invoice_type),
       escapeCsv(inv.status),
@@ -55,12 +65,12 @@ export function buildInvoicesCsv(invoices: InvoiceCsvRow[]): string {
       escapeCsv(inv.due_date),
       escapeCsv(inv.customer_name),
       escapeCsv(inv.customer_email),
-      inv.grand_total ?? 0,
+      totals?.totalTtcCents ?? "",
       inv.labor_total ?? 0,
       inv.materials_total ?? 0,
       escapeCsv(inv.payment_received_at?.slice(0, 10)),
-    ].join(","),
-  );
+    ].join(",");
+  });
 
   // BOM UTF-8 : accents lisibles à l'ouverture dans Excel.
   return `﻿${[header, ...rows].join("\n")}`;

@@ -29,7 +29,7 @@ export async function GET(
 
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("id, artisan_id, customer_user_id, invoice_number, status")
+    .select("id, artisan_id, customer_user_id, invoice_number, status, issued_pdf_base64")
     .eq("id", invoiceId)
     .maybeSingle();
 
@@ -45,6 +45,16 @@ export async function GET(
 
   if (!isArtisan && invoice.status === "draft") {
     return NextResponse.json({ error: "not_available" }, { status: 403 });
+  }
+
+  if (invoice.issued_pdf_base64) {
+    return new NextResponse(Buffer.from(invoice.issued_pdf_base64, "base64"), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="facture-${sanitizeFilename(invoice.invoice_number ?? invoice.id)}.pdf"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
   }
 
   // Accès vérifié ci-dessus (artisan émetteur ou client lié) : identité légale lue côté serveur.

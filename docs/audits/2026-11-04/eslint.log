@@ -1,0 +1,29 @@
+
+> tmp-next@0.1.0 lint
+> eslint
+
+
+/Users/florian/Desktop/dev/OrbitArtisan/src/app/app/services/create-service-form.tsx
+  37:7  warning  The attribute aria-disabled is not supported by the role form. This role is implicit on the element form  jsx-a11y/role-supports-aria-props
+
+/Users/florian/Desktop/dev/OrbitArtisan/src/components/pwa/pwa-root-client.tsx
+  202:6  warning  React Hook useCallback has a missing dependency: 'rememberStandaloneMode'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/florian/Desktop/dev/OrbitArtisan/src/lib/billing/einvoicing-types.ts
+  21:7  warning  'E_INVOICING_STATUSES' is assigned a value but only used as a type  @typescript-eslint/no-unused-vars
+  37:7  warning  'VAT_CATEGORY_CODES' is assigned a value but only used as a type    @typescript-eslint/no-unused-vars
+
+/Users/florian/Desktop/dev/OrbitArtisan/src/lib/billing/invoicing/invoice-service.test.ts
+  116:33  warning  '_args' is defined but never used  @typescript-eslint/no-unused-vars
+  127:20  warning  '_col' is defined but never used   @typescript-eslint/no-unused-vars
+  127:34  warning  '_val' is defined but never used   @typescript-eslint/no-unused-vars
+
+/Users/florian/Desktop/dev/OrbitArtisan/src/lib/pwa/client-detect.test.ts
+  1:21  warning  'beforeEach' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/florian/Desktop/dev/OrbitArtisan/src/lib/work-library/actions.ts
+   84:30  warning  '_wc' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  119:30  warning  '_wc' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 10 problems (0 errors, 10 warnings)
+

@@ -1,6 +1,6 @@
 # Schéma base de données
 
-Document de contexte synthétique, dérivé de `supabase/init.sql` et des migrations `01`–`16`.
+Document de contexte synthétique, dérivé de `supabase/init.sql` et des migrations `01`–`72`.
 
 **Conventions**
 - Montants devis/factures : **centimes** (`integer`).
@@ -8,9 +8,20 @@ Document de contexte synthétique, dérivé de `supabase/init.sql` et des migrat
 - Identité : `auth.users` (Supabase Auth) — pas de table `users` dans `public`.
 - Pas de table `companies` : l'entité « entreprise artisan » est **`profiles`**.
 
-**Déploiement** : base vierge → `init.sql`, puis migrations `02`–`16` dans l'ordre (certaines étapes se chevauchent volontairement avec `init.sql` pour l'idempotence).
+**Déploiement** : base vierge → `init.sql`, puis migrations numérotées dans l'ordre (certaines étapes se chevauchent volontairement avec `init.sql` pour l'idempotence).
 
 ---
+
+## Invariants introduits en recette
+
+- 67 : écriture des devis et transition d’envoi dans une transaction sous RLS.
+- 68 : brouillons de facture et lignes atomiques, cumul et unicité métier de l’avoir contrôlés sous verrou.
+- 69 : réservation de numéro, archive PDF B2C, verrou de finalisation et file e-reporting transactionnelle.
+- 70 : clés de rattachement composites pour projets, devis, interventions, temps et factures.
+- 71 : file de reprise des appels signés, accès réservé au rôle serveur.
+- 72 : contrôle de débit atomique par clé, accès réservé au rôle serveur.
+
+La fiche `clients` (migration 49) rassemble les contacts d’un artisan avec ou sans compte. Les historiques des documents conservent leurs propres champs d’identité.
 
 ## 1. Correspondance conceptuelle
 
@@ -116,7 +127,7 @@ Géré hors schéma `public`. Référencé par `profiles`, `customer_profiles`, 
 | Champs légaux | text | SIREN, SIRET, TVA, RCS, adresse, géoloc |
 | Champs recouvrement / facturation | divers | retenue défaut 5 %, délais paiement, assurances |
 
-**RLS** : lecture publique (vitrine) ; écriture propriétaire (`user_id = auth.uid()`).
+**RLS** : le profil complet est privé. La vitrine utilise une projection publique limitée (migrations 44 à 46).
 
 ---
 

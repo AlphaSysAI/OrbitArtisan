@@ -122,86 +122,10 @@ export async function createQuoteFromAiDraft(
     return { ok: false, error: "invalid_materials" };
   }
 
-  const materialsTotalCents = materials.reduce((acc, m) => {
-    if (m.excludeFromInvoice) return acc;
-    return acc + materialLineTotalCents(m.quantity, m.unitPriceCents);
-  }, 0);
-
-  const grandTotalCents = laborTotalCents + materialsTotalCents;
-  if (grandTotalCents <= 0) {
-    return { ok: false, error: "invalid_duration" };
-  }
-
-  const { data: createdQuote, error: quoteErr } = await params.supabase
-    .from("quotes")
-    .insert({
-      artisan_id: params.artisanId,
-      customer_name: customerName,
-      customer_email: customerEmail,
-      customer_user_id: null,
-      conversation_id: null,
-      status: params.status,
-      notes: params.draft.notes?.trim() || null,
-      labor_rate_per_hour: laborRateCents,
-      labor_duration_minutes: labor.durationMinutes,
-      labor_total: laborTotalCents,
-      materials_total: materialsTotalCents,
-      grand_total: grandTotalCents,
-      reduced_vat_rate: vatRate,
-      sent_at: params.status === "sent" ? new Date().toISOString() : null,
-    })
-    .select("id")
-    .single();
-
-  if (quoteErr || !createdQuote?.id) {
-    return { ok: false, error: "create_failed" };
-  }
-
-  // Lignes de main-d'œuvre : phases proposées par l'IA (même règle que le formulaire),
-  // sinon prestations reconnues, sinon une ligne libre pour la durée estimée.
-  const aiLaborItems = params.draft.laborItems ?? [];
-  const quoteServiceRows = aiLaborItems.length && labor.durationMinutes > 0
-    ? scaleLaborItems(aiLaborItems, labor.durationMinutes).map((item) => {
-        const service = exactCatalogService(servicesFound, item.title);
-        return {
-          quote_id: createdQuote.id,
-          service_id: service?.id ?? null,
-          service_title: service?.title ?? item.title,
-          duration_minutes: item.minutes,
-          unit_price: service?.price ?? null,
-        };
-      })
-    : servicesFound.length
-    ? servicesFound.map((s) => ({
-        quote_id: createdQuote.id,
-        service_id: s.id,
-        service_title: s.title,
-        duration_minutes: s.duration,
-        unit_price: s.price ?? null,
-      }))
-    : labor.durationMinutes > 0
-      ? [
-          {
-            quote_id: createdQuote.id,
-            service_id: null,
-            service_title: "Main-d'œuvre",
-            duration_minutes: labor.durationMinutes,
-            unit_price: null,
-          },
-        ]
-      : [];
-
-  if (quoteServiceRows.length) {
-    const { error: servicesLinesErr } = await params.supabase.from("quote_services").insert(quoteServiceRows);
-    if (servicesLinesErr) {
-      return { ok: false, error: "lines_failed" };
-    }
-  }
-
+  // Une ligne sans libellé n'est pas enregistrée : elle ne doit pas non plus compter dans le total.
   const quoteMaterialRows = materials
     .filter((m) => m.label)
     .map((m) => ({
-      quote_id: createdQuote.id,
       label: m.label,
       quantity: m.quantity,
       unit_price: m.unitPriceCents,
@@ -215,16 +139,79 @@ export async function createQuoteFromAiDraft(
       unit: m.unit,
     }));
 
-  if (quoteMaterialRows.length) {
-    const { error: materialsLinesErr } = await params.supabase.from("quote_materials").insert(quoteMaterialRows);
-    if (materialsLinesErr) {
-      return { ok: false, error: "materials_failed" };
-    }
+  const materialsTotalCents = quoteMaterialRows.reduce(
+    (acc, m) => (m.exclude_from_invoice ? acc : acc + m.line_total),
+    0,
+  );
+
+  const grandTotalCents = laborTotalCents + materialsTotalCents;
+  if (grandTotalCents <= 0) {
+    return { ok: false, error: "invalid_duration" };
+  }
+
+  // Lignes de main-d'œuvre : phases proposées par l'IA (même règle que le formulaire),
+  // sinon prestations reconnues, sinon une ligne libre pour la durée estimée.
+  const aiLaborItems = params.draft.laborItems ?? [];
+  const quoteServiceRows = aiLaborItems.length && labor.durationMinutes > 0
+    ? scaleLaborItems(aiLaborItems, labor.durationMinutes).map((item) => {
+        const service = exactCatalogService(servicesFound, item.title);
+        return {
+          service_id: service?.id ?? null,
+          service_title: service?.title ?? item.title,
+          duration_minutes: item.minutes,
+          unit_price: service?.price ?? null,
+        };
+      })
+    : servicesFound.length
+    ? servicesFound.map((s) => ({
+        service_id: s.id,
+        service_title: s.title,
+        duration_minutes: s.duration,
+        unit_price: s.price ?? null,
+      }))
+    : labor.durationMinutes > 0
+      ? [
+          {
+            service_id: null,
+            service_title: "Main-d'œuvre",
+            duration_minutes: labor.durationMinutes,
+            unit_price: null,
+          },
+        ]
+      : [];
+
+  // En-tête, lignes et envoi dans une même transaction (migration 67) : un devis
+  // ne peut plus passer à « envoyé » avant que ses lignes soient écrites.
+  const { data: quoteId, error: quoteErr } = await params.supabase.rpc("save_quote_document", {
+    p_quote_id: null,
+    p_header: {
+      artisan_id: params.artisanId,
+      customer_name: customerName,
+      customer_email: customerEmail,
+      customer_user_id: null,
+      conversation_id: null,
+      notes: params.draft.notes?.trim() || null,
+      labor_rate_per_hour: laborRateCents,
+      labor_duration_minutes: labor.durationMinutes,
+      labor_total: laborTotalCents,
+      materials_total: materialsTotalCents,
+      grand_total: grandTotalCents,
+      reduced_vat_rate: vatRate,
+      generate_vat_attestation: false,
+      retraction_waived: false,
+    },
+    p_services: quoteServiceRows,
+    p_materials: quoteMaterialRows,
+    p_send: params.status === "sent",
+  });
+
+  if (quoteErr || typeof quoteId !== "string") {
+    return { ok: false, error: "create_failed" };
   }
 
   return {
     ok: true,
-    quoteId: createdQuote.id as string,
+    quoteId,
     grandTotalCents,
   };
 }

@@ -9,14 +9,15 @@ export function ClientInvoicePdfButton({
   className,
 }: {
   invoiceId: string;
-  emissionFlow?: "e_invoicing" | "e_reporting" | null;
+  emissionFlow?: "e_invoicing" | "e_reporting" | "pdf_transition" | null;
   className?: string;
 }) {
+  const isPlainPdf = emissionFlow === "e_reporting" || emissionFlow === "pdf_transition";
   const href =
-    emissionFlow === "e_reporting"
+    isPlainPdf
       ? `/api/invoices/${invoiceId}/pdf`
       : `/api/invoices/${invoiceId}/factur-x`;
-  const label = emissionFlow === "e_reporting" ? "Télécharger le PDF" : "Télécharger la facture (PDF)";
+  const label = isPlainPdf ? "Télécharger le PDF" : "Télécharger la facture (PDF)";
 
   return (
     <a

@@ -64,8 +64,9 @@ describe("createPayloadSubmitter", () => {
     expect(submitter).toBeInstanceOf(PennylanePayloadSubmitter);
   });
 
-  it("noop explicite ne fait jamais d'appel réseau", () => {
+  it("noop explicite ne simule pas un dépôt réussi", async () => {
     const submitter = createPayloadSubmitter("noop");
     expect(submitter).toBeInstanceOf(NoopPayloadSubmitter);
+    await expect(submitter.submitEInvoice({} as never)).rejects.toThrow("pa_not_configured");
   });
 });

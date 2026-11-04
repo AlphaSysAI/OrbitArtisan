@@ -160,7 +160,7 @@ async function sendAccountingExport(
   const { data: invoiceRows, error: invoiceError } = await db
     .from("invoices")
     .select(
-      "id, invoice_number, invoice_type, status, finalized_at, due_date, customer_name, customer_email, grand_total, labor_total, materials_total, payment_received_at",
+      "id, invoice_number, invoice_type, status, finalized_at, due_date, customer_name, customer_email, grand_total, labor_total, materials_total, payment_received_at, issued_pdf_base64",
     )
     .eq("artisan_id", profile.id)
     .not("finalized_at", "is", null)
@@ -169,7 +169,7 @@ async function sendAccountingExport(
     .order("finalized_at", { ascending: true });
   if (invoiceError) return { ok: false, error: `invoices:${invoiceError.message}` };
 
-  const invoices = (invoiceRows ?? []) as (InvoiceCsvRow & { id: string })[];
+  const invoices = (invoiceRows ?? []) as (InvoiceCsvRow & { id: string; issued_pdf_base64?: string | null })[];
   const pieces = await listPendingPieces(db, profile.id);
   const monthLabel = periodLabel(period);
   const business = profile.business_name?.trim() || "Entreprise";
@@ -191,10 +191,10 @@ async function sendAccountingExport(
 
   // Synthèse chiffrée (TVA ventilée comme dans les XML Factur-X, relances du mois).
   const invoiceIds = invoices.map((i) => i.id);
-  const [{ data: lineRows }, { count: remindersSent }] = await Promise.all([
+  const [{ data: lineRows, error: linesError }, { count: remindersSent }] = await Promise.all([
     invoiceIds.length
       ? db.from("invoice_lines").select("invoice_id, line_total, vat_rate, vat_category_code").in("invoice_id", invoiceIds)
-      : Promise.resolve({ data: [] as { invoice_id: string; line_total: number; vat_rate: number | null; vat_category_code: string | null }[] }),
+      : Promise.resolve({ error: null, data: [] as { invoice_id: string; line_total: number; vat_rate: number | null; vat_category_code: string | null }[] }),
     db
       .from("invoice_reminders")
       .select("id", { count: "exact", head: true })
@@ -202,6 +202,7 @@ async function sendAccountingExport(
       .gte("created_at", `${period}T00:00:00+00:00`)
       .lte("created_at", cutoff),
   ]);
+  if (linesError) return { ok: false, error: "invoice_lines_unavailable" };
   const todayIso = `${String(parisDay(now).year)}-${String(parisDay(now).month).padStart(2, "0")}-${String(parisDay(now).day).padStart(2, "0")}`;
   const recap = buildMonthlyRecap({
     invoices: invoices.map((inv) => ({
@@ -222,14 +223,19 @@ async function sendAccountingExport(
 
   type Item = { filename: string; bytes: Buffer; size: number };
   const items: Item[] = [];
-  const csv = Buffer.from(buildInvoicesCsv(invoices), "utf8");
+  const csv = Buffer.from(buildInvoicesCsv(invoices.map((invoice) => ({
+    ...invoice, invoice_lines: (lineRows ?? []).filter((line) => line.invoice_id === invoice.id),
+  }))), "utf8");
   items.push({ filename: `recap-factures-${period.slice(0, 7)}.csv`, bytes: csv, size: csv.length });
   const synth = Buffer.from(recapCsv(recap, monthLabel), "utf8");
   items.push({ filename: `synthese-tva-${period.slice(0, 7)}.csv`, bytes: synth, size: synth.length });
 
   for (const inv of invoices) {
     try {
-      const att = await renderInvoiceAttachment(db, inv.id, inv.invoice_number);
+      const att = inv.issued_pdf_base64
+        ? { filename: `facture-${sanitizeAccountingFilename(inv.invoice_number ?? inv.id)}.pdf`,
+            bytes: Buffer.from(inv.issued_pdf_base64, "base64") }
+        : await renderInvoiceAttachment(db, inv.id, inv.invoice_number);
       if (att) items.push({ ...att, size: att.bytes.length });
     } catch (error) {
       return { ok: false, error: `pdf:${inv.invoice_number ?? inv.id}:${error instanceof Error ? error.message : error}` };

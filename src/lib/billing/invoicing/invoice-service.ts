@@ -1,3 +1,4 @@
+import { computeInvoiceTotals } from "../invoice-amounts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadFacturXDocumentFromDb } from "@/lib/billing/facturx/load-from-db";
@@ -11,6 +12,7 @@ import type { IPayloadSubmitter, PaSubmissionPayload } from "./payload-submitter
 import {
   frozenInvoicingMessageFor,
   INVOICING_FROZEN_ERROR,
+  isB2BPdfTransitionActive,
   isDraftInvoicingFrozenForCustomer,
 } from "../invoicing-freeze";
 
@@ -24,7 +26,7 @@ const VALID_VAT_RATES = [0, 5.5, 10, 20];
  */
 const FINALIZE_CLAIM_STALE_MS = 2 * 60 * 1000;
 
-type InvoiceEmissionFlow = "e_invoicing" | "e_reporting";
+type InvoiceEmissionFlow = "e_invoicing" | "e_reporting" | "pdf_transition";
 
 type FinalizeInvoiceSuccess = {
   ok: true;
@@ -46,6 +48,7 @@ type FinalizeInvoiceError = {
     | "already_finalized"
     | "not_draft"
     | "no_lines"
+    | "inconsistent_total"
     | "invalid_vat_rate"
     | "missing_legal_info"
     | "invoicing_frozen"
@@ -62,6 +65,7 @@ type FinalizeInvoiceResult = FinalizeInvoiceSuccess | FinalizeInvoiceError;
 type InvoiceFinalizeRow = {
   id: string;
   artisan_id: string;
+  grand_total: number;
   invoice_number: string | null;
   status: string;
   finalized_at: string | null;
@@ -71,11 +75,12 @@ export class InvoiceService {
   constructor(
     private readonly supabase: SupabaseClient,
     private readonly payloadSubmitter: IPayloadSubmitter,
+    private readonly issuer: SupabaseClient | null = supabase,
   ) {}
 
   /**
    * Finalise une facture brouillon et route l'émission :
-   * - B2B (SIREN + TVA valides) → Factur-X + soumission PA
+   * - B2B (SIREN ou SIRET valide) → Factur-X + soumission PA
    * - B2C → PDF simple + file e-reporting
    */
   async finalize(invoiceId: string, artisanId: string): Promise<FinalizeInvoiceResult> {
@@ -98,10 +103,11 @@ export class InvoiceService {
     // facture. Le claim est libéré explicitement à chaque échec ci-dessous
     // pour ne pas bloquer un nouvel essai pendant 2 minutes sur une simple
     // erreur transitoire.
-    const staleThreshold = new Date(Date.now() - FINALIZE_CLAIM_STALE_MS).toISOString();
+    const claim = new Date().toISOString();
+    const staleThreshold = new Date(Date.parse(claim) - FINALIZE_CLAIM_STALE_MS).toISOString();
     const { data: claimed, error: claimError } = await this.supabase
       .from("invoices")
-      .update({ finalizing_at: new Date().toISOString() })
+      .update({ finalizing_at: claim })
       .eq("id", invoiceId)
       .eq("artisan_id", artisanId)
       .eq("status", "draft")
@@ -120,7 +126,7 @@ export class InvoiceService {
 
     const document = await loadFacturXDocumentFromDb(this.supabase, invoiceId);
     if (!document) {
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return { ok: false, code: "not_found", message: "Impossible de charger les données de la facture." };
     }
 
@@ -136,8 +142,9 @@ export class InvoiceService {
       siret: document.buyer.siret,
       vatNumber: document.buyer.vatNumber,
     });
-    if (isDraftInvoicingFrozenForCustomer(customerClass)) {
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+    const issuedAt = new Date(claim);
+    if (isDraftInvoicingFrozenForCustomer(customerClass, issuedAt)) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return {
         ok: false,
         code: INVOICING_FROZEN_ERROR,
@@ -146,8 +153,13 @@ export class InvoiceService {
     }
 
     if (document.lines.length === 0) {
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return { ok: false, code: "no_lines", message: "La facture ne contient aucune ligne." };
+    }
+
+    if (computeInvoiceTotals(document.lines).totalHtCents !== invoice.grand_total) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "inconsistent_total", message: "Les lignes et le total HT de la facture divergent." };
     }
 
     // Point 3 audit pré-pilote : un taux de TVA hors [0, 5.5, 10, 20] signale
@@ -155,7 +167,7 @@ export class InvoiceService {
     // bloque la finalisation plutôt que d'émettre un document légal erroné.
     const invalidRateLine = document.lines.find((line) => !VALID_VAT_RATES.includes(line.vatRate));
     if (invalidRateLine) {
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return {
         ok: false,
         code: "invalid_vat_rate",
@@ -176,7 +188,7 @@ export class InvoiceService {
       missingLegalFields.push("assurance décennale");
     }
     if (missingLegalFields.length > 0) {
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return {
         ok: false,
         code: "missing_legal_info",
@@ -188,12 +200,17 @@ export class InvoiceService {
     // une fois tous les contrôles bloquants passés — jamais à la création
     // du brouillon. Compteur séquentiel et gapless par (artisan, type,
     // année), alloué atomiquement côté base (voir allocate_invoice_number).
-    const { data: allocatedNumber, error: numberError } = await this.supabase.rpc("allocate_invoice_number", {
+    if (!this.issuer) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "persist_failed", message: "Service de finalisation indisponible." };
+    }
+    const { data: allocatedNumber, error: numberError } = await this.issuer.rpc("reserve_invoice_number", {
       p_invoice_id: invoiceId,
+      p_claim: claim,
     });
     if (numberError || typeof allocatedNumber !== "string" || !allocatedNumber) {
       console.error("[InvoiceService] invoice number allocation failed", numberError);
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return {
         ok: false,
         code: "number_allocation_failed",
@@ -201,12 +218,20 @@ export class InvoiceService {
       };
     }
     document.invoiceNumber = allocatedNumber;
+    document.issueDate = issuedAt;
+    const dueDate = await this.computeDueDate(artisanId, document.issueDate);
+    document.dueDate = new Date(dueDate);
 
-    if (customerClass === "b2b") {
-      return this.finalizeB2B(invoiceId, artisanId, document);
+    // Période transitoire : sans PA raccordée, le B2B est émis en PDF classique.
+    if (customerClass === "b2b" && isB2BPdfTransitionActive(issuedAt)) {
+      return this.finalizePdfOnly(invoiceId, artisanId, document, claim, dueDate);
     }
 
-    return this.finalizeB2C(invoiceId, artisanId, document);
+    if (customerClass === "b2b") {
+      return this.finalizeB2B(invoiceId, artisanId, document, claim, dueDate);
+    }
+
+    return this.finalizeB2C(invoiceId, artisanId, document, claim, dueDate);
   }
 
   /**
@@ -215,19 +240,20 @@ export class InvoiceService {
    * soumission PA, écriture DB) plutôt que d'attendre l'expiration de la
    * fenêtre anti double-submit.
    */
-  private async releaseFinalizeClaim(invoiceId: string, artisanId: string): Promise<void> {
+  private async releaseFinalizeClaim(invoiceId: string, artisanId: string, claim: string): Promise<void> {
     await this.supabase
       .from("invoices")
       .update({ finalizing_at: null })
       .eq("id", invoiceId)
       .eq("artisan_id", artisanId)
+      .eq("finalizing_at", claim)
       .is("finalized_at", null);
   }
 
   private async loadInvoiceForFinalize(invoiceId: string, artisanId: string): Promise<InvoiceFinalizeRow | null> {
     const { data, error } = await this.supabase
       .from("invoices")
-      .select("id, artisan_id, invoice_number, status, finalized_at")
+      .select("id, artisan_id, invoice_number, status, finalized_at, grand_total")
       .eq("id", invoiceId)
       .eq("artisan_id", artisanId)
       .maybeSingle();
@@ -240,13 +266,15 @@ export class InvoiceService {
     invoiceId: string,
     artisanId: string,
     document: FacturXInvoiceDocument,
+    claim: string,
+    dueDate: string,
   ): Promise<FinalizeInvoiceResult> {
     let facturX;
     try {
       facturX = await generateFacturX(document, { profile: "en16931" });
     } catch (error) {
       console.error("[InvoiceService] Factur-X generation failed", error);
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return {
         ok: false,
         code: "generation_failed",
@@ -278,12 +306,8 @@ export class InvoiceService {
       paResult = await this.payloadSubmitter.submitEInvoice(paPayload);
     } catch (error) {
       console.error("[InvoiceService] PA submission failed", error);
-      // Le numéro alloué (document.invoiceNumber) reste "consommé" côté
-      // compteur même après cette libération — un nouvel essai en tirera un
-      // nouveau. L'écart résultant est documenté et légalement toléré
-      // (BOI-TVA-DECLA-30-20-20) pour un échec technique non systématique ;
-      // à surveiller si les échecs PA deviennent fréquents en usage réel.
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      // Le numéro réservé sera réutilisé. La reprise PA nécessite un accusé fournisseur idempotent.
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return {
         ok: false,
         code: "pa_submission_failed",
@@ -291,14 +315,11 @@ export class InvoiceService {
       };
     }
 
-    const now = new Date().toISOString();
-    const dueDate = await this.computeDueDate(artisanId);
-
     const { error: updateError } = await this.supabase
       .from("invoices")
       .update({
         status: "sent",
-        finalized_at: now,
+        finalized_at: document.issueDate.toISOString(),
         finalizing_at: null,
         invoice_number: document.invoiceNumber,
         due_date: dueDate,
@@ -309,6 +330,7 @@ export class InvoiceService {
       })
       .eq("id", invoiceId)
       .eq("artisan_id", artisanId)
+      .eq("finalizing_at", claim)
       .is("finalized_at", null);
 
     if (updateError) {
@@ -336,71 +358,87 @@ export class InvoiceService {
     };
   }
 
-  private async finalizeB2C(
+  /**
+   * B2B pendant la période transitoire (avant le 01/09/2027) : PDF figé et
+   * archivé, sans transmission PA ni e-reporting.
+   */
+  private async finalizePdfOnly(
     invoiceId: string,
     artisanId: string,
     document: FacturXInvoiceDocument,
+    claim: string,
+    dueDate: string,
   ): Promise<FinalizeInvoiceResult> {
     let pdf: Uint8Array;
     try {
       pdf = await renderInvoicePdf(document);
     } catch (error) {
       console.error("[InvoiceService] PDF generation failed", error);
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "generation_failed", message: "Échec de la génération du PDF." };
+    }
+
+    if (!this.issuer) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "persist_failed", message: "Service de finalisation indisponible." };
+    }
+    const { data: issuedId, error } = await this.issuer.rpc("issue_pdf_invoice", {
+      p_invoice_id: invoiceId,
+      p_claim: claim,
+      p_number: document.invoiceNumber,
+      p_issued_at: document.issueDate.toISOString(),
+      p_due_date: dueDate,
+      p_pdf: Buffer.from(pdf).toString("base64"),
+    });
+    if (error || issuedId !== invoiceId) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "persist_failed", message: "Impossible d'enregistrer la finalisation." };
+    }
+
+    return {
+      ok: true,
+      invoiceId,
+      flow: "pdf_transition",
+      pdf,
+      pdfFilename: pdfFilename(document.invoiceNumber, "pdf", document.invoiceType),
+    };
+  }
+
+  private async finalizeB2C(
+    invoiceId: string,
+    artisanId: string,
+    document: FacturXInvoiceDocument,
+    claim: string,
+    dueDate: string,
+  ): Promise<FinalizeInvoiceResult> {
+    let pdf: Uint8Array;
+    try {
+      pdf = await renderInvoicePdf(document);
+    } catch (error) {
+      console.error("[InvoiceService] PDF generation failed", error);
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return { ok: false, code: "generation_failed", message: "Échec de la génération du PDF." };
     }
 
     const payload = buildEReportingPayload(document, invoiceId);
     const reportingPeriod = reportingPeriodFromDate(document.issueDate);
 
-    const { data: queueRow, error: queueError } = await this.supabase
-      .from("e_reporting_queue")
-      .insert({
-        invoice_id: invoiceId,
-        artisan_id: artisanId,
-        status: "pending",
-        payload,
-        reporting_period: reportingPeriod,
-      })
-      .select("id")
-      .single();
-
-    if (queueError || !queueRow?.id) {
-      await this.releaseFinalizeClaim(invoiceId, artisanId);
-      return {
-        ok: false,
-        code: "persist_failed",
-        message: "Impossible d'enregistrer la file e-reporting.",
-      };
+    if (!this.issuer) {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
+      return { ok: false, code: "persist_failed", message: "Service de finalisation indisponible." };
     }
-
-    const now = new Date().toISOString();
-    const dueDate = await this.computeDueDate(artisanId);
-
-    const { error: updateError } = await this.supabase
-      .from("invoices")
-      .update({
-        status: "sent",
-        finalized_at: now,
-        finalizing_at: null,
-        invoice_number: document.invoiceNumber,
-        due_date: dueDate,
-        emission_flow: "e_reporting",
-      })
-      .eq("id", invoiceId)
-      .eq("artisan_id", artisanId)
-      .is("finalized_at", null);
-
-    if (updateError) {
-      // La file e-reporting a déjà été alimentée sous document.invoiceNumber
-      // à ce stade. Ne pas libérer le claim pour éviter une seconde entrée
-      // de file sous un autre numéro pour la même facture — reprise après
-      // expiration de la fenêtre anti double-submit (voir logs).
-      console.error("[InvoiceService] persist failed after e-reporting queue insert — manual reconciliation required", {
-        invoiceId,
-        invoiceNumber: document.invoiceNumber,
-        eReportingQueueId: queueRow.id,
-      });
+    const { data: queueId, error } = await this.issuer.rpc("issue_b2c_invoice", {
+      p_invoice_id: invoiceId,
+      p_claim: claim,
+      p_number: document.invoiceNumber,
+      p_issued_at: document.issueDate.toISOString(),
+      p_due_date: dueDate,
+      p_pdf: Buffer.from(pdf).toString("base64"),
+      p_payload: payload,
+      p_period: reportingPeriod,
+    });
+    if (error || typeof queueId !== "string") {
+      await this.releaseFinalizeClaim(invoiceId, artisanId, claim);
       return { ok: false, code: "persist_failed", message: "Impossible d'enregistrer la finalisation." };
     }
 
@@ -410,11 +448,11 @@ export class InvoiceService {
       flow: "e_reporting",
       pdf,
       pdfFilename: pdfFilename(document.invoiceNumber, "pdf", document.invoiceType),
-      eReportingQueueId: queueRow.id as string,
+      eReportingQueueId: queueId,
     };
   }
 
-  private async computeDueDate(artisanId: string): Promise<string> {
+  private async computeDueDate(artisanId: string, issuedAt: Date): Promise<string> {
     const { data: profile } = await this.supabase
       .from("profiles")
       .select("default_payment_terms_days")
@@ -422,7 +460,7 @@ export class InvoiceService {
       .maybeSingle();
 
     const days = profile?.default_payment_terms_days ?? 30;
-    const due = new Date();
+    const due = new Date(issuedAt);
     due.setDate(due.getDate() + days);
     return due.toISOString().slice(0, 10);
   }

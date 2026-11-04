@@ -102,7 +102,10 @@ function initResponse(payload: InitPayload) {
   if (override) agent.prompt = { prompt: SOLINE_SYSTEM_PROMPT };
   return NextResponse.json({
     type: "conversation_initiation_client_data",
-    dynamic_variables: withCallContext(payload.variables),
+    dynamic_variables: withCallContext({
+      ...payload.variables,
+      prompt_version: override ? SOLINE_AGENT_PROMPT_VERSION : "elevenlabs-console-unverified",
+    }),
     ...(Object.keys(agent).length ? { conversation_config_override: { agent } } : {}),
   });
 }

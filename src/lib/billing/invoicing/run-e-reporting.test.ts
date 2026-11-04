@@ -37,24 +37,16 @@ describe("e-reporting batching", () => {
 });
 
 describe("runEReportingSubmission noop", () => {
-  it("retourne zéro si file vide", async () => {
+  it("ne lit ni ne consomme une file réelle en mode simulation", async () => {
     vi.stubEnv("E_REPORTING_PROVIDER", "noop");
-    const { runEReportingSubmission } = await import("./run-e-reporting");
-
-    const supabase = {
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            order: vi.fn(() => ({
-              limit: vi.fn(async () => ({ data: [], error: null })),
-            })),
-          })),
-        })),
-      })),
-    };
-
-    const result = await runEReportingSubmission(supabase as never);
-    expect(result.submittedTransactions).toBe(0);
-    expect(result.processedGroups).toBe(0);
+    try {
+      const { runEReportingSubmission } = await import("./run-e-reporting");
+      const from = vi.fn(() => { throw new Error("La file ne doit pas être consommée"); });
+      const result = await runEReportingSubmission({ from } as never);
+      expect(result).toMatchObject({ submittedTransactions: 0, processedGroups: 0, skippedNoop: true });
+      expect(from).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

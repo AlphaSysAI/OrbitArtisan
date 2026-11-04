@@ -15,6 +15,7 @@ type InvoiceRow = {
   customer_email: string | null;
   notes: string | null;
   created_at: string;
+  finalized_at: string | null;
   operation_type: string | null;
   vat_on_debits: boolean | null;
   vat_collection_nature: string | null;
@@ -89,7 +90,7 @@ export async function loadFacturXDocumentFromDb(
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
     .select(
-      "id, invoice_number, customer_name, customer_email, customer_user_id, notes, created_at, operation_type, vat_on_debits, vat_collection_nature, artisan_id, invoice_type, due_date",
+      "id, invoice_number, customer_name, customer_email, customer_user_id, notes, created_at, finalized_at, operation_type, vat_on_debits, vat_collection_nature, artisan_id, invoice_type, due_date",
     )
     .eq("id", invoiceId)
     .maybeSingle();
@@ -147,7 +148,7 @@ export async function loadFacturXDocumentFromDb(
 
   return {
     invoiceNumber: inv.invoice_number ?? `DRAFT-${inv.id.slice(0, 8).toUpperCase()}`,
-    issueDate: new Date(inv.created_at),
+    issueDate: new Date(inv.finalized_at ?? inv.created_at),
     seller: {
       name: seller.business_name,
       siren: seller.siren,

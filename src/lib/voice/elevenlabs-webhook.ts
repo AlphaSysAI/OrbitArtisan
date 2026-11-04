@@ -39,7 +39,7 @@ export function verifyElevenLabsSignature(params: {
 
 type TranscriptTurn = { role?: string; message?: string | null };
 
-type ParsedPostCall = {
+export type ParsedPostCall = {
   conversationId: string | null;
   calledNumber: string | null;
   callerNumber: string | null;

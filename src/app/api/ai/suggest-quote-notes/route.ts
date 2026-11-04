@@ -1,3 +1,4 @@
+import { recentConversationMessages } from "@/lib/ai/recent-conversation-messages";
 import { NextResponse } from "next/server";
 
 import { formatContactDisplayName } from "@/lib/contacts/display-name";
@@ -45,15 +46,9 @@ export async function POST(request: Request) {
 
   if (!conv || conv.artisan_id !== profile.id) return NextResponse.json({ error: "conversation_forbidden" }, { status: 403 });
 
-  const { data: messages } = await supabase
-    .from("messages")
-    .select("sender_user_id, body, created_at")
-    .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true })
-    .limit(12);
+  const messages = await recentConversationMessages(supabase, conversationId, 12);
 
-  const lastMessages = messages ?? [];
-  const contextText = lastMessages
+  const contextText = messages
     .map((m) => {
       const who = m.sender_user_id === user.id ? "Artisan (toi)" : "Client";
       return `${who}: ${m.body}`;

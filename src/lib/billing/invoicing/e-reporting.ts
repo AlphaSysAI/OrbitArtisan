@@ -1,3 +1,4 @@
+import { computeInvoiceTotals } from "../invoice-amounts";
 import type { FacturXInvoiceDocument } from "@/lib/billing/facturx/types";
 
 export type EReportingVatLine = {
@@ -37,29 +38,8 @@ export type EReportingPayload = {
 };
 
 export function buildEReportingPayload(document: FacturXInvoiceDocument, invoiceId: string): EReportingPayload {
-  const vatMap = new Map<string, EReportingVatLine>();
-
-  for (const line of document.lines) {
-    const taxCents = Math.round((line.lineTotalCents * line.vatRate) / 100);
-    const key = `${line.vatCategoryCode}:${line.vatRate}`;
-    const existing = vatMap.get(key);
-
-    if (existing) {
-      existing.basisCents += line.lineTotalCents;
-      existing.taxCents += taxCents;
-    } else {
-      vatMap.set(key, {
-        rate: line.vatRate,
-        basisCents: line.lineTotalCents,
-        taxCents,
-        categoryCode: line.vatCategoryCode,
-      });
-    }
-  }
-
-  const lineTotalCents = document.lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  const taxTotalCents = [...vatMap.values()].reduce((sum, row) => sum + row.taxCents, 0);
-
+  const { vatGroups, totalHtCents: lineTotalCents, totalVatCents: taxTotalCents, totalTtcCents } =
+    computeInvoiceTotals(document.lines);
   return {
     schemaVersion: "1.0",
     invoiceId,
@@ -81,9 +61,9 @@ export function buildEReportingPayload(document: FacturXInvoiceDocument, invoice
     totals: {
       lineTotalCents,
       taxTotalCents,
-      grandTotalCents: lineTotalCents + taxTotalCents,
+      grandTotalCents: totalTtcCents,
     },
-    vatBreakdown: [...vatMap.values()],
+    vatBreakdown: vatGroups.map((g) => ({ rate: g.rate, basisCents: g.baseCents, taxCents: g.taxCents, categoryCode: g.categoryCode })),
     operationType: document.operationType ?? null,
     vatCollectionNature: document.vatCollectionNature ?? null,
   };

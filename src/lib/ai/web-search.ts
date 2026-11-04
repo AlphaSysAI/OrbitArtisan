@@ -1,5 +1,7 @@
 import "server-only";
 
+import { aiRequestSignal } from "./request-budget";
+
 type WebSearchHit = {
   title: string;
   url: string;
@@ -53,7 +55,7 @@ export async function searchWebForQuoteContext(
         include_answer: true,
         topic: "general",
       }),
-      signal: AbortSignal.timeout(12_000),
+      signal: aiRequestSignal(12_000),
     });
 
     if (!res.ok) {

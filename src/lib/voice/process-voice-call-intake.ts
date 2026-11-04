@@ -146,7 +146,19 @@ export async function processVoiceCallQuoteIntake(params: {
     }
   }
 
-  if (!twilioCallSid && (customerEmail || params.callerNumber)) {
+  if (params.conversationId) {
+    const { data: existing } = await params.db.from("voice_call_intakes")
+      .select("id, summary, quote_draft")
+      .eq("artisan_id", params.artisanId).eq("elevenlabs_conversation_id", params.conversationId).maybeSingle();
+    if (existing?.id) return {
+      intakeId: existing.id as string,
+      summary: (existing.summary as string) ?? "Appel déjà enregistré.",
+      draft: existing.quote_draft as AiQuoteDraft,
+      message: "Appel déjà enregistré (rejeu du webhook).",
+    };
+  }
+
+  if (!twilioCallSid && !params.conversationId && (customerEmail || params.callerNumber)) {
     const dedupWindowStart = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     let dedupQuery = params.db
       .from("voice_call_intakes")
@@ -321,6 +333,7 @@ export async function processVoiceCallQuoteIntake(params: {
   };
   insertPayload.call_report = callReport;
 
+  if (params.conversationId) insertPayload.elevenlabs_conversation_id = params.conversationId;
   if (twilioCallSid) {
     insertPayload.twilio_call_sid = twilioCallSid;
   }
@@ -339,11 +352,12 @@ export async function processVoiceCallQuoteIntake(params: {
   }
 
   if (error || !intake?.id) {
-    if (error?.code === "23505" && twilioCallSid) {
+    if (error?.code === "23505" && (twilioCallSid || params.conversationId)) {
       const { data: existing } = await params.db
         .from("voice_call_intakes")
         .select("id, summary, quote_draft")
-        .eq("twilio_call_sid", twilioCallSid)
+        .eq("artisan_id", params.artisanId)
+        .eq(twilioCallSid ? "twilio_call_sid" : "elevenlabs_conversation_id", twilioCallSid ?? params.conversationId)
         .maybeSingle();
       if (existing?.id) {
         return {

@@ -329,27 +329,20 @@ async function resolveQuoteInput(
   };
 }
 
-/** (Ré)écrit les lignes prestations/matériaux d'un devis (insertion pure — l'appelant a déjà purgé les anciennes lignes en cas d'édition). */
-async function writeQuoteLines(supabase: SupabaseClient, quoteId: string, d: ResolvedQuoteInput) {
+/** Persiste l'en-tête, les lignes et l'état dans une même transaction. */
+async function saveQuoteDocument(
+  supabase: SupabaseClient, quoteId: string | null, header: Record<string, unknown>, d: ResolvedQuoteInput,
+) {
   const quoteServiceRows = d.servicesFound.map((s) => ({
-    quote_id: quoteId,
     service_id: s.id,
     service_title: s.title,
     duration_minutes: s.duration,
     unit_price: s.price ?? null,
   }));
 
-  if (quoteServiceRows.length) {
-    const { error: servicesLinesErr } = await supabase.from("quote_services").insert(quoteServiceRows);
-    if (servicesLinesErr) {
-      return { ok: false as const, error: "lines_failed" as const };
-    }
-  }
-
   const quoteMaterialRows = d.materials
     .filter((m) => m.label)
     .map((m) => ({
-      quote_id: quoteId,
       label: m.label,
       quantity: m.quantity,
       unit_price: m.unitPriceCents,
@@ -363,15 +356,15 @@ async function writeQuoteLines(supabase: SupabaseClient, quoteId: string, d: Res
       unit: m.unit ?? null,
     }));
 
-  if (quoteMaterialRows.length) {
-    const { error: materialsLinesErr } = await supabase.from("quote_materials").insert(quoteMaterialRows);
-    if (materialsLinesErr) return { ok: false as const, error: "materials_failed" as const };
-  }
-
-  return { ok: true as const };
+  return supabase.rpc("save_quote_document", {
+    p_quote_id: quoteId,
+    p_header: header,
+    p_services: quoteServiceRows,
+    p_materials: quoteMaterialRows,
+    p_send: d.quoteStatus === "sent",
+  });
 }
 
-/** Notifie/e-maile le client quand le devis passe (ou reste) au statut "sent". */
 async function notifyQuoteIfSent(
   supabase: SupabaseClient,
   params: { quoteId: string; profileId: string; userId: string; profileBusinessName: string | null; d: ResolvedQuoteInput },
@@ -466,45 +459,35 @@ export async function createQuote(formData: FormData) {
   if (!input.ok) return input;
   const d = input.data;
 
-  const { data: createdQuote, error: quoteErr } = await supabase
-    .from("quotes")
-    .insert({
-      artisan_id: profileId,
-      customer_name: d.customerName || null,
-      customer_email: d.customerEmail || null,
-      customer_user_id: d.linkedCustomerUserId,
-      conversation_id: d.linkedConversationId,
-      // Fiche client d'origine : le trigger vérifie qu'elle appartient bien à cet artisan.
-      client_id: /^[0-9a-f-]{36}$/i.test(String(formData.get("client_id") ?? "")) ? String(formData.get("client_id")) : null,
-      status: d.quoteStatus,
-      notes: d.notes || null,
-      labor_rate_per_hour: d.laborRateCents,
-      labor_duration_minutes: d.laborDurationMinutes,
-      labor_total: d.laborTotalCents,
-      materials_total: d.materialsTotalCents,
-      grand_total: d.grandTotalCents,
-      reduced_vat_rate: d.reducedVatRate,
-      // Attestation séparée supprimée le 01/03/2025 : certification client sur le devis.
-      generate_vat_attestation: false,
-      work_site_address: d.workSiteAddress,
-      work_site_city: d.workSiteCity,
-      work_site_postal_code: d.workSitePostalCode,
-      retraction_waived: d.retractionWaived,
-      valid_until: d.validUntil,
-      sent_at: d.quoteStatus === "sent" ? new Date().toISOString() : null,
-    })
-    .select("id")
-    .single();
-
-  if (quoteErr || !createdQuote?.id) {
+  const { data: quoteId, error: quoteErr } = await saveQuoteDocument(supabase, null, {
+    artisan_id: profileId,
+    customer_name: d.customerName || null,
+    customer_email: d.customerEmail || null,
+    customer_user_id: d.linkedCustomerUserId,
+    conversation_id: d.linkedConversationId,
+    // Fiche client d'origine : le trigger vérifie qu'elle appartient bien à cet artisan.
+    client_id: /^[0-9a-f-]{36}$/i.test(String(formData.get("client_id") ?? "")) ? String(formData.get("client_id")) : null,
+    notes: d.notes || null,
+    labor_rate_per_hour: d.laborRateCents,
+    labor_duration_minutes: d.laborDurationMinutes,
+    labor_total: d.laborTotalCents,
+    materials_total: d.materialsTotalCents,
+    grand_total: d.grandTotalCents,
+    reduced_vat_rate: d.reducedVatRate,
+    // Attestation séparée supprimée le 01/03/2025 : certification client sur le devis.
+    generate_vat_attestation: false,
+    work_site_address: d.workSiteAddress,
+    work_site_city: d.workSiteCity,
+    work_site_postal_code: d.workSitePostalCode,
+    retraction_waived: d.retractionWaived,
+    valid_until: d.validUntil,
+  }, d);
+  if (quoteErr || typeof quoteId !== "string") {
     return { ok: false as const, error: "create_failed" as const };
   }
 
-  const linesResult = await writeQuoteLines(supabase, createdQuote.id, d);
-  if (!linesResult.ok) return linesResult;
-
   const notifyResult = await notifyQuoteIfSent(supabase, {
-    quoteId: createdQuote.id,
+    quoteId: quoteId,
     profileId,
     userId,
     profileBusinessName,
@@ -514,14 +497,14 @@ export async function createQuote(formData: FormData) {
   const { notifyFailed, emailSent } = notifyResult;
 
   if (d.voiceIntakeId && d.quoteStatus === "sent") {
-    await markVoiceIntakeValidated(supabase, { voiceIntakeId: d.voiceIntakeId, quoteId: createdQuote.id, profileId });
+    await markVoiceIntakeValidated(supabase, { voiceIntakeId: d.voiceIntakeId, quoteId: quoteId, profileId });
   }
 
   revalidatePath("/app/quotes");
   revalidatePath("/mes-devis");
   return {
     ok: true as const,
-    quoteId: createdQuote.id,
+    quoteId: quoteId,
     notifyFailed,
     emailSent,
     status: d.quoteStatus,
@@ -570,56 +553,30 @@ export async function updateQuote(quoteId: string, formData: FormData) {
   if (!input.ok) return input;
   const d = input.data;
 
-  // Garde anti-course explicite : ne met à jour que si le devis est toujours
-  // "draft" au moment précis de l'écriture (et pas seulement au moment de la
-  // lecture ci-dessus) — même discipline que client_accept_quote.
-  const { data: updated, error: updateErr } = await supabase
-    .from("quotes")
-    .update({
-      customer_name: d.customerName || null,
-      customer_email: d.customerEmail || null,
-      customer_user_id: d.linkedCustomerUserId,
-      conversation_id: d.linkedConversationId,
-      status: d.quoteStatus,
-      notes: d.notes || null,
-      labor_rate_per_hour: d.laborRateCents,
-      labor_duration_minutes: d.laborDurationMinutes,
-      labor_total: d.laborTotalCents,
-      materials_total: d.materialsTotalCents,
-      grand_total: d.grandTotalCents,
-      reduced_vat_rate: d.reducedVatRate,
-      // Attestation séparée supprimée le 01/03/2025 : certification client sur le devis.
-      generate_vat_attestation: false,
-      work_site_address: d.workSiteAddress,
-      work_site_city: d.workSiteCity,
-      work_site_postal_code: d.workSitePostalCode,
-      retraction_waived: d.retractionWaived,
-      valid_until: d.validUntil,
-      sent_at: d.quoteStatus === "sent" ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", quoteId)
-    .eq("artisan_id", profileId)
-    .eq("status", "draft")
-    .select("id")
-    .maybeSingle();
-
+  const { error: updateErr } = await saveQuoteDocument(supabase, quoteId, {
+    artisan_id: profileId,
+    customer_name: d.customerName || null,
+    customer_email: d.customerEmail || null,
+    customer_user_id: d.linkedCustomerUserId,
+    conversation_id: d.linkedConversationId,
+    notes: d.notes || null,
+    labor_rate_per_hour: d.laborRateCents,
+    labor_duration_minutes: d.laborDurationMinutes,
+    labor_total: d.laborTotalCents,
+    materials_total: d.materialsTotalCents,
+    grand_total: d.grandTotalCents,
+    reduced_vat_rate: d.reducedVatRate,
+    // Attestation séparée supprimée le 01/03/2025 : certification client sur le devis.
+    generate_vat_attestation: false,
+    work_site_address: d.workSiteAddress,
+    work_site_city: d.workSiteCity,
+    work_site_postal_code: d.workSitePostalCode,
+    retraction_waived: d.retractionWaived,
+    valid_until: d.validUntil,
+  }, d);
   if (updateErr) {
     return { ok: false as const, error: "update_failed" as const };
   }
-  if (!updated) {
-    return { ok: false as const, error: "not_editable" as const };
-  }
-
-  // Remplacement intégral des lignes plutôt qu'un diff fin — plus simple (KISS) et
-  // sans risque d'incohérence entre ce qu'affichait le formulaire et la base.
-  // Sûr uniquement parce qu'on vient de vérifier status = 'draft' : un devis
-  // envoyé n'a jamais ses lignes touchées par ce chemin.
-  await supabase.from("quote_services").delete().eq("quote_id", quoteId);
-  await supabase.from("quote_materials").delete().eq("quote_id", quoteId);
-
-  const linesResult = await writeQuoteLines(supabase, quoteId, d);
-  if (!linesResult.ok) return linesResult;
 
   const notifyResult = await notifyQuoteIfSent(supabase, { quoteId, profileId, userId, profileBusinessName, d });
   if (!notifyResult.ok) return notifyResult;
@@ -705,7 +662,7 @@ export async function sendDraftQuote(quoteId: string): Promise<SendDraftQuoteRes
   const { data: quote } = await supabase
     .from("quotes")
     .select(
-      "id, artisan_id, status, customer_name, customer_email, customer_user_id, conversation_id, grand_total",
+      "id, artisan_id, status, customer_name, customer_email, customer_user_id, conversation_id, grand_total, updated_at",
     )
     .eq("id", quoteId)
     .maybeSingle();
@@ -728,20 +685,13 @@ export async function sendDraftQuote(quoteId: string): Promise<SendDraftQuoteRes
     return { ok: false, error: "quote_pdf_profile_incomplete", validation: legalCheck.validation };
   }
 
-  const { data: updated } = await supabase
-    .from("quotes")
-    .update({
-      status: "sent",
-      sent_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", quoteId)
-    .eq("artisan_id", profileId)
-    .eq("status", "draft")
-    .select("id")
-    .maybeSingle();
+  const { data: updated, error: sendError } = await supabase.rpc("send_quote_document", {
+    p_quote_id: quoteId,
+    p_artisan_id: profileId,
+    p_expected_updated_at: quote.updated_at,
+  });
 
-  if (!updated) {
+  if (sendError || !updated) {
     return { ok: false, error: "not_draft" };
   }
 

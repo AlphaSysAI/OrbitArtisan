@@ -27,6 +27,8 @@ export async function runEReportingSubmission(supabase: SupabaseClient): Promise
     Boolean(process.env.E_REPORTING_API_KEY?.trim() ?? process.env.PA_API_KEY?.trim());
   const isNoop = provider === "noop" || !hasApi;
 
+  if (isNoop) return { processedGroups: 0, submittedTransactions: 0, failedTransactions: 0, skippedNoop: true };
+
   const { data: pendingRows, error: fetchError } = await supabase
     .from("e_reporting_queue")
     .select("id, artisan_id, reporting_period, payload, status")
@@ -51,9 +53,11 @@ export async function runEReportingSubmission(supabase: SupabaseClient): Promise
   }
 
   const rowIds = rows.map((r) => r.id);
-  await supabase.from("e_reporting_queue").update({ status: "batched" }).in("id", rowIds);
-
-  const groups = groupEReportingQueueRows(rows);
+  const { data: claimed, error: claimError } = await supabase.from("e_reporting_queue")
+    .update({ status: "batched" }).in("id", rowIds).eq("status", "pending").select("id");
+  if (claimError) throw new Error("e_reporting_claim_failed");
+  const claimedIds = new Set((claimed ?? []).map((row) => row.id));
+  const groups = groupEReportingQueueRows(rows.filter((row) => claimedIds.has(row.id)));
   let submittedTransactions = 0;
   let failedTransactions = 0;
 
@@ -68,16 +72,23 @@ export async function runEReportingSubmission(supabase: SupabaseClient): Promise
 
     try {
       const result = await submitter.submitBatch(batch);
-      const now = new Date().toISOString();
-
-      await supabase
+      const submitted = result.status === "submitted";
+      const { error: persistError } = await supabase
         .from("e_reporting_queue")
         .update({
-          status: "submitted",
-          submitted_at: now,
+          status: submitted ? "submitted" : "batched",
+          submitted_at: submitted ? new Date().toISOString() : null,
+          provider_submission_id: result.submissionId,
           error_message: null,
         })
-        .in("id", groupIds);
+        .in("id", groupIds).eq("status", "batched");
+      if (persistError) {
+        // Une action externe a déjà pu avoir lieu. Ne pas renvoyer le lot automatiquement.
+        console.error("[e-reporting] accusé non persisté", { groupIds, submissionId: result.submissionId });
+        failedTransactions += group.rows.length;
+        continue;
+      }
+      if (!submitted) continue;
 
       console.info("[e-reporting] batch submitted", {
         artisanId: group.artisanId,

@@ -5,11 +5,12 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   invoiceId: string;
-  emissionFlow?: "e_invoicing" | "e_reporting" | null;
+  emissionFlow?: "e_invoicing" | "e_reporting" | "pdf_transition" | null;
 };
 
 export function DownloadInvoicePdfButton({ invoiceId, emissionFlow }: Props) {
-  const isFacturX = emissionFlow !== "e_reporting";
+  // Factur-X uniquement pour le flux e-invoicing B2B ; sinon le PDF archivé.
+  const isFacturX = emissionFlow === "e_invoicing" || emissionFlow == null;
   const href = isFacturX
     ? `/api/invoices/${invoiceId}/factur-x`
     : `/api/invoices/${invoiceId}/pdf`;

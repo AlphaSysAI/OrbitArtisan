@@ -11,7 +11,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { SupabaseMissing } from "@/components/supabase-missing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { cn } from "@/lib/utils";
 
 import { addTimeEntry } from "../actions";
 import { formatDateFr } from "@/lib/format/date";
@@ -29,7 +28,7 @@ export default async function ChantierDetailPage({ params }: { params: Promise<{
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase.from("profiles").select("id, labor_rate_per_hour").eq("user_id", user!.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user!.id).maybeSingle();
 
   const { data: project } = await supabase
     .from("projects")
@@ -48,11 +47,6 @@ export default async function ChantierDetailPage({ params }: { params: Promise<{
   const actualMoCents = (entries ?? []).reduce((acc, e) => acc + (e.cost_cents ?? 0), 0);
   const actualMinutes = (entries ?? []).reduce((acc, e) => acc + (e.duration_minutes ?? 0), 0);
   const budget = project.budget_total_cents ?? 0;
-  const marginCents = budget - actualMoCents;
-  const marginPct = budget > 0 ? Math.round((marginCents / budget) * 100) : 0;
-
-  const defaultRateEur = ((profile?.labor_rate_per_hour ?? 4500) / 100).toFixed(2).replace(".", ",");
-
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4">
@@ -70,14 +64,12 @@ export default async function ChantierDetailPage({ params }: { params: Promise<{
           <p className="text-2xl font-semibold">{formatCents(budget)}</p>
         </div>
         <div className="app-surface p-5">
-          <p className="text-xs uppercase text-muted-foreground">MO saisie ({Math.round(actualMinutes / 60)} h)</p>
+          <p className="text-xs uppercase text-muted-foreground">Coûts MO renseignés ({Math.round(actualMinutes / 60)} h)</p>
           <p className="text-2xl font-semibold">{formatCents(actualMoCents)}</p>
         </div>
-        <div className={cn("app-surface p-5", marginCents >= 0 ? "border-green-600/30" : "border-red-600/30")}>
-          <p className="text-xs uppercase text-muted-foreground">Marge estimée</p>
-          <p className="text-2xl font-semibold">
-            {formatCents(marginCents)} <span className="text-base font-normal">({marginPct} %)</span>
-          </p>
+        <div className="app-surface p-5">
+          <p className="text-xs uppercase text-muted-foreground">Rentabilité</p>
+          <p className="text-sm">Il manque les coûts complets de ce chantier pour calculer sa marge.</p>
         </div>
       </div>
 
@@ -88,8 +80,8 @@ export default async function ChantierDetailPage({ params }: { params: Promise<{
           <Input id="duration_minutes" name="duration_minutes" type="number" min={1} required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="hourly_rate_eur">Taux horaire (€)</Label>
-          <Input id="hourly_rate_eur" name="hourly_rate_eur" defaultValue={defaultRateEur} inputMode="decimal" />
+          <Label htmlFor="hourly_rate_eur">Coût horaire (€) · facultatif</Label>
+          <Input id="hourly_rate_eur" name="hourly_rate_eur" inputMode="decimal" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="worker_name">Intervenant</Label>
@@ -115,7 +107,7 @@ export default async function ChantierDetailPage({ params }: { params: Promise<{
                   {e.description ? ` · ${e.description}` : ""}
                   {e.worker_name ? ` (${e.worker_name})` : ""}
                 </span>
-                <span className="font-medium tabular-nums">{formatCents(e.cost_cents)}</span>
+                <span className="font-medium tabular-nums">{e.hourly_rate_cents == null ? "Coût non renseigné" : formatCents(e.cost_cents)}</span>
               </li>
             ))}
           </ul>

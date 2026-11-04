@@ -1,3 +1,4 @@
+import { QUOTE_PATCH_MONEY_RULE } from "./patch-money";
 import { z } from "zod";
 import { formatEuros } from "@/lib/format/money";
 
@@ -112,8 +113,7 @@ Règles :
 2. Ne touche JAMAIS une ligne qui n'est pas visée par la consigne.
 3. « Remplace X par Y » sur une fourniture = update_line (label, et prix seulement s'il est donné).
 4. « Augmente de 10 % » / « double » une quantité ou un prix : calcule la nouvelle valeur à partir du devis actuel.
-5. Montants supposés HT, sauf « TTC » explicite : dans ce cas divise par 1,2 (TVA 20 %) et ajoute la phrase dans unresolved
-   pour que l'artisan vérifie le taux.
+5. ${QUOTE_PATCH_MONEY_RULE}
 6. Ligne visée ambiguë (plusieurs candidates) ou consigne incomprise → aucune opération, recopie la phrase dans "unresolved".
 7. Tous les champs non utilisés d'une opération valent null.`;
 

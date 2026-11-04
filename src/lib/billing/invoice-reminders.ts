@@ -1,5 +1,6 @@
 import "server-only";
 
+import { loadCollectibleAmount } from "@/lib/billing/invoice-collection";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { escapeHtml } from "@/lib/email/html";
@@ -26,20 +27,24 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
     .from("invoices")
     .select("id, artisan_id, status, due_date")
     .eq("status", "sent")
+    .neq("invoice_type", "credit_note")
+    .not("finalized_at", "is", null)
     .not("due_date", "is", null)
     .lt("due_date", today);
 
   for (const inv of overdueCandidates ?? []) {
-    const { error } = await supabase.from("invoices").update({ status: "overdue" }).eq("id", inv.id);
+    const { error } = await supabase.from("invoices").update({ status: "overdue" }).eq("id", inv.id).eq("status", "sent");
     if (!error) result.markedOverdue++;
   }
 
   const { data: invoices } = await supabase
     .from("invoices")
     .select(
-      "id, artisan_id, invoice_number, grand_total, due_date, customer_email, customer_name, reminder_count, last_reminder_at, status",
+      "id, artisan_id, invoice_number, grand_total, invoice_type, finalized_at, due_date, customer_email, customer_name, reminder_count, last_reminder_at, status",
     )
     .in("status", ["sent", "overdue"])
+    .neq("invoice_type", "credit_note")
+    .not("finalized_at", "is", null)
     .not("due_date", "is", null)
     .not("customer_email", "is", null);
 
@@ -62,6 +67,11 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
     const level = REMINDER_SCHEDULE_DAYS.filter((d) => daysOverdue >= d).length;
     if (level <= (inv.reminder_count ?? 0)) continue;
 
+    const { data: current } = await supabase.from("invoices")
+      .select("id, grand_total, invoice_type, finalized_at, status").eq("id", inv.id).maybeSingle();
+    const amount = current ? await loadCollectibleAmount(supabase, current).catch(() => null) : null;
+    if (amount === null) continue;
+
     const subject =
       level >= 3
         ? `Dernière relance — facture ${inv.invoice_number ?? ""} en retard`
@@ -70,7 +80,7 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
     const bodyHtml = `
       <p>Bonjour${inv.customer_name ? ` ${escapeHtml(inv.customer_name)}` : ""},</p>
       <p>Nous vous rappelons que la facture <strong>${escapeHtml(inv.invoice_number)}</strong>
-      d'un montant de <strong>${formatCents(inv.grand_total)}</strong>
+      d'un montant de <strong>${formatCents(amount)}</strong>
       était due le <strong>${formatDateFr(inv.due_date, { dateStyle: "long" })}</strong>.</p>
       <p>Merci de procéder au règlement dans les meilleurs délais.</p>
       <p>Cordialement,<br/>${escapeHtml(profile?.business_name ?? "Votre artisan")}</p>
@@ -80,7 +90,7 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
       to: inv.customer_email,
       subject,
       html: bodyHtml,
-      text: `Relance facture ${inv.invoice_number} — ${formatCents(inv.grand_total)} — échéance ${formatDateFr(inv.due_date, { dateStyle: "long" })}`,
+      text: `Relance facture ${inv.invoice_number} — ${formatCents(amount)} — échéance ${formatDateFr(inv.due_date, { dateStyle: "long" })}`,
     });
 
     if (!emailResult.ok) {
@@ -103,9 +113,8 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
       .update({
         reminder_count: level,
         last_reminder_at: new Date().toISOString(),
-        status: "overdue",
       })
-      .eq("id", inv.id);
+      .eq("id", inv.id).in("status", ["sent", "overdue"]);
 
     result.sent++;
   }
@@ -120,14 +129,15 @@ export async function sendManualInvoiceReminder(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: inv } = await supabase
     .from("invoices")
-    .select("id, invoice_number, grand_total, due_date, customer_email, customer_name, reminder_count, status")
+    .select("id, invoice_number, grand_total, invoice_type, finalized_at, due_date, customer_email, customer_name, reminder_count, status")
     .eq("id", invoiceId)
     .eq("artisan_id", artisanId)
     .maybeSingle();
 
   if (!inv) return { ok: false, error: "not_found" };
   if (!inv.customer_email) return { ok: false, error: "no_email" };
-  if (!["sent", "overdue"].includes(inv.status)) return { ok: false, error: "invalid_status" };
+  const amount = await loadCollectibleAmount(supabase, inv).catch(() => null);
+  if (amount === null) return { ok: false, error: "invalid_status" };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -139,7 +149,7 @@ export async function sendManualInvoiceReminder(
   const bodyHtml = `
     <p>Bonjour${inv.customer_name ? ` ${escapeHtml(inv.customer_name)}` : ""},</p>
     <p>Rappel concernant la facture <strong>${escapeHtml(inv.invoice_number)}</strong>
-    (${formatCents(inv.grand_total)}${inv.due_date ? `, échéance ${formatDateFr(inv.due_date, { dateStyle: "long" })}` : ""}).</p>
+    (${formatCents(amount)}${inv.due_date ? `, échéance ${formatDateFr(inv.due_date, { dateStyle: "long" })}` : ""}).</p>
     <p>Cordialement,<br/>${escapeHtml(profile?.business_name ?? "Votre artisan")}</p>
     <p><a href="${getPublicSiteUrl()}/compte/factures/${inv.id}">Voir la facture</a></p>
   `;
@@ -160,8 +170,8 @@ export async function sendManualInvoiceReminder(
 
   await supabase
     .from("invoices")
-    .update({ reminder_count: level, last_reminder_at: new Date().toISOString(), status: "overdue" })
-    .eq("id", invoiceId);
+    .update({ reminder_count: level, last_reminder_at: new Date().toISOString() })
+    .eq("id", invoiceId).in("status", ["sent", "overdue"]);
 
   return { ok: true };
 }

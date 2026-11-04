@@ -1,3 +1,4 @@
+import { QUOTE_PATCH_MONEY_RULE } from "./patch-money";
 import { z } from "zod";
 
 import type { AiQuoteDraft, AiSupplierMaterialDraft } from "@/lib/ai/quote-draft-storage";
@@ -86,7 +87,7 @@ Règles :
 1. Une opération par changement demandé, dans l'ordre de la consigne. Rien d'autre.
 2. Ne touche JAMAIS une ligne qui n'est pas mentionnée.
 3. Quantités et prix : uniquement des nombres prononcés. « deux » = 2, « une dizaine » = ambigu.
-4. Montants dictés supposés HT, sauf si « TTC » est dit : dans ce cas mets la phrase dans unresolved.
+4. ${QUOTE_PATCH_MONEY_RULE}
 5. Ligne visée ambiguë (plusieurs candidates) ou consigne incomprise → aucune opération,
    recopie la phrase dans "unresolved".
 6. Tous les champs non utilisés d'une opération valent null.`;

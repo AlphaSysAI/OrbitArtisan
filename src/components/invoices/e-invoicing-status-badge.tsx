@@ -3,7 +3,7 @@ import { eInvoicingStatusBadgeVariant, eInvoicingStatusLabel } from "@/lib/statu
 
 type Props = {
   status: string | null | undefined;
-  emissionFlow?: "e_invoicing" | "e_reporting" | null;
+  emissionFlow?: "e_invoicing" | "e_reporting" | "pdf_transition" | null;
   className?: string;
 };
 
@@ -12,6 +12,14 @@ export function EInvoicingStatusBadge({ status, emissionFlow, className }: Props
     return (
       <Badge variant="outline" className={className}>
         E-reporting (B2C)
+      </Badge>
+    );
+  }
+
+  if (emissionFlow === "pdf_transition") {
+    return (
+      <Badge variant="outline" className={className}>
+        PDF (B2B transitoire)
       </Badge>
     );
   }

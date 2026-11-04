@@ -10,7 +10,7 @@ export function InvoiceDocumentActionsCard({
   isDraft,
 }: {
   invoiceId: string;
-  emissionFlow?: "e_invoicing" | "e_reporting" | null;
+  emissionFlow?: "e_invoicing" | "e_reporting" | "pdf_transition" | null;
   isDraft: boolean;
 }) {
   return (

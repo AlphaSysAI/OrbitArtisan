@@ -1,5 +1,6 @@
 "use server";
 
+import { requiresQuotePatchVatReview } from "@/lib/quotes/patch-money";
 import { z } from "zod";
 
 import { MISTRAL_EXTRACTION_MODEL, mistralChatParse } from "@/lib/ai/mistral";
@@ -43,6 +44,7 @@ type AiEditResult =
   | { ok: false; error: "auth" | "invalid" | "rate_limited" | "ai_failed" };
 
 async function llmFormPatch(snapshot: QuoteFormSnapshot, instruction: string): Promise<FormPatch> {
+  if (requiresQuotePatchVatReview(instruction)) return { operations: [], unresolved: [instruction.slice(0, 1500)] };
   return mistralChatParse(
     formPatchSchema,
     [

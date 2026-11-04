@@ -64,6 +64,11 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
         filters.push((r) => (r[col] ?? null) === v);
         return builder;
       },
+      not(col: string, operator: "is", value: null) {
+        if (operator !== "is" || value !== null) throw new Error("Unsupported not filter");
+        filters.push((row) => row[col] != null);
+        return builder;
+      },
       in(col: string, values: unknown[]) {
         filters.push((r) => values.includes(r[col]));
         return builder;

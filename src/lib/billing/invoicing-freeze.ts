@@ -31,15 +31,35 @@ import type { CustomerClassification } from "./invoicing/classify-customer";
 export const B2C_INVOICING_FROZEN = false;
 export const B2B_INVOICING_FROZEN = true;
 
+/**
+ * Période transitoire B2B (04/11/2026, demande de Florian) : l'obligation
+ * d'émettre des factures électroniques ne s'applique aux PME et
+ * micro-entreprises qu'à partir du 1er septembre 2027. D'ici là, tant
+ * qu'aucune PA n'est raccordée (`B2B_INVOICING_FROZEN`), une facture à un
+ * client professionnel est émise en PDF classique archivé, sans transmission
+ * ni e-reporting. Le gel se réactive automatiquement à cette date.
+ * Calendrier à confirmer par l'expert-comptable.
+ */
+export const B2B_PDF_TRANSITION_END = new Date("2027-09-01T00:00:00+02:00");
+
+/** true tant que la facturation B2B peut passer par un PDF classique. */
+export function isB2BPdfTransitionActive(now: Date = new Date()): boolean {
+  return B2B_INVOICING_FROZEN && now.getTime() < B2B_PDF_TRANSITION_END.getTime();
+}
+
 /** À utiliser avant toute création de brouillon de facture/avoir. */
-export function isDraftInvoicingFrozenForCustomer(customerClass: CustomerClassification): boolean {
-  return customerClass === "b2b" ? B2B_INVOICING_FROZEN : B2C_INVOICING_FROZEN;
+export function isDraftInvoicingFrozenForCustomer(
+  customerClass: CustomerClassification,
+  now: Date = new Date(),
+): boolean {
+  if (customerClass === "b2c") return B2C_INVOICING_FROZEN;
+  return B2B_INVOICING_FROZEN && !isB2BPdfTransitionActive(now);
 }
 
 export const INVOICING_FROZEN_ERROR = "invoicing_frozen" as const;
 
 export const INVOICING_FROZEN_B2B_MESSAGE =
-  "Facturation désactivée pour ce client professionnel (SIREN + TVA renseignés) — en attente du raccordement à une Plateforme Agréée pour la transmission Factur-X, obligatoire pour les clients B2B. La facturation des particuliers reste disponible.";
+  "Facturation désactivée pour ce client professionnel — la facture électronique via une Plateforme Agréée est obligatoire depuis le 1er septembre 2027 et aucune plateforme n'est encore raccordée. La facturation des particuliers reste disponible.";
 
 export const INVOICING_FROZEN_B2C_MESSAGE =
   "Facturation temporairement désactivée pendant la phase de test — correctifs de conformité en cours de validation avec un expert-comptable.";

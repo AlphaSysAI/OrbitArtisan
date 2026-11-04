@@ -170,7 +170,6 @@ export function QuoteForm({
   services,
   accentColor,
   profileLaborRatePerHourCents,
-  materialsMarginRate = 0,
   conversationPrefill,
   loadAiDraft = false,
   aiDraftKey,
@@ -1146,12 +1145,7 @@ export function QuoteForm({
         </div>
       </form>
       </VatFranchiseContext.Provider>
-      <QuoteMarginBanner
-        grandTotalCents={grandTotalCents}
-        laborTotalCents={laborTotalCents}
-        materialsTotalCents={materialsTotalCents}
-        materialsMarginRate={materialsMarginRate}
-      />
+      <QuoteMarginBanner grandTotalCents={grandTotalCents} />
     </div>
   );
 }

@@ -362,7 +362,7 @@ export default async function InvoicesPage({
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
                       <EInvoicingStatusBadge
                         status={inv.e_invoicing_status}
-                        emissionFlow={inv.emission_flow as "e_invoicing" | "e_reporting" | null}
+                        emissionFlow={inv.emission_flow as "e_invoicing" | "e_reporting" | "pdf_transition" | null}
                       />
                       <Badge variant={inv.status === "paid" ? "default" : "secondary"}>
                         {invoiceStatusLabel(inv.status)}
