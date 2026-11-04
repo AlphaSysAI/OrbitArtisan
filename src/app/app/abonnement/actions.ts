@@ -15,8 +15,7 @@ import { getPromoEnrollment, reservePromoSlot } from "@/lib/billing/promo-enroll
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createAmbassadorCheckoutSession } from "@/lib/stripe/ambassador-checkout";
 import { createSubscriptionCheckoutSession } from "@/lib/stripe/subscription-checkout";
-import { stripeTrialEndFromProfile } from "@/lib/stripe/subscription-trial";
-import { sirenAlreadyUsedTrial } from "@/lib/billing/trial-eligibility";
+import { resolveCheckoutTrialEnd } from "@/lib/billing/trial-eligibility";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { requireAuthenticatedUser, resolveArtisanProfile } from "@/lib/auth/require-artisan";
@@ -63,14 +62,17 @@ export async function startSubscriptionCheckout(
   }
 
   // Essai gratuit = abonnement Stripe en essai : carte enregistrée, 0 € aujourd'hui.
-  let trialEnd = stripeTrialEndFromProfile(profile as { subscription_status?: string | null; trial_ends_at?: string | null });
-  if (trialEnd && profile.subscription_status === "incomplete") {
-    try {
-      if (await sirenAlreadyUsedTrial(createSupabaseAdminClient(), profile.siren as string | null, profileId)) trialEnd = null;
-    } catch (e) {
-      console.error("[checkout] vérification essai unique", e);
-    }
+  let admin: ReturnType<typeof createSupabaseAdminClient> | null = null;
+  try {
+    admin = createSupabaseAdminClient();
+  } catch (e) {
+    console.error("[checkout] SUPABASE_SERVICE_ROLE_KEY manquante", e);
   }
+  const trialEnd = await resolveCheckoutTrialEnd(
+    admin,
+    profile as { subscription_status?: string | null; trial_ends_at?: string | null; siren?: string | null },
+    profileId,
+  );
 
   const enrollment = await getPromoEnrollment(supabase, profileId);
   if (shouldAttemptAmbassadorCheckout(enrollment, planId)) {

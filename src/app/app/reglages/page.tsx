@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { listStripeBillingEventsForProfile } from "@/lib/billing/stripe-billing-events";
 import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+import { resolveCheckoutTrialEnd } from "@/lib/billing/trial-eligibility";
 import { resolveVoiceQuota } from "@/lib/voice/resolve-voice-quota";
 import { planIncludesSolineVoice, SOLINE_SUBSCRIPTION_SETTINGS_HREF } from "@/lib/voice/soline-voice-access";
 
@@ -297,6 +298,17 @@ export default async function ArtisanSettingsPage({
     (subscriptionProfile.subscription_status === "incomplete" ||
       (subscriptionProfile.subscription_status === "trialing" &&
         !String(subscriptionProfile.stripe_subscription_id ?? "").trim()));
+  // Même règle que le paiement : l'essai n'est proposé que s'il sera réellement accordé.
+  const needsTrialCheck =
+    !!profile?.id && (tab === "abonnement" || tab === "vocal") &&
+    (subscriptionProfile.subscription_status === "incomplete" || subscriptionProfile.subscription_status === "trialing");
+  const trialAvailable = needsTrialCheck
+    ? (await resolveCheckoutTrialEnd(
+        createSupabaseServiceRoleClient(),
+        { ...subscriptionProfile, siren: legalInitial.siren },
+        profile!.id,
+      )) != null
+    : false;
   let billingEvents: Awaited<ReturnType<typeof listStripeBillingEventsForProfile>> = [];
   let promoEnrollment: Awaited<ReturnType<typeof getPromoEnrollment>> = null;
   let promoProgramStatus: Awaited<ReturnType<typeof getAmbassadorProgramStatus>> = null;
@@ -430,6 +442,7 @@ export default async function ArtisanSettingsPage({
                 billingEvents={billingEvents}
                 promoEnrollment={promoEnrollment}
                 promoProgramStatus={promoProgramStatus}
+                trialAvailable={trialAvailable}
               />
               <DeleteAccountSection email={user?.email ?? ""} />
             </div>
@@ -534,6 +547,7 @@ export default async function ArtisanSettingsPage({
                   phoneE164={solinePhone}
                   planIncludesVoice={planIncludesVoice}
                   needsPaymentMethod={voiceNeedsPaymentMethod}
+                  trialAvailable={trialAvailable}
                   subscriptionHref={SOLINE_SUBSCRIPTION_SETTINGS_HREF}
                 />
               </>

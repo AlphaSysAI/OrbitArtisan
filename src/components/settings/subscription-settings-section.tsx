@@ -77,6 +77,7 @@ export function SubscriptionSettingsSection({
   billingEvents = [],
   promoEnrollment = null,
   promoProgramStatus = null,
+  trialAvailable = true,
 }: {
   profile: SubscriptionProfile;
   voiceQuota?: VoiceQuotaSnapshot | null;
@@ -88,6 +89,8 @@ export function SubscriptionSettingsSection({
   billingEvents?: StripeBillingEventRow[];
   promoEnrollment?: PromoEnrollment | null;
   promoProgramStatus?: PromoProgramStatus | null;
+  /** false : l'entreprise (SIREN) a déjà bénéficié d'un essai, paiement immédiat. */
+  trialAvailable?: boolean;
 }) {
   const access = evaluateSubscriptionAccess(profile);
   const status = (profile.subscription_status ?? "incomplete") as SubscriptionStatus;
@@ -127,7 +130,15 @@ export function SubscriptionSettingsSection({
         </Alert>
       ) : null}
 
-      {status === "incomplete" ? (
+      {status === "incomplete" && !trialAvailable ? (
+        <Alert>
+          <AlertTitle>Dernière étape : choisissez votre formule</AlertTitle>
+          <AlertDescription>
+            Votre entreprise a déjà bénéficié de l&apos;essai gratuit de {TRIAL_DURATION_DAYS} jours : l&apos;abonnement
+            démarre dès la validation du paiement, résiliable à tout moment depuis « Gérer mon abonnement ».
+          </AlertDescription>
+        </Alert>
+      ) : status === "incomplete" ? (
         <Alert>
           <AlertTitle>Dernière étape : démarrez votre essai gratuit de {TRIAL_DURATION_DAYS} jours</AlertTitle>
           <AlertDescription>

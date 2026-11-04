@@ -13,6 +13,8 @@ type VoiceSolineNumberSectionProps = {
   planIncludesVoice: boolean;
   /** Essai sans carte : numéro activé dès l'enregistrement d'un moyen de paiement. */
   needsPaymentMethod?: boolean;
+  /** false : pas d'essai (déjà utilisé par l'entreprise), paiement immédiat. */
+  trialAvailable?: boolean;
   subscriptionHref: string;
 };
 
@@ -20,6 +22,7 @@ export function VoiceSolineNumberSection({
   phoneE164,
   planIncludesVoice,
   needsPaymentMethod = false,
+  trialAvailable = true,
   subscriptionHref,
 }: VoiceSolineNumberSectionProps) {
   const displayValue = phoneE164 ? formatPhoneFr(phoneE164) : "";
@@ -53,7 +56,9 @@ export function VoiceSolineNumberSection({
             {!planIncludesVoice
               ? "Passez à une formule Pro ou Premium pour activer la secrétaire vocale Soline."
               : needsPaymentMethod
-                ? "Choisissez votre formule pour activer votre numéro : 0 € aujourd'hui, premier prélèvement à la fin de l'essai, résiliable à tout moment avant."
+                ? trialAvailable
+                  ? "Choisissez votre formule pour activer votre numéro : 0 € aujourd'hui, premier prélèvement à la fin de l'essai, résiliable à tout moment avant."
+                  : "Choisissez votre formule pour activer votre numéro : l'abonnement démarre dès la validation du paiement, résiliable à tout moment."
                 : phoneE164
                   ? "Ce numéro vous est attribué par Soline. Pour le modifier, contactez le support."
                   : "Votre numéro est en cours d'activation (quelques minutes). Actualisez la page."}
