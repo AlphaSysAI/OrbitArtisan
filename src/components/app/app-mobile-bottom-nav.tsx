@@ -9,6 +9,7 @@ import { APP_NAV_BOTTOM, isNavItemActive } from "@/components/app/nav-items";
 import { NavBadge } from "@/components/notifications/nav-badge";
 import { useNotifications } from "@/components/notifications/notification-provider";
 import { AppMobileMenuSheet } from "@/components/app/app-mobile-menu-sheet";
+import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
 import { cn } from "@/lib/utils";
 
 export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
@@ -18,6 +19,7 @@ export function AppMobileBottomNav({ isPlatformAdmin = false }: { isPlatformAdmi
 
 function MobileNav({ pathname, isPlatformAdmin }: { pathname: string; isPlatformAdmin: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const { badgeCount } = useNotifications();
 
   const [leftA, leftB, rightA, rightB] = APP_NAV_BOTTOM;
@@ -109,6 +111,17 @@ function MobileNav({ pathname, isPlatformAdmin }: { pathname: string; isPlatform
         onClose={() => setMenuOpen(false)}
         pathname={pathname}
         isPlatformAdmin={isPlatformAdmin}
+        onInvite={() => {
+          setMenuOpen(false);
+          setInviteOpen(true);
+        }}
+      />
+      <InviteSomeoneDialog
+        contextLabel="Je"
+        canLinkClientToArtisan
+        hideTrigger
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
       />
     </>
   );

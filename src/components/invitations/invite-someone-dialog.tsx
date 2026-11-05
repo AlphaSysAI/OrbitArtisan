@@ -28,6 +28,11 @@ type Props = {
   variant?: "default" | "outline" | "secondary" | "ghost";
   size?: "default" | "sm" | "lg";
   className?: string;
+  /** Ouverture pilotée par le parent (ex. menu mobile qui se ferme avant d'ouvrir la fenêtre). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Sans bouton « Inviter » : la fenêtre est ouverte par le parent. */
+  hideTrigger?: boolean;
 };
 
 export function InviteSomeoneDialog({
@@ -36,8 +41,16 @@ export function InviteSomeoneDialog({
   variant = "outline",
   size = "sm",
   className,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const [loading, setLoading] = useState(false);
   const [accountType, setAccountType] = useState<PlatformAccountType>("client");
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
@@ -104,12 +117,14 @@ export function InviteSomeoneDialog({
         }
       }}
     >
-      <DialogTrigger
-        className={cn(buttonVariants({ variant, size, className }), "gap-1.5")}
-      >
-        <UserPlus className="h-4 w-4" />
-        Inviter
-      </DialogTrigger>
+      {hideTrigger ? null : (
+        <DialogTrigger
+          className={cn(buttonVariants({ variant, size, className }), "gap-1.5")}
+        >
+          <UserPlus className="h-4 w-4" />
+          Inviter
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Inviter sur la plateforme</DialogTitle>

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { LogOut, Shield } from "lucide-react";
+import { LogOut, Shield, UserPlus } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { APP_NAV_ITEMS, isNavItemActive } from "@/components/app/nav-items";
@@ -10,7 +10,6 @@ import { SolineCallsPromoLink } from "@/components/app/soline-calls-promo-link";
 import { SOLINE_CALLS_HUB_PATH } from "@/lib/voice/soline-voice-access";
 import { NavBadge } from "@/components/notifications/nav-badge";
 import { useNotifications } from "@/components/notifications/notification-provider";
-import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/app/login/actions";
 import { cn } from "@/lib/utils";
@@ -20,9 +19,12 @@ export function AppMobileMenuSheet({
   onClose,
   pathname,
   isPlatformAdmin,
+  onInvite,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Ferme le menu puis ouvre la fenêtre d'invitation (rendue hors du menu, sinon cachée dessous). */
+  onInvite: () => void;
   pathname: string;
   isPlatformAdmin: boolean;
 }) {
@@ -125,12 +127,10 @@ export function AppMobileMenuSheet({
         </div>
 
         <div className="shrink-0 space-y-2 border-t border-border/60 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <InviteSomeoneDialog
-            contextLabel="Je"
-            canLinkClientToArtisan
-            size="default"
-            className="w-full justify-center"
-          />
+          <Button type="button" variant="outline" className="w-full gap-1.5" onClick={onInvite}>
+            <UserPlus className="size-4" />
+            Inviter
+          </Button>
           <form action={signOut}>
             <Button variant="outline" type="submit" className="w-full gap-2 text-muted-foreground">
               <LogOut className="size-4" />
