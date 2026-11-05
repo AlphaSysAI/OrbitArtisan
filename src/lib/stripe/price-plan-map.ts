@@ -21,3 +21,20 @@ export function planFromPriceIdEnv(
   }
   return null;
 }
+
+/** Clé fixe (`lookup_key`) du prix Stripe d'une formule : `solinebtp_pro_monthly`, etc. */
+export function subscriptionLookupKey(planId: SubscriptionPlanId, interval: BillingInterval): string {
+  return `solinebtp_${planId}_${interval}`;
+}
+
+/** Formule d'un prix Stripe d'après sa clé fixe. */
+export function planFromLookupKey(lookupKey: string | null | undefined): PlanMatch | null {
+  const key = lookupKey?.trim();
+  if (!key) return null;
+  for (const planId of PLANS) {
+    for (const interval of INTERVALS) {
+      if (subscriptionLookupKey(planId, interval) === key) return { planId, interval };
+    }
+  }
+  return null;
+}

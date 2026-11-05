@@ -18,7 +18,6 @@ import {
   type SubscriptionPlanId,
 } from "@/lib/billing/subscription-plans";
 import { isStripeConfigured } from "@/lib/stripe/server";
-import { isStripeSubscriptionPaymentLinksConfigured } from "@/lib/stripe/subscription-payment-links";
 
 import type { VoiceQuotaSnapshot } from "@/lib/voice/voice-quota-types";
 import { formatDateFr, formatDateTimeFr } from "@/lib/format/date";
@@ -99,7 +98,7 @@ export function SubscriptionSettingsSection({
   const planId = (profile.subscription_plan ?? "base") as SubscriptionPlanId;
   const plan = findSubscriptionPlan(planId);
   const blockMessage = reasonMessage(alerts?.reason);
-  const stripeEnabled = isStripeConfigured() && isStripeSubscriptionPaymentLinksConfigured();
+  const stripeEnabled = isStripeConfigured();
   const canManageBilling = !!profile.stripe_customer_id?.trim();
   const voiceIncluded = voiceQuota?.callsIncluded ?? getPlanVoiceCalls(planId);
   const voiceUsed = voiceQuota?.callsUsed ?? 0;

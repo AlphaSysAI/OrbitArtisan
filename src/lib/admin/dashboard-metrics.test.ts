@@ -37,7 +37,7 @@ describe("accueil admin", () => {
       NOW,
     );
     expect(m.paying).toEqual({ total: 2, byPlan: { base: 0, pro: 1, premium: 1 } });
-    expect(m.mrrCents).toBe(9900 + Math.round(149000 / 12));
+    expect(m.mrrCents).toBe(13900 + Math.round(199000 / 12));
     expect(m.trialing).toBe(1);
     expect(m.pastDue).toBe(1);
   });

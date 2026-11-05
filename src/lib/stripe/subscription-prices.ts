@@ -3,78 +3,55 @@ import "server-only";
 import type Stripe from "stripe";
 
 import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
-import { planFromPriceIdEnv, type PlanMatch } from "@/lib/stripe/price-plan-map";
 import {
-  normalizePaymentLinkUrl,
-  readPaymentLinkEnvValue,
-} from "@/lib/stripe/subscription-payment-links";
+  planFromLookupKey,
+  planFromPriceIdEnv,
+  subscriptionLookupKey,
+  type PlanMatch,
+} from "@/lib/stripe/price-plan-map";
+
+const priceIdCache = new Map<string, string>();
+const planCache = new Map<string, PlanMatch | null>();
 
 /**
- * Résout le Price Stripe d'une formule, pour les Checkout Sessions créées côté
- * serveur (tarif ambassadeur).
- *
- * 1. `STRIPE_PRICE_<PLAN>_<INTERVAL>` si défini (recommandé en production) ;
- * 2. sinon, déduit du Payment Link déjà configuré (source de vérité actuelle),
- *    pour ne pas dupliquer la grille dans deux endroits.
+ * Prix Stripe actif d'une formule, retrouvé par sa clé fixe
+ * (`solinebtp_<plan>_<interval>`, réglée sur le prix dans Stripe). Changer de
+ * tarif = créer un nouveau prix avec la même clé (transfert), sans toucher au code
+ * ni aux variables Vercel.
  */
-const cache = new Map<string, string>();
-
-function envPriceKey(planId: SubscriptionPlanId, interval: BillingInterval): string {
-  return `STRIPE_PRICE_${planId.toUpperCase()}_${interval.toUpperCase()}`;
-}
-
 export async function resolveSubscriptionPriceId(
   stripe: Stripe,
   planId: SubscriptionPlanId,
   interval: BillingInterval,
 ): Promise<string | null> {
-  const fromEnv = process.env[envPriceKey(planId, interval)]?.trim();
-  if (fromEnv) return fromEnv;
-
-  const cacheKey = `${planId}:${interval}`;
-  const cached = cache.get(cacheKey);
+  const lookupKey = subscriptionLookupKey(planId, interval);
+  const cached = priceIdCache.get(lookupKey);
   if (cached) return cached;
 
-  const linkUrl = readPaymentLinkEnvValue(planId, interval);
-  if (!linkUrl) return null;
-  const target = normalizePaymentLinkUrl(linkUrl);
-
-  for await (const link of stripe.paymentLinks.list({ active: true, limit: 100 })) {
-    if (!link.url || normalizePaymentLinkUrl(link.url) !== target) continue;
-
-    const items = await stripe.paymentLinks.listLineItems(link.id, { limit: 1 });
-    const priceId = items.data[0]?.price?.id ?? null;
-    if (priceId) cache.set(cacheKey, priceId);
-    return priceId;
-  }
-
-  return null;
+  const { data } = await stripe.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });
+  const priceId = data[0]?.id ?? null;
+  if (priceId) priceIdCache.set(lookupKey, priceId);
+  return priceId;
 }
-
-const PLANS: SubscriptionPlanId[] = ["base", "pro", "premium"];
-const INTERVALS: BillingInterval[] = ["monthly", "annual"];
 
 /**
  * Formule et périodicité correspondant au prix Stripe réellement payé.
  * Source de vérité pour les changements de formule (portail client, prorata) :
- * 1. variables `STRIPE_PRICE_<PLAN>_<INTERVAL>` ;
- * 2. à défaut, prix déduits des Payment Links configurés (mis en cache).
- * Renvoie null pour un prix inconnu (ex. ancienne grille) : l'appelant garde alors la
- * formule déjà connue plutôt que d'en inventer une.
+ * 1. variables `STRIPE_PRICE_<PLAN>_<INTERVAL>` (anciens prix) ;
+ * 2. clé fixe du prix (`lookup_key`), y compris après un changement de tarif.
+ * Renvoie null pour un prix inconnu : l'appelant garde alors la formule déjà
+ * connue plutôt que d'en inventer une.
  */
 export async function resolvePlanFromPriceId(stripe: Stripe, priceId: string | null | undefined): Promise<PlanMatch | null> {
   if (!priceId) return null;
   const fromEnv = planFromPriceIdEnv(priceId);
   if (fromEnv) return fromEnv;
 
-  for (const planId of PLANS) {
-    for (const interval of INTERVALS) {
-      if (process.env[envPriceKey(planId, interval)]?.trim()) continue; // déjà comparé via l'env
-      const resolved = await resolveSubscriptionPriceId(stripe, planId, interval).catch(() => null);
-      if (resolved === priceId) return { planId, interval };
-    }
-  }
-  return null;
+  if (planCache.has(priceId)) return planCache.get(priceId) ?? null;
+  const price = await stripe.prices.retrieve(priceId);
+  const match = planFromLookupKey(price.lookup_key);
+  planCache.set(priceId, match);
+  return match;
 }
 
 /** Prix de l'abonnement SaaS (premier élément : une formule par abonnement). */

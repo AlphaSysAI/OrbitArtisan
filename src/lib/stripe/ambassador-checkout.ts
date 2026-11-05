@@ -9,6 +9,7 @@ import { getPublicSiteUrl } from "@/lib/site-url";
 import { getStripe } from "@/lib/stripe/server";
 import { MANAGED_PAYMENTS, MANAGED_PAYMENTS_REQUEST } from "@/lib/stripe/managed-payments";
 import { resolveSubscriptionPriceId } from "@/lib/stripe/subscription-prices";
+import { subscriptionCheckoutBranding } from "@/lib/stripe/checkout-branding";
 
 type AmbassadorCheckoutError = "promo_not_configured" | "price_not_found" | "checkout_failed";
 
@@ -63,6 +64,7 @@ export async function createAmbassadorCheckoutSession(params: {
       // Stripe marchand officiel (Managed Payments) : TVA calculée et collectée par
       // Stripe, comme sur les anciens Payment Links. Incompatible avec automatic_tax.
       ...MANAGED_PAYMENTS,
+      ...subscriptionCheckoutBranding(),
       line_items: [{ price: priceId, quantity: 1 }],
       discounts: [{ coupon: couponId }],
       ...(params.stripeCustomerId

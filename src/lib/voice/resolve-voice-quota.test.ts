@@ -8,13 +8,14 @@ import {
 } from "./resolve-voice-quota";
 
 const MID_MONTH = new Date("2026-09-11T12:00:00.000Z");
+// Droits fixes pour les calculs de dépassement ci-dessous (indépendants de la grille).
 const PRO = { isTrial: false, callsIncluded: 40, overageCallCents: 90 };
 
 describe("resolveVoiceEntitlement", () => {
-  it("Pro actif : 40 appels, 0,90 € hors forfait", () => {
+  it("Pro actif : 40 appels, 1,20 € hors forfait", () => {
     expect(
       resolveVoiceEntitlement({ subscription_plan: "pro", subscription_status: "active", trial_ends_at: null }),
-    ).toEqual(PRO);
+    ).toEqual({ isTrial: false, callsIncluded: 40, overageCallCents: 120 });
   });
 
   it("essai Pro en cours : 10 appels, aucun dépassement", () => {
