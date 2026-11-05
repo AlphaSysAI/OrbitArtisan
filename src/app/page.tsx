@@ -3,8 +3,9 @@ import type { Metadata } from "next";
 import { SolineBtpLanding } from "@/components/landing/soline-btp-landing";
 import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 
-// Adresse sans redirection (solinebtp.fr → www) : certains réseaux ne suivent pas les redirections.
-const SHARE_IMAGE_URL = `${getPublicSiteUrl()}/brand/soline-banner.jpg`;
+// Adresse finale, sans redirection (solinebtp.fr → www) : certains réseaux (WhatsApp)
+// ne suivent pas les redirections pour l'image d'aperçu.
+const SHARE_IMAGE_URL = "https://www.solinebtp.fr/brand/soline-banner.jpg";
 
 export const metadata: Metadata = {
   metadataBase: new URL(getMarketingSiteUrl()),
