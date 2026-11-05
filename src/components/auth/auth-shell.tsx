@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarCheck, FileText, Globe, PhoneCall, Sparkles } from "lucide-react";
 
 import { getMarketingHomeHref } from "@/lib/site-url";
-import { cn } from "@/lib/utils";
+import { SolineLogoMark } from "@/components/brand/soline-logo-mark";
 
 type AuthShellVariant = "artisan-login" | "artisan-register" | "client";
 
@@ -14,20 +14,9 @@ type AuthShellProps = {
   children: React.ReactNode;
 };
 
-/** Pastille « O » + barre cuivre : même marque que l'en-tête de l'app et les icônes PWA. */
+/** Logo carré Soline : même marque que l'en-tête de l'app et les icônes. */
 export function SolineMark({ className }: { className?: string }) {
-  return (
-    <span
-      className={cn(
-        "relative inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#243447] text-[#faf9f7] shadow-sm ring-1 ring-white/10",
-        className,
-      )}
-      aria-hidden
-    >
-      <span className="font-display text-lg font-semibold tracking-tight">O</span>
-      <span className="absolute inset-x-0 bottom-0 h-1 bg-[#c96b2e]" />
-    </span>
-  );
+  return <SolineLogoMark className={className} />;
 }
 
 const ASIDE_COPY: Record<AuthShellVariant, { title: string; lead: string }> = {

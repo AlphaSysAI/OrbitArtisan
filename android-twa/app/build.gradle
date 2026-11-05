@@ -26,13 +26,13 @@ def twaManifest = [
     launchUrl: '/app?source=android-app', // The start path for the TWA. Must be relative to the domain.
     name: 'SolineBTP', // The application name.
     launcherName: 'SolineBTP', // The name shown on the Android Launcher.
-    themeColor: '#243447', // The color used for the status bar.
+    themeColor: '#1E2F42', // The color used for the status bar.
     themeColorDark: '#141820', // The color used for the dark status bar.
-    navigationColor: '#243447', // The color used for the navigation bar.
+    navigationColor: '#1E2F42', // The color used for the navigation bar.
     navigationColorDark: '#141820', // The color used for the dark navbar.
-    navigationDividerColor: '#243447', // The navbar divider color.
+    navigationDividerColor: '#1E2F42', // The navbar divider color.
     navigationDividerColorDark: '#141820', // The dark navbar divider color.
-    backgroundColor: '#243447', // The color used for the splash screen background.
+    backgroundColor: '#1E2F42', // The color used for the splash screen background.
     enableNotifications: true, // Set to true to enable notification delegation.
     // Every shortcut must include the following fields:
     // - name: String that will show up in the shortcut.

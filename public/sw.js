@@ -22,8 +22,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/pwa-icons/192",
-      badge: "/pwa-icons/192",
+      icon: "/brand/soline-logo-192.png",
+      badge: "/brand/soline-logo-96.png",
       tag: payload.tag ?? "soline",
       data: { url: payload.url ?? "/app" },
       // Appel urgent : reste à l'écran jusqu'à action, vibre, re-sonne si même tag.

@@ -13,6 +13,7 @@ import {
 import { NavBadge } from "@/components/notifications/nav-badge";
 import { useNotifications } from "@/components/notifications/notification-provider";
 import { SolineCallsPromoLink } from "@/components/app/soline-calls-promo-link";
+import { SolineLogoMark } from "@/components/brand/soline-logo-mark";
 import { InviteSomeoneDialog } from "@/components/invitations/invite-someone-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -66,10 +67,7 @@ export function AppHeader({ isPlatformAdmin = false }: { isPlatformAdmin?: boole
     <header className="sticky top-0 z-40 overflow-visible border-b border-border/70 bg-background/85 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-visible px-4 py-3 sm:gap-3 sm:px-6 lg:px-8">
         <Link href="/app" className="group flex shrink-0 items-center gap-2.5 sm:gap-3">
-          <div className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-sm transition-transform group-hover:scale-[1.03] sm:size-10">
-            <span className="font-display text-base font-semibold tracking-tight sm:text-lg">O</span>
-            <span className="absolute inset-x-0 bottom-0 h-1 bg-brand" aria-hidden />
-          </div>
+          <SolineLogoMark className="size-9 transition-transform group-hover:scale-[1.03] sm:size-10" />
           <div className="min-w-0 leading-tight">
             <p className="font-display truncate text-base font-semibold tracking-tight">Soline</p>
             <p className="text-xs text-muted-foreground">Espace pro</p>

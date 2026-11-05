@@ -12,10 +12,10 @@ export function subscriptionCheckoutBranding(): Pick<Stripe.Checkout.SessionCrea
     branding_settings: {
       display_name: "SolineBTP",
       background_color: "#fcfaf4",
-      button_color: "#243447",
+      button_color: "#1e2f42",
       border_style: "rounded",
       font_family: "lora",
-      icon: { type: "url", url: `${getPublicSiteUrl()}/brand/solinebtp-icon.png` },
+      icon: { type: "url", url: `${getPublicSiteUrl()}/brand/soline-logo-512.png` },
     },
   };
 }

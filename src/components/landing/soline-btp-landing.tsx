@@ -3,7 +3,6 @@
 import { useId, useState } from "react";
 import {
   BellRing,
-  Building2,
   CalendarCheck,
   ChevronDown,
   ClipboardList,
@@ -37,6 +36,7 @@ import {
   SUBSCRIPTION_PLANS,
 } from "@/lib/billing/subscription-plans";
 import { cn } from "@/lib/utils";
+import { SolineLogoMark } from "@/components/brand/soline-logo-mark";
 
 /** Contact commercial pour les demandes de démonstration (aucun formulaire : simple e-mail). */
 const DEMO_EMAIL = "florian@solinebtp.fr";
@@ -293,9 +293,7 @@ export function SolineBtpLanding({ appLoginUrl, registerUrl }: SolineBtpLandingP
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
           <a href="#" className={cn("flex items-center gap-2.5 rounded-lg", focusRing)}>
-            <span className="flex size-9 items-center justify-center rounded-xl bg-slate-900 text-orange-400">
-              <Building2 className="size-5" strokeWidth={2.2} aria-hidden />
-            </span>
+            <SolineLogoMark className="size-9" size={36} />
             <span className="text-lg font-bold tracking-tight text-slate-900">Soline</span>
           </a>
 
@@ -829,7 +827,7 @@ export function SolineBtpLanding({ appLoginUrl, registerUrl }: SolineBtpLandingP
       <footer className="border-t border-slate-800 bg-slate-950 py-10 text-slate-400">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 sm:flex-row sm:px-6">
           <div className="flex items-center gap-2">
-            <Building2 className="size-5 text-orange-400" aria-hidden />
+            <SolineLogoMark className="size-7 rounded-lg shadow-none" size={28} />
             <span className="font-semibold text-white">Soline</span>
           </div>
           <nav aria-label="Liens légaux" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">

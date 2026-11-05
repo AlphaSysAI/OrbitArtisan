@@ -10,26 +10,27 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/app",
     scope: "/",
     display: "standalone",
-    background_color: "#243447",
-    theme_color: "#243447",
+    background_color: "#1e2f42",
+    theme_color: "#1e2f42",
     lang: "fr",
     dir: "ltr",
     categories: ["business", "productivity"],
     icons: [
       {
-        src: "/pwa-icons/192",
+        src: "/brand/soline-logo-192.png",
         type: "image/png",
         sizes: "192x192",
         purpose: "any",
       },
       {
-        src: "/pwa-icons/512",
+        src: "/brand/soline-logo-512.png",
         type: "image/png",
         sizes: "512x512",
         purpose: "any",
       },
       {
-        src: "/pwa-icons/512-maskable",
+        // Le logo tient dans la zone sûre (cercle de 80 %) : utilisable tel quel en masquable.
+        src: "/brand/soline-logo-512.png",
         type: "image/png",
         sizes: "512x512",
         purpose: "maskable",
