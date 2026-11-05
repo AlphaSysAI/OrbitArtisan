@@ -223,3 +223,11 @@
     animation: sheet-glow 1200ms ease-out both;
   }
 }
+
+/* Application Android (TWA) : pas d'achat dans l'application (voir src/lib/app-shell/android-app.ts). */
+html[data-android-app] .hide-in-android-app {
+  display: none !important;
+}
+html:not([data-android-app]) .show-in-android-app {
+  display: none !important;
+}

@@ -4,6 +4,7 @@ import "./globals.css";
 import { PwaRootClient } from "@/components/pwa/pwa-root-client";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ANDROID_APP_DETECTION_SCRIPT } from "@/lib/app-shell/android-app";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
@@ -39,6 +40,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: ANDROID_APP_DETECTION_SCRIPT }} />
+      </head>
       <body className="antialiased">
         <ThemeProvider
           attribute="class"

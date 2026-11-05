@@ -185,7 +185,7 @@ export function LegalSettingsForm({
             <p className="text-muted-foreground">
               Avec la formule Essentiel, vous relancez vos clients en un clic depuis le tableau de bord ou la
               facture.{" "}
-              <a href="/app/reglages?tab=abonnement" className="font-medium text-foreground underline">
+              <a href="/app/reglages?tab=abonnement" className="hide-in-android-app font-medium text-foreground underline">
                 Relances automatiques à partir de Pro
               </a>
             </p>

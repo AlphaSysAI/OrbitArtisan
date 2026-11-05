@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
+import { isInAndroidApp } from "@/lib/app-shell/android-app";
 import { quoteLimitMessage } from "@/lib/quotes/quote-send-quota";
 import { Mail, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,9 +33,12 @@ export function SendDraftQuoteButton({ quoteId }: { quoteId: string }) {
         return;
       }
       if (res.error === "quote_limit_reached") {
-        toast.error(quoteLimitMessage(res.limit), {
-          action: { label: "Voir les formules", onClick: () => { window.location.href = "/app/reglages?tab=abonnement"; } },
-        });
+        toast.error(
+          quoteLimitMessage(res.limit),
+          isInAndroidApp()
+            ? undefined
+            : { action: { label: "Voir les formules", onClick: () => { window.location.href = "/app/reglages?tab=abonnement"; } } },
+        );
         return;
       }
       if (res.error === "no_email") {

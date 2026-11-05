@@ -103,7 +103,7 @@ export default async function QuotesPage() {
           {sendQuota.reached ? (
             <>
               {" "}Limite atteinte : vos brouillons restent enregistrés.{" "}
-              <Link href="/app/reglages?tab=abonnement" className="font-medium underline">
+              <Link href="/app/reglages?tab=abonnement" className="hide-in-android-app font-medium underline">
                 Passer à la formule supérieure
               </Link>
             </>

@@ -33,7 +33,7 @@ export async function SubscriptionBanner() {
             La création de devis et de factures est suspendue (statut : {SUBSCRIPTION_STATUS_LABELS[status] ?? status}
             ).
           </span>
-          <Link href={`/app/reglages?tab=abonnement&reason=${access.reason ?? "subscription"}`} className={buttonVariants({ size: "sm" })}>
+          <Link href={`/app/reglages?tab=abonnement&reason=${access.reason ?? "subscription"}`} className={buttonVariants({ size: "sm", className: "hide-in-android-app" })}>
             Choisir une formule
           </Link>
         </AlertDescription>
@@ -48,8 +48,14 @@ export async function SubscriptionBanner() {
       <Alert className="mb-6">
         <AlertTitle>Essai gratuit — {access.daysRemaining} jour{access.daysRemaining > 1 ? "s" : ""} restant{access.daysRemaining > 1 ? "s" : ""}</AlertTitle>
         <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span>Choisissez votre formule avant la fin de l&apos;essai pour continuer sans interruption.</span>
-          <Link href="/app/reglages?tab=abonnement" className={buttonVariants({ size: "sm", variant: "outline" })}>
+          <span className="hide-in-android-app">
+            Choisissez votre formule avant la fin de l&apos;essai pour continuer sans interruption.
+          </span>
+          <span className="show-in-android-app">Votre essai se termine bientôt.</span>
+          <Link
+            href="/app/reglages?tab=abonnement"
+            className={buttonVariants({ size: "sm", variant: "outline", className: "hide-in-android-app" })}
+          >
             Voir les formules
           </Link>
         </AlertDescription>

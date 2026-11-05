@@ -32,7 +32,10 @@ export function InvoicesToRemindCard({ invoices, total }: { invoices: InvoiceToR
             {total} facture{total > 1 ? "s" : ""} en retard de paiement. Un clic envoie un e-mail de relance au client.
           </p>
         </div>
-        <Link href="/app/reglages?tab=abonnement" className="text-xs font-medium text-muted-foreground underline">
+        <Link
+          href="/app/reglages?tab=abonnement"
+          className="hide-in-android-app text-xs font-medium text-muted-foreground underline"
+        >
           Relances automatiques à partir de Pro
         </Link>
       </div>

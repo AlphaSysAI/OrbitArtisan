@@ -109,7 +109,7 @@ export function SubscriptionSettingsSection({
       <div className="space-y-1">
         <h2 className="font-display text-xl font-semibold tracking-tight">Abonnement</h2>
         <p className="text-sm text-muted-foreground">
-          Votre formule Soline, votre essai gratuit et vos factures d&apos;abonnement.
+          Votre formule Soline, votre essai et l&apos;historique de vos paiements.
         </p>
       </div>
 
@@ -129,8 +129,18 @@ export function SubscriptionSettingsSection({
         </Alert>
       ) : null}
 
+      {status === "incomplete" || status === "canceled" ? (
+        <Alert className="show-in-android-app">
+          <AlertTitle>Abonnement à activer</AlertTitle>
+          <AlertDescription>
+            L&apos;abonnement ne peut pas être souscrit depuis l&apos;application. Dès qu&apos;il est actif, toutes les
+            fonctions de Soline sont disponibles ici.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {status === "incomplete" && !trialAvailable ? (
-        <Alert>
+        <Alert className="hide-in-android-app">
           <AlertTitle>Dernière étape : choisissez votre formule</AlertTitle>
           <AlertDescription>
             Votre entreprise a déjà bénéficié de l&apos;essai gratuit de {TRIAL_DURATION_DAYS} jours : l&apos;abonnement
@@ -138,7 +148,7 @@ export function SubscriptionSettingsSection({
           </AlertDescription>
         </Alert>
       ) : status === "incomplete" ? (
-        <Alert>
+        <Alert className="hide-in-android-app">
           <AlertTitle>Dernière étape : démarrez votre essai gratuit de {TRIAL_DURATION_DAYS} jours</AlertTitle>
           <AlertDescription>
             Choisissez votre formule ci-dessous. Carte bancaire requise : 0 € aujourd&apos;hui, premier prélèvement à
@@ -198,7 +208,7 @@ export function SubscriptionSettingsSection({
         </dl>
 
         {canManageBilling ? (
-          <div className="mt-5 flex flex-wrap gap-3 border-t pt-5">
+          <div className="hide-in-android-app mt-5 flex flex-wrap gap-3 border-t pt-5">
             <BillingPortalButton />
             <p className="self-center text-xs text-muted-foreground">
               Moyen de paiement, factures et résiliation — portail sécurisé Stripe.
@@ -230,7 +240,7 @@ export function SubscriptionSettingsSection({
           </AlertDescription>
         </Alert>
       ) : !promoEnrollment && !canManageBilling ? (
-        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+        <div className="hide-in-android-app rounded-2xl border bg-card p-5 shadow-sm">
           <PromoCodeForm />
         </div>
       ) : null}
@@ -267,6 +277,12 @@ export function SubscriptionSettingsSection({
         </div>
       ) : null}
 
+      <p className="show-in-android-app text-sm text-muted-foreground">
+        La formule, le moyen de paiement et la résiliation ne se gèrent pas depuis l&apos;application.
+      </p>
+
+      {/* Application Android : aucun achat ni renvoi vers un paiement (règles Google Play). */}
+      <div className="hide-in-android-app space-y-8">
       <div>
         <h3 className="font-display text-lg font-semibold tracking-tight">
           {canManageBilling ? "Changer de formule" : "Choisir une formule"}
@@ -295,6 +311,7 @@ export function SubscriptionSettingsSection({
           Contacter le support
         </a>
       ) : null}
+      </div>
     </section>
   );
 }

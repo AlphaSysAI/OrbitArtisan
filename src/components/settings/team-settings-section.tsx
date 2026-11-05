@@ -100,7 +100,7 @@ export async function TeamSettingsSection({
           {multiUserPlan ? (
             <>
               La formule {multiUserPlan.name} inclut {multiUserPlan.usersIncluded} utilisateurs.{" "}
-              <Link href="/app/reglages?tab=abonnement" className="font-medium text-foreground underline">
+              <Link href="/app/reglages?tab=abonnement" className="hide-in-android-app font-medium text-foreground underline">
                 Voir les formules
               </Link>
             </>
