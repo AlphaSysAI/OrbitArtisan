@@ -1,0 +1,43 @@
+{
+  "packageId": "fr.solinebtp.app",
+  "host": "app.solinebtp.fr",
+  "name": "SolineBTP",
+  "launcherName": "SolineBTP",
+  "display": "standalone",
+  "themeColor": "#243447",
+  "themeColorDark": "#141820",
+  "navigationColor": "#243447",
+  "navigationColorDark": "#141820",
+  "navigationDividerColor": "#243447",
+  "navigationDividerColorDark": "#141820",
+  "backgroundColor": "#243447",
+  "enableNotifications": true,
+  "startUrl": "/app?source=android-app",
+  "iconUrl": "https://app.solinebtp.fr/pwa-icons/512",
+  "maskableIconUrl": "https://app.solinebtp.fr/pwa-icons/512-maskable",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "~/SolineBTP-android-cles/solinebtp-upload.keystore",
+    "alias": "solinebtp-upload"
+  },
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://app.solinebtp.fr/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://app.solinebtp.fr/",
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "1.0.0"
+}

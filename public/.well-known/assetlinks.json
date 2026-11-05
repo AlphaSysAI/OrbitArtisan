@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "fr.solinebtp.app",
+      "sha256_cert_fingerprints": [
+        "39:38:8D:6D:4F:D0:A7:52:6D:78:BF:66:37:3F:ED:C6:CC:AF:2D:9E:2F:CA:13:98:6F:AB:1B:3C:9B:37:8B:16"
+      ]
+    }
+  }
+]
