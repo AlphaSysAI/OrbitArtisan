@@ -56,6 +56,14 @@ export function createFakeDb(tables: Record<string, Row[]>, options: FakeDbOptio
         filters.push((r) => r[col] === v);
         return builder;
       },
+      contains(col: string, values: unknown[]) {
+        // account_user_ids est calculé par la base (titulaire + équipe) : repli sur user_id.
+        filters.push((r) => {
+          const arr = (r[col] ?? (col === "account_user_ids" && r.user_id ? [r.user_id] : [])) as unknown[];
+          return values.every((v) => arr.includes(v));
+        });
+        return builder;
+      },
       neq(col: string, v: unknown) {
         filters.push((r) => r[col] !== v);
         return builder;

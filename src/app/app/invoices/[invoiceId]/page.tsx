@@ -384,7 +384,7 @@ export default async function InvoiceEditPage({
     if (!user) redirect(`/login?next=/app/invoices/${invoiceId}`);
 
     const [{ data: profile }, loaded, sortedLines] = await Promise.all([
-      supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle(),
+      supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle(),
       loadInvoiceForEditPage(supabase, invoiceId),
       isInvoiceIdFormat(invoiceId) ? loadInvoiceLinesForEditPage(supabase, invoiceId) : Promise.resolve([]),
     ]);

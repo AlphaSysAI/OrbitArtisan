@@ -9,7 +9,7 @@ export async function getAccountType(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<"artisan" | "client"> {
-  const { data: artisan } = await supabase.from("profiles").select("id").eq("user_id", userId).maybeSingle();
+  const { data: artisan } = await supabase.from("profiles").select("id").contains("account_user_ids", [userId]).maybeSingle();
   if (artisan) return "artisan";
 
   const { data: customer } = await supabase.from("customer_profiles").select("id").eq("user_id", userId).maybeSingle();

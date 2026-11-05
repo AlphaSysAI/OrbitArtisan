@@ -113,7 +113,7 @@ export default async function InvoicesPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name, stripe_account_id, stripe_transfers_enabled, stripe_payouts_enabled")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   if (!profile?.id) {

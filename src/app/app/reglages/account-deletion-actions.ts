@@ -18,6 +18,7 @@ export async function deleteMyAccountAction(_prev: DeleteAccountState, formData:
     if (auth.error === "auth") redirect("/login?next=/app/reglages?tab=abonnement");
     return { error: "Compte introuvable." };
   }
+  if (!auth.isOwner) return { error: "Seul le titulaire du compte peut le supprimer." };
   const { data: userData } = await auth.supabase.auth.getUser();
   const email = userData.user?.email?.toLowerCase() ?? null;
 

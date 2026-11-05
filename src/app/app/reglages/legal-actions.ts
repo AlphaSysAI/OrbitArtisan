@@ -41,6 +41,7 @@ export async function updateLegalSettings(formData: FormData) {
     if (auth.error === "auth") redirect("/login?next=/app/reglages?tab=facturation");
     return { ok: false as const, error: "save_failed" as const };
   }
+  if (!auth.isOwner) return { ok: false as const, error: "owner_only" as const };
   const { supabase, profileId } = auth;
 
   const { error } = await supabase

@@ -13,7 +13,7 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "auth" }, { status: 401 });
 
-  const { data: profile } = await supabase.from("profiles").select("id, business_name").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id, business_name").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return NextResponse.json({ error: "profile" }, { status: 403 });
 
   const { data: invoices, error } = await supabase

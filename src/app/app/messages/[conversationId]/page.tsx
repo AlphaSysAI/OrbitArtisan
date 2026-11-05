@@ -24,7 +24,7 @@ export default async function ArtisanConversationPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user!.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user!.id]).maybeSingle();
   if (!profile) notFound();
 
   const { data: conv } = await supabase
@@ -97,6 +97,7 @@ export default async function ArtisanConversationPage({
       <ArtisanThreadClient
         conversationId={conversationId}
         viewerUserId={user!.id}
+        customerUserId={(conv.customer_user_id as string | null) ?? null}
         sentOnLeft
         leadContactPhone={leadContactPhone}
         leadMatchId={leadMatch.ok ? leadMatch.leadMatchId : undefined}

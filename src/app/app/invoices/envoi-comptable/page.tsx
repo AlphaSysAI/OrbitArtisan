@@ -45,7 +45,7 @@ export default async function AccountingExportPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, accountant_email, accounting_export_enabled, accountant_email_confirmed_at")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
   if (!profile?.id) redirect("/app/reglages?tab=activite");
 

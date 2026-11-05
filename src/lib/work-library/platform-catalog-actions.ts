@@ -14,6 +14,7 @@ import type { PlatformWorkItem } from "@/lib/work-library/platform-catalog-types
 import { isWorkUnit } from "@/lib/work-library/units";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { findTradeCategory } from "@/lib/trades/taxonomy";
+import { resolveAccountOwnerUserId } from "@/lib/auth/account-owner";
 
 async function requireArtisanProfile() {
   const supabase = await createSupabaseServerClient();
@@ -25,7 +26,7 @@ async function requireArtisanProfile() {
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, trade_category, trade")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   if (!profile?.id) {
@@ -35,7 +36,7 @@ async function requireArtisanProfile() {
   return {
     ok: true as const,
     supabase,
-    userId: user.id,
+    userId: await resolveAccountOwnerUserId(supabase, user.id),
     tradeCategoryId: profile.trade_category as string | null,
     tradeId: profile.trade as string | null,
   };

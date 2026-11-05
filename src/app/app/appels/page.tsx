@@ -95,7 +95,7 @@ export default async function AppelsSolinePage({ searchParams }: { searchParams:
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name, labor_rate_per_hour, subscription_plan, vat_regime")
-    .eq("user_id", user!.id)
+    .contains("account_user_ids", [user!.id])
     .maybeSingle();
 
   if (profile?.id && !planIncludesSolineVoice(profile.subscription_plan)) {

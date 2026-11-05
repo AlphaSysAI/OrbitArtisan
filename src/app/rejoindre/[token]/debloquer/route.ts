@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ tok
   const invite = await loadInvite(db, token);
   if (!invite) return back();
 
-  const { data: profile } = await db.from("profiles").select("id, latitude, longitude").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await db.from("profiles").select("id, latitude, longitude").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile) return NextResponse.redirect(new URL(`/app/onboarding`, origin));
 
   const res = await claimInvite(

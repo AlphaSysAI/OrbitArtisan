@@ -11,6 +11,7 @@ import { computeDraftTotals } from "@/lib/quotes/create-quote-from-ai-draft";
 import { applyQuotePatch } from "@/lib/quotes/voice-patch";
 import { fillPricesFromLibrary, llmQuotePatch } from "@/lib/quotes/voice-patch-llm";
 import { logActivity } from "@/lib/telemetry/activity";
+import { resolveAccountOwnerUserId } from "@/lib/auth/account-owner";
 
 export async function loadVoiceIntakeQuoteDraft(
   intakeId: string,
@@ -275,7 +276,7 @@ async function patchIntakeDraft(intakeId: string, instruction: string): Promise<
     console.error("[voice patch]", error instanceof Error ? error.message : error);
     return { ok: false, error: "patch_failed" };
   }
-  const libraryNotes = await fillPricesFromLibrary(supabase, userId, patch);
+  const libraryNotes = await fillPricesFromLibrary(supabase, await resolveAccountOwnerUserId(supabase, userId), patch);
   const applied = applyQuotePatch(draft, patch, {
     newId: () => crypto.randomUUID(),
     laborRatePerHourCents: rate,

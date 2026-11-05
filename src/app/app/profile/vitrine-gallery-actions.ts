@@ -25,7 +25,7 @@ async function resolveArtisanProfileId(): Promise<string | null> {
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, slug")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   if (!profile?.id) return null;
@@ -39,7 +39,7 @@ export async function listMyVitrineGalleryImages(): Promise<VitrineGalleryImage[
   } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return [];
 
   const { data } = await supabase

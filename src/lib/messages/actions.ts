@@ -44,7 +44,7 @@ export async function getOrCreateConversation(artisanId: string) {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: "auth" as const };
 
-  const { data: own } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: own } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (own?.id === artisanId) {
     return { ok: false as const, error: "own_page" as const };
   }
@@ -181,7 +181,7 @@ export async function listConversationsForArtisan() {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: "auth" as const, items: [] };
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return { ok: true as const, items: [] };
 
   const { data: convs } = await supabase

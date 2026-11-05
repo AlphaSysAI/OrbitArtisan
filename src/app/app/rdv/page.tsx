@@ -50,7 +50,7 @@ export default async function ArtisanRdvPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/app/rdv");
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
 
   if (!profile?.id) {
     return (

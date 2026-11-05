@@ -20,6 +20,7 @@ import { applyMaterialsMargin } from "@/lib/billing/materials-margin";
 import { matchOuvrageByLabel } from "@/lib/ai/ouvrage-candidates";
 import { filterPlatformCatalog } from "@/lib/work-library/platform-catalog";
 import { findReferencePrice } from "@/lib/ai/recipe-reference-prices";
+import { resolveAccountOwnerUserId } from "@/lib/auth/account-owner";
 
 const snapshotSchema = z.object({
   lines: z
@@ -92,11 +93,12 @@ export async function aiEditQuoteForm(input: { snapshot: QuoteFormSnapshot; inst
   const unpriced = patch.operations.filter((op) => op.op === "add_line" && op.unit_price_eur === null && op.label?.trim());
 
   // 1. Bibliothèque d'ouvrages : une seule correspondance → son prix.
+  const libraryOwnerId = await resolveAccountOwnerUserId(auth.supabase, auth.userId);
   for (const op of unpriced) {
     const { data } = await auth.supabase
       .from("work_items")
       .select("title, unit_price_ht")
-      .eq("user_id", auth.userId)
+      .eq("user_id", libraryOwnerId)
       .ilike("title", ilikeOrPattern(op.label!.trim()))
       .limit(2);
     if (data?.length === 1 && Number(data[0]!.unit_price_ht) > 0) {

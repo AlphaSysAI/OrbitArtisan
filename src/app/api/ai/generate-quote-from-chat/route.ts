@@ -30,7 +30,7 @@ async function generateQuote(request: Request) {
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, user_id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   if (!profile?.id) return NextResponse.json({ error: "not_artisan" }, { status: 403 });
@@ -53,7 +53,7 @@ async function generateQuote(request: Request) {
     .limit(40);
 
   const chatLines = (messages ?? []).map((m) => {
-    const who = m.sender_user_id === user.id ? "Artisan" : "Client";
+    const who = m.sender_user_id !== conv.customer_user_id ? "Artisan" : "Client";
     return `${who}: ${m.body}`;
   });
 

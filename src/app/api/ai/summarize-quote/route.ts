@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const { data: artisanProfile } = await supabase
     .from("profiles")
     .select("id, business_name, description")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   const viewerIsArtisan = !!artisanProfile?.id && artisanProfile.id === quote.artisan_id;
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
           ? m.sender_user_id === user.id
             ? "Client (toi)"
             : "Artisan"
-          : m.sender_user_id === user.id
+          : m.sender_user_id !== quote.customer_user_id
             ? "Artisan (toi)"
             : "Client";
         return `${who}: ${m.body}`;

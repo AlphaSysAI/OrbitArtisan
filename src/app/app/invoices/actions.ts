@@ -145,6 +145,8 @@ export async function startStripeExpressOnboarding(): Promise<void> {
 
   const resolvedProfile = await resolveArtisanProfile(supabase, userId, ["stripe_account_id"]);
   if (!resolvedProfile.ok) redirect("/app/invoices");
+  // Compte d'encaissement : réservé au titulaire.
+  if (!resolvedProfile.isOwner) redirect("/app/invoices?stripe_error=owner_only");
   const { profileId, profile } = resolvedProfile;
 
   const stripe = getStripe();
@@ -190,6 +192,7 @@ export async function withdrawStripeFunds(): Promise<void> {
   if (!resolvedProfile.ok || !resolvedProfile.profile.stripe_account_id) {
     redirect("/app/invoices?withdraw_error=missing_stripe_account");
   }
+  if (!resolvedProfile.isOwner) redirect("/app/invoices?withdraw_error=owner_only");
   const { profile } = resolvedProfile;
   if (!profile.stripe_payouts_enabled) redirect("/app/invoices?withdraw_error=payouts_not_enabled");
 

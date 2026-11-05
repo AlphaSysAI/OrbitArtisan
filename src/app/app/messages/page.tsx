@@ -25,7 +25,7 @@ export default async function ArtisanMessagesPage() {
     redirect("/login?next=/app/messages");
   }
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile) {
     return (
       <div className="space-y-8">

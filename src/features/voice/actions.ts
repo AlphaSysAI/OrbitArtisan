@@ -22,7 +22,7 @@ async function resolveOwnProfileId(): Promise<
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Non authentifié" };
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile) return { ok: false, error: "Accès refusé" };
   return { ok: true, supabase, profileId: profile.id as string };
 }

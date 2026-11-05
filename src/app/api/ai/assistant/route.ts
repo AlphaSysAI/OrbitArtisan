@@ -437,7 +437,7 @@ async function handleAssistant(request: Request) {
     .select(
       "id, user_id, business_name, description, labor_rate_per_hour, materials_margin_rate, trade_category, trade, subscription_status, trial_ends_at, account_status, deleted_at",
     )
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   if (!profile?.id) return NextResponse.json({ error: "not_artisan" }, { status: 403 });

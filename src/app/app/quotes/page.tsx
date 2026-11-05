@@ -33,7 +33,7 @@ export default async function QuotesPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name")
-    .eq("user_id", user!.id)
+    .contains("account_user_ids", [user!.id])
     .maybeSingle();
 
   if (!profile?.id) {

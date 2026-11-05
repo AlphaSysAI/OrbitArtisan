@@ -115,7 +115,7 @@ export default async function PublicSitePage({ params }: { params: Promise<{ slu
     // La vue publique n'expose plus user_id (migration 55) : le propriétaire se
     // reconnaît en lisant SON profil (RLS : lecture de sa propre ligne uniquement).
     if (user) {
-      const { data: own } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+      const { data: own } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
       isOwner = own?.id === profile.id;
     }
 

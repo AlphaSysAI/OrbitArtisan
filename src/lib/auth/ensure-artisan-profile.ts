@@ -6,7 +6,7 @@ import { isProvisionalSlug, provisionalSlug, slugFromBusinessName } from "@/lib/
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { seedDefaultWorkLibraryForUser } from "@/lib/work-library/actions";
 
-export type EnsureProfileResult = "exists" | "created" | "client" | "referrer" | "failed";
+export type EnsureProfileResult = "exists" | "created" | "client" | "referrer" | "team_suspended" | "failed";
 
 /**
  * Premier passage d'un nouveau compte artisan : crée la fiche `profiles` vide pour que
@@ -18,7 +18,7 @@ export type EnsureProfileResult = "exists" | "created" | "client" | "referrer" |
  * provisoire aléatoire remplacé à la fin de l'onboarding.
  */
 export async function ensureArtisanProfile(supabase: SupabaseClient, user: User): Promise<EnsureProfileResult> {
-  const { data: existing } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: existing } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (existing) return "exists";
 
   const [{ data: customer }, { data: referrer }] = await Promise.all([
@@ -41,8 +41,10 @@ export async function ensureArtisanProfile(supabase: SupabaseClient, user: User)
   });
   if (error) {
     // Double onglet / double requête : la fiche vient d'être créée par l'autre.
+    // Collaborateur d'un compte qui n'est plus en formule Ultra : pas de compte à lui.
+    if (error.message?.includes("user_is_team_member")) return "team_suspended";
     if (error.code === "23505") {
-      const { data: raced } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+      const { data: raced } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
       if (raced) return "exists";
     }
     console.error("[onboarding] création de la fiche artisan", error.code, error.message);

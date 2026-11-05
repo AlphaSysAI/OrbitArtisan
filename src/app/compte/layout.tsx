@@ -17,7 +17,7 @@ export default async function CompteLayout({ children }: { children: React.React
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/compte");
 
-  const { data: artisanProfile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: artisanProfile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (artisanProfile) redirect("/app");
 
   return (

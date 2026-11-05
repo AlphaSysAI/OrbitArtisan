@@ -89,7 +89,7 @@ export async function upsertProfile(formData: FormData) {
   const { data: existing } = await supabase
     .from("profiles")
     .select("id, slug")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   if (existing && existing.slug !== slug) {

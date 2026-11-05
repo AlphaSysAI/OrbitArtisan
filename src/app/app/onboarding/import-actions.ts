@@ -18,6 +18,7 @@ import { isValidSiret } from "@/lib/onboarding/identifiers";
 import type { VerifiedDocument } from "@/lib/onboarding/verify-extraction";
 import { normalizePhone, normalizePostalCode } from "@/lib/settings/contact-fields";
 import { logActivity } from "@/lib/telemetry/activity";
+import { resolveAccountOwnerUserId } from "@/lib/auth/account-owner";
 
 type AnalyzeResult = { ok: true; doc: VerifiedDocument } | { ok: false; error: "auth" | "too_large" | "unsupported_file" | "rate_limited" | "analysis_failed" };
 
@@ -170,12 +171,13 @@ export async function saveImportAction(input: z.infer<typeof saveSchema>): Promi
   // Catalogue → bibliothèque d'ouvrages (unités + TVA), sans doublon de libellé.
   let importedLines = 0;
   if (parsed.data.lines.length) {
-    const { data: existing } = await supabase.from("work_items").select("title").eq("user_id", userId);
+    const libraryOwnerId = await resolveAccountOwnerUserId(supabase, userId);
+    const { data: existing } = await supabase.from("work_items").select("title").eq("user_id", libraryOwnerId);
     const known = new Set((existing ?? []).map((w) => (w.title as string).trim().toLowerCase()));
     const rows = parsed.data.lines
       .filter((l) => !known.has(l.label.trim().toLowerCase()))
       .map((l) => ({
-        user_id: userId,
+        user_id: libraryOwnerId,
         title: l.label.trim(),
         unit: l.unit ?? "U",
         unit_price_ht: (l.unitPriceCents ?? 0) / 100,

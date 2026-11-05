@@ -47,6 +47,19 @@ export default async function ArtisanOnboardingPage({
   const ensured = await ensureArtisanProfile(supabase, user);
   if (ensured === "client") redirect("/compte");
   if (ensured === "referrer") redirect("/apporteur");
+  if (ensured === "team_suspended") {
+    return (
+      <div className="mx-auto max-w-2xl pb-12">
+        <Alert>
+          <AlertTitle>Accès à l&apos;équipe suspendu</AlertTitle>
+          <AlertDescription>
+            Le compte auquel vous êtes rattaché n&apos;inclut plus d&apos;utilisateur supplémentaire. Votre accès reviendra
+            dès que son titulaire repassera à une formule qui en comprend. Contactez-le pour en savoir plus.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
   if (ensured === "failed") {
     return (
       <div className="mx-auto max-w-2xl pb-12">
@@ -61,7 +74,7 @@ export default async function ArtisanOnboardingPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(`${ARTISAN_ONBOARDING_PROFILE_SELECT}, trade_category, trade`)
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   if (!profile) redirect("/compte");
@@ -98,7 +111,7 @@ export default async function ArtisanOnboardingPage({
       .select(
         "first_name, last_name, business_name, phone, address_line1, postal_code, city, siret, vat_number, vat_regime, trade_register_number, decennale_insurer, decennale_policy_number, decennale_coverage_area, rc_pro_insurer, rc_pro_number, mediator_name, mediator_url, default_payment_terms_days",
       )
-      .eq("user_id", user.id)
+      .contains("account_user_ids", [user.id])
       .maybeSingle();
     const k = (known ?? {}) as Record<string, string | number | null>;
     const str = (v: string | number | null | undefined) => (v === null || v === undefined ? "" : String(v));
@@ -147,7 +160,7 @@ export default async function ArtisanOnboardingPage({
   const contactRes = await supabase
     .from("profiles")
     .select("name, first_name, last_name, business_name, phone, address_line1, address_line2, postal_code, city, latitude, longitude")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   const contact = contactRes.data;

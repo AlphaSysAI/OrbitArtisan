@@ -18,7 +18,7 @@ async function loadArtisanSubscriptionAccess(
   const { data: profile } = await supabase
     .from("profiles")
     .select(PROFILE_SUBSCRIPTION_SELECT)
-    .eq("user_id", userId)
+    .contains("account_user_ids", [userId])
     .maybeSingle();
 
   return evaluateSubscriptionAccess(profile ?? null);

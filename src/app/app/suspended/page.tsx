@@ -18,7 +18,7 @@ async function pendingDeletionOfCurrentArtisan() {
   const user = await getCurrentUser();
   if (!user) return null;
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   const admin = createSupabaseServiceRoleClient();
   if (!data?.id || !admin) return null;
   return pendingAccountDeletion(admin, data.id as string);

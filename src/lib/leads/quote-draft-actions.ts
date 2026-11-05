@@ -18,7 +18,7 @@ export async function loadLeadMatchQuoteDraft(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "auth" };
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return { ok: false, error: "not_artisan" };
 
   const { data: match, error } = await supabase
@@ -58,7 +58,7 @@ export async function findLeadMatchForConversation(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false };
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return { ok: false };
 
   const { data: match } = await supabase

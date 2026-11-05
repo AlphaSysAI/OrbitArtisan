@@ -42,7 +42,7 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name, slug, subscription_plan")
-    .eq("user_id", user!.id)
+    .contains("account_user_ids", [user!.id])
     .maybeSingle();
 
   let solinePhoneE164: string | null = null;

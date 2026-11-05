@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ tok
   const admin = createSupabaseServiceRoleClient();
   if (!admin) return NextResponse.redirect(new URL(page, origin));
 
-  const { data: artisanSelf } = await admin.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: artisanSelf } = await admin.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (artisanSelf) return NextResponse.redirect(new URL(page, origin));
 
   const { data: quote } = await admin

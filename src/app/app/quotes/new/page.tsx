@@ -54,7 +54,7 @@ export default async function NewQuotePage({
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name, slug, accent_color, labor_rate_per_hour, materials_margin_rate, vat_regime")
-    .eq("user_id", user!.id)
+    .contains("account_user_ids", [user!.id])
     .maybeSingle();
 
   if (!profile?.id) {

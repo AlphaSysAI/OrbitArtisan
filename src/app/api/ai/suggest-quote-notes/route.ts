@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, business_name, description, labor_rate_per_hour")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   if (!profile?.id) return NextResponse.json({ error: "not_artisan" }, { status: 403 });
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
   const contextText = messages
     .map((m) => {
-      const who = m.sender_user_id === user.id ? "Artisan (toi)" : "Client";
+      const who = m.sender_user_id !== conv.customer_user_id ? "Artisan (toi)" : "Client";
       return `${who}: ${m.body}`;
     })
     .join("\n");

@@ -25,7 +25,13 @@ export async function requireAuthenticatedUser(): Promise<RequireArtisanUserResu
 }
 
 type ResolveArtisanProfileResult =
-  | { ok: true; profileId: string; profile: Record<string, unknown> }
+  | {
+      ok: true;
+      profileId: string;
+      profile: Record<string, unknown>;
+      /** Titulaire du compte (false : collaborateur, formule Ultra). */
+      isOwner: boolean;
+    }
   | { ok: false; error: "missing_profile" };
 
 /**
@@ -39,11 +45,11 @@ export async function resolveArtisanProfile(
   userId: string,
   extraColumns: string[] = [],
 ): Promise<ResolveArtisanProfileResult> {
-  const columns = ["id", ...extraColumns].join(", ");
+  const columns = ["id", "user_id", ...extraColumns.filter((c) => c !== "user_id")].join(", ");
   const { data } = await supabase
     .from("profiles")
     .select(columns)
-    .eq("user_id", userId)
+    .contains("account_user_ids", [userId])
     .maybeSingle();
   const profile = data as Record<string, unknown> | null;
 
@@ -51,11 +57,18 @@ export async function resolveArtisanProfile(
     return { ok: false, error: "missing_profile" };
   }
 
-  return { ok: true, profileId: profile.id as string, profile };
+  return { ok: true, profileId: profile.id as string, profile, isOwner: profile.user_id === userId };
 }
 
 type RequireArtisanProfileResult =
-  | { ok: true; supabase: SupabaseClient; userId: string; profileId: string; profile: Record<string, unknown> }
+  | {
+      ok: true;
+      supabase: SupabaseClient;
+      userId: string;
+      profileId: string;
+      profile: Record<string, unknown>;
+      isOwner: boolean;
+    }
   | { ok: false; error: "auth" | "missing_profile" };
 
 /**
@@ -78,6 +91,7 @@ export async function requireArtisanProfileId(extraColumns: string[] = []): Prom
     userId: auth.userId,
     profileId: resolved.profileId,
     profile: resolved.profile,
+    isOwner: resolved.isOwner,
   };
 }
 

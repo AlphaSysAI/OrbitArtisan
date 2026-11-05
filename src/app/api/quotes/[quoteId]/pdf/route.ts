@@ -23,7 +23,7 @@ export async function GET(_request: Request, context: { params: Promise<{ quoteI
 
   if (!quote) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   const isArtisan = profile?.id === quote.artisan_id;
   const isCustomer = quote.customer_user_id === user.id;
 

@@ -54,6 +54,7 @@ export async function startSubscriptionCheckout(
   }
 
   const { profile, profileId } = resolvedProfile;
+  if (!resolvedProfile.isOwner) return { ok: false, error: "owner_only" };
   const existingSubscriptionId = String(profile.stripe_subscription_id ?? "").trim();
   if (existingSubscriptionId && profile.subscription_status !== "canceled") {
     // Un nouveau checkout créerait un 2e abonnement (double prélèvement).
@@ -162,6 +163,9 @@ export async function claimPromoCodeAction(
 
   const userAuth = await requireAuthenticatedUser();
   if (!userAuth.ok) return { ok: false, message: "Connectez-vous pour utiliser un code." };
+
+  const owner = await resolveArtisanProfile(userAuth.supabase, userAuth.userId);
+  if (owner.ok && !owner.isOwner) return { ok: false, message: "Seul le titulaire du compte peut utiliser un code." };
 
   const { data, error } = await userAuth.supabase.rpc("claim_promo_code", { p_code: code });
   if (error || !isPromoClaimResult(data)) {

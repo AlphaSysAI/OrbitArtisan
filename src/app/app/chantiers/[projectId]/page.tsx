@@ -28,7 +28,7 @@ export default async function ChantierDetailPage({ params }: { params: Promise<{
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user!.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user!.id]).maybeSingle();
 
   const { data: project } = await supabase
     .from("projects")

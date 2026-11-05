@@ -34,6 +34,7 @@ import { listMyVitrineGalleryImages } from "../profile/vitrine-gallery-actions";
 import { ProfileForm } from "../profile/profile-form";
 import { VitrineGalleryForm } from "@/components/settings/vitrine-gallery-form";
 import { LegalSettingsForm } from "@/components/settings/legal-settings-form";
+import { TeamSettingsSection } from "@/components/settings/team-settings-section";
 import { findSubscriptionPlan } from "@/lib/billing/subscription-plans";
 import { CreateServiceForm } from "../services/create-service-form";
 import { ServiceRow } from "../services/service-row";
@@ -48,7 +49,11 @@ const TABS = [
   { id: "coordonnees", label: "Coordonnées" },
   { id: "facturation", label: "Facturation" },
   { id: "abonnement", label: "Abonnement" },
+  { id: "equipe", label: "Équipe" },
 ] as const;
+
+/** Onglets réservés au titulaire du compte (cachés aux collaborateurs). */
+const OWNER_ONLY_TABS: readonly string[] = ["facturation", "abonnement"];
 
 type TabId = (typeof TABS)[number]["id"];
 
@@ -60,7 +65,8 @@ function parseTab(raw: string | undefined): TabId {
     raw === "prestations" ||
     raw === "activite" ||
     raw === "widget" ||
-    raw === "vocal"
+    raw === "vocal" ||
+    raw === "equipe"
   ) {
     return raw;
   }
@@ -91,7 +97,7 @@ export default async function ArtisanSettingsPage({
   }
 
   const sp = await searchParams;
-  const tab = parseTab(typeof sp.tab === "string" ? sp.tab : undefined);
+  const requestedTab = parseTab(typeof sp.tab === "string" ? sp.tab : undefined);
   const subscriptionAlerts = {
     reason: typeof sp.reason === "string" ? sp.reason : undefined,
     success: typeof sp.success === "string" ? sp.success : undefined,
@@ -103,10 +109,14 @@ export default async function ArtisanSettingsPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "id, name, first_name, last_name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, materials_margin_rate, trade_category, trade, ops_nudges_enabled",
+      "id, user_id, name, first_name, last_name, business_name, description, logo_url, slug, accent_color, labor_rate_per_hour, materials_margin_rate, trade_category, trade, ops_nudges_enabled",
     )
-    .eq("user_id", user!.id)
+    .contains("account_user_ids", [user!.id])
     .maybeSingle();
+
+  const isOwner = !profile || profile.user_id === user!.id;
+  const tab: TabId = !isOwner && OWNER_ONLY_TABS.includes(requestedTab) ? "activite" : requestedTab;
+  const visibleTabs = TABS.filter((t) => isOwner || !OWNER_ONLY_TABS.includes(t.id));
 
   let contact = {
     phone: null as string | null,
@@ -348,7 +358,7 @@ export default async function ArtisanSettingsPage({
         className="app-surface flex gap-1 overflow-x-auto p-2"
         aria-label="Sections des réglages"
       >
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <Link
             key={t.id}
             href={`/app/reglages?tab=${t.id}`}
@@ -450,6 +460,20 @@ export default async function ArtisanSettingsPage({
               />
               <DeleteAccountSection email={user?.email ?? ""} />
             </div>
+          )
+        ) : null}
+
+        {tab === "equipe" ? (
+          !profile ? (
+            <SettingsGate />
+          ) : (
+            <TeamSettingsSection
+              supabase={supabase}
+              profileId={profile.id}
+              ownerUserId={profile.user_id as string}
+              currentUserId={user!.id}
+              planId={subscriptionProfile.subscription_plan}
+            />
           )
         ) : null}
 

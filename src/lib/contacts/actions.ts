@@ -37,7 +37,7 @@ export async function listArtisanContacts(): Promise<{ ok: true; items: ArtisanC
   const [supabase, user] = await Promise.all([getRequestSupabase(), getCurrentUser()]);
   if (!user) return { ok: false, error: "auth", items: [] };
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return { ok: true, items: [] };
 
   const siteUrl = getPublicSiteUrl();
@@ -259,7 +259,7 @@ export async function artisanCanViewCustomer(customerUserId: string): Promise<bo
   } = await supabase.auth.getUser();
   if (!user) return false;
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return false;
 
   const { data: conv } = await supabase
@@ -298,7 +298,7 @@ export async function artisanCanViewLead(leadId: string): Promise<boolean> {
   } = await supabase.auth.getUser();
   if (!user) return false;
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return false;
 
   const { data: conv } = await supabase
@@ -326,7 +326,7 @@ export async function getOrCreateArtisanCustomerConversation(customerUserId: str
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: "auth" as const };
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return { ok: false as const, error: "missing_profile" as const };
 
   const allowed = await artisanCanViewCustomer(customerUserId);
@@ -380,7 +380,7 @@ export async function getCustomerDeletionCounts(customerUserId: string): Promise
   } = await supabase.auth.getUser();
   if (!user) return empty;
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return empty;
 
   const { data: conv } = await supabase
@@ -434,7 +434,7 @@ export async function deleteArtisanCustomerLink(customerUserId: string): Promise
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "auth" };
 
-  const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("id").contains("account_user_ids", [user.id]).maybeSingle();
   if (!profile?.id) return { ok: false, error: "missing_profile" };
 
   const allowed = await artisanCanViewCustomer(customerUserId);

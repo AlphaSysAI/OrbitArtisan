@@ -64,7 +64,10 @@ describe("pages publiques et espace client", () => {
       .filter((line) => line.includes('from("profiles")'))
       .filter((line, i, lines) => !/ServiceRole|admin/.test(lines[i - 1] ?? "") && !/ServiceRole|admin/.test(line));
     const serviceRoleUses = (source.match(/createSupabaseServiceRoleClient\(\) \?\? supabase\)\s*\n\s*\.from\("profiles"\)/g) ?? []).length;
-    const ownProfileUses = (source.match(/from\("profiles"\)\.select\("id"\)\.eq\("user_id", user\.id\)/g) ?? []).length;
+    // Propre compte (titulaire ou collaborateur) : autorisé, la RLS ne renvoie que lui.
+    const ownProfileUses = (
+      source.match(/from\("profiles"\)\.select\("id"\)\.(eq\("user_id", user\.id\)|contains\("account_user_ids", \[user\.id\]\))/g) ?? []
+    ).length;
     expect(direct.length - serviceRoleUses - ownProfileUses).toBeLessThanOrEqual(0);
   });
 });

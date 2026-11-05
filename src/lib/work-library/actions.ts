@@ -16,6 +16,7 @@ import type { WorkItemInput, WorkItemWithCategory } from "@/lib/work-library/typ
 import { isVatRate, isWorkUnit, VAT_RATES } from "@/lib/work-library/units";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ilikeOrPattern } from "@/lib/security/postgrest-filter";
+import { resolveAccountOwnerUserId } from "@/lib/auth/account-owner";
 
 async function requireUserId() {
   const supabase = await createSupabaseServerClient();
@@ -23,7 +24,8 @@ async function requireUserId() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  return { supabase, userId: user.id };
+  // Bibliothèque partagée par l'équipe : rattachée au titulaire du compte.
+  return { supabase, userId: await resolveAccountOwnerUserId(supabase, user.id) };
 }
 
 function mapWorkItem(row: Record<string, unknown>, categoryName?: string | null): WorkItemWithCategory {

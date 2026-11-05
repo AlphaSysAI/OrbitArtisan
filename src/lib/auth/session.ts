@@ -66,7 +66,7 @@ export const getArtisanShellProfile = cache(async (): Promise<ArtisanShellProfil
   const { data } = await supabase
     .from("profiles")
     .select(ARTISAN_SHELL_PROFILE_SELECT)
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
   return (data as ArtisanShellProfile | null) ?? null;
 });

@@ -73,7 +73,7 @@ export async function middleware(request: NextRequest) {
     const { data } = await supabase
       .from("profiles")
       .select(`id, account_status, deleted_at, subscription_status, trial_ends_at, ${ARTISAN_ONBOARDING_PROFILE_SELECT}`)
-      .eq("user_id", user.id)
+      .contains("account_user_ids", [user.id])
       .maybeSingle();
     artisanProfile = data;
   }

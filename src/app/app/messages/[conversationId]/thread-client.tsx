@@ -31,9 +31,15 @@ export function ArtisanThreadClient({
   leadContactPhone = null,
   leadMatchId,
   leadQuoteReady = false,
+  customerUserId,
 }: {
   conversationId: string;
   viewerUserId: string;
+  /**
+   * Côté artisan : client de la conversation. Tout message qui n'est pas de lui vient
+   * de l'entreprise (titulaire ou collaborateur) et s'affiche comme « envoyé ».
+   */
+  customerUserId?: string | null;
   /** Raccourci « Créer un devis » (réservé à l’artisan). */
   showQuoteShortcut?: boolean;
   /** Si true, les messages envoyés par l'utilisateur courant s'affichent à gauche. */
@@ -199,7 +205,11 @@ export function ArtisanThreadClient({
         {!loading &&
           messages.map((m) => {
             const isRecap = m.kind === "lead_recap";
-            const mine = !isRecap && m.sender_user_id === viewerUserId;
+            const mine =
+              !isRecap &&
+              (customerUserId === undefined
+                ? m.sender_user_id === viewerUserId
+                : !!m.sender_user_id && m.sender_user_id !== customerUserId);
             const isLeft = mine ? sentOnLeft : !sentOnLeft;
             return (
               <div key={m.id} className={cn("flex", isLeft ? "justify-start" : "justify-end")}>

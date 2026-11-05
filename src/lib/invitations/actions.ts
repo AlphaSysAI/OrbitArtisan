@@ -44,7 +44,7 @@ export async function createPlatformInvitation(formData: FormData) {
   const { data: artisanProfile } = await supabase
     .from("profiles")
     .select("id, business_name")
-    .eq("user_id", user.id)
+    .contains("account_user_ids", [user.id])
     .maybeSingle();
 
   let artisanId: string | null = null;
@@ -171,7 +171,7 @@ export async function getInvitationByToken(token: string): Promise<InvitationPre
     const { data: ap } = await admin
       .from("profiles")
       .select("business_name")
-      .eq("user_id", data.inviter_user_id)
+      .contains("account_user_ids", [data.inviter_user_id])
       .maybeSingle();
     inviterLabel = ap?.business_name ?? "Un membre Soline";
   }

@@ -125,7 +125,7 @@ export function PwaRootClient() {
       const { data: artisanProfile } = await supabase
         .from("profiles")
         .select("id")
-        .eq("user_id", user.id)
+        .contains("account_user_ids", [user.id])
         .maybeSingle();
 
       if (cancelled) return;
