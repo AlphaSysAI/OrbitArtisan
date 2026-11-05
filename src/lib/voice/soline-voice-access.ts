@@ -4,7 +4,6 @@ import { getPlanVoiceCalls } from "@/lib/billing/subscription-plans";
 /** Formules avec secrétaire vocale Soline (minutes incluses). */
 export function planIncludesSolineVoice(planId: string | null | undefined): boolean {
   const plan = (planId ?? "base").trim() as SubscriptionPlanId;
-  if (plan !== "pro" && plan !== "premium") return false;
   return getPlanVoiceCalls(plan) > 0;
 }
 

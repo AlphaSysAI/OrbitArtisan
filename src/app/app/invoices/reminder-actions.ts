@@ -16,6 +16,7 @@ export async function sendManualInvoiceReminder(
   if (result.ok) {
     revalidatePath(`/app/invoices/${invoiceId}`);
     revalidatePath("/app/invoices");
+    revalidatePath("/app");
   }
   return result;
 }

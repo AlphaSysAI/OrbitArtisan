@@ -3,6 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+
+import { quoteLimitMessage } from "@/lib/quotes/quote-send-quota";
 import { Loader2, Plus, Trash2, BookMarked } from "lucide-react";
 
 import { createQuote, updateQuote } from "./actions";
@@ -636,6 +638,8 @@ export function QuoteForm({
                   ? "Conversation invalide."
                   : res.error === "missing_customer"
                     ? "Renseigne le nom ou l'e-mail du client avant envoi."
+                    : res.error === "quote_limit_reached"
+                      ? quoteLimitMessage("limit" in res ? res.limit : null)
                     : res.error === "quote_pdf_profile_incomplete"
                       ? `Complète ton profil avant envoi : ${("validation" in res ? res.validation.blocking : []).join(" ")}`
                       : res.error === "not_editable" || res.error === "not_found"

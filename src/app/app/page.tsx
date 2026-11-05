@@ -25,6 +25,8 @@ import { loadArtisanInbox, type InboxItem } from "@/lib/clients/inbox";
 import { InboxList } from "@/components/app/inbox-list";
 import { getCurrentUser, getRequestSupabase } from "@/lib/auth/session";
 import { formatCents } from "@/lib/format/money";
+import { findSubscriptionPlan } from "@/lib/billing/subscription-plans";
+import { InvoicesToRemindCard, type InvoiceToRemind } from "@/components/invoices/invoices-to-remind-card";
 
 export default async function AppHomePage({ searchParams }: { searchParams: Promise<{ bienvenue?: string }> }) {
   const welcome = (await searchParams).bienvenue === "1";
@@ -39,7 +41,7 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, business_name, slug")
+    .select("id, business_name, slug, subscription_plan")
     .eq("user_id", user!.id)
     .maybeSingle();
 
@@ -51,6 +53,9 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
   let pendingQuoteCount = 0;
   let pendingPaymentCount = 0;
   let inbox: InboxItem[] = [];
+  let invoicesToRemind: InvoiceToRemind[] = [];
+  let invoicesToRemindTotal = 0;
+  const manualReminders = !!profile && !findSubscriptionPlan(profile.subscription_plan ?? "")?.autoInvoiceReminders;
 
   if (profile?.id) {
     const [
@@ -62,6 +67,7 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
       { data: revenueAgg },
       voiceNumberRes,
       inboxItems,
+      overdueRes,
     ] = await Promise.all([
       supabase.from("services").select("id", { count: "exact", head: true }).eq("artisan_id", profile.id),
       supabase.from("clients").select("id", { count: "exact", head: true }).eq("artisan_id", profile.id),
@@ -87,7 +93,32 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
         .eq("status", "paid"),
       supabase.from("artisan_voice_numbers").select("phone_e164").eq("artisan_id", profile.id).maybeSingle(),
       loadArtisanInbox(supabase, profile.id, user!.id),
+      manualReminders
+        ? supabase
+            .from("invoices")
+            .select("id, invoice_number, customer_name, customer_email, grand_total, due_date, last_reminder_at", {
+              count: "exact",
+            })
+            .eq("artisan_id", profile.id)
+            .in("status", ["sent", "overdue"])
+            .neq("invoice_type", "credit_note")
+            .not("finalized_at", "is", null)
+            .lt("due_date", new Date().toISOString().slice(0, 10))
+            .order("due_date", { ascending: true })
+            .limit(5)
+        : Promise.resolve({ data: [], count: 0 }),
     ]);
+
+    invoicesToRemindTotal = overdueRes.count ?? 0;
+    invoicesToRemind = (overdueRes.data ?? []).map((inv) => ({
+      id: inv.id as string,
+      invoiceNumber: (inv.invoice_number as string | null) ?? null,
+      customerName: (inv.customer_name as string | null) ?? null,
+      grandTotalCents: (inv.grand_total as number | null) ?? 0,
+      dueDate: inv.due_date as string,
+      lastReminderAt: (inv.last_reminder_at as string | null) ?? null,
+      hasEmail: !!(inv.customer_email as string | null)?.trim(),
+    }));
 
     solinePhoneE164 = (voiceNumberRes.data?.phone_e164 as string | undefined) ?? null;
     serviceCount = services;
@@ -148,6 +179,8 @@ export default async function AppHomePage({ searchParams }: { searchParams: Prom
       ) : null}
 
       {hasProfile ? <InboxList items={inbox} /> : null}
+
+      {manualReminders ? <InvoicesToRemindCard invoices={invoicesToRemind} total={invoicesToRemindTotal} /> : null}
 
       {hasProfile ? (
         <SolineCallsPromoLink variant="banner" />

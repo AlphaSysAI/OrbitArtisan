@@ -24,8 +24,20 @@ describe("getFormalNoticeQuotaPeriod", () => {
 });
 
 describe("buildFormalNoticeQuota", () => {
+  it("Essentiel (0 incluse) : le premier envoi est déjà facturable", () => {
+    const quota = buildFormalNoticeQuota(0, 0, MID_MONTH);
+
+    expect(quota.remaining).toBe(0);
+    expect(quota.nextIsBillable).toBe(true);
+  });
+
+  it("Ultra (7 incluses) : le 8e envoi devient facturable", () => {
+    expect(buildFormalNoticeQuota(6, 7, MID_MONTH).nextIsBillable).toBe(false);
+    expect(buildFormalNoticeQuota(7, 7, MID_MONTH).nextIsBillable).toBe(true);
+  });
+
   it("laisse le premier envoi du mois inclus", () => {
-    const quota = buildFormalNoticeQuota(0, MID_MONTH);
+    const quota = buildFormalNoticeQuota(0, 1, MID_MONTH);
 
     expect(quota.included).toBe(1);
     expect(quota.remaining).toBe(1);
@@ -33,14 +45,14 @@ describe("buildFormalNoticeQuota", () => {
   });
 
   it("rend le deuxième envoi facturable", () => {
-    const quota = buildFormalNoticeQuota(1, MID_MONTH);
+    const quota = buildFormalNoticeQuota(1, 1, MID_MONTH);
 
     expect(quota.remaining).toBe(0);
     expect(quota.nextIsBillable).toBe(true);
   });
 
   it("reste facturable au-delà, sans reste négatif", () => {
-    const quota = buildFormalNoticeQuota(5, MID_MONTH);
+    const quota = buildFormalNoticeQuota(5, 1, MID_MONTH);
 
     expect(quota.used).toBe(5);
     expect(quota.remaining).toBe(0);
@@ -49,7 +61,7 @@ describe("buildFormalNoticeQuota", () => {
 
   it("ne reporte pas le quota non consommé sur le mois suivant", () => {
     // Aucune lettre envoyée en septembre : octobre redémarre à 1, pas à 2.
-    const october = buildFormalNoticeQuota(0, new Date("2026-10-02T09:00:00.000Z"));
+    const october = buildFormalNoticeQuota(0, 1, new Date("2026-10-02T09:00:00.000Z"));
 
     expect(october.included).toBe(1);
     expect(october.remaining).toBe(1);

@@ -11,15 +11,19 @@ import { MANAGED_PAYMENTS, MANAGED_PAYMENTS_REQUEST } from "@/lib/stripe/managed
 import { resolveSubscriptionPriceId } from "@/lib/stripe/subscription-prices";
 import { subscriptionCheckoutBranding } from "@/lib/stripe/checkout-branding";
 
+/**
+ * Coupon Stripe −25 % à vie, limité aux produits Pro et Premium : la remise
+ * tombe d'elle-même en cas de passage en Essentiel ou Ultra via le portail.
+ */
+const AMBASSADOR_COUPON_ID = "AMB25PP";
+
 type AmbassadorCheckoutError = "promo_not_configured" | "price_not_found" | "checkout_failed";
 
 /**
  * Checkout Session serveur avec le coupon ambassadeur.
  *
- * Le coupon (`STRIPE_AMBASSADOR_COUPON_ID`) doit être créé dans Stripe en
- * `percent_off: 25`, `duration: forever`, restreint (`applies_to.products`) aux
- * produits Pro et Premium : la remise suit un passage Pro ↔ Premium via le
- * portail, et tombe d'elle-même en cas de passage en Base.
+ * Coupon `AMB25PP` (voir AMBASSADOR_COUPON_ID) : la remise suit un passage
+ * Pro ↔ Premium via le portail.
  *
  * Aucun code promo n'est saisissable côté Stripe : l'éligibilité est décidée ici.
  * Préalable : la place doit avoir été bloquée (reserve_promo_slot). La session
@@ -35,12 +39,7 @@ export async function createAmbassadorCheckoutSession(params: {
   /** Choix de formule pendant l'essai : carte enregistrée, prélèvement à cette date (unix). */
   trialEnd?: number | null;
 }): Promise<{ ok: true; url: string } | { ok: false; error: AmbassadorCheckoutError }> {
-  const couponId = process.env.STRIPE_AMBASSADOR_COUPON_ID?.trim();
-  if (!couponId) {
-    // Ne jamais basculer silencieusement au plein tarif : l'artisan a une place réservée.
-    console.error("[ambassador checkout] STRIPE_AMBASSADOR_COUPON_ID manquant");
-    return { ok: false, error: "promo_not_configured" };
-  }
+  const couponId = AMBASSADOR_COUPON_ID;
 
   const stripe = getStripe();
   const priceId = await resolveSubscriptionPriceId(stripe, params.planId, params.interval);

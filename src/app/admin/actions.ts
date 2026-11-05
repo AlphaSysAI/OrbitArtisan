@@ -8,7 +8,7 @@ import { writeAdminAuditLog } from "@/lib/admin/audit-log";
 import { getAdminTenant, type ArtisanSubscriptionStatus } from "@/lib/admin/tenants";
 import { NEW_PASSWORD_PATH, buildTokenHashLink } from "@/lib/auth/email-confirmation";
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
-import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { isSubscriptionPlanId, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { getAdminDb } from "@/lib/admin/db";
 import { computeTrialEndsAt, type SubscriptionStatus } from "@/lib/billing/subscription-access";
@@ -98,7 +98,7 @@ export async function updateTenantPlanAction(
   const plan = input.plan as SubscriptionPlanId;
   const status = input.status as ArtisanSubscriptionStatus;
 
-  if (!["base", "pro", "premium"].includes(plan)) return { ok: false, error: "Formule invalide." };
+  if (!isSubscriptionPlanId(plan)) return { ok: false, error: "Formule invalide." };
   if (!["incomplete", "active", "past_due", "canceled", "trialing"].includes(status)) {
     return { ok: false, error: "Statut invalide." };
   }

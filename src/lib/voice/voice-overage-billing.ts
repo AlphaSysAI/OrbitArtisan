@@ -7,6 +7,7 @@ import {
   findSubscriptionPlan,
   isSubscriptionPlanId,
   SOLINE_DEFAULT_OVERAGE_CAP_CENTS,
+  VOICE_PLAN_IDS,
 } from "@/lib/billing/subscription-plans";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { countBillableCalls, resolveVoiceEntitlement } from "@/lib/voice/resolve-voice-quota";
@@ -54,7 +55,7 @@ export async function billPreviousMonthVoiceOverage(
     .select(
       "id, subscription_plan, subscription_status, trial_ends_at, voice_overage_cap_cents, stripe_customer_id, stripe_subscription_id",
     )
-    .in("subscription_plan", ["pro", "premium"])
+    .in("subscription_plan", VOICE_PLAN_IDS)
     .in("subscription_status", ["active", "past_due"])
     .not("stripe_customer_id", "is", null);
   if (error) {

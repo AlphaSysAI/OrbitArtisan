@@ -16,7 +16,10 @@ import {
 
 export function LegalSettingsForm({
   initialValues,
+  autoRemindersIncluded = true,
 }: {
+  /** Formule avec relances automatiques (sinon : bouton « Relancer » uniquement). */
+  autoRemindersIncluded?: boolean;
   initialValues: {
     siren: string | null;
     siret: string | null;
@@ -161,15 +164,33 @@ export function LegalSettingsForm({
             />
           </div>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="auto_reminder_enabled"
-            defaultChecked={initialValues.auto_reminder_enabled}
-            className="size-4 rounded border"
-          />
-          Relances automatiques des impayés par email
-        </label>
+        {autoRemindersIncluded ? (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="auto_reminder_enabled"
+              defaultChecked={initialValues.auto_reminder_enabled}
+              className="size-4 rounded border"
+            />
+            Relances automatiques des impayés par email
+          </label>
+        ) : (
+          <div className="space-y-1 text-sm">
+            {/* Valeur conservée : retrouvée telle quelle en cas de passage en Pro. */}
+            {initialValues.auto_reminder_enabled ? <input type="hidden" name="auto_reminder_enabled" value="on" /> : null}
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <input type="checkbox" disabled className="size-4 rounded border" />
+              Relances automatiques des impayés par email
+            </p>
+            <p className="text-muted-foreground">
+              Avec la formule Essentiel, vous relancez vos clients en un clic depuis le tableau de bord ou la
+              facture.{" "}
+              <a href="/app/reglages?tab=abonnement" className="font-medium text-foreground underline">
+                Relances automatiques à partir de Pro
+              </a>
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4 border-t pt-4">

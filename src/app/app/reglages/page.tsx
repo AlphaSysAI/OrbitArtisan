@@ -34,6 +34,7 @@ import { listMyVitrineGalleryImages } from "../profile/vitrine-gallery-actions";
 import { ProfileForm } from "../profile/profile-form";
 import { VitrineGalleryForm } from "@/components/settings/vitrine-gallery-form";
 import { LegalSettingsForm } from "@/components/settings/legal-settings-form";
+import { findSubscriptionPlan } from "@/lib/billing/subscription-plans";
 import { CreateServiceForm } from "../services/create-service-form";
 import { ServiceRow } from "../services/service-row";
 
@@ -424,7 +425,10 @@ export default async function ArtisanSettingsPage({
                     SIREN, TVA, assurances et paramètres de relance — affichés sur tes PDF devis et factures.
                   </p>
                 </div>
-                <LegalSettingsForm initialValues={legalInitial} />
+                <LegalSettingsForm
+                  initialValues={legalInitial}
+                  autoRemindersIncluded={findSubscriptionPlan(subscriptionProfile.subscription_plan)?.autoInvoiceReminders ?? false}
+                />
               </>
             )}
           </section>

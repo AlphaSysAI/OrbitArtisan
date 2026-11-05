@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import twilio from "twilio";
 
 import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
-import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { VOICE_PLAN_IDS, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { syncSubscriptionVoiceNumber } from "@/lib/voice/subscription-voice-number-sync";
 import { addVoiceNumberToPool } from "@/lib/voice/voice-number-pool";
 import { emailButton, escapeHtml } from "@/lib/email/html";
@@ -222,7 +222,7 @@ function waitingArtisansQuery(db: SupabaseClient, columns: string, head = false)
     .from("profiles")
     .select(columns, head ? { count: "exact", head: true } : undefined)
     .not("voice_number_assignment_pending_at", "is", null)
-    .in("subscription_plan", ["pro", "premium"])
+    .in("subscription_plan", VOICE_PLAN_IDS)
     .in("subscription_status", ["active", "trialing", "past_due"])
     .or("subscription_status.neq.trialing,stripe_subscription_id.not.is.null");
 }

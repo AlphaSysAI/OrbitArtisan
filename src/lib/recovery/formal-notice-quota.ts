@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getCivilMonthPeriod } from "@/lib/billing/civil-month-period";
-import { FORMAL_NOTICES_INCLUDED_PER_MONTH } from "@/lib/billing/subscription-plans";
+import { getPlanFormalNoticesIncluded } from "@/lib/billing/subscription-plans";
 
 import type { FormalNoticeQuota } from "./types";
 
@@ -29,9 +29,8 @@ export function getFormalNoticeQuotaPeriod(now: Date = new Date()): QuotaPeriod 
   return getCivilMonthPeriod(now);
 }
 
-export function buildFormalNoticeQuota(used: number, now: Date = new Date()): FormalNoticeQuota {
+export function buildFormalNoticeQuota(used: number, included: number, now: Date = new Date()): FormalNoticeQuota {
   const { start, end } = getFormalNoticeQuotaPeriod(now);
-  const included = FORMAL_NOTICES_INCLUDED_PER_MONTH;
   const safeUsed = Math.max(0, used);
   const remaining = Math.max(0, included - safeUsed);
 
@@ -45,6 +44,12 @@ export function buildFormalNoticeQuota(used: number, now: Date = new Date()): Fo
   };
 }
 
+/** LRAR incluses par mois selon la formule de l'artisan (0 si introuvable). */
+export async function resolveFormalNoticesIncluded(supabase: SupabaseClient, artisanId: string): Promise<number> {
+  const { data } = await supabase.from("profiles").select("subscription_plan").eq("id", artisanId).maybeSingle();
+  return getPlanFormalNoticesIncluded(data?.subscription_plan as string | null | undefined);
+}
+
 /**
  * Compte les LRAR affranchies sur le mois courant.
  * En cas d'erreur, considère le quota comme épuisé : mieux vaut demander une
@@ -56,6 +61,7 @@ export async function resolveFormalNoticeQuota(
   now: Date = new Date(),
 ): Promise<FormalNoticeQuota> {
   const { start, end } = getFormalNoticeQuotaPeriod(now);
+  const included = await resolveFormalNoticesIncluded(supabase, artisanId);
 
   const { count, error } = await supabase
     .from("formal_notices")
@@ -67,8 +73,8 @@ export async function resolveFormalNoticeQuota(
 
   if (error) {
     console.error("[recovery] décompte quota LRAR", { artisanId, message: error.message });
-    return buildFormalNoticeQuota(FORMAL_NOTICES_INCLUDED_PER_MONTH, now);
+    return buildFormalNoticeQuota(included, included, now);
   }
 
-  return buildFormalNoticeQuota(count ?? 0, now);
+  return buildFormalNoticeQuota(count ?? 0, included, now);
 }

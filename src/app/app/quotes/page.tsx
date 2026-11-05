@@ -18,6 +18,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { quoteStatusLabel } from "@/lib/status-labels";
 import { formatCents } from "@/lib/format/money";
+import { resolveQuoteSendQuota } from "@/lib/quotes/quote-send-quota";
 
 export default async function QuotesPage() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -57,7 +58,7 @@ export default async function QuotesPage() {
     );
   }
 
-  const [{ data: quotes, error }, quotesAcceptedWatermark] = await Promise.all([
+  const [{ data: quotes, error }, quotesAcceptedWatermark, sendQuota] = await Promise.all([
     supabase
       .from("quotes")
       .select(
@@ -66,6 +67,7 @@ export default async function QuotesPage() {
       .eq("artisan_id", profile.id)
       .order("created_at", { ascending: false }),
     fetchNotificationWatermark(supabase, user!.id, "quotes_accepted"),
+    resolveQuoteSendQuota(supabase, profile.id),
   ]);
 
   const items = error ? [] : (quotes ?? []);
@@ -88,6 +90,26 @@ export default async function QuotesPage() {
           </Link>
         }
       />
+
+      {sendQuota.limit !== null ? (
+        <p
+          className={
+            sendQuota.reached
+              ? "rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+              : "text-sm text-muted-foreground"
+          }
+        >
+          {sendQuota.used} / {sendQuota.limit} devis envoyés ce mois-ci.
+          {sendQuota.reached ? (
+            <>
+              {" "}Limite atteinte : vos brouillons restent enregistrés.{" "}
+              <Link href="/app/reglages?tab=abonnement" className="font-medium underline">
+                Passer à la formule supérieure
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
 
       {!items.length ? (
         <AppEmptyState

@@ -1,4 +1,4 @@
-import { findSubscriptionPlan, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { findSubscriptionPlan, isSubscriptionPlanId, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 
 /**
  * Calculs de l'accueil admin (module pur, testé). Une seule lecture des fiches artisan,
@@ -46,7 +46,7 @@ function planMonthlyCents(plan: string | null, interval: "monthly" | "annual" | 
 export function computeDashboardMetrics(rows: DashboardProfileRow[], now = new Date()): DashboardMetrics {
   const t = now.getTime();
   const m: DashboardMetrics = {
-    paying: { total: 0, byPlan: { base: 0, pro: 0, premium: 0 } },
+    paying: { total: 0, byPlan: { base: 0, pro: 0, premium: 0, ultra: 0 } },
     trialing: 0,
     mrrCents: 0,
     pastDue: 0,
@@ -71,7 +71,7 @@ export function computeDashboardMetrics(rows: DashboardProfileRow[], now = new D
     switch (r.subscription_status) {
       case "active": {
         m.paying.total++;
-        if (r.subscription_plan === "base" || r.subscription_plan === "pro" || r.subscription_plan === "premium") {
+        if (isSubscriptionPlanId(r.subscription_plan)) {
           m.paying.byPlan[r.subscription_plan]++;
         }
         m.mrrCents += planMonthlyCents(r.subscription_plan, r.billing_interval);

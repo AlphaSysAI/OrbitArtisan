@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+
+import { quoteLimitMessage } from "@/lib/quotes/quote-send-quota";
 import { Mail, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +28,12 @@ export function SendDraftQuoteButton({ quoteId }: { quoteId: string }) {
               window.location.href = "/app/reglages?tab=activite";
             },
           },
+        });
+        return;
+      }
+      if (res.error === "quote_limit_reached") {
+        toast.error(quoteLimitMessage(res.limit), {
+          action: { label: "Voir les formules", onClick: () => { window.location.href = "/app/reglages?tab=abonnement"; } },
         });
         return;
       }

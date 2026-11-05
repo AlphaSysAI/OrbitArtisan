@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { SUBSCRIPTION_PLAN_IDS, type BillingInterval, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 
 const PAYMENT_LINK_ENV_KEYS: Record<SubscriptionPlanId, Record<BillingInterval, string>> = {
   base: {
@@ -15,6 +15,10 @@ const PAYMENT_LINK_ENV_KEYS: Record<SubscriptionPlanId, Record<BillingInterval, 
     monthly: "STRIPE_PAYMENT_LINK_PREMIUM_MONTHLY",
     annual: "STRIPE_PAYMENT_LINK_PREMIUM_ANNUAL",
   },
+  ultra: {
+    monthly: "STRIPE_PAYMENT_LINK_ULTRA_MONTHLY",
+    annual: "STRIPE_PAYMENT_LINK_ULTRA_ANNUAL",
+  },
 };
 
 function getPaymentLinkEnvKey(planId: SubscriptionPlanId, interval: BillingInterval): string {
@@ -25,12 +29,6 @@ export function readPaymentLinkEnvValue(planId: SubscriptionPlanId, interval: Bi
   const key = getPaymentLinkEnvKey(planId, interval);
   const value = process.env[key]?.trim();
   return value || null;
-}
-
-export function isStripeSubscriptionPaymentLinksConfigured(): boolean {
-  return (["base", "pro", "premium"] as const).every((planId) =>
-    (["monthly", "annual"] as const).every((interval) => !!readPaymentLinkEnvValue(planId, interval)),
-  );
 }
 
 /** Normalise une URL Payment Link (sans query ni slash final). */
@@ -50,7 +48,7 @@ export function resolvePlanFromPaymentLinkUrl(
 ): { planId: SubscriptionPlanId; interval: BillingInterval } | null {
   const normalized = normalizePaymentLinkUrl(paymentLinkUrl);
 
-  for (const planId of ["base", "pro", "premium"] as const) {
+  for (const planId of SUBSCRIPTION_PLAN_IDS) {
     for (const interval of ["monthly", "annual"] as const) {
       const envUrl = readPaymentLinkEnvValue(planId, interval);
       if (envUrl && normalizePaymentLinkUrl(envUrl) === normalized) {
@@ -60,26 +58,4 @@ export function resolvePlanFromPaymentLinkUrl(
   }
 
   return null;
-}
-
-export function buildSubscriptionPaymentLinkUrl(
-  planId: SubscriptionPlanId,
-  interval: BillingInterval,
-  params: { email: string; profileId: string },
-): { ok: true; url: string } | { ok: false; error: "missing_env" | "invalid_payment_link" } {
-  const envKey = getPaymentLinkEnvKey(planId, interval);
-  const rawUrl = readPaymentLinkEnvValue(planId, interval);
-  if (!rawUrl) {
-    return { ok: false, error: "missing_env" };
-  }
-
-  try {
-    const url = new URL(rawUrl.trim());
-    url.searchParams.set("prefilled_email", params.email);
-    url.searchParams.set("client_reference_id", params.profileId);
-    return { ok: true, url: url.toString() };
-  } catch {
-    console.error("[stripe payment link] URL invalide", { envKey, rawUrl });
-    return { ok: false, error: "invalid_payment_link" };
-  }
 }

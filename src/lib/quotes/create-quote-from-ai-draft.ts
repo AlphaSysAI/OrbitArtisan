@@ -7,6 +7,7 @@ import type { AiOuvrageDraft, AiQuoteDraft, AiSupplierMaterialDraft } from "@/li
 import { ouvrageLineVatRate } from "@/lib/ai/ouvrage-candidates";
 import { exactCatalogService, scaleLaborItems } from "@/lib/quotes/ai-labor-items";
 import { normalizeMaterialUnit } from "@/lib/quotes/material-unit";
+import { isQuoteLimitDbError, resolveQuoteSendQuota } from "@/lib/quotes/quote-send-quota";
 
 function parseEurToCents(raw: string): number {
   const cleaned = raw.trim().replace(",", ".").replace(/[^0-9.]/g, "");
@@ -84,6 +85,9 @@ export async function createQuoteFromAiDraft(
   }
   if (!customerEmail) {
     return { ok: false, error: "missing_email" };
+  }
+  if (params.status === "sent" && (await resolveQuoteSendQuota(params.supabase, params.artisanId)).reached) {
+    return { ok: false, error: "quote_limit_reached" };
   }
 
   const { data: services } = serviceIds.length
@@ -205,6 +209,9 @@ export async function createQuoteFromAiDraft(
     p_send: params.status === "sent",
   });
 
+  if (isQuoteLimitDbError(quoteErr)) {
+    return { ok: false, error: "quote_limit_reached" };
+  }
   if (quoteErr || typeof quoteId !== "string") {
     return { ok: false, error: "create_failed" };
   }

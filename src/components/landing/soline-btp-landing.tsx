@@ -28,7 +28,7 @@ import { SubscriptionPricingGrid } from "@/components/billing/subscription-prici
 import { TRIAL_DURATION_DAYS } from "@/lib/billing/subscription-access";
 import {
   FORMAL_NOTICE_OVERAGE_NOTICE,
-  FORMAL_NOTICES_INCLUDED_PER_MONTH,
+  formalNoticesByPlanText,
   formatCentsHtEur,
   formatPriceHtEur,
   SOLINE_BILLABLE_CALL_MIN_SECONDS,
@@ -637,8 +637,8 @@ export function SolineBtpLanding({ appLoginUrl, registerUrl }: SolineBtpLandingP
                   ))}
                 </ol>
                 <p className="mt-4 text-sm leading-relaxed text-slate-700">
-                  Chaque abonnement comprend {FORMAL_NOTICES_INCLUDED_PER_MONTH} mise en demeure en recommandé
-                  avec accusé de réception par mois, affranchissement inclus. {FORMAL_NOTICE_OVERAGE_NOTICE}
+                  Mises en demeure en recommandé avec accusé de réception incluses par mois, affranchissement
+                  compris : {formalNoticesByPlanText()}. {FORMAL_NOTICE_OVERAGE_NOTICE}
                 </p>
               </div>
             </details>
@@ -657,8 +657,8 @@ export function SolineBtpLanding({ appLoginUrl, registerUrl }: SolineBtpLandingP
                 Tarifs
               </h2>
               <p className="mt-3 text-slate-700">
-                Devis, factures, chantiers et relances sont les mêmes dans les trois formules. La différence :
-                le secrétariat téléphonique Soline et le nombre d&apos;appels inclus.
+                Devis, factures et chantiers dans toutes les formules. Ce qui change : le volume de devis,
+                les relances automatiques, les recommandés inclus et le secrétariat téléphonique Soline.
               </p>
             </div>
 
@@ -685,6 +685,46 @@ export function SolineBtpLanding({ appLoginUrl, registerUrl }: SolineBtpLandingP
                     {SUBSCRIPTION_PLANS.map((plan) => (
                       <td key={plan.id} className="px-2.5 py-3 sm:px-4 tabular-nums">
                         {formatPriceHtEur(plan.priceMonthlyHtEur)} € HT
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th scope="row" className="px-2.5 py-3 sm:px-4 font-medium text-slate-900">
+                      Devis envoyés par mois
+                    </th>
+                    {SUBSCRIPTION_PLANS.map((plan) => (
+                      <td key={plan.id} className="px-2.5 py-3 sm:px-4 tabular-nums">
+                        {plan.quotesPerMonth === null ? "Illimités" : plan.quotesPerMonth}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th scope="row" className="px-2.5 py-3 sm:px-4 font-medium text-slate-900">
+                      Relances d&apos;impayés
+                    </th>
+                    {SUBSCRIPTION_PLANS.map((plan) => (
+                      <td key={plan.id} className="px-2.5 py-3 sm:px-4 tabular-nums">
+                        {plan.autoInvoiceReminders ? "Automatiques" : "En un clic"}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th scope="row" className="px-2.5 py-3 sm:px-4 font-medium text-slate-900">
+                      Mises en demeure LRAR incluses / mois
+                    </th>
+                    {SUBSCRIPTION_PLANS.map((plan) => (
+                      <td key={plan.id} className="px-2.5 py-3 sm:px-4 tabular-nums">
+                        {plan.formalNoticesIncluded > 0 ? plan.formalNoticesIncluded : "—"}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th scope="row" className="px-2.5 py-3 sm:px-4 font-medium text-slate-900">
+                      Utilisateurs
+                    </th>
+                    {SUBSCRIPTION_PLANS.map((plan) => (
+                      <td key={plan.id} className="px-2.5 py-3 sm:px-4 tabular-nums">
+                        {plan.usersIncluded}
                       </td>
                     ))}
                   </tr>

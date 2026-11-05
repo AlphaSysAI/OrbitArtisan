@@ -1,4 +1,5 @@
 import { recordInvoiceCheckoutPayment } from "@/lib/billing/invoice-collection";
+import { isSubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
@@ -146,11 +147,7 @@ export async function POST(request: Request) {
             typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id ?? null,
           stripeSubscriptionId: subscription.id,
           subscriptionPlan:
-            subscription.metadata?.plan_id === "base" ||
-            subscription.metadata?.plan_id === "pro" ||
-            subscription.metadata?.plan_id === "premium"
-              ? subscription.metadata.plan_id
-              : null,
+            isSubscriptionPlanId(subscription.metadata?.plan_id) ? subscription.metadata.plan_id : null,
           paymentStatus: subscription.status,
           payload: { status: subscription.status },
         });
@@ -225,11 +222,7 @@ export async function POST(request: Request) {
               stripeCustomerId:
                 typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id ?? null,
               subscriptionPlan:
-                subscription.metadata?.plan_id === "base" ||
-                subscription.metadata?.plan_id === "pro" ||
-                subscription.metadata?.plan_id === "premium"
-                  ? subscription.metadata.plan_id
-                  : null,
+                isSubscriptionPlanId(subscription.metadata?.plan_id) ? subscription.metadata.plan_id : null,
               amountTotalCents: invoice.amount_paid ?? null,
               currency: invoice.currency ?? null,
               paymentStatus: "paid",

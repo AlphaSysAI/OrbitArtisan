@@ -7,10 +7,10 @@ import { loadFacturXDocumentFromDb } from "@/lib/billing/facturx/load-from-db";
 import { renderInvoicePdf } from "@/lib/billing/facturx/render-invoice-pdf";
 import { loadQuotePdfDocument } from "@/lib/billing/load-quote-pdf";
 import { renderQuotePdf } from "@/lib/billing/render-quote-pdf";
-import { FORMAL_NOTICES_INCLUDED_PER_MONTH } from "@/lib/billing/subscription-plans";
 import {
   getFormalNoticeQuotaPeriod,
   resolveFormalNoticeQuota,
+  resolveFormalNoticesIncluded,
 } from "@/lib/recovery/formal-notice-quota";
 import { loadRecoveryContext, type RecoveryContext } from "@/lib/recovery/load-recovery-context";
 import { renderFormalNoticePdf } from "@/lib/recovery/render-formal-notice-pdf";
@@ -276,7 +276,7 @@ async function reconcileQuotaBilling(
   const rank = franked.findIndex((row) => row.id === noticeId);
   if (rank < 0) return;
 
-  const shouldBill = rank >= FORMAL_NOTICES_INCLUDED_PER_MONTH;
+  const shouldBill = rank >= (await resolveFormalNoticesIncluded(admin, artisanId));
   const { error: updateError } = await admin
     .from("formal_notices")
     .update({ billed_to_artisan: shouldBill })

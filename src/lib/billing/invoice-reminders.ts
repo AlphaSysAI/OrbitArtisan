@@ -8,6 +8,10 @@ import { sendEmail } from "@/lib/email/send-email";
 import { getPublicSiteUrl } from "@/lib/site-url";
 import { formatDateFr } from "@/lib/format/date";
 import { formatCents } from "@/lib/format/money";
+import { findSubscriptionPlan } from "@/lib/billing/subscription-plans";
+
+/** Délai minimal entre deux relances manuelles d'une même facture. */
+export const MANUAL_REMINDER_COOLDOWN_HOURS = 24;
 
 const REMINDER_SCHEDULE_DAYS = [7, 14, 21, 30] as const;
 
@@ -54,11 +58,13 @@ export async function runInvoiceReminders(supabase: SupabaseClient): Promise<Rem
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("business_name, auto_reminder_enabled")
+      .select("business_name, auto_reminder_enabled, subscription_plan")
       .eq("id", inv.artisan_id)
       .maybeSingle();
 
     if (profile?.auto_reminder_enabled === false) continue;
+    // Essentiel : relances manuelles uniquement (bouton « Relancer »).
+    if (!findSubscriptionPlan(profile?.subscription_plan ?? "")?.autoInvoiceReminders) continue;
 
     const dueDate = new Date(inv.due_date);
     const daysOverdue = Math.floor((Date.now() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -129,13 +135,19 @@ export async function sendManualInvoiceReminder(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: inv } = await supabase
     .from("invoices")
-    .select("id, invoice_number, grand_total, invoice_type, finalized_at, due_date, customer_email, customer_name, reminder_count, status")
+    .select("id, invoice_number, grand_total, invoice_type, finalized_at, due_date, customer_email, customer_name, reminder_count, last_reminder_at, status")
     .eq("id", invoiceId)
     .eq("artisan_id", artisanId)
     .maybeSingle();
 
   if (!inv) return { ok: false, error: "not_found" };
   if (!inv.customer_email) return { ok: false, error: "no_email" };
+  if (
+    inv.last_reminder_at &&
+    Date.now() - new Date(inv.last_reminder_at).getTime() < MANUAL_REMINDER_COOLDOWN_HOURS * 3_600_000
+  ) {
+    return { ok: false, error: "too_soon" };
+  }
   const amount = await loadCollectibleAmount(supabase, inv).catch(() => null);
   if (amount === null) return { ok: false, error: "invalid_status" };
 

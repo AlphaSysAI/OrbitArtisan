@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { sendManualInvoiceReminder } from "@/app/app/invoices/reminder-actions";
 import { Button } from "@/components/ui/button";
 
-export function InvoiceReminderButton({ invoiceId }: { invoiceId: string }) {
+export function InvoiceReminderButton({ invoiceId, label = "Relancer le client" }: { invoiceId: string; label?: string }) {
   const [pending, setPending] = React.useState(false);
 
   async function handleClick() {
@@ -17,7 +17,9 @@ export function InvoiceReminderButton({ invoiceId }: { invoiceId: string }) {
       toast.error(
         res.error === "no_email"
           ? "Aucun email client sur cette facture."
-          : "Impossible d'envoyer la relance.",
+          : res.error === "too_soon"
+            ? "Une relance est déjà partie il y a moins de 24 h. Réessayez demain."
+            : "Impossible d'envoyer la relance.",
       );
       return;
     }
@@ -26,7 +28,7 @@ export function InvoiceReminderButton({ invoiceId }: { invoiceId: string }) {
 
   return (
     <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => void handleClick()}>
-      {pending ? "Envoi…" : "Relancer le client"}
+      {pending ? "Envoi…" : label}
     </Button>
   );
 }

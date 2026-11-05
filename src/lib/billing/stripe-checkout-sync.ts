@@ -9,7 +9,7 @@ import {
 } from "@/lib/billing/stripe-billing-events";
 import { syncProfileFromStripeSubscription } from "@/lib/billing/stripe-subscription-sync";
 import { markPromoEnrollmentActive } from "@/lib/billing/promo-enrollment";
-import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { isSubscriptionPlanId, type BillingInterval, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import {
   resolvePlanFromPaymentLinkUrl,
 } from "@/lib/stripe/subscription-payment-links";
@@ -18,7 +18,7 @@ import { resolvePlanFromPriceId, subscriptionPriceId } from "@/lib/stripe/subscr
 
 function resolvePlanIdFromMetadata(metadata: Stripe.Metadata | null | undefined): SubscriptionPlanId | null {
   const plan = metadata?.plan_id?.trim();
-  if (plan === "base" || plan === "pro" || plan === "premium") return plan;
+  if (isSubscriptionPlanId(plan)) return plan;
   return null;
 }
 

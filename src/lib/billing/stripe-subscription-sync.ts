@@ -3,7 +3,7 @@ import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { isSubscriptionPlanId, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 import type { SubscriptionStatus } from "@/lib/billing/subscription-access";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/server";
 import { resolvePlanFromPriceId, subscriptionPriceId } from "@/lib/stripe/subscription-prices";
@@ -35,7 +35,7 @@ function mapStripeSubscriptionStatus(status: Stripe.Subscription.Status): Subscr
 
 function resolvePlanId(metadata: Stripe.Metadata | null | undefined): SubscriptionPlanId | null {
   const plan = metadata?.plan_id?.trim();
-  if (plan === "base" || plan === "pro" || plan === "premium") return plan;
+  if (isSubscriptionPlanId(plan)) return plan;
   return null;
 }
 
@@ -129,7 +129,7 @@ export async function syncProfileFromStripeSubscription(
       .eq("id", profileId)
       .maybeSingle();
     const stored = profileRow?.subscription_plan?.trim();
-    if (stored === "base" || stored === "pro" || stored === "premium") {
+    if (isSubscriptionPlanId(stored)) {
       effectivePlanId = stored;
     }
   }

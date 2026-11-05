@@ -7,7 +7,7 @@ import { TRIAL_DURATION_DAYS } from "@/lib/billing/subscription-access";
 import {
   formatPriceHtEur,
   formatCentsHtEur,
-  FORMAL_NOTICES_INCLUDED_PER_MONTH,
+  formalNoticesByPlanText,
   SOLINE_BILLABLE_CALL_MIN_SECONDS,
   SOLINE_CALL_MAX_DURATION_SECONDS,
   SOLINE_TRIAL_CALLS_INCLUDED,
@@ -85,11 +85,8 @@ export default function CgvPage() {
           information préalable de l&apos;Artisan dans les conditions de l&apos;article 10.
         </p>
         <p>
-          Chaque formule comprend l&apos;envoi de{" "}
-          <strong>
-            {FORMAL_NOTICES_INCLUDED_PER_MONTH} mise en demeure par lettre recommandée avec accusé de réception
-            par mois civil
-          </strong>
+          Mises en demeure par lettre recommandée avec accusé de réception incluses{" "}
+          <strong>par mois civil : {formalNoticesByPlanText()}</strong>
           , affranchissement inclus, non reportable. Au-delà, les frais d&apos;affranchissement sont refacturés à
           l&apos;Artisan au tarif postal en vigueur, sans marge, et seulement après son acceptation expresse du
           surcoût avant chaque envoi.

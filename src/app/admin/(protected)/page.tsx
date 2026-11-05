@@ -152,7 +152,7 @@ export default async function AdminOverviewPage() {
           <Stat
             label="Abonnés payants"
             value={String(m.paying.total)}
-            hint={`Essentiel ${m.paying.byPlan.base} · Pro ${m.paying.byPlan.pro} · Premium ${m.paying.byPlan.premium}`}
+            hint={`Essentiel ${m.paying.byPlan.base} · Pro ${m.paying.byPlan.pro} · Premium ${m.paying.byPlan.premium} · Ultra ${m.paying.byPlan.ultra}`}
           />
           <Stat label="MRR estimé" value={formatCents(m.mrrCents)} hint="Prix catalogue HT (annuel ÷ 12), hors remises et dépassements" />
           <Stat label="Essais en cours" value={String(m.trialing)} hint={`${m.trialsEndingIn7Days} se terminent sous 7 j`} />

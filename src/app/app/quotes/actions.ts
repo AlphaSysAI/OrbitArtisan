@@ -13,6 +13,7 @@ import { validateQuoteLegalProfile, type QuoteLegalValidation } from "@/lib/bill
 import { sendQuotePdfInConversation } from "@/lib/quotes/send-quote-pdf";
 import { validateQuoteBeforeSend } from "@/lib/quotes/validate-quote-before-send";
 import { normalizeMaterialUnit } from "@/lib/quotes/material-unit";
+import { isQuoteLimitDbError, resolveQuoteSendQuota } from "@/lib/quotes/quote-send-quota";
 
 const PROFILE_LEGAL_COLUMNS = [
   "business_name",
@@ -91,6 +92,7 @@ type QuoteInputError =
         | "invalid_conversation"
         | "missing_customer";
     }
+  | { ok: false; error: "quote_limit_reached"; limit: number | null }
   | { ok: false; error: "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation };
 
 type ResolvedQuoteInput = {
@@ -280,6 +282,8 @@ async function resolveQuoteInput(
     if (!customerName?.trim() && !customerEmail?.trim()) {
       return { ok: false, error: "missing_customer" };
     }
+    const quota = await resolveQuoteSendQuota(ctx.supabase, ctx.profileId);
+    if (quota.reached) return { ok: false, error: "quote_limit_reached", limit: quota.limit };
     const legalCheck = validateQuoteLegalProfile({
       business_name: profile.business_name as string | null,
       siren: profile.siren as string | null,
@@ -482,6 +486,10 @@ export async function createQuote(formData: FormData) {
     retraction_waived: d.retractionWaived,
     valid_until: d.validUntil,
   }, d);
+  if (isQuoteLimitDbError(quoteErr)) {
+    // Course entre deux envois : la base a refusé, le devis n'a pas été créé.
+    return { ok: false as const, error: "quote_limit_reached" as const, limit: null };
+  }
   if (quoteErr || typeof quoteId !== "string") {
     return { ok: false as const, error: "create_failed" as const };
   }
@@ -574,6 +582,9 @@ export async function updateQuote(quoteId: string, formData: FormData) {
     retraction_waived: d.retractionWaived,
     valid_until: d.validUntil,
   }, d);
+  if (isQuoteLimitDbError(updateErr)) {
+    return { ok: false as const, error: "quote_limit_reached" as const, limit: null };
+  }
   if (updateErr) {
     return { ok: false as const, error: "update_failed" as const };
   }
@@ -640,6 +651,7 @@ export async function deleteQuote(quoteId: string) {
 type SendDraftQuoteResult =
   | { ok: true; emailSent: boolean; notifyFailed: boolean }
   | { ok: false; error: "auth" | "missing_profile" | "not_found" | "not_draft" | "no_email" | "update_failed" }
+  | { ok: false; error: "quote_limit_reached"; limit: number | null }
   | { ok: false; error: "quote_pdf_profile_incomplete"; validation: QuoteLegalValidation };
 
 /**
@@ -685,12 +697,18 @@ export async function sendDraftQuote(quoteId: string): Promise<SendDraftQuoteRes
     return { ok: false, error: "quote_pdf_profile_incomplete", validation: legalCheck.validation };
   }
 
+  const quota = await resolveQuoteSendQuota(supabase, profileId);
+  if (quota.reached) return { ok: false, error: "quote_limit_reached", limit: quota.limit };
+
   const { data: updated, error: sendError } = await supabase.rpc("send_quote_document", {
     p_quote_id: quoteId,
     p_artisan_id: profileId,
     p_expected_updated_at: quote.updated_at,
   });
 
+  if (isQuoteLimitDbError(sendError)) {
+    return { ok: false, error: "quote_limit_reached", limit: quota.limit };
+  }
   if (sendError || !updated) {
     return { ok: false, error: "not_draft" };
   }

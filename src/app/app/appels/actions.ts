@@ -100,6 +100,8 @@ export async function validateVoiceIntakeQuote(
       invalid_services: "Prestations invalides — édite le devis.",
       invalid_duration: "Durée de main-d'œuvre invalide — édite le devis.",
       invalid_materials: "Matériaux invalides — édite le devis.",
+      quote_limit_reached:
+        "Limite de devis envoyés atteinte ce mois-ci avec votre formule. Passez à la formule supérieure dans Réglages → Abonnement.",
     };
     return {
       ok: false,

@@ -53,7 +53,7 @@ export function SubscriptionPlanButton({
           "w-full",
           plan.popular
             ? "border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
-            : plan.id === "premium"
+            : plan.id === "premium" || plan.id === "ultra"
               ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
               : undefined,
         )}

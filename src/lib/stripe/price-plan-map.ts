@@ -1,8 +1,8 @@
-import type { BillingInterval, SubscriptionPlanId } from "@/lib/billing/subscription-plans";
+import { SUBSCRIPTION_PLAN_IDS, type BillingInterval, type SubscriptionPlanId } from "@/lib/billing/subscription-plans";
 
 export type PlanMatch = { planId: SubscriptionPlanId; interval: BillingInterval };
 
-const PLANS: SubscriptionPlanId[] = ["base", "pro", "premium"];
+const PLANS: readonly SubscriptionPlanId[] = SUBSCRIPTION_PLAN_IDS;
 const INTERVALS: BillingInterval[] = ["monthly", "annual"];
 
 /** Formule d'un prix Stripe d'après les variables `STRIPE_PRICE_<PLAN>_<INTERVAL>`. */

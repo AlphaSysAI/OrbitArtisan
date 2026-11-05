@@ -1,6 +1,9 @@
 /** Grille tarifaire Soline — source unique pour landing, CGV/CGU, quota vocal et billing. */
 
-export type SubscriptionPlanId = "base" | "pro" | "premium";
+export type SubscriptionPlanId = "base" | "pro" | "premium" | "ultra";
+
+/** Toutes les formules, de la moins chère à la plus chère. */
+export const SUBSCRIPTION_PLAN_IDS = ["base", "pro", "premium", "ultra"] as const satisfies readonly SubscriptionPlanId[];
 export type BillingInterval = "monthly" | "annual";
 
 export type SubscriptionPlan = {
@@ -14,6 +17,12 @@ export type SubscriptionPlan = {
   solineOverageCallCents: number;
   /** Mises en demeure LRAR incluses par mois (affranchissement offert). */
   formalNoticesIncluded: number;
+  /** Devis envoyés par mois civil (null = illimité). */
+  quotesPerMonth: number | null;
+  /** Relances d'impayés envoyées automatiquement (sinon : bouton « Relancer »). */
+  autoInvoiceReminders: boolean;
+  /** Utilisateurs pouvant se connecter au compte (titulaire compris). */
+  usersIncluded: number;
   description: string;
   features: string[];
   popular?: boolean;
@@ -34,25 +43,13 @@ export const SOLINE_DEFAULT_OVERAGE_CAP_CENTS = 3000;
 export const SOLINE_TRIAL_CALLS_INCLUDED = 10;
 
 /**
- * LRAR offertes par mois civil, identique sur tous les plans.
- * Le quota non consommé n'est pas reportable au mois suivant.
- */
-export const FORMAL_NOTICES_INCLUDED_PER_MONTH = 1;
-
-/**
  * Au-delà du quota mensuel, l'affranchissement du recommandé est refacturé à
  * l'artisan : Soline ne marge pas sur le tarif postal.
  */
 export const FORMAL_NOTICE_OVERAGE_NOTICE =
   "Au-delà, chaque recommandé est refacturé au tarif La Poste en vigueur, sans marge.";
 
-const SHARED_SAAS_FEATURES = [
-  "Tout le SaaS BTP (devis, factures, RDV, chantiers…)",
-  "Devis illimités",
-  "Relances automatiques et recouvrement d'impayés",
-  "1 mise en demeure LRAR incluse / mois (non cumulable)",
-  "1 utilisateur",
-] as const;
+const SAAS_FEATURE = "Tout le SaaS BTP (devis, factures, RDV, chantiers…)";
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
@@ -62,9 +59,19 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     priceAnnualHtEur: 490,
     solineCallsIncluded: 0,
     solineOverageCallCents: 0,
-    formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,
+    formalNoticesIncluded: 0,
+    quotesPerMonth: 50,
+    autoInvoiceReminders: false,
+    usersIncluded: 1,
     description: "Tout le SaaS BTP pour gérer votre activité au quotidien.",
-    features: [...SHARED_SAAS_FEATURES, "Sans secrétaire vocale Soline"],
+    features: [
+      SAAS_FEATURE,
+      "50 devis envoyés / mois",
+      "Relances d'impayés en un clic",
+      "Mise en demeure LRAR au tarif La Poste",
+      "1 utilisateur",
+      "Sans secrétaire vocale Soline",
+    ],
   },
   {
     id: "pro",
@@ -73,10 +80,17 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     priceAnnualHtEur: 1390,
     solineCallsIncluded: 40,
     solineOverageCallCents: 120,
-    formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,
+    formalNoticesIncluded: 1,
+    quotesPerMonth: 100,
+    autoInvoiceReminders: true,
+    usersIncluded: 1,
     description: "Le plan Essentiel avec Soline, votre secrétaire vocale IA.",
     features: [
-      ...SHARED_SAAS_FEATURES,
+      SAAS_FEATURE,
+      "100 devis envoyés / mois",
+      "Relances automatiques et recouvrement d'impayés",
+      "1 mise en demeure LRAR incluse / mois (non cumulable)",
+      "1 utilisateur",
       "Soline — secrétaire vocale IA",
       "40 appels inclus / mois",
       "Prise de RDV sur vos plages de visite (vous validez)",
@@ -91,17 +105,70 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     priceAnnualHtEur: 1990,
     solineCallsIncluded: 100,
     solineOverageCallCents: 90,
-    formalNoticesIncluded: FORMAL_NOTICES_INCLUDED_PER_MONTH,
+    formalNoticesIncluded: 3,
+    quotesPerMonth: 200,
+    autoInvoiceReminders: true,
+    usersIncluded: 1,
     description: "Le plan Pro pour les artisans très sollicités au téléphone.",
     features: [
-      ...SHARED_SAAS_FEATURES,
+      SAAS_FEATURE,
+      "200 devis envoyés / mois",
+      "Relances automatiques et recouvrement d'impayés",
+      "3 mises en demeure LRAR incluses / mois (non cumulables)",
+      "1 utilisateur",
       "Soline — secrétaire vocale IA",
       "100 appels inclus / mois",
       "Prise de RDV sur vos plages de visite (vous validez)",
       "Au-delà : 0,90 € HT / appel, sans coupure",
     ],
   },
+  {
+    id: "ultra",
+    name: "Ultra",
+    priceMonthlyHtEur: 399,
+    priceAnnualHtEur: 3990,
+    solineCallsIncluded: 250,
+    solineOverageCallCents: 80,
+    formalNoticesIncluded: 7,
+    quotesPerMonth: null,
+    autoInvoiceReminders: true,
+    usersIncluded: 2,
+    description: "Pour les entreprises en pleine croissance : plus d'appels, plus d'utilisateurs.",
+    features: [
+      SAAS_FEATURE,
+      "Devis illimités",
+      "Relances automatiques et recouvrement d'impayés",
+      "7 mises en demeure LRAR incluses / mois (non cumulables)",
+      "2 utilisateurs",
+      "Soline — secrétaire vocale IA",
+      "250 appels inclus / mois",
+      "Prise de RDV sur vos plages de visite (vous validez)",
+      "Au-delà : 0,80 € HT / appel, sans coupure",
+      "Accès prioritaire aux nouveautés IA",
+    ],
+  },
 ];
+
+/** Formules avec la secrétaire vocale Soline (pour les requêtes). */
+export const VOICE_PLAN_IDS: SubscriptionPlanId[] = ["pro", "premium", "ultra"];
+
+/** Formules avec la secrétaire vocale Soline. */
+export function planHasVoice(planId: string | null | undefined): boolean {
+  return (findSubscriptionPlan(planId ?? "")?.solineCallsIncluded ?? 0) > 0;
+}
+
+/** « aucune en Essentiel, 1 en Pro, 3 en Premium et 7 en Ultra » */
+export function formalNoticesByPlanText(): string {
+  const parts = SUBSCRIPTION_PLANS.map((plan) =>
+    `${plan.formalNoticesIncluded === 0 ? "aucune" : plan.formalNoticesIncluded} en ${plan.name}`,
+  );
+  return `${parts.slice(0, -1).join(", ")} et ${parts[parts.length - 1]}`;
+}
+
+/** LRAR incluses par mois pour une formule (0 si inconnue). */
+export function getPlanFormalNoticesIncluded(planId: string | null | undefined): number {
+  return findSubscriptionPlan(planId ?? "")?.formalNoticesIncluded ?? 0;
+}
 
 export function formatPriceHtEur(amount: number): string {
   return amount.toLocaleString("fr-FR", {
@@ -145,5 +212,5 @@ export function findSubscriptionPlan(planId: string): SubscriptionPlan | undefin
 }
 
 export function isSubscriptionPlanId(value: string | null | undefined): value is SubscriptionPlanId {
-  return value === "base" || value === "pro" || value === "premium";
+  return (SUBSCRIPTION_PLAN_IDS as readonly string[]).includes(value ?? "");
 }

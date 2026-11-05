@@ -9,7 +9,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import {
   formatPriceHtEur,
   FORMAL_NOTICE_OVERAGE_NOTICE,
-  FORMAL_NOTICES_INCLUDED_PER_MONTH,
+  formalNoticesByPlanText,
   getPlanAnnualSavingsPercent,
   SUBSCRIPTION_PLANS,
   type BillingInterval,
@@ -40,7 +40,7 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
         <BillingIntervalToggle value={interval} onChange={setInterval} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {SUBSCRIPTION_PLANS.map((plan) => {
           const price =
             interval === "annual" ? plan.priceAnnualHtEur : plan.priceMonthlyHtEur;
@@ -53,7 +53,7 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
               key={plan.id}
               className={cn(
                 "relative flex flex-col rounded-2xl border bg-card p-6 shadow-sm",
-                props.variant === "landing" && "rounded-3xl bg-white sm:p-8",
+                props.variant === "landing" && "rounded-3xl bg-white",
                 plan.popular
                   ? props.variant === "landing"
                     ? "border-2 border-orange-400 shadow-lg shadow-orange-500/10"
@@ -174,8 +174,8 @@ export function SubscriptionPricingGrid(props: SubscriptionPricingGridProps) {
         )}
       >
         <Stamp className="mr-1.5 inline size-4 -translate-y-px opacity-70" />
-        {FORMAL_NOTICES_INCLUDED_PER_MONTH} mise en demeure en recommandé avec accusé de réception
-        incluse par mois sur chaque plan. {FORMAL_NOTICE_OVERAGE_NOTICE}
+        Mises en demeure en recommandé avec accusé de réception incluses par mois :{" "}
+        {formalNoticesByPlanText()}. {FORMAL_NOTICE_OVERAGE_NOTICE}
       </p>
     </div>
   );
