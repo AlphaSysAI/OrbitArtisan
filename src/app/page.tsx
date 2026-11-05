@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 import { SolineBtpLanding } from "@/components/landing/soline-btp-landing";
 import { getMarketingSiteUrl, getPublicSiteUrl } from "@/lib/site-url";
 
+// Adresse sans redirection (solinebtp.fr → www) : certains réseaux ne suivent pas les redirections.
+const SHARE_IMAGE_URL = `${getPublicSiteUrl()}/brand/soline-banner.jpg`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(getMarketingSiteUrl()),
   title: "Soline — Le secrétariat téléphonique des artisans du bâtiment",
@@ -17,7 +20,7 @@ export const metadata: Metadata = {
     locale: "fr_FR",
     images: [
       {
-        url: "/brand/soline-banner.jpg",
+        url: SHARE_IMAGE_URL,
         width: 1200,
         height: 675,
         alt: "SolineBTP — Vous êtes sur le chantier. Soline répond à vos clients.",
@@ -27,7 +30,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Sur le chantier, vous travaillez. Soline répond à vos clients.",
-    images: ["/brand/soline-banner.jpg"],
+    images: [SHARE_IMAGE_URL],
   },
 };
 
