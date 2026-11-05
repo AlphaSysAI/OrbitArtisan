@@ -13,6 +13,21 @@ export const metadata: Metadata = {
     description:
       "Secrétariat téléphonique pour artisans : vous gardez votre numéro, vous validez chaque rendez-vous. Devis, factures, suivi de chantier et relances inclus.",
     type: "website",
+    siteName: "SolineBTP",
+    locale: "fr_FR",
+    images: [
+      {
+        url: "/brand/soline-banner.jpg",
+        width: 1200,
+        height: 675,
+        alt: "SolineBTP — Vous êtes sur le chantier. Soline répond à vos clients.",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sur le chantier, vous travaillez. Soline répond à vos clients.",
+    images: ["/brand/soline-banner.jpg"],
   },
 };
 
