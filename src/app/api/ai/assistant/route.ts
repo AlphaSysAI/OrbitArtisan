@@ -1,5 +1,6 @@
 import { withAiRequestBudget } from "@/lib/ai/request-budget";
 import { consumeRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { answerTechnicalSheetRequest } from "@/lib/technical-sheets/assistant-sheet-answer";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 
@@ -533,6 +534,13 @@ async function handleAssistant(request: Request) {
         ),
       );
     }
+  }
+
+  // Fiche technique demandée (« comment je raccorde un tableau électrique ? »),
+  // sauf pendant un questionnaire devis en cours.
+  if (!parseQuoteIntakeFromBody(body)) {
+    const sheetAnswer = await answerTechnicalSheetRequest(supabase, message, profile);
+    if (sheetAnswer) return NextResponse.json(sheetAnswer);
   }
 
   const defaultSuggestions = [
