@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   findSheetsForQuestion,
   looksLikeTechnicalSheetRequest,
+  looksLikeWorksiteSituation,
   sheetQueryTopic,
 } from "@/lib/technical-sheets/assistant-sheet-lookup";
 
@@ -57,5 +58,25 @@ describe("retrouver la bonne fiche", () => {
 
   it("extrait le sujet pour la recherche", () => {
     expect(sheetQueryTopic("Montre-moi la fiche pour poser une fenêtre de toit")).toBe("poser fenetre toit");
+  });
+});
+
+describe("situation de chantier décrite sans demander de fiche", () => {
+  it.each([
+    "j'ai une fuite à côté du tableau, je fais quoi ?",
+    "le disjoncteur saute quand il pleut, que faire ?",
+    "la peinture cloque au plafond, comment réparer ?",
+    "mon carrelage sonne creux ?",
+  ])("« %s »", (message) => {
+    expect(looksLikeWorksiteSituation(message)).toBe(true);
+  });
+
+  it.each([
+    "mon client ne répond pas, je fais quoi ?",
+    "comment je fais pour inviter quelqu'un sur mon compte ?",
+    "j'ai un devis refusé, que faire ?",
+    "ouvre mes RDV de demain",
+  ])("ignore « %s »", (message) => {
+    expect(looksLikeWorksiteSituation(message)).toBe(false);
   });
 });

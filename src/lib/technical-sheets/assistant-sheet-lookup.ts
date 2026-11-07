@@ -23,10 +23,33 @@ const STOP_WORDS = new Set(
   ).split(" "),
 );
 
+function foldMessage(message: string): string {
+  return foldSearchText(message).replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ");
+}
+
+/** Le message parle de l'app (devis, factures, clients, RDV…) plutôt que du chantier. */
+const APP_TOPIC = /\b(devis|facture|chiffr|abonnement|client|rdv|rendez|agenda|inviter|invitation|compte|mot de passe|appli|application|soline|reglage|parametre)/;
+
+/** Demande explicite de fiche ou de méthode : l'assistant répond toujours (fiche ou « pas de fiche »). */
 export function looksLikeTechnicalSheetRequest(message: string): boolean {
-  const m = foldSearchText(message).replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ");
+  const m = foldMessage(message);
   if (/\b(devis|facture|chiffr)/.test(m)) return false;
   return SHEET_WORD.test(m) || HOW_TO.test(m);
+}
+
+const PROBLEM_QUESTION =
+  /\b((je|on) (fais|fait|dois faire) quoi|que (dois je |faut il )?faire|qu est ce (que|qu) (je|on) (fais|fait|doit)|comment (je|on) (fais|fait|m y prends|s y prend|proc[e]de)|comment (reparer|regler|traiter|resoudre|eviter|proceder))\b/;
+const PROBLEM_WORDS =
+  /\b(fuite|fuit|panne|probleme|souci|saute|disjoncte|ne marche|ne fonctionne|humidite|moisissure|fissure|cloque|decolle|sonne creux|bouche|odeur|condensation|rouille|calcaire|froid|bruit)\b/;
+
+/**
+ * Situation de chantier décrite sans demander de fiche (« j'ai une fuite à côté du tableau,
+ * je fais quoi ? »). Signal faible : l'assistant ne répond que si une fiche correspond.
+ */
+export function looksLikeWorksiteSituation(message: string): boolean {
+  const m = foldMessage(message);
+  if (APP_TOPIC.test(m)) return false;
+  return PROBLEM_QUESTION.test(m) || (PROBLEM_WORDS.test(m) && /\?\s*$/.test(message.trim()));
 }
 
 /** Racine courte : « raccorder » trouve « raccordement », « poser » trouve « pose ». */
