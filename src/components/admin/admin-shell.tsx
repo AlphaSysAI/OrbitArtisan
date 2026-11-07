@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  NotebookText,
   Phone,
   Shield,
   X,
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/admin/conciergerie", label: "Conciergerie", icon: Handshake, match: (p: string) => p.startsWith("/admin/conciergerie") },
   { href: "/admin/apporteurs", label: "Apporteurs", icon: Briefcase, match: (p: string) => p.startsWith("/admin/apporteurs") },
   { href: "/admin/telecom/pool", label: "Numéros Soline", icon: Phone, match: (p: string) => p.startsWith("/admin/telecom") },
+  { href: "/admin/fiches", label: "Fiches techniques", icon: NotebookText, match: (p: string) => p.startsWith("/admin/fiches") },
   { href: "/admin/logs", label: "Journal", icon: ClipboardList, match: (p: string) => p.startsWith("/admin/logs") },
 ];
 

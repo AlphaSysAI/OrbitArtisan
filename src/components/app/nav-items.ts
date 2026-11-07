@@ -10,6 +10,7 @@ import {
   Truck,
   Users,
   ClipboardList,
+  NotebookText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -74,6 +75,7 @@ export const APP_NAV_MORE: AppNavItem[] = [
   },
   { href: "/app/chantiers", label: "Chantiers", shortLabel: "Chantiers", icon: Hammer, exact: false },
   { href: "/app/ouvrages", label: "Ouvrages", shortLabel: "Ouvrages", icon: BookOpen, exact: false },
+  { href: "/app/fiches", label: "Fiches techniques", shortLabel: "Fiches", icon: NotebookText, exact: false },
   { href: "/app/interventions", label: "Interventions", shortLabel: "BI", icon: ClipboardList, exact: false },
   { href: "/app/fournisseurs", label: "Fournisseurs", shortLabel: "Fourn.", icon: Truck, exact: false },
   { href: "/app/reglages", label: "Réglages", shortLabel: "Réglages", icon: Settings, exact: false },

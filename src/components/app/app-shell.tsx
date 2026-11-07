@@ -17,15 +17,22 @@ export function AppShell({
   return (
     <NotificationProvider>
     <div className="app-grain min-h-svh bg-background">
-      <AppHeader isPlatformAdmin={isPlatformAdmin} />
+      {/* Chrome masqué à l'impression (fiches techniques, documents). */}
+      <div className="contents print:hidden">
+        <AppHeader isPlatformAdmin={isPlatformAdmin} />
+      </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10 lg:pb-10">
-        <PushNotificationsBanner />
+        <div className="contents print:hidden">
+          <PushNotificationsBanner />
+        </div>
         <main className="min-w-0">{children}</main>
       </div>
 
-      <AppMobileBottomNav isPlatformAdmin={isPlatformAdmin} />
-      <ArtisanAssistantLazy locked={assistantLocked} />
+      <div className="contents print:hidden">
+        <AppMobileBottomNav isPlatformAdmin={isPlatformAdmin} />
+        <ArtisanAssistantLazy locked={assistantLocked} />
+      </div>
     </div>
     </NotificationProvider>
   );
