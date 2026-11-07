@@ -6,15 +6,16 @@ import { listAccountAiSheets, loadSheetReviews } from "@/lib/technical-sheets/da
 import { TECHNICAL_SHEET_LIBRARY } from "@/lib/technical-sheets/library";
 import { sheetTextSegments } from "@/lib/technical-sheets/sheet-search";
 import { libraryTrust } from "@/lib/technical-sheets/trust";
-import { findTrade } from "@/lib/trades/taxonomy";
+import { findTrade, TRADE_CATEGORIES } from "@/lib/trades/taxonomy";
 
 /** La génération IA d'une fiche (server action de cette page) peut prendre près d'une minute. */
 export const maxDuration = 60;
 
 export const metadata = { title: "Fiches techniques" };
 
-export default async function TechnicalSheetsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const initialQuery = String((await searchParams).q ?? "").slice(0, 120);
+export default async function TechnicalSheetsPage({ searchParams }: { searchParams: Promise<{ q?: string; metier?: string }> }) {
+  const params = await searchParams;
+  const initialQuery = String(params.q ?? "").slice(0, 120);
   const { supabase, profileId, profile } = await requireArtisanProfileIdOrRedirect(["trade_category", "trade"]);
   const tradeCategoryId = (profile.trade_category as string | null) ?? null;
   const tradeId = (profile.trade as string | null) ?? null;
@@ -29,6 +30,7 @@ export default async function TechnicalSheetsPage({ searchParams }: { searchPara
         id: sheet.id,
         title: sheet.title,
         summary: sheet.summary,
+        familyId: sheet.tradeCategoryId,
         tradesLabel: sheetTradesLabel(sheet),
         segments: sheetTextSegments(sheet),
         mine: sheetMatchesTrade(sheet, tradeCategoryId, tradeId),
@@ -48,6 +50,12 @@ export default async function TechnicalSheetsPage({ searchParams }: { searchPara
         initialQuery={initialQuery}
         sheets={sheets}
         aiSheets={aiSheets}
+        families={TRADE_CATEGORIES.filter((c) => c.id !== "autre").map((c) => ({
+          id: c.id,
+          label: c.label,
+          count: sheets.filter((sheet) => sheet.familyId === c.id).length,
+        }))}
+        initialFamilyId={params.metier ?? null}
         tradeLabel={findTrade(tradeCategoryId, tradeId)?.label ?? null}
       />
     </div>
