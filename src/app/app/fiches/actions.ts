@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { requireArtisanProfileId } from "@/lib/auth/require-artisan";
 import { consumeRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sheetMatchesTrade } from "@/lib/technical-sheets/catalog";
+import { loadSheetReviews } from "@/lib/technical-sheets/data";
 import { generateTechnicalSheet } from "@/lib/technical-sheets/generate-sheet";
+import { TECHNICAL_SHEET_LIBRARY } from "@/lib/technical-sheets/library";
+import { smartSearchSheets, type SmartSearchMatch } from "@/lib/technical-sheets/smart-search";
 import { formatTradeLabel } from "@/lib/trades/taxonomy";
 
 export type GenerateSheetActionResult =
@@ -72,4 +76,37 @@ export async function deleteAiSheetAction(id: string): Promise<{ ok: boolean }> 
   if (error) return { ok: false };
   revalidatePath("/app/fiches");
   return { ok: true };
+}
+
+export type SmartSearchActionResult = { ok: true; matches: SmartSearchMatch[] } | { ok: false; error: "auth" | "rate_limited" | "failed" };
+
+/**
+ * Recherche qui comprend la demande, limitée au métier affiché :
+ * `familyId` = famille choisie via « Autres métiers », null = métier de l'artisan.
+ */
+export async function smartSearchSheetsAction(rawQuery: string, familyId: string | null): Promise<SmartSearchActionResult> {
+  const query = String(rawQuery ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+  if (query.length < 3) return { ok: true, matches: [] };
+
+  const auth = await requireArtisanProfileId(["trade_category", "trade"]);
+  if (!auth.ok) return { ok: false, error: "auth" };
+  if (!(await consumeRateLimit(RATE_LIMITS.technicalSheetSearch, `profile:${auth.profileId}`))) {
+    return { ok: false, error: "rate_limited" };
+  }
+
+  const reviews = await loadSheetReviews(auth.supabase);
+  const tradeCategoryId = (auth.profile.trade_category as string | null) ?? null;
+  const tradeId = (auth.profile.trade as string | null) ?? null;
+  const scope = TECHNICAL_SHEET_LIBRARY.filter(
+    (sheet) =>
+      reviews.get(sheet.id)?.status !== "needs_changes" &&
+      (familyId ? sheet.tradeCategoryId === familyId : sheetMatchesTrade(sheet, tradeCategoryId, tradeId)),
+  );
+
+  try {
+    return { ok: true, matches: await smartSearchSheets(query, scope) };
+  } catch (error) {
+    console.error("[technical-sheets] smart search", error instanceof Error ? error.message : error);
+    return { ok: false, error: "failed" };
+  }
 }

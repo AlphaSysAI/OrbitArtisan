@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowLeft, ChevronRight, LayoutGrid, Loader2, Search, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, LayoutGrid, Lightbulb, Loader2, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
-import { generateTechnicalSheetAction } from "@/app/app/fiches/actions";
+import { generateTechnicalSheetAction, smartSearchSheetsAction } from "@/app/app/fiches/actions";
 import { GenerateSheetForm } from "@/components/technical-sheets/sheet-actions";
 import { SheetTrustBadge, type SheetTrust } from "@/components/technical-sheets/sheet-view";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,11 @@ type Scope = { kind: "mine" } | { kind: "families" } | { kind: "family"; id: str
 
 type Hit<T> = { item: T; hit: SheetSearchHit };
 
+type SmartState =
+  | { status: "loading" }
+  | { status: "done"; matches: { id: string; reason: string }[] }
+  | { status: "error"; rateLimited: boolean };
+
 function Highlighted({ text, terms }: { text: string; terms: string[] }) {
   return (
     <>
@@ -52,7 +57,18 @@ function Highlighted({ text, terms }: { text: string; terms: string[] }) {
   );
 }
 
-function SheetCard({ sheet, hit, terms }: { sheet: SheetListItem; hit?: SheetSearchHit; terms: string[] }) {
+function SheetCard({
+  sheet,
+  hit,
+  terms,
+  reason,
+}: {
+  sheet: SheetListItem;
+  hit?: SheetSearchHit;
+  terms: string[];
+  /** Pourquoi la recherche intelligente propose cette fiche. */
+  reason?: string;
+}) {
   return (
     <li>
       <Link
@@ -64,7 +80,12 @@ function SheetCard({ sheet, hit, terms }: { sheet: SheetListItem; hit?: SheetSea
           <p className="font-semibold leading-snug">
             <Highlighted text={sheet.title} terms={terms} />
           </p>
-          {hit?.excerpt ? (
+          {reason ? (
+            <p className="flex gap-1.5 text-sm text-foreground/80">
+              <Lightbulb className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+              <span>{reason}</span>
+            </p>
+          ) : hit?.excerpt ? (
             <p className="line-clamp-3 text-sm text-muted-foreground">
               … <Highlighted text={hit.excerpt} terms={terms} /> …
             </p>
@@ -133,6 +154,8 @@ export function SheetsBrowser({
     initialFamilyId && families.some((f) => f.id === initialFamilyId) ? { kind: "family", id: initialFamilyId } : { kind: "mine" },
   );
   const [generating, startGenerating] = React.useTransition();
+  /** Résultats de la recherche qui comprend la demande, par « métier|demande ». */
+  const [smart, setSmart] = React.useState<Record<string, SmartState>>({});
 
   function setScope(next: Scope) {
     setScopeState(next);
@@ -154,7 +177,37 @@ export function SheetsBrowser({
   const hits = searching ? bySearch(inScope, terms, (s) => ({ title: s.title, segments: s.segments })) : [];
   const aiHits =
     searching && scope.kind === "mine" ? bySearch(aiSheets, terms, (s) => ({ title: s.title, segments: [s.request] })) : [];
-  const nothingFound = searching && hits.length + aiHits.length === 0;
+
+  // Recherche qui comprend la demande : lancée quand l'artisan arrête de taper.
+  const familyKey = scope.kind === "family" ? scope.id : null;
+  const smartKey = `${familyKey ?? "mine"}|${query.trim().toLowerCase()}`;
+  const smartState = smart[smartKey];
+  const wantsSmart = scope.kind !== "families" && query.trim().length >= 4;
+  React.useEffect(() => {
+    if (!wantsSmart || smart[smartKey]) return;
+    const timer = window.setTimeout(async () => {
+      setSmart((prev) => ({ ...prev, [smartKey]: { status: "loading" } }));
+      const res = await smartSearchSheetsAction(query, familyKey);
+      setSmart((prev) => ({
+        ...prev,
+        [smartKey]: res.ok ? { status: "done", matches: res.matches } : { status: "error", rateLimited: res.error === "rate_limited" },
+      }));
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [wantsSmart, smartKey, smart, query, familyKey]);
+
+  const byId = new Map(inScope.map((sheet) => [sheet.id, sheet]));
+  const smartMatches =
+    smartState?.status === "done"
+      ? smartState.matches.flatMap((m) => {
+          const sheet = byId.get(m.id);
+          return sheet ? [{ sheet, reason: m.reason }] : [];
+        })
+      : [];
+  const smartIds = new Set(smartMatches.map((m) => m.sheet.id));
+  const keywordHits = hits.filter(({ item }) => !smartIds.has(item.id));
+  const smartPending = wantsSmart && (!smartState || smartState.status === "loading");
+  const nothingFound = searching && !smartPending && smartMatches.length + hits.length + aiHits.length === 0;
 
   function searchOutsideCatalog() {
     const request = query.trim();
@@ -187,10 +240,7 @@ export function SheetsBrowser({
           <form
             role="search"
             className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (nothingFound) searchOutsideCatalog();
-            }}
+            onSubmit={(event) => event.preventDefault()}
           >
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -198,7 +248,7 @@ export function SheetsBrowser({
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={scope.kind === "family" ? `Rechercher dans ${scopeLabel}…` : "Rechercher dans mes fiches…"}
+                placeholder={scope.kind === "family" ? `Un mot ou une situation (${scopeLabel})…` : "Un mot ou une situation : fuite près du tableau électrique…"}
                 className="h-11 pr-9 pl-9"
                 aria-label={`Rechercher dans les fiches : ${scopeLabel}`}
               />
@@ -269,13 +319,40 @@ export function SheetsBrowser({
       ) : searching ? (
         /* Résultats de recherche, limités au métier affiché */
         <div className="space-y-6">
-          {hits.length > 0 ? (
+          {smartPending ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" aria-hidden /> Je cherche les fiches qui correspondent à ta demande…
+            </p>
+          ) : null}
+
+          {smartMatches.length > 0 ? (
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold text-muted-foreground">
-                {hits.length} fiche{hits.length > 1 ? "s" : ""} · {scopeLabel}
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
+                <Lightbulb className="size-4 text-primary" aria-hidden /> Correspond à ta demande · {scopeLabel}
               </h2>
               <ul className="grid gap-3 md:grid-cols-2">
-                {hits.map(({ item, hit }) => (
+                {smartMatches.map(({ sheet, reason }) => (
+                  <SheetCard key={sheet.id} sheet={sheet} terms={[]} reason={reason} />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {smartState?.status === "error" ? (
+            <p className="text-xs text-muted-foreground">
+              {smartState.rateLimited
+                ? "Recherche intelligente en pause quelques minutes (trop de recherches) : résultats par mot ci-dessous."
+                : "Recherche intelligente indisponible pour le moment : résultats par mot ci-dessous."}
+            </p>
+          ) : null}
+
+          {keywordHits.length > 0 ? (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground">
+                {smartMatches.length > 0 ? "Contient aussi les mots cherchés" : `${keywordHits.length} fiche${keywordHits.length > 1 ? "s" : ""} · ${scopeLabel}`}
+              </h2>
+              <ul className="grid gap-3 md:grid-cols-2">
+                {keywordHits.map(({ item, hit }) => (
                   <SheetCard key={item.id} sheet={item} hit={hit} terms={terms} />
                 ))}
               </ul>
@@ -296,12 +373,12 @@ export function SheetsBrowser({
           {nothingFound ? (
             <div className="space-y-3 rounded-2xl border border-dashed p-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Aucune fiche « {scopeLabel} » ne contient « {query.trim()} ».
+                Aucune fiche « {scopeLabel} » ne correspond à « {query.trim()} ».
               </p>
               {outsideCatalogButton(true)}
               <p className="text-xs text-muted-foreground">La fiche rédigée sera marquée « non vérifiée ».</p>
             </div>
-          ) : (
+          ) : smartPending ? null : (
             <div className="flex flex-wrap items-center gap-3 border-t pt-4 text-sm text-muted-foreground">
               <span>Pas la bonne fiche ?</span>
               {outsideCatalogButton(false)}
