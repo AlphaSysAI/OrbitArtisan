@@ -7,6 +7,7 @@ import { writeAdminAuditLog } from "@/lib/admin/audit-log";
 import { getAdminDb } from "@/lib/admin/db";
 import { requirePlatformAdminSafe } from "@/lib/auth/platform-admin";
 import { getLibrarySheet } from "@/lib/technical-sheets/catalog";
+import { getClientSheet } from "@/lib/technical-sheets/client/library";
 
 async function guardAdmin() {
   const res = await requirePlatformAdminSafe();
@@ -34,7 +35,7 @@ export async function setSheetReviewAction(input: {
   note?: string;
 }): Promise<ReviewActionResult> {
   const { user, admin } = await guardAdmin();
-  if (!getLibrarySheet(input.sheetId)) return { ok: false, error: "Fiche inconnue." };
+  if (!getLibrarySheet(input.sheetId) && !getClientSheet(input.sheetId)) return { ok: false, error: "Fiche inconnue." };
 
   if (input.status === null) {
     const { error } = await admin.from("technical_sheet_reviews").delete().eq("sheet_id", input.sheetId);
@@ -62,5 +63,6 @@ export async function setSheetReviewAction(input: {
   });
   revalidatePath("/admin/fiches");
   revalidatePath("/app/fiches");
+  revalidatePath("/compte/depannage");
   return { ok: true };
 }

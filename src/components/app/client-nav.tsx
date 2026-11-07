@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Home, MapPin, MessageSquare, Receipt, Settings, Users } from "lucide-react";
+import { FileText, Home, LifeBuoy, MapPin, MessageSquare, Receipt, Settings, Sparkles, Users } from "lucide-react";
 
 import { NavBadge } from "@/components/notifications/nav-badge";
 import { useNotifications } from "@/components/notifications/notification-provider";
@@ -17,8 +17,10 @@ const items: {
   badgeKey?: NotificationBadgeKey;
 }[] = [
   { href: "/compte", label: "Accueil", icon: Home, exact: true },
-  { href: "/compte/recherche", label: "Trouver un artisan", icon: MapPin, exact: false },
+  { href: "/compte/assistant", label: "Assistant", icon: Sparkles, exact: false },
+  { href: "/compte/depannage", label: "Dépannage", icon: LifeBuoy, exact: false },
   { href: "/compte/contacts", label: "Mes artisans", icon: Users, exact: false },
+  { href: "/compte/recherche", label: "Trouver un artisan", icon: MapPin, exact: false },
   {
     href: "/mes-devis",
     label: "Mes devis",

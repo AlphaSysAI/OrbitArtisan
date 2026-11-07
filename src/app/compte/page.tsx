@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { finalizePendingVitrineAppointment } from "@/app/site/[slug]/actions";
+import { ClientHomeAssistance, ClientLeadsList, type ClientLeadRow } from "@/components/client-space/client-home-assistance";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { VISIT_TIMEZONE } from "@/lib/appointments/visit-hours";
@@ -103,7 +104,7 @@ export default async function CompteHomePage({
 
   const nowIso = recentCutoffIso();
 
-  const [cpRes, quotesRes, invoicesRes, upcomingRes, pastRes, convRes] = await Promise.all([
+  const [cpRes, quotesRes, invoicesRes, upcomingRes, pastRes, convRes, leadsRes] = await Promise.all([
     supabase.from("customer_profiles").select("display_name, email").eq("user_id", user.id).maybeSingle(),
     supabase
       .from("quotes")
@@ -135,7 +136,14 @@ export default async function CompteHomePage({
       .order("start_time", { ascending: false })
       .limit(5),
     supabase.from("conversations").select("id, artisan_id").eq("customer_user_id", user.id),
+    supabase
+      .from("leads")
+      .select("id, status, trade_category, trade, description, created_at")
+      .eq("claimed_by_user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
+  const clientLeads = (leadsRes.error ? [] : (leadsRes.data ?? [])) as ClientLeadRow[];
 
   const quotesToReview = quotesRes.data ?? [];
   const invoicesToPay = invoicesRes.data ?? [];
@@ -178,7 +186,7 @@ export default async function CompteHomePage({
   const nextRdv = upcoming[0] ?? null;
   const pendingRdvs = upcoming.filter((a) => a.status === "pending");
   const todoCount = quotesToReview.length + invoicesToPay.length;
-  const isNew = !artisans.length && !upcoming.length && !past.length && !todoCount;
+  const isNew = !artisans.length && !upcoming.length && !past.length && !todoCount && !clientLeads.length;
 
   return (
     <div className="space-y-8">
@@ -208,6 +216,8 @@ export default async function CompteHomePage({
           <AlertDescription>{rdvErrorLabel}</AlertDescription>
         </Alert>
       ) : null}
+
+      <ClientHomeAssistance />
 
       {isNew ? (
         <section className="rounded-2xl border bg-card p-6 text-center shadow-sm sm:p-10">
@@ -286,6 +296,8 @@ export default async function CompteHomePage({
           Rien à faire pour l’instant : aucun devis ni facture en attente.
         </p>
       ) : null}
+
+      <ClientLeadsList leads={clientLeads} />
 
       {nextRdv ? (
         <section className="space-y-3">

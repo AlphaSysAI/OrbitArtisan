@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 export type SheetTrust =
   | { kind: "verified"; reviewerName: string | null; reviewedAt: string }
   | { kind: "in_review" }
+  /** Fiche dépannage SolineBTP côté particulier, pas encore relue par un pro. */
+  | { kind: "house" }
   | { kind: "ai" };
 
 export const SHEET_DISCLAIMER =
@@ -29,6 +31,13 @@ export function SheetTrustBadge({ trust, className }: { trust: SheetTrust; class
     return (
       <span className={cn(base, "bg-warning/15 text-warning-foreground dark:text-warning", className)}>
         <Sparkles className="size-3.5" aria-hidden /> Générée par l&apos;IA · non vérifiée
+      </span>
+    );
+  }
+  if (trust.kind === "house") {
+    return (
+      <span className={cn(base, "bg-primary/10 text-primary", className)}>
+        <BookMarked className="size-3.5" aria-hidden /> Fiche SolineBTP
       </span>
     );
   }
@@ -66,17 +75,27 @@ export function TechnicalSheetView({
   sheet,
   trust,
   meta,
+  badges,
+  disclaimer = SHEET_DISCLAIMER,
+  children,
 }: {
   sheet: TechnicalSheetContent;
   trust: SheetTrust;
   /** Ligne d'information sous le titre (métiers concernés, date…). */
   meta?: string;
+  /** Étiquettes en plus du statut (ex. niveau de difficulté côté particulier). */
+  badges?: ReactNode;
+  /** Mention de fin (pros par défaut). */
+  disclaimer?: string;
+  /** Sections ajoutées avant la mention de fin (ex. « Quand appeler un pro »). */
+  children?: ReactNode;
 }) {
   return (
     <article className="space-y-8">
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <SheetTrustBadge trust={trust} />
+          {badges}
           {sheet.duration ? (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="size-3.5" aria-hidden /> {sheet.duration}
@@ -104,11 +123,13 @@ export function TechnicalSheetView({
         </div>
       ) : null}
 
-      <Section icon={<ShieldAlert className="size-5 text-destructive" aria-hidden />} title="Sécurité avant de commencer">
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
-          <BulletList items={sheet.safety} />
-        </div>
-      </Section>
+      {sheet.safety.length > 0 ? (
+        <Section icon={<ShieldAlert className="size-5 text-destructive" aria-hidden />} title="Sécurité avant de commencer">
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+            <BulletList items={sheet.safety} />
+          </div>
+        </Section>
+      ) : null}
 
       {sheet.tools.length > 0 || sheet.materials.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2">
@@ -175,7 +196,9 @@ export function TechnicalSheetView({
         </Section>
       ) : null}
 
-      <p className="border-t pt-4 text-xs leading-relaxed text-muted-foreground">{SHEET_DISCLAIMER}</p>
+      {children}
+
+      <p className="border-t pt-4 text-xs leading-relaxed text-muted-foreground">{disclaimer}</p>
     </article>
   );
 }

@@ -28,6 +28,8 @@ export const RATE_LIMITS = {
   workOrderSign: { bucket: "work_order_sign", max: 10, windowSeconds: 3600 },
   technicalSheetAi: { bucket: "technical_sheet_ai", max: 10, windowSeconds: 86400, failClosed: true },
   technicalSheetSearch: { bucket: "technical_sheet_search", max: 60, windowSeconds: 3600, failClosed: true },
+  clientAssistant: { bucket: "client_assistant", max: 40, windowSeconds: 3600, failClosed: true },
+  clientConnection: { bucket: "client_connection", max: 5, windowSeconds: 86400, failClosed: true },
 } satisfies Record<string, RateLimitRule>;
 
 function hashKey(key: string): string {
